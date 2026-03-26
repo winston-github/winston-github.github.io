@@ -22,7 +22,7 @@
         #seed-origin { font-size: 0.7rem; color: var(--neon-dark); margin-top: 4px; }
 
         /* 場域選擇 */
-        .field-selector { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; max-height: 220px; overflow-y: auto; padding-right: 5px; }
+        .field-selector { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; max-height: 220px; overflow-y: auto; padding-right: 5px; overscroll-behavior: contain; touch-action: pan-y; }
         .field-selector::-webkit-scrollbar { width: 6px; }
         .field-selector::-webkit-scrollbar-thumb { background: var(--neon-dark); border-radius: 3px; }
         .field-card { border: 1px solid #004400; background: #000805; padding: 10px; cursor: pointer; border-radius: 6px; transition: 0.2s; text-align: center; }
@@ -153,10 +153,10 @@
         <div><strong data-i18n="lbl_output">Output</strong> <span id="det-output" data-i18n="output_desc"></span></div>
     </div>
 
-    <div class="control-panel">
+<div class="control-panel">
         <div class="slider-group">
             <label><span data-i18n="label_dim">Dims</span> <span class="val-display" id="dim-val">10,000,000</span></label>
-            <input type="range" id="dim-slider" min="10000" max="50000000" step="10000" value="10000000" oninput="updateDim()">
+            <input type="range" id="dim-slider" min="0" max="1000" value="585" oninput="updateDim()">
         </div>
         
         <div class="slider-group">
@@ -164,14 +164,14 @@
             <div class="dual-slider-container">
                 <div class="dual-slider-track"></div>
                 <div class="dual-slider-fill" id="slider-fill"></div>
-                <input type="range" id="range-min" min="0" max="9999" value="0" oninput="updateRange()">
-                <input type="range" id="range-max" min="1" max="10000" value="10000" oninput="updateRange()">
+                <input type="range" id="range-min" min="0" max="1000" value="0" oninput="updateRange.call(this)">
+                <input type="range" id="range-max" min="0" max="1000" value="1000" oninput="updateRange.call(this)">
             </div>
         </div>
 
         <div class="slider-group">
             <label><span data-i18n="label_count">Count</span> <span class="val-display" id="count-val">10</span></label>
-            <input type="range" id="count-slider" min="1" max="500" value="10" oninput="updateCount()">
+            <input type="range" id="count-slider" min="0" max="1000" value="262" oninput="updateCount()">
         </div>
     </div>
 
@@ -334,28 +334,62 @@ let generateClickCount = 0; // 紀錄點擊次數
         con.scrollTop = con.scrollHeight;
     }
 
-    function updateDim() { document.getElementById('dim-val').innerText = Number(document.getElementById('dim-slider').value).toLocaleString(); }
-    function updateCount() { document.getElementById('count-val').innerText = document.getElementById('count-slider').value; updateTagSizes(); }
+function updateDim() { 
+        let raw = parseInt(document.getElementById('dim-slider').value); 
+        let actual = 10000 + Math.round(Math.pow(raw / 1000, 3) * (50000000 - 10000));
+        document.getElementById('dim-val').innerText = actual.toLocaleString();
+        document.getElementById('dim-slider').dataset.actual = actual;
+    }
+    
+    function updateCount() { 
+        let raw = parseInt(document.getElementById('count-slider').value); 
+        let actual = 1 + Math.round(Math.pow(raw / 1000, 3) * 499);
+        document.getElementById('count-val').innerText = actual;
+        document.getElementById('count-slider').dataset.actual = actual;
+        updateTagSizes(); 
+    }
+    
     function updateRange() {
         let minEl = document.getElementById('range-min'), maxEl = document.getElementById('range-max');
-        let minVal = parseInt(minEl.value), maxVal = parseInt(maxEl.value);
-        if (minVal >= maxVal - 1) {
-            if (this === minEl) minEl.value = maxVal - 1; else maxEl.value = minVal + 1;
-            minVal = parseInt(minEl.value); maxVal = parseInt(maxEl.value);
+        let rawMin = parseInt(minEl.value), rawMax = parseInt(maxEl.value);
+        
+        let minVal = Math.round(Math.pow(rawMin / 1000, 3) * 10000);
+        let maxVal = Math.round(Math.pow(rawMax / 1000, 3) * 10000);
+
+        if (minVal >= maxVal) {
+            if (this === minEl) {
+                maxVal = minVal + 1;
+                if(maxVal > 10000) { maxVal = 10000; minVal = 9999; }
+                rawMax = Math.round(Math.cbrt(maxVal / 10000) * 1000); maxEl.value = rawMax;
+                rawMin = Math.round(Math.cbrt(minVal / 10000) * 1000); minEl.value = rawMin;
+            } else {
+                minVal = maxVal - 1;
+                if(minVal < 0) { minVal = 0; maxVal = 1; }
+                rawMin = Math.round(Math.cbrt(minVal / 10000) * 1000); minEl.value = rawMin;
+                rawMax = Math.round(Math.cbrt(maxVal / 10000) * 1000); maxEl.value = rawMax;
+            }
         }
+        
         document.getElementById('range-val').innerText = `${minVal} ~ ${maxVal}`;
-        const maxR = 10000;
-        document.getElementById('slider-fill').style.left = `${(minVal/maxR)*100}%`;
-        document.getElementById('slider-fill').style.width = `${((maxVal-minVal)/maxR)*100}%`;
+        minEl.dataset.actual = minVal;
+        maxEl.dataset.actual = maxVal;
+        
+        // UI 填充條必須跟隨手指的物理比例
+        document.getElementById('slider-fill').style.left = `${(rawMin/1000)*100}%`;
+        document.getElementById('slider-fill').style.width = `${((rawMax-rawMin)/1000)*100}%`;
     }
 
     // --- 觸控滑動全螢幕 & 事件邏輯 ---
     let touchStartX = 0, touchStartY = 0, swipeEnabled = true;
 
     document.addEventListener('touchstart', e => {
+        // 新增：利用 closest() 保護整個控制面板與選項區，只要摸到就絕對不會觸發全螢幕切換
+        if (e.target.closest('.control-panel') || e.target.closest('.field-selector')) {
+            swipeEnabled = false; return; 
+        }
         const tag = e.target.tagName.toLowerCase();
-        // 如果碰到可以拖曳的輸入框或下拉選單，禁止判定為滑動切換
         if (tag === 'input' || tag === 'select' || tag === 'button') { swipeEnabled = false; return; }
+        
         swipeEnabled = true;
         touchStartX = e.changedTouches[0].screenX;
         touchStartY = e.changedTouches[0].screenY;
@@ -396,7 +430,7 @@ let generateClickCount = 0; // 紀錄點擊次數
     });
 
     function updateTagSizes() {
-        const count = parseInt(document.getElementById("count-slider").value);
+        const count = parseInt(document.getElementById("count-slider").dataset.actual || 10);
         let fs = count > 150 ? 0.8 : (count > 50 ? 1.2 : 1.8);
         if (isFullscreen) fs *= 1.5; // 全螢幕時數字放大
         document.querySelectorAll('.num-tag').forEach(tag => tag.style.fontSize = fs + 'rem');
@@ -426,10 +460,10 @@ let generateClickCount = 0; // 紀錄點擊次數
         btn.classList.add("running"); btn.innerText = t.btn_stop;
         document.getElementById("output-area").innerHTML = "";
 
-        const dims = parseInt(document.getElementById("dim-slider").value);
-        const minV = parseInt(document.getElementById("range-min").value);
-        const maxV = parseInt(document.getElementById("range-max").value);
-        const count = parseInt(document.getElementById("count-slider").value);
+const dims = parseInt(document.getElementById("dim-slider").dataset.actual);
+        const minV = parseInt(document.getElementById("range-min").dataset.actual);
+        const maxV = parseInt(document.getElementById("range-max").dataset.actual);
+        const count = parseInt(document.getElementById("count-slider").dataset.actual);
         const rangeSize = maxV - minV + 1;
         
         const now = Date.now();
