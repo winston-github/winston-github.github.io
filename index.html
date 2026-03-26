@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Random Number Generator</title>
+    <style>
+        :root { --neon: #00ffcc; --neon-dark: #008877; --bg: #050505; --accent: #ff0055; --panel: #0a0a0a; }
+        * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
+        body { background: var(--bg); color: var(--neon); font-family: 'Courier New', monospace; margin: 0; padding: 10px; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; transition: background 0.3s, direction 0.3s; overflow-x: hidden; }
+        
+        .box { border: 1px solid var(--neon-dark); padding: 15px; border-radius: 12px; box-shadow: 0 0 30px rgba(0, 255, 204, 0.1); width: 100%; max-width: 1200px; background: var(--panel); display: flex; flex-direction: column; gap: 12px; transition: all 0.3s; }
+        
+        /* 頂部控制列 */
+        .top-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .top-bar h2 { margin: 0; font-size: 1.2rem; color: #fff; text-shadow: 0 0 10px var(--neon); }
+        select#lang-select { background: #001100; color: var(--neon); border: 1px solid var(--neon); padding: 5px 10px; border-radius: 4px; cursor: pointer; font-family: inherit; font-weight: bold; }
+
+        /* 種子顯示 */
+        .seed-monitor { background: #001100; border: 1px solid #004400; padding: 12px; border-radius: 8px; }
+        #seed-value { font-size: 1.1rem; color: #fff; font-weight: bold; word-break: break-all; }
+        #seed-origin { font-size: 0.7rem; color: var(--neon-dark); margin-top: 4px; }
+
+        /* 場域選擇 */
+        .field-selector { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; max-height: 220px; overflow-y: auto; padding-right: 5px; }
+        .field-selector::-webkit-scrollbar { width: 6px; }
+        .field-selector::-webkit-scrollbar-thumb { background: var(--neon-dark); border-radius: 3px; }
+        .field-card { border: 1px solid #004400; background: #000805; padding: 10px; cursor: pointer; border-radius: 6px; transition: 0.2s; text-align: center; }
+        .field-card:hover { border-color: var(--neon-dark); }
+        .field-card.active { border-color: var(--neon); background: #001a14; box-shadow: 0 0 10px rgba(0, 255, 204, 0.3); font-weight: bold; }
+
+        /* 演算法細節面板 */
+        .algo-details { background: #000a08; border: 1px dashed var(--neon-dark); padding: 12px; border-radius: 8px; font-size: 0.75rem; line-height: 1.5; color: #ccc; }
+        .algo-details strong { color: var(--accent); display: inline-block; width: 65px; }
+        .algo-formula { color: #fff; background: #000; padding: 2px 6px; border-radius: 3px; border: 1px solid #222; font-family: monospace; }
+
+        /* 控制面板 */
+        .control-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; background: #111; padding: 15px; border-radius: 8px; }
+        .slider-group { display: flex; flex-direction: column; justify-content: center; }
+        .slider-group label { font-size: 0.75rem; color: var(--neon-dark); margin-bottom: 8px; display: flex; justify-content: space-between; }
+        .val-display { color: #fff; font-weight: bold; }
+        input[type=range] { width: 100%; accent-color: var(--neon); cursor: pointer; }
+        
+        /* 雙滑桿 */
+        .dual-slider-container { position: relative; height: 24px; width: 100%; display: flex; align-items: center; }
+        .dual-slider-track { position: absolute; width: 100%; height: 6px; background: #333; border-radius: 3px; z-index: 1; }
+        .dual-slider-fill { position: absolute; height: 6px; background: var(--neon); border-radius: 3px; z-index: 2; }
+        .dual-slider-container input[type=range] { position: absolute; width: 100%; -webkit-appearance: none; appearance: none; background: transparent; z-index: 3; pointer-events: none; }
+        .dual-slider-container input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; pointer-events: auto; width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 2px solid var(--neon); cursor: pointer; box-shadow: 0 0 5px #000; }
+        .dual-slider-container input[type=range]::-moz-range-thumb { pointer-events: auto; width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 2px solid var(--neon); cursor: pointer; }
+
+        /* 歷史日誌 */
+        #console { background: #000; color: #00ff00; font-size: 0.7rem; padding: 10px; height: 110px; overflow-y: auto; border: 1px solid #111; border-radius: 4px; line-height: 1.4; }
+        .log-time { color: #555; margin-right: 5px; }
+
+        /* 輸出區域 */
+        #output-area { background: #000; border: 1px solid #111; padding: 10px; min-height: 100px; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-content: center; border-radius: 8px; -webkit-user-select: text; user-select: text; }
+        .num-tag { background: #001a14; color: #fff; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--neon); font-weight: bold; box-shadow: 0 0 5px rgba(0,255,204,0.1); display: inline-block; -webkit-user-select: text; user-select: text; transition: all 0.2s; }
+
+        .progress-container { width: 100%; height: 4px; background: #111; border-radius: 2px; overflow: hidden; }
+        #progress-bar { width: 0%; height: 100%; background: linear-gradient(90deg, var(--neon), var(--accent)); transition: width 0.1s; }
+        
+        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; font-size: 0.65rem; text-align: center; }
+        .stat-val { color: #fff; font-weight: bold; display: block; font-size: 0.9rem; margin-top: 3px; }
+
+        button#run_btn { background: var(--neon); color: #000; border: none; padding: 15px; font-weight: bold; cursor: pointer; border-radius: 8px; width: 100%; font-size: 1.1rem; transition: 0.2s; }
+        button#run_btn:hover { background: #fff; box-shadow: 0 0 20px rgba(0,255,204,0.8); }
+        button#run_btn.running { background: var(--accent); color: #fff; box-shadow: 0 0 20px rgba(255,0,85,0.6); }
+
+        /* 浮動提示框 */
+        #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0, 255, 204, 0.9); color: #000; padding: 10px 20px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 9999; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        #toast.show { opacity: 1; }
+
+        /* 全螢幕純淨模式 CSS */
+        body.fullscreen-mode { padding: 0; background: #000; overflow: hidden; }
+        body.fullscreen-mode .top-bar,
+        body.fullscreen-mode .seed-monitor,
+        body.fullscreen-mode .field-selector,
+        body.fullscreen-mode .algo-details,
+        body.fullscreen-mode .control-panel,
+        body.fullscreen-mode #console,
+        body.fullscreen-mode #run_btn,
+        body.fullscreen-mode .stats { display: none !important; }
+        
+        body.fullscreen-mode .box { max-width: none; width: 100vw; height: 100vh; border: none; border-radius: 0; margin: 0; padding: 0; box-shadow: none; justify-content: flex-start; }
+        body.fullscreen-mode .progress-container { height: 6px; border-radius: 0; flex-shrink: 0; z-index: 10; }
+        body.fullscreen-mode #output-area { flex-grow: 1; border: none; border-radius: 0; padding: 30px 15px; overflow-y: auto; align-content: flex-start; background: #000; cursor: pointer; }
+        body.fullscreen-mode .num-tag { margin: 8px; padding: 12px 20px; border-width: 2px; }
+
+        @media (max-width: 600px) {
+            .stats { grid-template-columns: repeat(2, 1fr); }
+            .top-bar h2 { font-size: 1rem; }
+            .algo-details strong { display: block; margin-bottom: 2px; }
+        }
+    /* --- 新增：全螢幕廣告遮罩 --- */
+        #ad-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.95); z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
+        .ad-box { width: 90%; max-width: 600px; background: #fff; border-radius: 8px; position: relative; padding: 20px; text-align: center; box-shadow: 0 0 30px rgba(0,255,204,0.3); }
+        #close-ad-btn { position: absolute; top: -15px; right: -15px; width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 1.2rem; font-weight: bold; border: 2px solid #fff; cursor: pointer; box-shadow: 0 0 10px #000; transition: 0.2s; z-index: 10001; }
+        #close-ad-btn:hover { transform: scale(1.1); background: #ff3377; }
+        .ad-countdown { color: #aaa; font-size: 0.75rem; margin-bottom: 10px; font-weight: bold; }
+    </style>
+</head>
+<body>
+<!-- Google AdSense 基礎資源載入 -->
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-這裡換成你的發布商ID" crossorigin="anonymous"></script>
+
+<!-- 全螢幕廣告遮罩層 -->
+<div id="ad-overlay">
+    <div class="ad-box">
+        <button id="close-ad-btn" onclick="closeAdOverlay()" style="display:none;">X</button>
+        <div class="ad-countdown" id="ad-text">廣告載入中...</div>
+        
+        <!-- 這裡放你從 AdSense 複製的廣告碼 (包含 ins 與 script) -->
+        <ins class="adsbygoogle"
+             style="display:block"
+             data-ad-client="ca-pub-你的號碼"
+             data-ad-slot="你的號碼"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+        <script>
+             (adsbygoogle = window.adsbygoogle ||[]).push({});
+        </script>
+        <!-- 廣告碼結束 -->
+
+    </div>
+</div>
+<div id="toast"></div>
+
+<div class="box">
+    <div class="top-bar">
+        <h2 id="ui_title">Random Number Generator</h2>
+        <select id="lang-select" onchange="changeLang(this.value)"></select>
+    </div>
+
+    <div class="seed-monitor">
+        <div id="seed-value" data-i18n="seed_wait">...</div>
+        <div id="seed-origin" data-i18n="seed_origin">...</div>
+    </div>
+
+    <!-- 動態場域選單 -->
+    <div class="field-selector" id="fields-container"></div>
+
+    <!-- 演算法詳情說明 -->
+    <div class="algo-details" id="algo-details">
+        <div><strong data-i18n="lbl_input">Input</strong> <span id="det-input" data-i18n="input_desc"></span></div>
+        <div style="margin: 6px 0;"><strong data-i18n="lbl_method">Method</strong> <span class="algo-formula" id="det-formula"></span> <span id="det-method"></span></div>
+        <div><strong data-i18n="lbl_output">Output</strong> <span id="det-output" data-i18n="output_desc"></span></div>
+    </div>
+
+    <div class="control-panel">
+        <div class="slider-group">
+            <label><span data-i18n="label_dim">Dims</span> <span class="val-display" id="dim-val">10,000,000</span></label>
+            <input type="range" id="dim-slider" min="10000" max="50000000" step="10000" value="10000000" oninput="updateDim()">
+        </div>
+        
+        <div class="slider-group">
+            <label><span data-i18n="label_range">Min~Max</span> <span class="val-display" id="range-val">0 ~ 10000</span></label>
+            <div class="dual-slider-container">
+                <div class="dual-slider-track"></div>
+                <div class="dual-slider-fill" id="slider-fill"></div>
+                <input type="range" id="range-min" min="0" max="9999" value="0" oninput="updateRange()">
+                <input type="range" id="range-max" min="1" max="10000" value="10000" oninput="updateRange()">
+            </div>
+        </div>
+
+        <div class="slider-group">
+            <label><span data-i18n="label_count">Count</span> <span class="val-display" id="count-val">10</span></label>
+            <input type="range" id="count-slider" min="1" max="500" value="10" oninput="updateCount()">
+        </div>
+    </div>
+
+    <div id="console"></div>
+    
+    <div class="progress-container"><div id="progress-bar"></div></div>
+    
+    <!-- 結果輸出區 -->
+    <div id="output-area"></div>
+    
+    <button id="run_btn" onclick="toggleProjector()"><span data-i18n="btn_run">GENERATE</span></button>
+
+    <div class="stats">
+        <div><span style="color:#777" data-i18n="stat_flops">FLOPs</span><span id="stat-flops" class="stat-val">0</span></div>
+        <div><span style="color:#777" data-i18n="stat_time">Time (ms)</span><span id="stat-time" class="stat-val">0</span></div>
+        <div><span style="color:#777" data-i18n="stat_speed">GFLOPS</span><span id="stat-speed" class="stat-val">0</span></div>
+        <div><span style="color:#777" data-i18n="stat_progress">Progress</span><span id="stat-progress" class="stat-val">0%</span></div>
+    </div>
+</div>
+
+<script>
+    // --- 數學模型 ---
+    const fieldMath = {
+        quantum: "Σ tan(sin(S*√j)*cos(S*j^0.33))", fluid: "Σ sin(S*j) / (1 + log(1 + S*j^2))",
+        finance: "Σ exp(-S*j/D) * sin(S*√j * π)", cauchy: "Σ tan(S * j)",
+        weierstrass: "Σ cos(1.5^j * π * S) / 2^j", mandelbrot: "Σ log(|sin(S*j)+cos(S/j)|+1)",
+        prime: "(S * j * 104729) % 999983", riemann: "Σ sin(S * log(j)) / (1 + √j)",
+        lorenz: "Σ sin(S*j)*cos(S*j*1.41)*tan(S*j*2.71)", chirikov: "Σ sin(S * j + sin(S * j))"
+    };
+
+    // --- 多語系字典庫 ---
+    const dict = {
+        'en': { name: 'English', dir: 'ltr', t: { 
+            ui_title: "Random Number Generator", seed_wait: "Awaiting Generation...", seed_origin: "Origin: Seed not extracted", 
+            label_dim: "Dimensions", label_range: "Range (Min~Max)", label_count: "Output Count", btn_run: "GENERATE", btn_stop: "STOP",
+            stat_flops: "Total FLOPs", stat_time: "Time (ms)", stat_speed: "Power (GFLOPS)", stat_progress: "Progress", 
+            msg_ready: "System Ready. Select a mathematical model.", msg_lock: "Model locked: ", msg_done: "Generation complete. Dims: ", msg_abort: "Generation interrupted.",
+            msg_fs_toast: "Swipe L/R: Exit | Tap: Generate | Long Press: Select",
+            lbl_input: "Input:", lbl_method: "Method:", lbl_output: "Output:",
+            input_desc: "Base Seed (S) = Time × φ, Iterator (j) = 1 ~ Dims", output_desc: "Chaotic energy mapped to[Min, Max] via Modulo.",
+            fn_quantum: "Quantum String", fd_quantum: "High-dimensional interference via nested trig functions.",
+            fn_fluid: "Fluid Turbulence", fd_fluid: "Logarithmic dampening mimicking physical fluid flow.",
+            fn_finance: "Finance Randomness", fd_finance: "Exponential decay with black-swan sine waves.",
+            fn_cauchy: "Cauchy Resonance", fd_cauchy: "Infinite variance. Destroys Boltzmann distribution completely.",
+            fn_weierstrass: "Weierstrass Path", fd_weierstrass: "Continuous but non-differentiable fractal dimensions.",
+            fn_mandelbrot: "Fractal Boundary", fd_mandelbrot: "Phase angles near complex escape boundaries.",
+            fn_prime: "Prime Hash Grid", fd_prime: "Deep number theory hashing for extreme uniformity.",
+            fn_riemann: "Riemann Zeros", fd_riemann: "Wave superposition mirroring prime distribution.",
+            fn_lorenz: "Lorenz Attractor", fd_lorenz: "Dimensional slice of the butterfly effect.",
+            fn_chirikov: "Chirikov Phase", fd_chirikov: "Momentum/position entanglement in Hamiltonian systems."
+        }},
+        'zh-TW': { name: '繁體中文', dir: 'ltr', t: { 
+            ui_title: "隨機數產生器", seed_wait: "等待產生中...", seed_origin: "來源解析：尚未提取混沌種子", 
+            label_dim: "維度規模 (Dims)", label_range: "取值區間 (Min~Max)", label_count: "產生數量 (Count)", btn_run: "產生隨機數", btn_stop: "停止產生",
+            stat_flops: "累積 FLOPs", stat_time: "耗時 (ms)", stat_speed: "強度 (GFLOPS)", stat_progress: "進度", 
+            msg_ready: "系統就緒。請選擇數學模型並啟動。", msg_lock: "模型切換至：", msg_done: "完工。數據提取自維度：", msg_abort: "產生過程已中斷。",
+            msg_fs_toast: "左右滑動：退出 | 點擊：重新產生 | 長按：選取複製",
+            lbl_input: "輸入:", lbl_method: "方法:", lbl_output: "輸出:",
+            input_desc: "基準種子 (S) = 時戳 × 黃金比例，迴圈維度 (j) = 1 ~ N", output_desc: "能量取絕對值，透過模除雜湊完美映射至 [Min, Max] 區間。",
+            fn_quantum: "超弦振動", fd_quantum: "透過嵌套三角函數模擬高維量子干涉現象。", fn_fluid: "流體湍流", fd_fluid: "利用對數衰減模擬分子集中分佈。",
+            fn_finance: "金融隨機", fd_finance: "指數衰減與震盪，模擬黑天鵝效應。", fn_cauchy: "柯西共振", fd_cauchy: "無期望值，徹底打破中央極限定理的極端混沌。",
+            fn_weierstrass: "魏爾斯特拉斯", fd_weierstrass: "處處連續但處處不可微，模擬極致的碎形投影。", fn_mandelbrot: "曼德博邊界", fd_mandelbrot: "提取複數平面逃逸邊界附近的混沌特徵。",
+            fn_prime: "質數同餘網格", fd_prime: "深層數論虛擬雜湊，極致打散幾何偏好。", fn_riemann: "黎曼零點", fd_riemann: "模擬質數分佈規律中的波函數疊加與干涉。",
+            fn_lorenz: "羅倫茲奇異子", fd_lorenz: "氣象學三維蝴蝶效應方程式的降維切面。", fn_chirikov: "標準映射", fd_chirikov: "模擬動量與位置的非線性糾纏。"
+        }},
+        'zh-CN': { name: '简体中文', dir: 'ltr', t: { 
+            ui_title: "随机数生成器", seed_wait: "等待生成中...", seed_origin: "来源解析：尚未提取混沌种子", 
+            label_dim: "维度规模 (Dims)", label_range: "取值区间 (Min~Max)", label_count: "生成数量 (Count)", btn_run: "产生随机数", btn_stop: "停止产生",
+            stat_flops: "累计 FLOPs", stat_time: "耗时 (ms)", stat_speed: "强度 (GFLOPS)", stat_progress: "进度", 
+            msg_ready: "系统就绪。请选择数学模型并启动。", msg_lock: "模型切换至：", msg_done: "完工。数据提取自维度：", msg_abort: "生成过程已中断。",
+            msg_fs_toast: "左右滑动：退出 | 点击：重新生成 | 长按：选取复制",
+            lbl_input: "输入:", lbl_method: "方法:", lbl_output: "输出:",
+            input_desc: "基准种子 (S) = 时间戳 × 黄金比例，循环维度 (j) = 1 ~ N", output_desc: "能量取绝对值后，通过模除完美映射至 [Min, Max] 区间。",
+            fn_quantum: "超弦振动", fd_quantum: "通过嵌套三角函数模拟高维量子干涉。", fn_fluid: "流体湍流", fd_fluid: "利用对数衰减模拟流体力学。",
+            fn_finance: "金融随机", fd_finance: "指数衰减与震荡，模拟黑天鹅效应。", fn_cauchy: "柯西共振", fd_cauchy: "彻底打破中央极限定理的极度混沌。",
+            fn_weierstrass: "魏尔斯特拉斯", fd_weierstrass: "处处连续但不可微的分形维度。", fn_mandelbrot: "曼德博边界", fd_mandelbrot: "提取复数逃逸边界附近的混沌特征。",
+            fn_prime: "质数同余", fd_prime: "数论哈希，极致打散几何偏好。", fn_riemann: "黎曼零点", fd_riemann: "模拟质数分布规律中的波函数叠加。",
+            fn_lorenz: "洛伦兹奇异子", fd_lorenz: "三维蝴蝶效应的降维切面。", fn_chirikov: "标准映射", fd_chirikov: "动量与位置的混沌纠缠。"
+        }},
+        'ja': { name: '日本語', dir: 'ltr', t: { 
+            ui_title: "乱数ジェネレーター", btn_run: "乱数を生成", btn_stop: "停止", msg_ready: "準備完了。モデルを選択してください。", msg_lock: "モデル: ", msg_abort: "中断されました。", msg_done: "生成完了。次元: ",
+            msg_fs_toast: "スワイプ: 戻る | タップ: 再生成 | 長押し: 選択", lbl_input: "入力:", lbl_method: "方法:", lbl_output: "出力:"
+        }},
+        'ko': { name: '한국어', dir: 'ltr', t: { ui_title: "난수 생성기", btn_run: "난수 생성", btn_stop: "정지", msg_ready: "준비 완료", msg_lock: "모델: ", msg_fs_toast: "스와이프: 나가기 | 탭: 생성 | 길게 누르기: 선택" } },
+        'es': { name: 'Español', dir: 'ltr', t: { ui_title: "Generador Aleatorio", btn_run: "GENERAR", btn_stop: "DETENER", msg_ready: "Listo", msg_lock: "Modelo: ", msg_fs_toast: "Deslizar: Salir | Tocar: Generar | Mantener: Seleccionar" } },
+        'fr': { name: 'Français', dir: 'ltr', t: { ui_title: "Nombres Aléatoires", btn_run: "GÉNÉRER", btn_stop: "ARRÊTER", msg_ready: "Prêt", msg_lock: "Modèle: ", msg_fs_toast: "Glisser : Quitter | Taper : Générer | Maintenir : Sélectionner" } },
+        'ru': { name: 'Русский', dir: 'ltr', t: { ui_title: "Генератор Случайных Чисел", btn_run: "СГЕНЕРИРОВАТЬ", btn_stop: "СТОП", msg_ready: "Готово", msg_lock: "Модель: ", msg_fs_toast: "Свайп: Выход | Тап: Генерация | Долгое нажатие: Выбор" } },
+        'de': { name: 'Deutsch', dir: 'ltr', t: { ui_title: "Zufallszahlengenerator", btn_run: "GENERIEREN", btn_stop: "STOPP", msg_ready: "Bereit", msg_lock: "Modell: ", msg_fs_toast: "Wischen: Beenden | Tippen: Generieren | Gedrückt: Auswählen" } },
+        'it': { name: 'Italiano', dir: 'ltr', t: { ui_title: "Generatore Casuale", btn_run: "GENERA", btn_stop: "FERMA", msg_ready: "Pronto", msg_lock: "Modello: ", msg_fs_toast: "Scorri: Esci | Tocca: Genera | Tieni premuto: Seleziona" } },
+        'uk': { name: 'Українська', dir: 'ltr', t: { ui_title: "Генератор Чисел", btn_run: "ЗГЕНЕРУВАТИ", btn_stop: "СТОП", msg_ready: "Готово", msg_lock: "Модель: ", msg_fs_toast: "Свайп: Вихід | Тап: Генерація | Довге натискання: Вибір" } },
+        'ar': { name: 'العربية', dir: 'rtl', t: { ui_title: "مولد أرقام عشوائية", btn_run: "توليد", btn_stop: "توقف", msg_ready: "جاهز", msg_lock: "نموذج: ", msg_fs_toast: "تمرير: خروج | نقر: توليد | ضغط مطول: تحديد", lbl_input: "إدخال:", lbl_method: "طريقة:", lbl_output: "إخراج:" } },
+        'hi': { name: 'हिन्दी', dir: 'ltr', t: { ui_title: "यादृच्छिक संख्या जनरेटर", btn_run: "उत्पन्न करें", btn_stop: "रोकें", msg_ready: "तैयार", msg_lock: "मॉडल: ", msg_fs_toast: "स्वाइप: बाहर | टैप: उत्पन्न | लॉन्ग प्रेस: चुनें" } },
+        'pt': { name: 'Português', dir: 'ltr', t: { ui_title: "Gerador Aleatório", btn_run: "GERAR", btn_stop: "PARAR", msg_ready: "Pronto", msg_lock: "Modelo: ", msg_fs_toast: "Deslizar: Sair | Tocar: Gerar | Manter: Selecionar" } },
+        'bn': { name: 'বাংলা', dir: 'ltr', t: { ui_title: "র্যান্ডম নম্বর জেনারেটর", btn_run: "তৈরি করুন", btn_stop: "থামুন", msg_ready: "প্রস্তুত", msg_lock: "মডেল: ", msg_fs_toast: "সোয়াইপ: প্রস্থান | ট্যাপ: তৈরি | দীর্ঘ প্রেস: নির্বাচন" } },
+        'vi': { name: 'Tiếng Việt', dir: 'ltr', t: { ui_title: "Trình tạo số ngẫu nhiên", btn_run: "TẠO SỐ", btn_stop: "DỪNG LẠI", msg_ready: "Sẵn sàng", msg_lock: "Mô hình: ", msg_fs_toast: "Vuốt: Thoát | Chạm: Tạo | Nhấn giữ: Chọn" } },
+        'th': { name: 'ไทย', dir: 'ltr', t: { ui_title: "เครื่องสุ่มตัวเลข", btn_run: "สร้างตัวเลข", btn_stop: "หยุด", msg_ready: "พร้อม", msg_lock: "โมเดล: ", msg_fs_toast: "ปัด: ออก | แตะ: สร้าง | กดค้าง: เลือก" } }
+    };
+
+    // 補齊翻譯
+    const keys = Object.keys(dict['en'].t);
+    for(let lang in dict) keys.forEach(k => { if(!dict[lang].t[k]) dict[lang].t[k] = dict['en'].t[k]; });
+
+    const fieldIds =['quantum', 'fluid', 'finance', 'cauchy', 'weierstrass', 'mandelbrot', 'prime', 'riemann', 'lorenz', 'chirikov'];
+    let currLang = 'zh-TW', currentField = 'quantum', historyLogs =[];
+    let isRunning = false, shouldAbort = false, isFullscreen = false;
+let generateClickCount = 0; // 紀錄點擊次數
+    function init() {
+        const select = document.getElementById('lang-select');
+        for(let lang in dict) select.innerHTML += `<option value="${lang}" ${lang==='zh-TW'?'selected':''}>${dict[lang].name}</option>`;
+        logEvent('ready', null);
+        updateDim(); updateRange(); updateCount(); changeLang(currLang);
+    }
+
+    function changeLang(lang) {
+        currLang = lang; const t = dict[lang].t;
+        document.body.style.direction = dict[lang].dir;
+        document.getElementById('ui_title').innerText = t.ui_title;
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n'); if (t[key]) el.innerText = t[key];
+        });
+        document.getElementById('run_btn').innerText = isRunning ? t.btn_stop : t.btn_run;
+
+        const fc = document.getElementById('fields-container');
+        fc.innerHTML = "";
+        fieldIds.forEach(id => {
+            fc.innerHTML += `<div class="field-card ${id===currentField?'active':''}" onclick="setField('${id}')"><div>${t[`fn_${id}`] || id}</div></div>`;
+        });
+        updateFieldDetails(); renderLogs();
+    }
+
+    function setField(id) {
+        if (isRunning) return; currentField = id;
+        document.querySelectorAll('.field-card').forEach(c => c.classList.remove('active'));
+        event.currentTarget.classList.add('active');
+        logEvent('lock', id); updateFieldDetails();
+    }
+
+    function updateFieldDetails() {
+        const t = dict[currLang].t;
+        document.getElementById('det-formula').innerText = fieldMath[currentField];
+        document.getElementById('det-method').innerText = t[`fd_${currentField}`] || "";
+    }
+
+    function logEvent(type, val) {
+        historyLogs.push({ time: new Date().toLocaleTimeString(), type: type, val: val });
+        if(historyLogs.length > 50) historyLogs.shift();
+        renderLogs();
+    }
+
+    function renderLogs() {
+        const con = document.getElementById("console"); const t = dict[currLang].t;
+        con.innerHTML = historyLogs.map(l => {
+            let msg = "";
+            if(l.type === 'ready') msg = t.msg_ready;
+            else if(l.type === 'lock') msg = t.msg_lock + (t[`fn_${l.val}`] || l.val);
+            else if(l.type === 'abort') msg = `<span style="color:var(--accent)">${t.msg_abort}</span>`;
+            else if(l.type === 'done') msg = t.msg_done + Number(l.val).toLocaleString();
+            return `<div><span class="log-time">[${l.time}]</span> ${msg}</div>`;
+        }).join('');
+        con.scrollTop = con.scrollHeight;
+    }
+
+    function updateDim() { document.getElementById('dim-val').innerText = Number(document.getElementById('dim-slider').value).toLocaleString(); }
+    function updateCount() { document.getElementById('count-val').innerText = document.getElementById('count-slider').value; updateTagSizes(); }
+    function updateRange() {
+        let minEl = document.getElementById('range-min'), maxEl = document.getElementById('range-max');
+        let minVal = parseInt(minEl.value), maxVal = parseInt(maxEl.value);
+        if (minVal >= maxVal - 1) {
+            if (this === minEl) minEl.value = maxVal - 1; else maxEl.value = minVal + 1;
+            minVal = parseInt(minEl.value); maxVal = parseInt(maxEl.value);
+        }
+        document.getElementById('range-val').innerText = `${minVal} ~ ${maxVal}`;
+        const maxR = 10000;
+        document.getElementById('slider-fill').style.left = `${(minVal/maxR)*100}%`;
+        document.getElementById('slider-fill').style.width = `${((maxVal-minVal)/maxR)*100}%`;
+    }
+
+    // --- 觸控滑動全螢幕 & 事件邏輯 ---
+    let touchStartX = 0, touchStartY = 0, swipeEnabled = true;
+
+    document.addEventListener('touchstart', e => {
+        const tag = e.target.tagName.toLowerCase();
+        // 如果碰到可以拖曳的輸入框或下拉選單，禁止判定為滑動切換
+        if (tag === 'input' || tag === 'select' || tag === 'button') { swipeEnabled = false; return; }
+        swipeEnabled = true;
+        touchStartX = e.changedTouches[0].screenX;
+        touchStartY = e.changedTouches[0].screenY;
+    }, {passive: true});
+
+    document.addEventListener('touchend', e => {
+        if (!swipeEnabled) return;
+        let touchEndX = e.changedTouches[0].screenX, touchEndY = e.changedTouches[0].screenY;
+        let dx = touchEndX - touchStartX, dy = touchEndY - touchStartY;
+        // 判定左右滑動 (X軸移動大於60，且大於Y軸移動幅度)
+        if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) toggleFullscreen();
+    }, {passive: true});
+
+    function toggleFullscreen() {
+        isFullscreen = !document.body.classList.contains('fullscreen-mode');
+        if (isFullscreen) {
+            document.body.classList.add('fullscreen-mode');
+            showToast(dict[currLang].t.msg_fs_toast);
+        } else {
+            document.body.classList.remove('fullscreen-mode');
+        }
+        updateTagSizes();
+    }
+
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        toast.innerText = msg; toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    // 點擊全螢幕區塊時重抽，但若「選取文字(長按)」則不觸發
+    document.getElementById('output-area').addEventListener('click', (e) => {
+        if (!isFullscreen) return;
+        const selectedText = window.getSelection().toString().trim();
+        // 如果長按觸發了系統複製選取，就禁止生成新的隨機數
+        if (selectedText.length > 0) return; 
+        if (!isRunning) toggleProjector();
+    });
+
+    function updateTagSizes() {
+        const count = parseInt(document.getElementById("count-slider").value);
+        let fs = count > 150 ? 0.8 : (count > 50 ? 1.2 : 1.8);
+        if (isFullscreen) fs *= 1.5; // 全螢幕時數字放大
+        document.querySelectorAll('.num-tag').forEach(tag => tag.style.fontSize = fs + 'rem');
+    }
+
+    // --- 核心運算 ---
+    async function toggleProjector(fromAd = false) {
+        const btn = document.getElementById("run_btn");
+        const t = dict[currLang].t;
+
+        if (isRunning) {
+            shouldAbort = true; btn.innerText = "Aborting..."; return;
+        }
+
+        // --- 新增：第三次點擊攔截邏輯 ---
+        if (!fromAd) {
+            generateClickCount++;
+            if (generateClickCount === 3) {
+                showAdOverlay();
+                generateClickCount = 0; // 歸零，讓下一個第三次也能觸發
+                return; // 終止目前的產生，等待廣告關閉
+            }
+        }
+        // ------------------------------
+
+        isRunning = true; shouldAbort = false;
+        btn.classList.add("running"); btn.innerText = t.btn_stop;
+        document.getElementById("output-area").innerHTML = "";
+
+        const dims = parseInt(document.getElementById("dim-slider").value);
+        const minV = parseInt(document.getElementById("range-min").value);
+        const maxV = parseInt(document.getElementById("range-max").value);
+        const count = parseInt(document.getElementById("count-slider").value);
+        const rangeSize = maxV - minV + 1;
+        
+        const now = Date.now();
+        const baseSeed = (now % 1000000) * 1.61803398875;
+        document.getElementById("seed-value").innerText = `SEED: ${baseSeed.toFixed(8)}`;
+        document.getElementById("seed-origin").innerText = `T[${now}] × φ`;
+
+        const startTime = performance.now(); let totalFlops = 0;
+        
+        let fs = count > 150 ? 0.8 : (count > 50 ? 1.2 : 1.8);
+        if (isFullscreen) fs *= 1.5;
+
+        for (let c = 0; c < count; c++) {
+            if (shouldAbort) break;
+
+            let energy = 0; let S = baseSeed + (c * 1.37); 
+            
+            const prog = (((c+1)/count)*100).toFixed(0);
+            document.getElementById("stat-progress").innerText = prog + "%";
+            document.getElementById("progress-bar").style.width = prog + "%";
+            
+            if (c % 3 === 0 || dims > 2000000) await new Promise(r => setTimeout(r, 0));
+            if (shouldAbort) break;
+
+            for (let j = 1; j <= dims; j++) {
+                switch(currentField) {
+                    case 'quantum': energy += Math.tan(Math.sin(S * Math.sqrt(j)) * Math.cos(S * Math.pow(j, 0.33))); break;
+                    case 'fluid':   energy += Math.sin(S * j) / (1 + Math.log(1 + S * j * j)); break;
+                    case 'finance': energy += Math.exp(-S * j / dims) * Math.sin(S * Math.sqrt(j) * 3.1415); break;
+                    case 'cauchy':  
+                        let t_val = Math.tan(S * j); if(isFinite(t_val)) energy += t_val; break;
+                    case 'weierstrass': energy += Math.cos(Math.pow(1.5, j % 50) * Math.PI * S) / Math.pow(2, j % 50); break;
+                    case 'mandelbrot': energy += Math.log(Math.abs(Math.sin(S * j) + Math.cos(S / j)) + 1); break;
+                    case 'prime':   energy += ((S * j * 104729) % 999983) / 1000000; break;
+                    case 'riemann': energy += Math.sin(S * Math.log(j)) / (1 + Math.sqrt(j)); break;
+                    case 'lorenz':  energy += Math.sin(S*j) * Math.cos(S*j*1.41) * Math.tan(S*j*2.71); break;
+                    case 'chirikov': energy += Math.sin(S * j + Math.sin(S * j)); break;
+                }
+            }
+            
+            let finalVal = Math.floor((Math.abs(energy) * 1000000) % rangeSize) + minV;
+            if (isNaN(finalVal)) finalVal = minV;
+
+            const tag = document.createElement("div");
+            tag.className = "num-tag";
+            tag.style.fontSize = fs + 'rem';
+            tag.innerText = finalVal;
+            document.getElementById("output-area").appendChild(tag);
+            
+            totalFlops += dims * (currentField==='cauchy'?2:6); 
+            const elapsed = performance.now() - startTime;
+            
+            document.getElementById("stat-flops").innerText = totalFlops.toLocaleString();
+            document.getElementById("stat-time").innerText = elapsed.toFixed(0);
+            if(elapsed > 0) document.getElementById("stat-speed").innerText = ((totalFlops / (elapsed / 1000)) / 1e9).toFixed(2);
+        }
+
+        if (shouldAbort) {
+            logEvent('abort', null); document.getElementById("stat-progress").innerText = "Aborted";
+        } else {
+            logEvent('done', dims);
+        }
+
+        isRunning = false; shouldAbort = false;
+        btn.classList.remove("running"); btn.innerText = dict[currLang].t.btn_run;
+    }
+// --- 廣告控制邏輯 ---
+    function showAdOverlay() {
+        const overlay = document.getElementById('ad-overlay');
+        const closeBtn = document.getElementById('close-ad-btn');
+        const adText = document.getElementById('ad-text');
+        
+        overlay.style.display = 'flex';
+        closeBtn.style.display = 'none'; // 先隱藏 X 按鈕
+        
+        // 為了確保廣告有載入，且強制停留幾秒鐘才能關閉 (避免誤觸與違規)
+        let timeLeft = 3;
+        adText.innerText = `贊助廣告將在 ${timeLeft} 秒後可關閉...`;
+        
+        const timer = setInterval(() => {
+            timeLeft--;
+            if (timeLeft > 0) {
+                adText.innerText = `贊助廣告將在 ${timeLeft} 秒後可關閉...`;
+            } else {
+                clearInterval(timer);
+                adText.innerText = "感謝您的支持";
+                closeBtn.style.display = 'block'; // 顯示 X 按鈕
+            }
+        }, 1000);
+    }
+
+    function closeAdOverlay() {
+        document.getElementById('ad-overlay').style.display = 'none';
+        // 廣告關閉後，自動接續產生隨機數 (傳入 true 代表是從廣告回來，不計次數)
+        toggleProjector(true);
+    }
+    window.onload = init;
+</script>
+
+</body>
+</html>
