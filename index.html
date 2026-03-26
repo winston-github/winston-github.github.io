@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Random Number Generator</title>
     <style>
         :root { --neon: #00ffcc; --neon-dark: #008877; --bg: #050505; --accent: #ff0055; --panel: #0a0a0a; }
@@ -22,7 +22,7 @@
         #seed-origin { font-size: 0.7rem; color: var(--neon-dark); margin-top: 4px; }
 
         /* 場域選擇 */
-        .field-selector { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; max-height: 220px; overflow-y: auto; padding-right: 5px; overscroll-behavior: contain; touch-action: pan-y; }
+        .field-selector { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; max-height: 220px; overflow-y: auto; padding-right: 5px; overscroll-behavior: contain; }
         .field-selector::-webkit-scrollbar { width: 6px; }
         .field-selector::-webkit-scrollbar-thumb { background: var(--neon-dark); border-radius: 3px; }
         .field-card { border: 1px solid #004400; background: #000805; padding: 10px; cursor: pointer; border-radius: 6px; transition: 0.2s; text-align: center; }
@@ -67,8 +67,8 @@
         button#run_btn:hover { background: #fff; box-shadow: 0 0 20px rgba(0,255,204,0.8); }
         button#run_btn.running { background: var(--accent); color: #fff; box-shadow: 0 0 20px rgba(255,0,85,0.6); }
 
-        /* 浮動提示框 */
-        #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0, 255, 204, 0.9); color: #000; padding: 10px 20px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 9999; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        /* 浮動提示框 (移到正中央、換行排版) */
+        #toast { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0, 0, 0, 0.85); color: var(--neon); padding: 25px 35px; border-radius: 15px; font-weight: bold; font-size: 1.1rem; opacity: 0; pointer-events: none; transition: opacity 0.4s; z-index: 9999; box-shadow: 0 0 30px rgba(0,255,204,0.4); border: 1px solid var(--neon); text-align: center; line-height: 1.8; }
         #toast.show { opacity: 1; }
 
         /* 全螢幕純淨模式 CSS */
@@ -92,7 +92,8 @@
         
         body.fullscreen-mode .box { max-width: none; width: 100vw; height: 100vh; border: none; border-radius: 0; margin: 0; padding: 0; box-shadow: none; justify-content: flex-start; }
         body.fullscreen-mode .progress-container { height: 6px; border-radius: 0; flex-shrink: 0; z-index: 10; }
-        body.fullscreen-mode #output-area { flex-grow: 1; border: none; border-radius: 0; padding: 30px 15px; overflow-y: auto; align-content: flex-start; background: #000; cursor: pointer; }
+        /* 全螢幕純淨模式 CSS (局部替換輸出區域) */
+        body.fullscreen-mode #output-area { flex-grow: 1; border: none; border-radius: 0; padding: max(50px, env(safe-area-inset-top)) 15px max(50px, env(safe-area-inset-bottom)) 15px; overflow-y: auto; align-content: flex-start; background: #000; cursor: pointer; }
         body.fullscreen-mode .num-tag { margin: 8px; padding: 12px 20px; border-width: 2px; }
 
         @media (max-width: 600px) {
@@ -156,41 +157,26 @@
 <div class="control-panel">
         <div class="slider-group">
             <label><span data-i18n="label_dim">Dims</span> <span class="val-display" id="dim-val">10,000,000</span></label>
-            <input type="range" id="dim-slider" min="0" max="1000" value="585" oninput="updateDim()">
+            <input type="range" id="dim-slider" min="0" max="1000000" value="584803" oninput="updateDim()" style="touch-action: none;">
         </div>
         
         <div class="slider-group">
             <label><span data-i18n="label_range">Min~Max</span> <span class="val-display" id="range-val">0 ~ 10000</span></label>
-            <div class="dual-slider-container">
+            <div class="dual-slider-container" style="touch-action: none;">
                 <div class="dual-slider-track"></div>
                 <div class="dual-slider-fill" id="slider-fill"></div>
-                <input type="range" id="range-min" min="0" max="1000" value="0" oninput="updateRange.call(this)">
-                <input type="range" id="range-max" min="0" max="1000" value="1000" oninput="updateRange.call(this)">
+                <input type="range" id="range-min" min="0" max="1000000" value="0" oninput="updateRange.call(this)">
+                <input type="range" id="range-max" min="0" max="1000000" value="1000000" oninput="updateRange.call(this)">
             </div>
         </div>
 
         <div class="slider-group">
             <label><span data-i18n="label_count">Count</span> <span class="val-display" id="count-val">10</span></label>
-            <input type="range" id="count-slider" min="0" max="1000" value="262" oninput="updateCount()">
+            <input type="range" id="count-slider" min="0" max="1000000" value="68633" oninput="updateCount()" style="touch-action: none;">
         </div>
     </div>
 
-    <div id="console"></div>
     
-    <div class="progress-container"><div id="progress-bar"></div></div>
-    
-    <!-- 結果輸出區 -->
-    <div id="output-area"></div>
-    
-    <button id="run_btn" onclick="toggleProjector()"><span data-i18n="btn_run">GENERATE</span></button>
-
-    <div class="stats">
-        <div><span style="color:#777" data-i18n="stat_flops">FLOPs</span><span id="stat-flops" class="stat-val">0</span></div>
-        <div><span style="color:#777" data-i18n="stat_time">Time (ms)</span><span id="stat-time" class="stat-val">0</span></div>
-        <div><span style="color:#777" data-i18n="stat_speed">GFLOPS</span><span id="stat-speed" class="stat-val">0</span></div>
-        <div><span style="color:#777" data-i18n="stat_progress">Progress</span><span id="stat-progress" class="stat-val">0%</span></div>
-    </div>
-</div>
 
 <script>
     // --- 數學模型 ---
@@ -228,9 +214,9 @@
             label_dim: "維度規模 (Dims)", label_range: "取值區間 (Min~Max)", label_count: "產生數量 (Count)", btn_run: "產生隨機數", btn_stop: "停止產生",
             stat_flops: "累積 FLOPs", stat_time: "耗時 (ms)", stat_speed: "強度 (GFLOPS)", stat_progress: "進度", 
             msg_ready: "系統就緒。請選擇數學模型並啟動。", msg_lock: "模型切換至：", msg_done: "完工。數據提取自維度：", msg_abort: "產生過程已中斷。",
-            msg_fs_toast: "左右滑動：退出 | 點擊：重新產生 | 長按：選取複製",
+            msg_fs_toast: "👉 左右滑動：退出全螢幕<br>👆 點擊畫面：重新產生<br>📌 長按數字：選取與複製",
             lbl_input: "輸入:", lbl_method: "方法:", lbl_output: "輸出:",
-            input_desc: "基準種子 (S) = 時戳 × 黃金比例，迴圈維度 (j) = 1 ~ N", output_desc: "能量取絕對值，透過模除雜湊完美映射至 [Min, Max] 區間。",
+            input_desc: "基準種子 (S) = 時戳 × 黃金比例。<br>維度規模 (Dims) = 決定公式疊加的迭代次數 (j=1~Dims)，維度越高，混沌深度越強。",
             fn_quantum: "超弦振動", fd_quantum: "透過嵌套三角函數模擬高維量子干涉現象。", fn_fluid: "流體湍流", fd_fluid: "利用對數衰減模擬分子集中分佈。",
             fn_finance: "金融隨機", fd_finance: "指數衰減與震盪，模擬黑天鵝效應。", fn_cauchy: "柯西共振", fd_cauchy: "無期望值，徹底打破中央極限定理的極端混沌。",
             fn_weierstrass: "魏爾斯特拉斯", fd_weierstrass: "處處連續但處處不可微，模擬極致的碎形投影。", fn_mandelbrot: "曼德博邊界", fd_mandelbrot: "提取複數平面逃逸邊界附近的混沌特徵。",
@@ -242,9 +228,9 @@
             label_dim: "维度规模 (Dims)", label_range: "取值区间 (Min~Max)", label_count: "生成数量 (Count)", btn_run: "产生随机数", btn_stop: "停止产生",
             stat_flops: "累计 FLOPs", stat_time: "耗时 (ms)", stat_speed: "强度 (GFLOPS)", stat_progress: "进度", 
             msg_ready: "系统就绪。请选择数学模型并启动。", msg_lock: "模型切换至：", msg_done: "完工。数据提取自维度：", msg_abort: "生成过程已中断。",
-            msg_fs_toast: "左右滑动：退出 | 点击：重新生成 | 长按：选取复制",
+            msg_fs_toast: "👉 左右滑动：退出全屏幕<br>👆 点击画面：重新生成<br>📌 长按数字：选取与复制",
             lbl_input: "输入:", lbl_method: "方法:", lbl_output: "输出:",
-            input_desc: "基准种子 (S) = 时间戳 × 黄金比例，循环维度 (j) = 1 ~ N", output_desc: "能量取绝对值后，通过模除完美映射至 [Min, Max] 区间。",
+            input_desc: "基准种子 (S) = 时间戳 × 黄金比例。<br>维度规模 (Dims) = 决定公式叠加的迭代次数 (j=1~Dims)，维度越高，混沌深度越强。",
             fn_quantum: "超弦振动", fd_quantum: "通过嵌套三角函数模拟高维量子干涉。", fn_fluid: "流体湍流", fd_fluid: "利用对数衰减模拟流体力学。",
             fn_finance: "金融随机", fd_finance: "指数衰减与震荡，模拟黑天鹅效应。", fn_cauchy: "柯西共振", fd_cauchy: "彻底打破中央极限定理的极度混沌。",
             fn_weierstrass: "魏尔斯特拉斯", fd_weierstrass: "处处连续但不可微的分形维度。", fn_mandelbrot: "曼德博边界", fd_mandelbrot: "提取复数逃逸边界附近的混沌特征。",
@@ -334,16 +320,18 @@ let generateClickCount = 0; // 紀錄點擊次數
         con.scrollTop = con.scrollHeight;
     }
 
-function updateDim() { 
-        let raw = parseInt(document.getElementById('dim-slider').value); 
-        let actual = 10000 + Math.round(Math.pow(raw / 1000, 3) * (50000000 - 10000));
+// --- 曲線演算法拉桿邏輯 ---
+    function updateDim() { 
+        let raw = parseInt(document.getElementById('dim-slider').value) / 1000000; 
+        // 最小值 1，使用三次方曲線確保前段極度平滑
+        let actual = 1 + Math.round(Math.pow(raw, 3) * 49999999);
         document.getElementById('dim-val').innerText = actual.toLocaleString();
         document.getElementById('dim-slider').dataset.actual = actual;
     }
     
     function updateCount() { 
-        let raw = parseInt(document.getElementById('count-slider').value); 
-        let actual = 1 + Math.round(Math.pow(raw / 1000, 3) * 499);
+        let raw = parseInt(document.getElementById('count-slider').value) / 1000000; 
+        let actual = 1 + Math.round(Math.pow(raw, 1.5) * 499);
         document.getElementById('count-val').innerText = actual;
         document.getElementById('count-slider').dataset.actual = actual;
         updateTagSizes(); 
@@ -351,22 +339,28 @@ function updateDim() {
     
     function updateRange() {
         let minEl = document.getElementById('range-min'), maxEl = document.getElementById('range-max');
-        let rawMin = parseInt(minEl.value), rawMax = parseInt(maxEl.value);
+        let rawMin = parseInt(minEl.value) / 1000000;
+        let rawMax = parseInt(maxEl.value) / 1000000;
         
-        let minVal = Math.round(Math.pow(rawMin / 1000, 3) * 10000);
-        let maxVal = Math.round(Math.pow(rawMax / 1000, 3) * 10000);
+        // Min 緩起步曲線 (在 0 附近極慢)，Max 緩煞車曲線 (在 10000 附近極慢)
+        let minVal = Math.round(Math.pow(rawMin, 2) * 10000);
+        let maxVal = 10000 - Math.round(Math.pow(1 - rawMax, 2) * 10000);
 
         if (minVal >= maxVal) {
             if (this === minEl) {
                 maxVal = minVal + 1;
                 if(maxVal > 10000) { maxVal = 10000; minVal = 9999; }
-                rawMax = Math.round(Math.cbrt(maxVal / 10000) * 1000); maxEl.value = rawMax;
-                rawMin = Math.round(Math.cbrt(minVal / 10000) * 1000); minEl.value = rawMin;
+                rawMax = 1 - Math.sqrt((10000 - maxVal) / 10000);
+                maxEl.value = Math.round(rawMax * 1000000);
+                rawMin = Math.sqrt(minVal / 10000);
+                minEl.value = Math.round(rawMin * 1000000);
             } else {
                 minVal = maxVal - 1;
                 if(minVal < 0) { minVal = 0; maxVal = 1; }
-                rawMin = Math.round(Math.cbrt(minVal / 10000) * 1000); minEl.value = rawMin;
-                rawMax = Math.round(Math.cbrt(maxVal / 10000) * 1000); maxEl.value = rawMax;
+                rawMin = Math.sqrt(minVal / 10000);
+                minEl.value = Math.round(rawMin * 1000000);
+                rawMax = 1 - Math.sqrt((10000 - maxVal) / 10000);
+                maxEl.value = Math.round(rawMax * 1000000);
             }
         }
         
@@ -374,16 +368,16 @@ function updateDim() {
         minEl.dataset.actual = minVal;
         maxEl.dataset.actual = maxVal;
         
-        // UI 填充條必須跟隨手指的物理比例
-        document.getElementById('slider-fill').style.left = `${(rawMin/1000)*100}%`;
-        document.getElementById('slider-fill').style.width = `${((rawMax-rawMin)/1000)*100}%`;
+        document.getElementById('slider-fill').style.left = `${(parseInt(minEl.value)/1000000)*100}%`;
+        document.getElementById('slider-fill').style.width = `${((parseInt(maxEl.value) - parseInt(minEl.value))/1000000)*100}%`;
     }
 
-    // --- 觸控滑動全螢幕 & 事件邏輯 ---
+    // --- 觸控全螢幕 & 事件邏輯 ---
     let touchStartX = 0, touchStartY = 0, swipeEnabled = true;
+    let hasSeenToast = false; // 新增：紀錄是否看過 Toast
 
     document.addEventListener('touchstart', e => {
-        // 新增：利用 closest() 保護整個控制面板與選項區，只要摸到就絕對不會觸發全螢幕切換
+        // 保護控制面板：只要碰到按鈕區或拉桿區，徹底關閉全螢幕滑動感應
         if (e.target.closest('.control-panel') || e.target.closest('.field-selector')) {
             swipeEnabled = false; return; 
         }
@@ -399,7 +393,6 @@ function updateDim() {
         if (!swipeEnabled) return;
         let touchEndX = e.changedTouches[0].screenX, touchEndY = e.changedTouches[0].screenY;
         let dx = touchEndX - touchStartX, dy = touchEndY - touchStartY;
-        // 判定左右滑動 (X軸移動大於60，且大於Y軸移動幅度)
         if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) toggleFullscreen();
     }, {passive: true});
 
@@ -407,7 +400,10 @@ function updateDim() {
         isFullscreen = !document.body.classList.contains('fullscreen-mode');
         if (isFullscreen) {
             document.body.classList.add('fullscreen-mode');
-            showToast(dict[currLang].t.msg_fs_toast);
+            if (!hasSeenToast) { // 只有第一次進全螢幕會顯示
+                showToast(dict[currLang].t.msg_fs_toast);
+                hasSeenToast = true;
+            }
         } else {
             document.body.classList.remove('fullscreen-mode');
         }
@@ -416,8 +412,9 @@ function updateDim() {
 
     function showToast(msg) {
         const toast = document.getElementById('toast');
-        toast.innerText = msg; toast.classList.add('show');
-        setTimeout(() => toast.classList.remove('show'), 3000);
+        toast.innerHTML = msg; // 改用 innerHTML 以支援 <br>
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 4000);
     }
 
     // 點擊全螢幕區塊時重抽，但若「選取文字(長按)」則不觸發
