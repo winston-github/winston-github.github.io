@@ -94,6 +94,22 @@
         #close-ad-btn { position: absolute; top: -15px; right: -15px; width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 1.2rem; font-weight: bold; border: 2px solid #fff; cursor: pointer; box-shadow: 0 0 10px #000; transition: 0.2s; z-index: 10001; }
         #close-ad-btn:hover { transform: scale(1.1); background: #ff3377; }
         .ad-countdown { color: #aaa; font-size: 0.75rem; margin-bottom: 10px; font-weight: bold; }
+    /* 數值點擊按鈕與微調撥盤 UI */
+        .val-display { color: #fff; font-weight: bold; cursor: pointer; padding: 3px 8px; background: #001a14; border: 1px solid var(--neon-dark); border-radius: 6px; box-shadow: 0 0 5px rgba(0,255,204,0.2); user-select: none; -webkit-user-select: none; }
+        .val-display:active { background: var(--neon); color: #000; }
+        .val-display::after { content: ' ⚙️'; font-size: 0.7rem; opacity: 0.7; }
+
+        .dial-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 20000; display: none; flex-direction: column; justify-content: flex-end; backdrop-filter: blur(5px); overscroll-behavior: contain; touch-action: none; }
+        .dial-sheet { background: #111; border-top: 2px solid var(--neon); border-radius: 20px 20px 0 0; padding: 20px; padding-bottom: max(30px, env(safe-area-inset-bottom)); animation: slideUp 0.3s forwards; }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .dial-header { display: flex; justify-content: space-between; margin-bottom: 20px; align-items: center; border-bottom: 1px solid #333; padding-bottom: 15px; }
+        .dial-close-btn { background: var(--neon); color: #000; border: none; padding: 10px 20px; font-weight: bold; border-radius: 8px; cursor: pointer; font-size: 1rem; }
+        .dial-body { display: flex; justify-content: center; gap: 15px; }
+        .dial-col { display: flex; flex-direction: column; align-items: center; background: #000; padding: 15px 10px; border-radius: 12px; border: 1px solid #333; flex: 1; max-width: 200px; }
+        .dial-btn { background: #222; color: var(--neon); border: 1px solid #444; width: 100%; height: 50px; font-size: 1.5rem; border-radius: 8px; cursor: pointer; user-select: none; -webkit-user-select: none; }
+        .dial-btn:active { background: var(--neon-dark); color: #fff; }
+        .dial-val-box { font-size: 1.8rem; font-weight: bold; color: #fff; padding: 20px 0; touch-action: pan-y; cursor: grab; text-align: center; width: 100%; user-select: none; -webkit-user-select: none; text-shadow: 0 0 10px var(--neon-dark); }
+        .dial-label { font-size: 0.8rem; color: #aaa; margin-bottom: 10px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -115,7 +131,16 @@
              data-full-width-responsive="true"></ins>
     </div>
 </div>
-
+<!-- 微調撥盤彈窗 -->
+<div id="dial-overlay" class="dial-overlay">
+    <div class="dial-sheet">
+        <div class="dial-header">
+            <span id="dial-title" style="font-weight:bold; color:#fff; font-size:1.1rem;">數值微調</span>
+            <button onclick="closeDial()" class="dial-close-btn">完成 (OK)</button>
+        </div>
+        <div class="dial-body" id="dial-body"></div>
+    </div>
+</div>
 <div id="toast"></div>
 
 <div class="box">
@@ -138,14 +163,15 @@
     </div>
 
     <!-- 增強型控制面板 (解析度 100萬) -->
+    <!-- 增強型控制面板 (解析度 100萬 + 點擊微調) -->
     <div class="control-panel">
         <div class="slider-group">
-            <label><span data-i18n="label_dim">Dims</span> <span class="val-display" id="dim-val">10,000,000</span></label>
+            <label><span data-i18n="label_dim">Dims</span> <span class="val-display" id="dim-val" onclick="openDial('dim')">10,000,000</span></label>
             <input type="range" id="dim-slider" min="0" max="1000000" value="584803" oninput="updateDim()">
         </div>
         
         <div class="slider-group">
-            <label><span data-i18n="label_range">Min~Max</span> <span class="val-display" id="range-val">0 ~ 10000</span></label>
+            <label><span data-i18n="label_range">Min~Max</span> <span class="val-display" id="range-val" onclick="openDial('range')">0 ~ 10000</span></label>
             <div class="dual-slider-container">
                 <div class="dual-slider-track"></div>
                 <div class="dual-slider-fill" id="slider-fill"></div>
@@ -155,7 +181,7 @@
         </div>
 
         <div class="slider-group">
-            <label><span data-i18n="label_count">Count</span> <span class="val-display" id="count-val">10</span></label>
+            <label><span data-i18n="label_count">Count</span> <span class="val-display" id="count-val" onclick="openDial('count')">10</span></label>
             <input type="range" id="count-slider" min="0" max="1000000" value="68633" oninput="updateCount()">
         </div>
     </div>
@@ -335,22 +361,20 @@
         let minVal = Math.round(Math.pow(rawMin, 2) * 10000);
         let maxVal = 10000 - Math.round(Math.pow(1 - rawMax, 2) * 10000);
 
+        // 強制保持至少 1 的差距 (修復重疊 Bug)
         if (minVal >= maxVal) {
-            if (targetEl === minEl) {
-                maxVal = minVal + 1;
-                if(maxVal > 10000) { maxVal = 10000; minVal = 9999; }
-                rawMax = 1 - Math.sqrt((10000 - maxVal) / 10000);
-                maxEl.value = Math.round(rawMax * 1000000);
-                rawMin = Math.sqrt(minVal / 10000);
-                minEl.value = Math.round(rawMin * 1000000);
-            } else {
+            if (targetEl === minEl) { // 推動 Min 撞到 Max
                 minVal = maxVal - 1;
                 if(minVal < 0) { minVal = 0; maxVal = 1; }
-                rawMin = Math.sqrt(minVal / 10000);
-                minEl.value = Math.round(rawMin * 1000000);
-                rawMax = 1 - Math.sqrt((10000 - maxVal) / 10000);
-                maxEl.value = Math.round(rawMax * 1000000);
+            } else { // 推動 Max 撞到 Min
+                maxVal = minVal + 1;
+                if(maxVal > 10000) { maxVal = 10000; minVal = 9999; }
             }
+            // 透過曲線反函數，強行把真實差距寫回拉桿的物理位置
+            rawMin = Math.sqrt(minVal / 10000);
+            minEl.value = Math.round(rawMin * 1000000);
+            rawMax = 1 - Math.sqrt((10000 - maxVal) / 10000);
+            maxEl.value = Math.round(rawMax * 1000000);
         }
         
         document.getElementById('range-val').innerText = `${minVal} ~ ${maxVal}`;
@@ -361,13 +385,106 @@
         document.getElementById('slider-fill').style.width = `${((parseInt(maxEl.value) - parseInt(minEl.value))/1000000)*100}%`;
     }
 
+    // --- 撥盤微調系統 (虛擬滾輪邏輯) ---
+    let dialState = { dim: 1, min: 0, max: 10000, count: 10 };
+    let currentDialType = '';
+
+    function openDial(type) {
+        if (isRunning) return;
+        currentDialType = type;
+        
+        dialState.dim = parseInt(document.getElementById('dim-slider').dataset.actual || 584803);
+        dialState.min = parseInt(document.getElementById('range-min').dataset.actual || 0);
+        dialState.max = parseInt(document.getElementById('range-max').dataset.actual || 10000);
+        dialState.count = parseInt(document.getElementById('count-slider').dataset.actual || 10);
+        
+        const body = document.getElementById('dial-body');
+        
+        if (type === 'dim') {
+            document.getElementById('dial-title').innerText = "維度規模 (Dims) 微調";
+            body.innerHTML = createDialHTML('dim', '維度', dialState.dim);
+            bindDialEvents('dim');
+        } else if (type === 'count') {
+            document.getElementById('dial-title').innerText = "產生數量 (Count) 微調";
+            body.innerHTML = createDialHTML('count', '數量', dialState.count);
+            bindDialEvents('count');
+        } else if (type === 'range') {
+            document.getElementById('dial-title').innerText = "取值區間 (Min ~ Max) 微調";
+            body.innerHTML = createDialHTML('min', 'Min 最小值', dialState.min) + createDialHTML('max', 'Max 最大值', dialState.max);
+            bindDialEvents('min'); bindDialEvents('max');
+        }
+        
+        document.getElementById('dial-overlay').style.display = 'flex';
+        swipeEnabled = false; 
+    }
+
+    function createDialHTML(key, label, val) {
+        return `
+            <div class="dial-col">
+                <div class="dial-label">${label}</div>
+                <button class="dial-btn" onclick="stepDial('${key}', 1)">▲</button>
+                <div class="dial-val-box" id="dial-val-${key}">${val.toLocaleString()}</div>
+                <button class="dial-btn" onclick="stepDial('${key}', -1)">▼</button>
+            </div>
+        `;
+    }
+
+    function stepDial(key, amount) { applyDialBounds(key, dialState[key] + amount); }
+
+    function applyDialBounds(key, val) {
+        if (key === 'dim') val = Math.max(1, Math.min(50000000, val));
+        if (key === 'count') val = Math.max(1, Math.min(500, val));
+        if (key === 'min') val = Math.max(0, Math.min(dialState.max - 1, val)); // 強制間隔
+        if (key === 'max') val = Math.max(dialState.min + 1, Math.min(10000, val)); // 強制間隔
+        
+        dialState[key] = val;
+        document.getElementById(`dial-val-${key}`).innerText = val.toLocaleString();
+    }
+
+    function bindDialEvents(key) {
+        let el = document.getElementById(`dial-val-${key}`);
+        let startY = 0, startVal = 0;
+        
+        el.addEventListener('touchstart', e => {
+            startY = e.touches[0].clientY; startVal = dialState[key]; e.preventDefault();
+        }, {passive: false});
+        
+        el.addEventListener('touchmove', e => {
+            let dy = startY - e.touches[0].clientY; // 往上滑為正值
+            // 每滑動 8px 步進 1，滑動越長加速度越快 (模擬滾輪手感)
+            let step = Math.sign(dy) * Math.floor(Math.pow(Math.abs(dy) / 8, 1.3));
+            if (step !== 0) applyDialBounds(key, startVal + step);
+            e.preventDefault();
+        }, {passive: false});
+    }
+
+    function closeDial() {
+        document.getElementById('dial-overlay').style.display = 'none';
+        
+        // 【最核心技術】將 Dial 的精準數值透過反函數映射回拉桿的物理座標
+        if (currentDialType === 'dim') {
+            let rawDim = Math.round(1000000 * Math.cbrt((dialState.dim - 1) / 49999999));
+            document.getElementById('dim-slider').value = rawDim; updateDim();
+        } else if (currentDialType === 'count') {
+            let rawCount = Math.round(1000000 * Math.pow((dialState.count - 1) / 499, 1/1.5));
+            document.getElementById('count-slider').value = rawCount; updateCount();
+        } else if (currentDialType === 'range') {
+            let rawMin = Math.round(1000000 * Math.sqrt(dialState.min / 10000));
+            let rawMax = Math.round(1000000 * (1 - Math.sqrt((10000 - dialState.max) / 10000)));
+            document.getElementById('range-min').value = rawMin;
+            document.getElementById('range-max').value = rawMax;
+            updateRange(document.getElementById('range-max')); // 同步視覺與防重疊
+        }
+        swipeEnabled = true; 
+    }
+
     // --- 觸控防護網與全螢幕 ---
     let touchStartX = 0, touchStartY = 0, swipeEnabled = true;
     let hasSeenToast = false; 
 
     document.addEventListener('touchstart', e => {
-        // 保護控制面板與選項，只要摸到就絕對不觸發全螢幕滑動
-        if (e.target.closest('.control-panel') || e.target.closest('.field-selector') || e.target.closest('.top-bar')) {
+        // 全面防護：只要摸到控制區、選單區或彈窗撥盤，絕對切斷滑動全螢幕功能
+        if (e.target.closest('.control-panel') || e.target.closest('.field-selector') || e.target.closest('.top-bar') || e.target.closest('.dial-overlay')) {
             swipeEnabled = false; return; 
         }
         const tag = e.target.tagName.toLowerCase();
