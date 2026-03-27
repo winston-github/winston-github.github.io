@@ -100,11 +100,20 @@
         body.fullscreen-mode #output-area { flex-grow: 1; border: none; border-radius: 0; padding: max(80px, env(safe-area-inset-top)) 15px max(60px, env(safe-area-inset-bottom)) 15px; overflow-y: auto; align-content: center; background: #000; cursor: pointer; }
         body.fullscreen-mode .num-tag { margin: 8px; padding: 12px 20px; border-width: 2px; }
 
-        /* --- 3D 物理骰子 CSS --- */
+        /* --- 3D 物理骰子 CSS (動態亂數與獨立煞車) --- */
         .dice-container { perspective: 800px; margin: 15px; }
-        .dice-3d { width: 80px; height: 80px; position: relative; transform-style: preserve-3d; transition: transform 1.8s cubic-bezier(0.1, 1, 0.2, 1); transform: translateZ(-40px); }
-        .dice-3d.rolling { animation: spin3D 0.4s linear infinite; }
-        @keyframes spin3D { 100% { transform: translateZ(-40px) rotateX(360deg) rotateY(360deg) rotateZ(360deg); } }
+        .dice-3d { width: 80px; height: 80px; position: relative; transform-style: preserve-3d; transform: translateZ(-40px); }
+        
+        /* 滾動時套用由 JS 動態生成的亂數變數 */
+        .dice-3d.rolling { animation: spin3D var(--spin-dur, 0.4s) linear infinite var(--spin-dir, normal); }
+        /* 停下時套用物理煞車曲線 */
+        .dice-3d.settling { transition: transform var(--settle-dur, 1.5s) cubic-bezier(0.1, 1, 0.2, 1); }
+        
+        @keyframes spin3D { 
+            0% { transform: translateZ(-40px) rotateX(0deg) rotateY(0deg) rotateZ(0deg); } 
+            100% { transform: translateZ(-40px) var(--spin-axis, rotateX(360deg) rotateY(720deg) rotateZ(360deg)); } 
+        }
+        
         .dice-face { position: absolute; width: 80px; height: 80px; background: #fff; border: 2px solid #ccc; border-radius: 12px; display: grid; padding: 12px; box-shadow: inset 0 0 15px rgba(0,0,0,0.1); grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); }
         .face-1 { transform: rotateY(0deg) translateZ(40px); grid-template-areas: ". . ." ". a ." ". . ."; }
         .face-6 { transform: rotateY(180deg) translateZ(40px); grid-template-areas: "a . d" "b . e" "c . f"; }
@@ -514,6 +523,20 @@
         if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) toggleFullscreen();
     }, {passive: true});
 
+// --- 電腦版快捷鍵與滑鼠右鍵退出全螢幕 ---
+    document.addEventListener('keydown', e => {
+        if (isFullscreen && (e.key === 'Escape' || e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+            toggleFullscreen();
+        }
+    });
+
+    document.addEventListener('contextmenu', e => {
+        if (isFullscreen) {
+            e.preventDefault(); // 阻止瀏覽器選單跳出
+            toggleFullscreen();
+        }
+    });
+    
     function toggleFullscreen() {
         isFullscreen = !document.body.classList.contains('fullscreen-mode');
         if (isFullscreen) {
@@ -581,7 +604,7 @@
         toggleProjector(false);
     }
 
-    // --- 核心運算 ---
+// --- 核心運算 ---
     async function toggleProjector(fromAd = false) {
         const btn = document.getElementById("run_btn");
         const t = dict[currLang].t;
@@ -616,14 +639,18 @@
         let fs = count > 150 ? 0.8 : (count > 50 ? 1.2 : 1.8);
         if (isFullscreen) fs *= 1.5;
 
-        // 預先建立畫面元素 (包含 3D 骰子)
+        // 預先建立畫面元素 (替每一顆骰子注入專屬的亂數自轉變數)
         let els =[];
         for (let c = 0; c < count; c++) {
             let el = document.createElement("div");
             if (isDiceMode) {
                 el.className = "dice-container";
+                let axes =['rotateX(360deg) rotateY(720deg) rotateZ(360deg)', 'rotateX(720deg) rotateY(360deg) rotateZ(180deg)', 'rotateX(360deg) rotateZ(720deg)'];
+                let axis = axes[Math.floor(Math.random() * axes.length)];
+                let dur = (0.25 + Math.random() * 0.2).toFixed(2) + 's';
+                let dir = Math.random() > 0.5 ? 'normal' : 'reverse';
                 el.innerHTML = `
-                    <div class="dice-3d rolling" id="dice-${c}">
+                    <div class="dice-3d rolling" id="dice-${c}" style="--spin-dur: ${dur}; --spin-dir: ${dir}; --spin-axis: ${axis};">
                         <div class="dice-face face-1"><div class="dot"></div></div>
                         <div class="dice-face face-2"><div class="dot"></div><div class="dot"></div></div>
                         <div class="dice-face face-3"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
@@ -641,6 +668,9 @@
             els.push(el);
         }
 
+        // 【核心修復1】強制讓瀏覽器先渲染這幀畫面，拯救手機版不會轉的問題！
+        await new Promise(r => setTimeout(r, 40));
+
         for (let c = 0; c < count; c++) {
             if (shouldAbort) break;
 
@@ -649,9 +679,6 @@
             document.getElementById("stat-progress").innerText = prog + "%";
             document.getElementById("progress-bar").style.width = prog + "%";
             
-            if (c % 2 === 0 || dims > 2000000) await new Promise(r => setTimeout(r, 0));
-            if (shouldAbort) break;
-
             for (let j = 1; j <= dims; j++) {
                 switch(currentField) {
                     case 'quantum': energy += Math.tan(Math.sin(S * Math.sqrt(j)) * Math.cos(S * Math.pow(j, 0.33))); break;
@@ -665,24 +692,52 @@
                     case 'lorenz':  energy += Math.sin(S*j) * Math.cos(S*j*1.41) * Math.tan(S*j*2.71); break;
                     case 'chirikov': energy += Math.sin(S * j + Math.sin(S * j)); break;
                 }
+                
+                // 【核心修復2】每 25萬次計算強制讓出主執行緒，確保手機版 CSS 動畫可以流暢運作
+                if (j % 250000 === 0) {
+                    await new Promise(r => setTimeout(r, 0));
+                    if (shouldAbort) break;
+                }
             }
             
             let finalVal = Math.floor((Math.abs(energy) * 1000000) % rangeSize) + minV;
             if (isNaN(finalVal)) finalVal = minV;
 
+            // 【核心修復3】確保骰子至少轉動 0.6 秒，才不會因為維度太低瞬間停住
+            let curTime = performance.now() - startTime;
+            if (isDiceMode && curTime < 600) {
+                await new Promise(r => setTimeout(r, 600 - curTime));
+            }
+
             if (isDiceMode) {
                 let dice3d = document.getElementById(`dice-${c}`);
                 dice3d.classList.remove('rolling');
+                dice3d.classList.add('settling');
+                
                 let rx = 0, ry = 0;
                 switch(finalVal) {
-                    case 1: rx = 1080; ry = 1080; break;
-                    case 6: rx = 1080; ry = 1260; break; 
-                    case 3: rx = 1080; ry = 990; break; 
-                    case 4: rx = 1080; ry = 1170; break; 
-                    case 2: rx = 990; ry = 1080; break; 
-                    case 5: rx = 1170; ry = 1080; break; 
-                    default: rx = 1080; ry = 1080; finalVal = 1;
+                    case 1: rx = 0; ry = 0; break;
+                    case 6: rx = 0; ry = 180; break; 
+                    case 3: rx = 0; ry = -90; break; 
+                    case 4: rx = 0; ry = 90; break; 
+                    case 2: rx = -90; ry = 0; break; 
+                    case 5: rx = 90; ry = 0; break; 
+                    default: rx = 0; ry = 0; finalVal = 1;
                 }
+                
+                // 【終極細節】將數學能量轉換為最後的隨機大翻滾 (每顆骰子停下來的軌跡都不同)
+                let absE = Math.abs(energy);
+                let extraX = 2 + Math.floor((absE * 17) % 4); 
+                let extraY = 2 + Math.floor((absE * 31) % 4);
+                if ((absE * 7) % 2 > 1) extraX *= -1;
+                if ((absE * 13) % 2 > 1) extraY *= -1;
+                
+                rx += extraX * 360;
+                ry += extraY * 360;
+                
+                // 動態設定緩煞車時間，看起來更符合物理慣性
+                let settleDur = (1.0 + ((absE * 23) % 0.8)).toFixed(2) + 's';
+                dice3d.style.setProperty('--settle-dur', settleDur);
                 dice3d.style.transform = `translateZ(-40px) rotateX(${rx}deg) rotateY(${ry}deg)`;
             } else {
                 els[c].innerText = finalVal;
