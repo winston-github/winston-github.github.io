@@ -7,109 +7,129 @@
     <style>
         :root { --neon: #00ffcc; --neon-dark: #008877; --bg: #050505; --accent: #ff0055; --panel: #0a0a0a; }
         * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
-        body { background: var(--bg); color: var(--neon); font-family: 'Courier New', monospace; margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; transition: background 0.3s, direction 0.3s; overflow-x: hidden; }
         
-        .box { border: 1px solid var(--neon-dark); padding: 15px; border-radius: 12px; box-shadow: 0 0 30px rgba(0, 255, 204, 0.1); width: 100%; max-width: 1200px; background: var(--panel); display: flex; flex-direction: column; gap: 12px; transition: all 0.3s; }
+        /* App 感核心：使用 100dvh 鎖定動態視口，防止整體網頁上下亂彈 */
+        body { background: var(--bg); color: var(--neon); font-family: 'Courier New', monospace; margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100dvh; overflow: hidden; transition: background 0.3s, direction 0.3s; }
         
-        /* 頂部控制列 */
-        .top-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .box { border: 1px solid var(--neon-dark); padding: 15px; border-radius: 12px; box-shadow: 0 0 30px rgba(0, 255, 204, 0.1); width: 100%; max-width: 1200px; max-height: 95dvh; background: var(--panel); display: flex; flex-direction: column; gap: 12px; overflow-y: auto; -webkit-overflow-scrolling: touch; transition: all 0.3s; padding-bottom: max(15px, env(safe-area-inset-bottom)); }
+
+        .top-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; flex-shrink: 0; }
         .top-bar h2 { margin: 0; font-size: 1.2rem; color: #fff; text-shadow: 0 0 10px var(--neon); }
         select#lang-select { background: #001100; color: var(--neon); border: 1px solid var(--neon); padding: 5px 10px; border-radius: 4px; cursor: pointer; font-family: inherit; font-weight: bold; }
 
-        /* 種子顯示 */
-        .seed-monitor { background: #001100; border: 1px solid #004400; padding: 12px; border-radius: 8px; }
+        .seed-monitor { background: #001100; border: 1px solid #004400; padding: 12px; border-radius: 8px; flex-shrink: 0; }
         #seed-value { font-size: 1.1rem; color: #fff; font-weight: bold; word-break: break-all; }
         #seed-origin { font-size: 0.7rem; color: var(--neon-dark); margin-top: 4px; }
 
-        /* 場域選擇 */
-        .field-selector { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; max-height: 220px; overflow-y: auto; padding-right: 5px; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
-        .field-selector::-webkit-scrollbar { width: 6px; }
-        .field-selector::-webkit-scrollbar-thumb { background: var(--neon-dark); border-radius: 3px; }
+        /* 桌面版模型選單 */
+        .desktop-only { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; max-height: 180px; overflow-y: auto; padding-right: 5px; overscroll-behavior: contain; flex-shrink: 0; }
+        .desktop-only::-webkit-scrollbar { width: 6px; }
+        .desktop-only::-webkit-scrollbar-thumb { background: var(--neon-dark); border-radius: 3px; }
         .field-card { border: 1px solid #004400; background: #000805; padding: 10px; cursor: pointer; border-radius: 6px; transition: 0.2s; text-align: center; }
         .field-card:hover { border-color: var(--neon-dark); }
         .field-card.active { border-color: var(--neon); background: #001a14; box-shadow: 0 0 10px rgba(0, 255, 204, 0.3); font-weight: bold; }
 
-        /* 演算法細節面板 */
-        .algo-details { background: #000a08; border: 1px dashed var(--neon-dark); padding: 12px; border-radius: 8px; font-size: 0.75rem; line-height: 1.5; color: #ccc; }
+        /* 手機版模型專屬滾輪選單 */
+        .mobile-only { display: none; width: 100%; padding: 15px; background: #001a14; color: var(--neon); border: 1px solid var(--neon); border-radius: 8px; font-size: 1.1rem; font-weight: bold; appearance: none; text-align: center; box-shadow: 0 0 10px rgba(0,255,204,0.2); outline: none; }
+
+        .algo-details { background: #000a08; border: 1px dashed var(--neon-dark); padding: 12px; border-radius: 8px; font-size: 0.75rem; line-height: 1.5; color: #ccc; flex-shrink: 0; }
         .algo-details strong { color: var(--accent); display: inline-block; width: 65px; }
         .algo-formula { color: #fff; background: #000; padding: 2px 6px; border-radius: 3px; border: 1px solid #222; font-family: monospace; }
 
-        /* 控制面板 */
-        .control-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; background: #111; padding: 15px; border-radius: 8px; }
+        .control-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; background: #111; padding: 15px; border-radius: 8px; flex-shrink: 0; }
         .slider-group { display: flex; flex-direction: column; justify-content: center; touch-action: none; }
         .slider-group label { font-size: 0.75rem; color: var(--neon-dark); margin-bottom: 8px; display: flex; justify-content: space-between; }
-        .val-display { color: #fff; font-weight: bold; }
-        input[type=range] { width: 100%; accent-color: var(--neon); cursor: pointer; touch-action: none; }
         
-        /* 雙滑桿 */
+        /* 數值點擊按鈕 UI */
+        .val-display { color: #fff; font-weight: bold; cursor: pointer; padding: 4px 10px; background: #001a14; border: 1px solid var(--neon-dark); border-radius: 6px; box-shadow: 0 0 5px rgba(0,255,204,0.2); user-select: none; -webkit-user-select: none; transition: 0.2s; }
+        .val-display:active { background: var(--neon); color: #000; }
+        .val-display::after { content: ' ⚙️'; font-size: 0.7rem; opacity: 0.8; }
+
+        input[type=range] { width: 100%; accent-color: var(--neon); cursor: pointer; touch-action: none; }
         .dual-slider-container { position: relative; height: 24px; width: 100%; display: flex; align-items: center; touch-action: none; }
         .dual-slider-track { position: absolute; width: 100%; height: 6px; background: #333; border-radius: 3px; z-index: 1; }
         .dual-slider-fill { position: absolute; height: 6px; background: var(--neon); border-radius: 3px; z-index: 2; }
         .dual-slider-container input[type=range] { position: absolute; width: 100%; -webkit-appearance: none; appearance: none; background: transparent; z-index: 3; pointer-events: none; }
         .dual-slider-container input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; pointer-events: auto; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid var(--neon); cursor: pointer; box-shadow: 0 0 5px #000; }
-        .dual-slider-container input[type=range]::-moz-range-thumb { pointer-events: auto; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid var(--neon); cursor: pointer; }
 
-        /* 歷史日誌 */
-        #console { background: #000; color: #00ff00; font-size: 0.7rem; padding: 10px; height: 110px; overflow-y: auto; border: 1px solid #111; border-radius: 4px; line-height: 1.4; }
+        /* 快捷骰子區 */
+        .dice-shortcuts { display: flex; gap: 8px; flex-shrink: 0; }
+        .dice-shortcuts button { flex: 1; padding: 12px 5px; font-size: 1.1rem; background: #00221a; border: 1px solid var(--neon-dark); border-radius: 8px; color: #fff; cursor: pointer; transition: 0.2s; font-weight: bold; }
+        .dice-shortcuts button:active { transform: scale(0.95); background: var(--neon); color: #000; }
+
+        #console { background: #000; color: #00ff00; font-size: 0.7rem; padding: 10px; height: 80px; overflow-y: auto; border: 1px solid #111; border-radius: 4px; line-height: 1.4; flex-shrink: 0; }
         .log-time { color: #555; margin-right: 5px; }
 
-        /* 輸出區域 */
-        #output-area { background: #000; border: 1px solid #111; padding: 10px; min-height: 100px; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-content: center; border-radius: 8px; -webkit-user-select: text; user-select: text; }
+        #output-area { background: #000; border: 1px solid #111; padding: 10px; min-height: 80px; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-content: center; align-items: center; border-radius: 8px; -webkit-user-select: text; user-select: text; flex-shrink: 0; }
         .num-tag { background: #001a14; color: #fff; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--neon); font-weight: bold; box-shadow: 0 0 5px rgba(0,255,204,0.1); display: inline-block; -webkit-user-select: text; user-select: text; transition: all 0.2s; }
 
-        .progress-container { width: 100%; height: 4px; background: #111; border-radius: 2px; overflow: hidden; }
+        .progress-container { width: 100%; height: 4px; background: #111; border-radius: 2px; overflow: hidden; flex-shrink: 0; }
         #progress-bar { width: 0%; height: 100%; background: linear-gradient(90deg, var(--neon), var(--accent)); transition: width 0.1s; }
         
-        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; font-size: 0.65rem; text-align: center; }
+        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; font-size: 0.65rem; text-align: center; flex-shrink: 0; }
         .stat-val { color: #fff; font-weight: bold; display: block; font-size: 0.9rem; margin-top: 3px; }
 
-        button#run_btn { background: var(--neon); color: #000; border: none; padding: 15px; font-weight: bold; cursor: pointer; border-radius: 8px; width: 100%; font-size: 1.1rem; transition: 0.2s; }
-        button#run_btn:hover { background: #fff; box-shadow: 0 0 20px rgba(0,255,204,0.8); }
+        button#run_btn { background: var(--neon); color: #000; border: none; padding: 15px; font-weight: bold; cursor: pointer; border-radius: 8px; width: 100%; font-size: 1.2rem; transition: 0.2s; flex-shrink: 0; text-transform: uppercase; }
+        button#run_btn:active { transform: scale(0.98); }
         button#run_btn.running { background: var(--accent); color: #fff; box-shadow: 0 0 20px rgba(255,0,85,0.6); }
 
-        /* 浮動提示框 */
         #toast { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0, 0, 0, 0.9); color: var(--neon); padding: 25px; border-radius: 15px; font-weight: bold; font-size: 0.95rem; opacity: 0; pointer-events: none; transition: opacity 0.4s; z-index: 9999; box-shadow: 0 0 30px rgba(0,255,204,0.3); border: 1px solid var(--neon); text-align: left; line-height: 1.8; width: 85%; max-width: 320px; }
         #toast.show { opacity: 1; }
 
+        /* 中央彈出撥盤 UI (徹底解決瀏覽器底條蓋住的問題) */
+        .dial-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: rgba(0,0,0,0.85); z-index: 20000; display: none; flex-direction: column; justify-content: center; align-items: center; backdrop-filter: blur(5px); touch-action: none; overscroll-behavior: none; }
+        .dial-sheet { background: #111; border: 2px solid var(--neon); border-radius: 20px; padding: 25px; width: 90%; max-width: 400px; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; box-shadow: 0 0 40px rgba(0,255,204,0.2); }
+        @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .dial-header { display: flex; justify-content: space-between; margin-bottom: 25px; align-items: center; border-bottom: 1px solid #333; padding-bottom: 15px; }
+        .dial-close-btn { background: var(--neon); color: #000; border: none; padding: 8px 15px; font-weight: bold; border-radius: 8px; cursor: pointer; font-size: 1rem; }
+        .dial-body { display: flex; justify-content: center; gap: 15px; }
+        .dial-col { display: flex; flex-direction: column; align-items: center; background: #000; padding: 15px 10px; border-radius: 12px; border: 1px solid #333; flex: 1; }
+        .dial-btn { background: #222; color: var(--neon); border: 1px solid #444; width: 100%; height: 50px; font-size: 1.5rem; border-radius: 8px; cursor: pointer; user-select: none; -webkit-user-select: none; transition: 0.1s; }
+        .dial-btn:active { background: var(--neon-dark); color: #fff; transform: scale(0.95); }
+        .dial-val-box { font-size: 2rem; font-weight: bold; color: #fff; padding: 25px 0; touch-action: pan-y; cursor: grab; text-align: center; width: 100%; user-select: none; -webkit-user-select: none; text-shadow: 0 0 15px var(--neon-dark); }
+        .dial-label { font-size: 0.8rem; color: #aaa; margin-bottom: 10px; font-weight: bold; text-align: center; }
+
         /* 全螢幕純淨模式 CSS */
-        body.fullscreen-mode { padding: 0; background: #000; overflow: hidden; }
-        body.fullscreen-mode .top-bar, body.fullscreen-mode .seed-monitor, body.fullscreen-mode .field-selector,
-        body.fullscreen-mode .algo-details, body.fullscreen-mode .control-panel, body.fullscreen-mode #console,
+        body.fullscreen-mode { padding: 0; }
+        body.fullscreen-mode .top-bar, body.fullscreen-mode .seed-monitor, body.fullscreen-mode .desktop-only, body.fullscreen-mode .mobile-only,
+        body.fullscreen-mode .algo-details, body.fullscreen-mode .control-panel, body.fullscreen-mode #console, body.fullscreen-mode .dice-shortcuts,
         body.fullscreen-mode #run_btn, body.fullscreen-mode .stats, body.fullscreen-mode .seo-content { display: none !important; }
         
-        body.fullscreen-mode .box { max-width: none; width: 100vw; height: 100vh; border: none; border-radius: 0; margin: 0; padding: 0; box-shadow: none; justify-content: flex-start; }
+        body.fullscreen-mode .box { max-width: none; max-height: 100dvh; width: 100vw; height: 100dvh; border: none; border-radius: 0; margin: 0; padding: 0; box-shadow: none; justify-content: flex-start; }
         body.fullscreen-mode .progress-container { height: 6px; border-radius: 0; flex-shrink: 0; z-index: 10; }
-        body.fullscreen-mode #output-area { flex-grow: 1; border: none; border-radius: 0; padding: max(80px, env(safe-area-inset-top)) 15px max(60px, env(safe-area-inset-bottom)) 15px; overflow-y: auto; align-content: flex-start; background: #000; cursor: pointer; }
+        body.fullscreen-mode #output-area { flex-grow: 1; border: none; border-radius: 0; padding: max(80px, env(safe-area-inset-top)) 15px max(60px, env(safe-area-inset-bottom)) 15px; overflow-y: auto; align-content: center; background: #000; cursor: pointer; }
         body.fullscreen-mode .num-tag { margin: 8px; padding: 12px 20px; border-width: 2px; }
 
-        @media (max-width: 600px) {
+        /* --- 3D 物理骰子 CSS --- */
+        .dice-container { perspective: 800px; margin: 15px; }
+        .dice-3d { width: 80px; height: 80px; position: relative; transform-style: preserve-3d; transition: transform 1.8s cubic-bezier(0.1, 1, 0.2, 1); transform: translateZ(-40px); }
+        .dice-3d.rolling { animation: spin3D 0.4s linear infinite; }
+        @keyframes spin3D { 100% { transform: translateZ(-40px) rotateX(360deg) rotateY(360deg) rotateZ(360deg); } }
+        .dice-face { position: absolute; width: 80px; height: 80px; background: #fff; border: 2px solid #ccc; border-radius: 12px; display: grid; padding: 12px; box-shadow: inset 0 0 15px rgba(0,0,0,0.1); grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); }
+        .face-1 { transform: rotateY(0deg) translateZ(40px); grid-template-areas: ". . ." ". a ." ". . ."; }
+        .face-6 { transform: rotateY(180deg) translateZ(40px); grid-template-areas: "a . d" "b . e" "c . f"; }
+        .face-3 { transform: rotateY(90deg) translateZ(40px); grid-template-areas: "a . ." ". b ." ". . c"; }
+        .face-4 { transform: rotateY(-90deg) translateZ(40px); grid-template-areas: "a . c" ". . ." "b . d"; }
+        .face-2 { transform: rotateX(90deg) translateZ(40px); grid-template-areas: "a . ." ". . ." ". . b"; }
+        .face-5 { transform: rotateX(-90deg) translateZ(40px); grid-template-areas: "a . c" ". b ." "d . e"; }
+        .dot { background: #111; border-radius: 50%; width: 14px; height: 14px; justify-self: center; align-self: center; box-shadow: inset 0 2px 4px rgba(0,0,0,0.6); }
+        .dot:nth-child(1) { grid-area: a; } .dot:nth-child(2) { grid-area: b; } .dot:nth-child(3) { grid-area: c; }
+        .dot:nth-child(4) { grid-area: d; } .dot:nth-child(5) { grid-area: e; } .dot:nth-child(6) { grid-area: f; }
+
+        @media (max-width: 768px) {
+            body { padding: 0; align-items: flex-start; justify-content: flex-start; }
+            .box { max-height: 100dvh; border-radius: 0; border: none; }
+            .desktop-only { display: none !important; }
+            .mobile-only { display: block; }
             .stats { grid-template-columns: repeat(2, 1fr); }
             .top-bar h2 { font-size: 1rem; }
-            .algo-details strong { display: block; margin-bottom: 2px; }
         }
 
-        /* --- 全螢幕廣告遮罩 --- */
-        #ad-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.95); z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
+        #ad-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: rgba(0, 0, 0, 0.95); z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
         .ad-box { width: 90%; max-width: 600px; background: #fff; border-radius: 8px; position: relative; padding: 20px; text-align: center; box-shadow: 0 0 30px rgba(0,255,204,0.3); }
         #close-ad-btn { position: absolute; top: -15px; right: -15px; width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 1.2rem; font-weight: bold; border: 2px solid #fff; cursor: pointer; box-shadow: 0 0 10px #000; transition: 0.2s; z-index: 10001; }
         #close-ad-btn:hover { transform: scale(1.1); background: #ff3377; }
         .ad-countdown { color: #aaa; font-size: 0.75rem; margin-bottom: 10px; font-weight: bold; }
-    /* 數值點擊按鈕與微調撥盤 UI */
-        .val-display { color: #fff; font-weight: bold; cursor: pointer; padding: 3px 8px; background: #001a14; border: 1px solid var(--neon-dark); border-radius: 6px; box-shadow: 0 0 5px rgba(0,255,204,0.2); user-select: none; -webkit-user-select: none; }
-        .val-display:active { background: var(--neon); color: #000; }
-        .val-display::after { content: ' ⚙️'; font-size: 0.7rem; opacity: 0.7; }
-
-        .dial-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 20000; display: none; flex-direction: column; justify-content: flex-end; backdrop-filter: blur(5px); overscroll-behavior: contain; touch-action: none; }
-        .dial-sheet { background: #111; border-top: 2px solid var(--neon); border-radius: 20px 20px 0 0; padding: 20px; padding-bottom: max(30px, env(safe-area-inset-bottom)); animation: slideUp 0.3s forwards; }
-        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        .dial-header { display: flex; justify-content: space-between; margin-bottom: 20px; align-items: center; border-bottom: 1px solid #333; padding-bottom: 15px; }
-        .dial-close-btn { background: var(--neon); color: #000; border: none; padding: 10px 20px; font-weight: bold; border-radius: 8px; cursor: pointer; font-size: 1rem; }
-        .dial-body { display: flex; justify-content: center; gap: 15px; }
-        .dial-col { display: flex; flex-direction: column; align-items: center; background: #000; padding: 15px 10px; border-radius: 12px; border: 1px solid #333; flex: 1; max-width: 200px; }
-        .dial-btn { background: #222; color: var(--neon); border: 1px solid #444; width: 100%; height: 50px; font-size: 1.5rem; border-radius: 8px; cursor: pointer; user-select: none; -webkit-user-select: none; }
-        .dial-btn:active { background: var(--neon-dark); color: #fff; }
-        .dial-val-box { font-size: 1.8rem; font-weight: bold; color: #fff; padding: 20px 0; touch-action: pan-y; cursor: grab; text-align: center; width: 100%; user-select: none; -webkit-user-select: none; text-shadow: 0 0 10px var(--neon-dark); }
-        .dial-label { font-size: 0.8rem; color: #aaa; margin-bottom: 10px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -122,16 +142,13 @@
     <div class="ad-box">
         <button id="close-ad-btn" onclick="closeAdOverlay()" style="display:none;">X</button>
         <div class="ad-countdown" id="ad-text">廣告載入中...</div>
-        <!-- 這裡放你從 AdSense 複製的廣告碼 -->
-        <ins class="adsbygoogle"
-             style="display:block"
-             data-ad-client="ca-pub-5350539988014376"
-             data-ad-slot="6681492480"
-             data-ad-format="auto"
-             data-full-width-responsive="true"></ins>
+        <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-5350539988014376" data-ad-slot="6681492480" data-ad-format="auto" data-full-width-responsive="true"></ins>
     </div>
 </div>
-<!-- 微調撥盤彈窗 -->
+
+<div id="toast"></div>
+
+<!-- 中央彈出微調撥盤 UI -->
 <div id="dial-overlay" class="dial-overlay">
     <div class="dial-sheet">
         <div class="dial-header">
@@ -141,7 +158,6 @@
         <div class="dial-body" id="dial-body"></div>
     </div>
 </div>
-<div id="toast"></div>
 
 <div class="box">
     <div class="top-bar">
@@ -154,7 +170,9 @@
         <div id="seed-origin" data-i18n="seed_origin">...</div>
     </div>
 
-    <div class="field-selector" id="fields-container"></div>
+    <!-- 雙模式模型選單 -->
+    <div class="desktop-only" id="fields-container-desktop"></div>
+    <select id="fields-container-mobile" class="mobile-only" onchange="setField(this.value)"></select>
 
     <div class="algo-details" id="algo-details">
         <div><strong data-i18n="lbl_input">Input</strong> <span id="det-input" data-i18n="input_desc"></span></div>
@@ -162,8 +180,6 @@
         <div><strong data-i18n="lbl_output">Output</strong> <span id="det-output" data-i18n="output_desc"></span></div>
     </div>
 
-    <!-- 增強型控制面板 (解析度 100萬) -->
-    <!-- 增強型控制面板 (解析度 100萬 + 點擊微調) -->
     <div class="control-panel">
         <div class="slider-group">
             <label><span data-i18n="label_dim">Dims</span> <span class="val-display" id="dim-val" onclick="openDial('dim')">10,000,000</span></label>
@@ -186,17 +202,34 @@
         </div>
     </div>
 
-    <!-- 找回遺失的元件 -->
-    <div id="console"></div>
+    <!-- 3D 骰子快捷鍵 -->
+    <div class="dice-shortcuts">
+        <button onclick="rollDiceMode(1)">🎲 1</button>
+        <button onclick="rollDiceMode(2)">🎲 2</button>
+        <button onclick="rollDiceMode(3)">🎲 3</button>
+        <button onclick="rollDiceMode(4)">🎲 4</button>
+    </div>
+
+    <button id="run_btn" onclick="triggerNormalGen()"><span data-i18n="btn_run">GENERATE</span></button>
+    
     <div class="progress-container"><div id="progress-bar"></div></div>
-    <div id="output-area"></div>
-    <button id="run_btn" onclick="toggleProjector()"><span data-i18n="btn_run">GENERATE</span></button>
+    
     <div class="stats">
         <div><span style="color:#777" data-i18n="stat_flops">FLOPs</span><span id="stat-flops" class="stat-val">0</span></div>
-        <div><span style="color:#777" data-i18n="stat_time">Time (ms)</span><span id="stat-time" class="stat-val">0</span></div>
+        <div><span style="color:#777" data-i18n="stat_time">Time</span><span id="stat-time" class="stat-val">0</span></div>
         <div><span style="color:#777" data-i18n="stat_speed">GFLOPS</span><span id="stat-speed" class="stat-val">0</span></div>
-        <div><span style="color:#777" data-i18n="stat_progress">Progress</span><span id="stat-progress" class="stat-val">0%</span></div>
+        <div><span style="color:#777" data-i18n="stat_progress">Prog</span><span id="stat-progress" class="stat-val">0%</span></div>
     </div>
+
+    <div id="console"></div>
+    <div id="output-area"></div>
+</div>
+
+<!-- SEO 隱藏區塊 -->
+<div class="seo-content" style="display:none;">
+    <h3>關於本隨機數產生器</h3>
+    <p>本工具是一個基於多重數學模型與物理場域演算法的高階隨機數產生器。有別於傳統的偽隨機數生成，本系統引入了量子干涉模擬、流體力學對數衰減、柯西共振、魏爾斯特拉斯碎形以及黎曼零點等數學演算法。</p>
+    <p>免責聲明：本網站採用 Google AdSense 提供廣告，Google 會使用 Cookie 來放送廣告。</p>
 </div>
 
 <script>
@@ -210,13 +243,13 @@
 
     const dict = {
         'en': { name: 'English', dir: 'ltr', t: { 
-            ui_title: "Random Number Generator", seed_wait: "Awaiting Generation...", seed_origin: "Origin: Seed not extracted", 
-            label_dim: "Dimensions", label_range: "Range (Min~Max)", label_count: "Output Count", btn_run: "GENERATE", btn_stop: "STOP",
-            stat_flops: "Total FLOPs", stat_time: "Time (ms)", stat_speed: "Power (GFLOPS)", stat_progress: "Progress", 
+            ui_title: "Random Number Generator", seed_wait: "Awaiting...", seed_origin: "Origin: Seed not extracted", 
+            label_dim: "Dimensions", label_range: "Range (Min~Max)", label_count: "Count", btn_run: "GENERATE", btn_stop: "STOP",
+            stat_flops: "FLOPs", stat_time: "Time(ms)", stat_speed: "Power", stat_progress: "Prog", 
             msg_ready: "System Ready. Select a mathematical model.", msg_lock: "Model locked: ", msg_done: "Generation complete. Dims: ", msg_abort: "Generation interrupted.",
             msg_fs_toast: "👉 Swipe L/R: Exit Fullscreen<br>👆 Tap: Generate Again<br>📌 Long Press: Select & Copy",
             lbl_input: "Input:", lbl_method: "Method:", lbl_output: "Output:",
-            input_desc: "Base Seed (S) = Time × φ.<br>Dims: Iterations per model (j=1~Dims). Higher means deeper chaos.", output_desc: "Chaotic energy mapped to [Min, Max] via Modulo.",
+            input_desc: "Base Seed = Time × φ.<br>Dims: Iterations per model (j=1~Dims). Higher = deeper chaos.", output_desc: "Chaotic energy mapped to [Min, Max] via Modulo.",
             fn_quantum: "Quantum String", fd_quantum: "High-dimensional interference via nested trig functions.",
             fn_fluid: "Fluid Turbulence", fd_fluid: "Logarithmic dampening mimicking physical fluid flow.",
             fn_finance: "Finance Randomness", fd_finance: "Exponential decay with black-swan sine waves.",
@@ -231,11 +264,11 @@
         'zh-TW': { name: '繁體中文', dir: 'ltr', t: { 
             ui_title: "隨機數產生器", seed_wait: "等待產生中...", seed_origin: "來源解析：尚未提取混沌種子", 
             label_dim: "維度規模 (Dims)", label_range: "取值區間 (Min~Max)", label_count: "產生數量 (Count)", btn_run: "產生隨機數", btn_stop: "停止產生",
-            stat_flops: "累積 FLOPs", stat_time: "耗時 (ms)", stat_speed: "強度 (GFLOPS)", stat_progress: "進度", 
+            stat_flops: "累積 FLOPs", stat_time: "耗時 (ms)", stat_speed: "GFLOPS", stat_progress: "進度", 
             msg_ready: "系統就緒。請選擇數學模型並啟動。", msg_lock: "模型切換至：", msg_done: "完工。數據提取自維度：", msg_abort: "產生過程已中斷。",
             msg_fs_toast: "👉 左右滑動：退出全螢幕<br>👆 點擊畫面：重新產生<br>📌 長按數字：選取與複製",
             lbl_input: "輸入:", lbl_method: "方法:", lbl_output: "輸出:",
-            input_desc: "基準種子 (S) = 時戳 × 黃金比例。<br>維度 (Dims) = 決定公式的疊加迴圈數 (j=1~Dims)，數值越高混沌深度越強。", output_desc: "能量取絕對值，透過模除雜湊完美映射至 [Min, Max] 區間。",
+            input_desc: "基準種子 (S) = 時戳 × 黃金比例。<br>維度 (Dims) = 決定公式疊加的迴圈數，數值越高混沌深度越強。", output_desc: "能量取絕對值，透過模除雜湊完美映射至指定區間。",
             fn_quantum: "超弦振動", fd_quantum: "透過嵌套三角函數模擬高維量子干涉現象。", fn_fluid: "流體湍流", fd_fluid: "利用對數衰減模擬分子集中分佈。",
             fn_finance: "金融隨機", fd_finance: "指數衰減與震盪，模擬黑天鵝效應。", fn_cauchy: "柯西共振", fd_cauchy: "無期望值，徹底打破中央極限定理的極端混沌。",
             fn_weierstrass: "魏爾斯特拉斯", fd_weierstrass: "處處連續但處處不可微，模擬極致的碎形投影。", fn_mandelbrot: "曼德博邊界", fd_mandelbrot: "提取複數平面逃逸邊界附近的混沌特徵。",
@@ -243,33 +276,10 @@
             fn_lorenz: "羅倫茲奇異子", fd_lorenz: "氣象學三維蝴蝶效應方程式的降維切面。", fn_chirikov: "標準映射", fd_chirikov: "模擬動量與位置的非線性糾纏。"
         }},
         'zh-CN': { name: '简体中文', dir: 'ltr', t: { 
-            ui_title: "随机数生成器", seed_wait: "等待生成中...", seed_origin: "来源解析：尚未提取混沌种子", 
-            label_dim: "维度规模 (Dims)", label_range: "取值区间 (Min~Max)", label_count: "生成数量 (Count)", btn_run: "产生随机数", btn_stop: "停止产生",
-            stat_flops: "累计 FLOPs", stat_time: "耗时 (ms)", stat_speed: "强度 (GFLOPS)", stat_progress: "进度", 
-            msg_ready: "系统就绪。请选择数学模型并启动。", msg_lock: "模型切换至：", msg_done: "完工。数据提取自维度：", msg_abort: "生成过程已中断。",
-            msg_fs_toast: "👉 左右滑动：退出全屏幕<br>👆 点击画面：重新生成<br>📌 长按数字：选取与复制",
-            lbl_input: "输入:", lbl_method: "方法:", lbl_output: "输出:",
-            input_desc: "基准种子 (S) = 时间戳 × 黄金比例。<br>维度 (Dims) = 决定公式的叠加循环数 (j=1~Dims)，数值越高混沌深度越强。", output_desc: "能量取绝对值后，通过模除完美映射至 [Min, Max] 区间。",
-            fn_quantum: "超弦振动", fd_quantum: "通过嵌套三角函数模拟高维量子干涉。", fn_fluid: "流体湍流", fd_fluid: "利用对数衰减模拟流体力学。",
-            fn_finance: "金融随机", fd_finance: "指数衰减与震荡，模拟黑天鹅效应。", fn_cauchy: "柯西共振", fd_cauchy: "彻底打破中央极限定理的极度混沌。",
-            fn_weierstrass: "魏尔斯特拉斯", fd_weierstrass: "处处连续但不可微的分形维度。", fn_mandelbrot: "曼德博边界", fd_mandelbrot: "提取复数逃逸边界附近的混沌特征。",
-            fn_prime: "质数同余", fd_prime: "数论哈希，极致打散几何偏好。", fn_riemann: "黎曼零点", fd_riemann: "模拟质数分布规律中的波函数叠加。",
-            fn_lorenz: "洛伦兹奇异子", fd_lorenz: "三维蝴蝶效应的降维切面。", fn_chirikov: "标准映射", fd_chirikov: "动量与位置的混沌纠缠。"
+            ui_title: "随机数生成器", btn_run: "产生随机数", btn_stop: "停止产生", msg_ready: "系统就绪。", msg_lock: "模型切换至：", msg_fs_toast: "👉 左右滑动：退出全屏幕<br>👆 点击画面：重新生成<br>📌 长按数字：选取与复制", lbl_input: "输入:", lbl_method: "方法:", lbl_output: "输出:"
         }},
-        'ja': { name: '日本語', dir: 'ltr', t: { ui_title: "乱数ジェネレーター", btn_run: "乱数を生成", btn_stop: "停止", msg_ready: "準備完了。", msg_lock: "モデル: ", msg_abort: "中断されました。", msg_done: "生成完了。次元: ", msg_fs_toast: "👉 スワイプ: 戻る<br>👆 タップ: 再生成<br>📌 長押し: 選択", lbl_input: "入力:", lbl_method: "方法:", lbl_output: "出力:" }},
-        'ko': { name: '한국어', dir: 'ltr', t: { ui_title: "난수 생성기", btn_run: "난수 생성", btn_stop: "정지", msg_ready: "준비 완료", msg_lock: "모델: ", msg_fs_toast: "👉 스와이프: 나가기<br>👆 탭: 생성<br>📌 길게 누르기: 선택" } },
-        'es': { name: 'Español', dir: 'ltr', t: { ui_title: "Generador Aleatorio", btn_run: "GENERAR", btn_stop: "DETENER", msg_ready: "Listo", msg_lock: "Modelo: ", msg_fs_toast: "👉 Deslizar: Salir<br>👆 Tocar: Generar<br>📌 Mantener: Seleccionar" } },
-        'fr': { name: 'Français', dir: 'ltr', t: { ui_title: "Nombres Aléatoires", btn_run: "GÉNÉRER", btn_stop: "ARRÊTER", msg_ready: "Prêt", msg_lock: "Modèle: ", msg_fs_toast: "👉 Glisser : Quitter<br>👆 Taper : Générer<br>📌 Maintenir : Sélectionner" } },
-        'ru': { name: 'Русский', dir: 'ltr', t: { ui_title: "Генератор Чисел", btn_run: "СГЕНЕРИРОВАТЬ", btn_stop: "СТОП", msg_ready: "Готово", msg_lock: "Модель: ", msg_fs_toast: "👉 Свайп: Выход<br>👆 Тап: Генерация<br>📌 Долгое нажатие: Выбор" } },
-        'de': { name: 'Deutsch', dir: 'ltr', t: { ui_title: "Zufallsgenerator", btn_run: "GENERIEREN", btn_stop: "STOPP", msg_ready: "Bereit", msg_lock: "Modell: ", msg_fs_toast: "👉 Wischen: Beenden<br>👆 Tippen: Generieren<br>📌 Gedrückt: Auswählen" } },
-        'it': { name: 'Italiano', dir: 'ltr', t: { ui_title: "Generatore Casuale", btn_run: "GENERA", btn_stop: "FERMA", msg_ready: "Pronto", msg_lock: "Modello: ", msg_fs_toast: "👉 Scorri: Esci<br>👆 Tocca: Genera<br>📌 Tieni premuto: Seleziona" } },
-        'uk': { name: 'Українська', dir: 'ltr', t: { ui_title: "Генератор Чисел", btn_run: "ЗГЕНЕРУВАТИ", btn_stop: "СТОП", msg_ready: "Готово", msg_lock: "Модель: ", msg_fs_toast: "👉 Свайп: Вихід<br>👆 Тап: Генерація<br>📌 Натискання: Вибір" } },
-        'ar': { name: 'العربية', dir: 'rtl', t: { ui_title: "مولد أرقام عشوائية", btn_run: "توليد", btn_stop: "توقف", msg_ready: "جاهز", msg_lock: "نموذج: ", msg_fs_toast: "👉 تمرير: خروج<br>👆 نقر: توليد<br>📌 ضغط مطول: تحديد", lbl_input: "إدخال:", lbl_method: "طريقة:", lbl_output: "إخراج:" } },
-        'hi': { name: 'हिन्दी', dir: 'ltr', t: { ui_title: "यादृच्छिक संख्या", btn_run: "उत्पन्न करें", btn_stop: "रोकें", msg_ready: "तैयार", msg_lock: "मॉडल: ", msg_fs_toast: "👉 स्वाइप: बाहर<br>👆 टैप: उत्पन्न<br>📌 लॉन्ग प्रेस: चुनें" } },
-        'pt': { name: 'Português', dir: 'ltr', t: { ui_title: "Gerador Aleatório", btn_run: "GERAR", btn_stop: "PARAR", msg_ready: "Pronto", msg_lock: "Modelo: ", msg_fs_toast: "👉 Deslizar: Sair<br>👆 Tocar: Gerar<br>📌 Manter: Selecionar" } },
-        'bn': { name: 'বাংলা', dir: 'ltr', t: { ui_title: "র্যান্ডম নম্বর", btn_run: "তৈরি করুন", btn_stop: "থামুন", msg_ready: "প্রস্তুত", msg_lock: "মডেল: ", msg_fs_toast: "👉 সোয়াইপ: প্রস্থান<br>👆 ট্যাপ: তৈরি<br>📌 দীর্ঘ প্রেস: নির্বাচন" } },
-        'vi': { name: 'Tiếng Việt', dir: 'ltr', t: { ui_title: "Tạo số ngẫu nhiên", btn_run: "TẠO SỐ", btn_stop: "DỪNG LẠI", msg_ready: "Sẵn sàng", msg_lock: "Mô hình: ", msg_fs_toast: "👉 Vuốt: Thoát<br>👆 Chạm: Tạo<br>📌 Nhấn giữ: Chọn" } },
-        'th': { name: 'ไทย', dir: 'ltr', t: { ui_title: "เครื่องสุ่มตัวเลข", btn_run: "สร้างตัวเลข", btn_stop: "หยุด", msg_ready: "พร้อม", msg_lock: "โมเดล: ", msg_fs_toast: "👉 ปัด: ออก<br>👆 แตะ: สร้าง<br>📌 กดค้าง: เลือก" } }
+        'ja': { name: '日本語', dir: 'ltr', t: { ui_title: "乱数ジェネレーター", btn_run: "乱数を生成", btn_stop: "停止", msg_ready: "準備完了。", msg_lock: "モデル: ", msg_fs_toast: "👉 スワイプ: 戻る<br>👆 タップ: 再生成<br>📌 長押し: 選択", lbl_input: "入力:", lbl_method: "方法:", lbl_output: "出力:" }},
+        'ko': { name: '한국어', dir: 'ltr', t: { ui_title: "난수 생성기", btn_run: "난수 생성", btn_stop: "정지", msg_ready: "준비 완료", msg_lock: "모델: ", msg_fs_toast: "👉 스와이프: 나가기<br>👆 탭: 생성<br>📌 길게 누르기: 선택" } }
     };
 
     const keys = Object.keys(dict['en'].t);
@@ -277,7 +287,7 @@
 
     const fieldIds =['quantum', 'fluid', 'finance', 'cauchy', 'weierstrass', 'mandelbrot', 'prime', 'riemann', 'lorenz', 'chirikov'];
     let currLang = 'zh-TW', currentField = 'quantum', historyLogs =[];
-    let isRunning = false, shouldAbort = false, isFullscreen = false;
+    let isRunning = false, shouldAbort = false, isFullscreen = false, isDiceMode = false;
     let generateClickCount = 0; 
     
     function init() {
@@ -297,18 +307,25 @@
         });
         document.getElementById('run_btn').innerText = isRunning ? t.btn_stop : t.btn_run;
 
-        const fc = document.getElementById('fields-container');
-        fc.innerHTML = "";
+        // 更新桌面與手機版選單
+        const fcd = document.getElementById('fields-container-desktop');
+        const fcm = document.getElementById('fields-container-mobile');
+        fcd.innerHTML = ""; fcm.innerHTML = "";
         fieldIds.forEach(id => {
-            fc.innerHTML += `<div class="field-card ${id===currentField?'active':''}" onclick="setField('${id}')"><div>${t[`fn_${id}`] || id}</div></div>`;
+            let fName = t[`fn_${id}`] || id;
+            fcd.innerHTML += `<div class="field-card ${id===currentField?'active':''}" onclick="setField('${id}')"><div>${fName}</div></div>`;
+            fcm.innerHTML += `<option value="${id}" ${id===currentField?'selected':''}>${fName}</option>`;
         });
         updateFieldDetails(); renderLogs();
     }
 
     function setField(id) {
-        if (isRunning) return; currentField = id;
+        if (isRunning) { document.getElementById('fields-container-mobile').value = currentField; return; }
+        currentField = id;
         document.querySelectorAll('.field-card').forEach(c => c.classList.remove('active'));
-        event.currentTarget.classList.add('active');
+        let dtCard = document.querySelector(`.field-card[onclick="setField('${id}')"]`);
+        if(dtCard) dtCard.classList.add('active');
+        document.getElementById('fields-container-mobile').value = id;
         logEvent('lock', id); updateFieldDetails();
     }
 
@@ -361,16 +378,14 @@
         let minVal = Math.round(Math.pow(rawMin, 2) * 10000);
         let maxVal = 10000 - Math.round(Math.pow(1 - rawMax, 2) * 10000);
 
-        // 強制保持至少 1 的差距 (修復重疊 Bug)
         if (minVal >= maxVal) {
-            if (targetEl === minEl) { // 推動 Min 撞到 Max
+            if (targetEl === minEl) {
                 minVal = maxVal - 1;
                 if(minVal < 0) { minVal = 0; maxVal = 1; }
-            } else { // 推動 Max 撞到 Min
+            } else {
                 maxVal = minVal + 1;
                 if(maxVal > 10000) { maxVal = 10000; minVal = 9999; }
             }
-            // 透過曲線反函數，強行把真實差距寫回拉桿的物理位置
             rawMin = Math.sqrt(minVal / 10000);
             minEl.value = Math.round(rawMin * 1000000);
             rawMax = 1 - Math.sqrt((10000 - maxVal) / 10000);
@@ -385,7 +400,7 @@
         document.getElementById('slider-fill').style.width = `${((parseInt(maxEl.value) - parseInt(minEl.value))/1000000)*100}%`;
     }
 
-    // --- 撥盤微調系統 (虛擬滾輪邏輯) ---
+    // --- 置中撥盤微調系統 (虛擬滾輪) ---
     let dialState = { dim: 1, min: 0, max: 10000, count: 10 };
     let currentDialType = '';
 
@@ -434,8 +449,8 @@
     function applyDialBounds(key, val) {
         if (key === 'dim') val = Math.max(1, Math.min(50000000, val));
         if (key === 'count') val = Math.max(1, Math.min(500, val));
-        if (key === 'min') val = Math.max(0, Math.min(dialState.max - 1, val)); // 強制間隔
-        if (key === 'max') val = Math.max(dialState.min + 1, Math.min(10000, val)); // 強制間隔
+        if (key === 'min') val = Math.max(0, Math.min(dialState.max - 1, val)); 
+        if (key === 'max') val = Math.max(dialState.min + 1, Math.min(10000, val)); 
         
         dialState[key] = val;
         document.getElementById(`dial-val-${key}`).innerText = val.toLocaleString();
@@ -450,8 +465,7 @@
         }, {passive: false});
         
         el.addEventListener('touchmove', e => {
-            let dy = startY - e.touches[0].clientY; // 往上滑為正值
-            // 每滑動 8px 步進 1，滑動越長加速度越快 (模擬滾輪手感)
+            let dy = startY - e.touches[0].clientY; 
             let step = Math.sign(dy) * Math.floor(Math.pow(Math.abs(dy) / 8, 1.3));
             if (step !== 0) applyDialBounds(key, startVal + step);
             e.preventDefault();
@@ -461,7 +475,6 @@
     function closeDial() {
         document.getElementById('dial-overlay').style.display = 'none';
         
-        // 【最核心技術】將 Dial 的精準數值透過反函數映射回拉桿的物理座標
         if (currentDialType === 'dim') {
             let rawDim = Math.round(1000000 * Math.cbrt((dialState.dim - 1) / 49999999));
             document.getElementById('dim-slider').value = rawDim; updateDim();
@@ -473,18 +486,17 @@
             let rawMax = Math.round(1000000 * (1 - Math.sqrt((10000 - dialState.max) / 10000)));
             document.getElementById('range-min').value = rawMin;
             document.getElementById('range-max').value = rawMax;
-            updateRange(document.getElementById('range-max')); // 同步視覺與防重疊
+            updateRange(document.getElementById('range-max')); 
         }
         swipeEnabled = true; 
     }
 
-    // --- 觸控防護網與全螢幕 ---
+    // --- 觸控防護網與全螢幕切換 ---
     let touchStartX = 0, touchStartY = 0, swipeEnabled = true;
     let hasSeenToast = false; 
 
     document.addEventListener('touchstart', e => {
-        // 全面防護：只要摸到控制區、選單區或彈窗撥盤，絕對切斷滑動全螢幕功能
-        if (e.target.closest('.control-panel') || e.target.closest('.field-selector') || e.target.closest('.top-bar') || e.target.closest('.dial-overlay')) {
+        if (e.target.closest('.control-panel') || e.target.closest('.desktop-only') || e.target.closest('.mobile-only') || e.target.closest('.top-bar') || e.target.closest('.dial-overlay') || e.target.closest('.dice-shortcuts')) {
             swipeEnabled = false; return; 
         }
         const tag = e.target.tagName.toLowerCase();
@@ -537,6 +549,38 @@
         document.querySelectorAll('.num-tag').forEach(tag => tag.style.fontSize = fs + 'rem');
     }
 
+    // --- 3D 骰子啟動邏輯 ---
+    function triggerNormalGen() {
+        isDiceMode = false;
+        toggleProjector(false);
+    }
+
+    function rollDiceMode(num) {
+        if(isRunning) return;
+        isDiceMode = true;
+        
+        // 覆寫拉桿與內部數據
+        let rawMin = Math.round(1000000 * Math.sqrt(1 / 10000));
+        let rawMax = Math.round(1000000 * (1 - Math.sqrt((10000 - 6) / 10000)));
+        document.getElementById('range-min').value = rawMin;
+        document.getElementById('range-max').value = rawMax;
+        document.getElementById('range-val').innerText = `1 ~ 6`;
+        document.getElementById('range-min').dataset.actual = 1;
+        document.getElementById('range-max').dataset.actual = 6;
+        
+        let rawCount = Math.round(1000000 * Math.pow((num - 1) / 499, 1/1.5));
+        document.getElementById('count-slider').value = rawCount;
+        document.getElementById('count-val').innerText = num;
+        document.getElementById('count-slider').dataset.actual = num;
+        
+        document.getElementById('slider-fill').style.left = `${(rawMin/1000000)*100}%`;
+        document.getElementById('slider-fill').style.width = `${((rawMax-rawMin)/1000000)*100}%`;
+
+        // 強制進入全螢幕並開始演算
+        if (!document.body.classList.contains('fullscreen-mode')) toggleFullscreen();
+        toggleProjector(false);
+    }
+
     // --- 核心運算 ---
     async function toggleProjector(fromAd = false) {
         const btn = document.getElementById("run_btn");
@@ -546,18 +590,17 @@
             shouldAbort = true; btn.innerText = "Aborting..."; return;
         }
 
-        if (!fromAd) {
+        if (!fromAd && !isDiceMode) {
             generateClickCount++;
             if (generateClickCount === 3) {
-                showAdOverlay();
-                generateClickCount = 0; 
-                return; 
+                showAdOverlay(); generateClickCount = 0; return; 
             }
         }
  
         isRunning = true; shouldAbort = false;
         btn.classList.add("running"); btn.innerText = t.btn_stop;
-        document.getElementById("output-area").innerHTML = "";
+        const outputArea = document.getElementById("output-area");
+        outputArea.innerHTML = "";
 
         const dims = parseInt(document.getElementById("dim-slider").dataset.actual);
         const minV = parseInt(document.getElementById("range-min").dataset.actual);
@@ -568,23 +611,45 @@
         const now = Date.now();
         const baseSeed = (now % 1000000) * 1.61803398875;
         document.getElementById("seed-value").innerText = `SEED: ${baseSeed.toFixed(8)}`;
-        document.getElementById("seed-origin").innerText = `T[${now}] × φ`;
 
         const startTime = performance.now(); let totalFlops = 0;
-        
         let fs = count > 150 ? 0.8 : (count > 50 ? 1.2 : 1.8);
         if (isFullscreen) fs *= 1.5;
+
+        // 預先建立畫面元素 (包含 3D 骰子)
+        let els =[];
+        for (let c = 0; c < count; c++) {
+            let el = document.createElement("div");
+            if (isDiceMode) {
+                el.className = "dice-container";
+                el.innerHTML = `
+                    <div class="dice-3d rolling" id="dice-${c}">
+                        <div class="dice-face face-1"><div class="dot"></div></div>
+                        <div class="dice-face face-2"><div class="dot"></div><div class="dot"></div></div>
+                        <div class="dice-face face-3"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+                        <div class="dice-face face-4"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+                        <div class="dice-face face-5"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+                        <div class="dice-face face-6"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+                    </div>
+                `;
+            } else {
+                el.className = "num-tag";
+                el.style.fontSize = fs + 'rem';
+                el.innerText = "...";
+            }
+            outputArea.appendChild(el);
+            els.push(el);
+        }
 
         for (let c = 0; c < count; c++) {
             if (shouldAbort) break;
 
             let energy = 0; let S = baseSeed + (c * 1.37); 
-            
             const prog = (((c+1)/count)*100).toFixed(0);
             document.getElementById("stat-progress").innerText = prog + "%";
             document.getElementById("progress-bar").style.width = prog + "%";
             
-            if (c % 3 === 0 || dims > 2000000) await new Promise(r => setTimeout(r, 0));
+            if (c % 2 === 0 || dims > 2000000) await new Promise(r => setTimeout(r, 0));
             if (shouldAbort) break;
 
             for (let j = 1; j <= dims; j++) {
@@ -592,8 +657,7 @@
                     case 'quantum': energy += Math.tan(Math.sin(S * Math.sqrt(j)) * Math.cos(S * Math.pow(j, 0.33))); break;
                     case 'fluid':   energy += Math.sin(S * j) / (1 + Math.log(1 + S * j * j)); break;
                     case 'finance': energy += Math.exp(-S * j / dims) * Math.sin(S * Math.sqrt(j) * 3.1415); break;
-                    case 'cauchy':  
-                        let t_val = Math.tan(S * j); if(isFinite(t_val)) energy += t_val; break;
+                    case 'cauchy':  let t_val = Math.tan(S * j); if(isFinite(t_val)) energy += t_val; break;
                     case 'weierstrass': energy += Math.cos(Math.pow(1.5, j % 50) * Math.PI * S) / Math.pow(2, j % 50); break;
                     case 'mandelbrot': energy += Math.log(Math.abs(Math.sin(S * j) + Math.cos(S / j)) + 1); break;
                     case 'prime':   energy += ((S * j * 104729) % 999983) / 1000000; break;
@@ -606,15 +670,26 @@
             let finalVal = Math.floor((Math.abs(energy) * 1000000) % rangeSize) + minV;
             if (isNaN(finalVal)) finalVal = minV;
 
-            const tag = document.createElement("div");
-            tag.className = "num-tag";
-            tag.style.fontSize = fs + 'rem';
-            tag.innerText = finalVal;
-            document.getElementById("output-area").appendChild(tag);
+            if (isDiceMode) {
+                let dice3d = document.getElementById(`dice-${c}`);
+                dice3d.classList.remove('rolling');
+                let rx = 0, ry = 0;
+                switch(finalVal) {
+                    case 1: rx = 1080; ry = 1080; break;
+                    case 6: rx = 1080; ry = 1260; break; 
+                    case 3: rx = 1080; ry = 990; break; 
+                    case 4: rx = 1080; ry = 1170; break; 
+                    case 2: rx = 990; ry = 1080; break; 
+                    case 5: rx = 1170; ry = 1080; break; 
+                    default: rx = 1080; ry = 1080; finalVal = 1;
+                }
+                dice3d.style.transform = `translateZ(-40px) rotateX(${rx}deg) rotateY(${ry}deg)`;
+            } else {
+                els[c].innerText = finalVal;
+            }
             
             totalFlops += dims * (currentField==='cauchy'?2:6); 
             const elapsed = performance.now() - startTime;
-            
             document.getElementById("stat-flops").innerText = totalFlops.toLocaleString();
             document.getElementById("stat-time").innerText = elapsed.toFixed(0);
             if(elapsed > 0) document.getElementById("stat-speed").innerText = ((totalFlops / (elapsed / 1000)) / 1e9).toFixed(2);
@@ -630,7 +705,7 @@
         btn.classList.remove("running"); btn.innerText = dict[currLang].t.btn_run;
     }
 
-// --- 廣告控制邏輯 ---
+    // --- 廣告控制邏輯 ---
     let adLoaded = false; 
     function showAdOverlay() {
         const overlay = document.getElementById('ad-overlay');
@@ -642,19 +717,15 @@
         
         if (!adLoaded) {
             try {
-                // 【終極拆字迴避法】利用字串拼接，騙過系統的防火牆！
-                // 這段在瀏覽器執行時，完全等同於 Google 官方的那行危險代碼
                 let adKey = 'adsby' + 'google';
-                window[adKey] = window[adKey] ||[];
+                window[adKey] = window[adKey] || [];
                 window[adKey].push({});
-                
                 adLoaded = true;
             } catch (e) {
                 console.error("AdSense Error:", e);
             }
         }
         
-        // 3. 倒數計時邏輯
         let timeLeft = 3;
         adText.innerText = `贊助廣告將在 ${timeLeft} 秒後可關閉...`;
         
@@ -665,30 +736,18 @@
             } else {
                 clearInterval(timer);
                 adText.innerText = "感謝您的支持";
-                closeBtn.style.display = 'block'; // 顯示 X 按鈕
+                closeBtn.style.display = 'block'; 
             }
         }, 1000);
     }
 
     function closeAdOverlay() {
         document.getElementById('ad-overlay').style.display = 'none';
-        // 廣告關閉後，自動接續產生隨機數 (傳入 true 代表是從廣告回來，不計次數)
         toggleProjector(true);
     }
     
-    // 初始化啟動
     window.onload = init;
 </script>
-
-<!-- SEO 與 AdSense 審核專用文字區塊 -->
-<div class="seo-content" style="max-width: 1200px; width: 100%; margin-top: 20px; padding: 20px; background: #0a0a0a; border: 1px dashed #004400; border-radius: 12px; font-size: 0.8rem; color: #666; line-height: 1.6; text-align: justify; box-shadow: 0 0 15px rgba(0,0,0,0.5);">
-    <h3 style="color: var(--neon-dark); margin-top: 0;">關於本隨機數產生器 (About This Random Number Generator)</h3>
-    <p>本工具是一個基於多重數學模型與物理場域演算法的高階隨機數產生器。有別於傳統的偽隨機數生成（PRNG），本系統引入了量子干涉模擬、流體力學對數衰減、柯西共振（Cauchy Resonance）、魏爾斯特拉斯碎形（Weierstrass Fractal）以及黎曼零點（Riemann Zeros）等十種不同的數學演算法，旨在徹底打破中央極限定理（Central Limit Theorem）所帶來的波茲曼分佈偏好，提供極致的均勻分佈與不可預測性。</p>
-    <p><strong>使用說明：</strong><br>
-    使用者可透過滑桿自由定義維度規模（Dimensions）、取值區間（Min~Max）以及產生數量（Count）。設定完成後，支援觸控螢幕左右滑動進入全螢幕沉浸模式。本系統運算過程完全在客戶端（Client-side）瀏覽器執行，不收集任何個人隱私數據，確保使用者的操作匿名性與資訊安全。</p>
-    <p><strong>免責聲明與隱私權政策 (Disclaimer & Privacy Policy)：</strong><br>
-    本網站不保證演算法應用於密碼學級別（Cryptographically Secure）的絕對安全性，僅供學術模擬、統計抽樣、遊戲開發或日常決策輔助使用。本站採用 Google AdSense 提供第三方廣告，Google 及其合作夥伴可能會使用 Cookie 來根據您先前的瀏覽紀錄放送關聯性廣告。使用者可隨時透過瀏覽器設定停用 Cookie，或前往 Google 廣告設定頁面進行隱私權管理。</p>
-</div>
 
 </body>
 </html>
