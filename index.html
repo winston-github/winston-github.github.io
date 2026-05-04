@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Geo-Cam (GLP/GAMP5 Audit Edition)</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; -webkit-text-size-adjust: 100%; }
         body, html { width: 100%; height: 100%; overflow: hidden; background-color: #000; font-family: monospace; }
         
         #camera-feed { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
@@ -30,6 +30,7 @@
 
         .audit-pass { color: #4CAF50; } 
         .audit-fail { color: #ff6b6b; } 
+        .audit-advice { color: #ffeb3b; font-size: 0.9em; margin-top: 4px; display: block; }
 
         #capture-btn {
             position: absolute; z-index: 20; width: 70px; height: 70px; background-color: rgba(255, 255, 255, 0.9);
@@ -106,6 +107,7 @@
             throw new Error("DNS Lookup Failed");
         }
 
+        // 隱形無痕測量引擎：徹底解決文字閃爍與最後一行排版問題
         function applyLayout(pos, isDragging = false) {
             state.overlayPos = pos;
             
@@ -114,16 +116,28 @@
             const isVertical = (pos === 'left' || pos === 'right');
             const maxAllowedWidth = (isVertical ? h : w) - 40; 
             
-            let safeFontSize = Math.max(12, Math.max(w, h) * 0.016);
-            DOM.overlay.style.fontSize = `${safeFontSize}px`;
-            DOM.overlay.style.lineHeight = '1.5';
+            let baseFontSize = Math.max(12, Math.max(w, h) * 0.016);
+            
+            // 建立隱形分身來測量寬度，不干擾真實畫面，達到零閃爍
+            const clone = DOM.overlay.cloneNode(true);
+            clone.style.visibility = 'hidden';
+            clone.style.position = 'absolute';
+            clone.style.transform = 'none';
+            clone.style.fontSize = `${baseFontSize}px`;
+            clone.style.lineHeight = '1.5';
+            clone.style.width = 'max-content';
+            document.body.appendChild(clone);
+            
+            let currentWidth = clone.scrollWidth;
+            document.body.removeChild(clone);
 
-            let currentWidth = DOM.overlay.scrollWidth;
-
+            let safeFontSize = baseFontSize;
             if (currentWidth > maxAllowedWidth && currentWidth > 0) {
-                safeFontSize = safeFontSize * (maxAllowedWidth / currentWidth) * 0.98;
-                DOM.overlay.style.fontSize = `${safeFontSize}px`;
+                safeFontSize = baseFontSize * (maxAllowedWidth / currentWidth) * 0.98;
             }
+
+            // 一次性賦值
+            DOM.overlay.style.fontSize = `${safeFontSize}px`;
 
             const boxW = DOM.overlay.offsetWidth;
             const boxH = DOM.overlay.offsetHeight;
@@ -181,13 +195,11 @@
             DOM.l_audit.style.display = 'block';
             
             startClock(); 
-            
             applyLayout('top');
             updateDisplay();
             await fetchGeocodeAndAuditNTP();
         }
 
-        // 時間格式化工具
         function formatTimeStr(ms) {
             const d = new Date(ms);
             const pad = (n) => n.toString().padStart(2, '0');
@@ -197,7 +209,6 @@
             return `${d.getFullYear()}-${m[d.getMonth()]}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} (UTC${tzStr})`;
         }
 
-        // 雙軌時鐘引擎
         function startClock() {
             if (state.clockInterval) clearInterval(state.clockInterval);
             
@@ -205,12 +216,10 @@
                 const nowMs = Date.now();
                 state.deviceTimeStr = formatTimeStr(nowMs);
                 
-                // 如果已經跟 NTP 校準過，反推出絕對精準的世界時間
                 if (state.ntpStatus === 'VALIDATED') {
                     const ntpRealTimeMs = nowMs - (parseFloat(state.offsetSec) * 1000);
                     state.ntpTimeStr = formatTimeStr(ntpRealTimeMs);
                 }
-                
                 updateDisplay();
             };
             
@@ -240,13 +249,10 @@
                     state.ntpServer = server;
                     state.ntpIp = ip;
                     state.latency = Math.round((t1 - t0) / 2);
-                    // 計算設備誤差：(設備時間 - 伺服器時間)
                     state.offsetSec = ((Date.now() - serverTimeMs) / 1000).toFixed(2);
                     state.ntpStatus = 'VALIDATED';
                     break; 
-                } catch (e) {
-                    console.log(`${server} validation failed:`, e);
-                }
+                } catch (e) { console.log(`${server} validation failed`); }
             }
 
             if (state.ntpStatus === 'WAITING') state.ntpStatus = 'FAILED';
@@ -267,7 +273,11 @@
                 DOM.l_time.innerHTML = `NTP Server Returned Time: ${state.ntpTimeStr}`;
                 DOM.l_time.style.display = 'block';
             } else if (state.ntpStatus === 'FAILED') {
-                DOM.l_audit.innerHTML = `<span class="audit-fail">NTP Server: Verification Blocked by Browser CORS</span>`;
+                // 加入具體的跨瀏覽器 CORS 建議
+                DOM.l_audit.innerHTML = `
+                    <span class="audit-fail">NTP Blocked by Chrome Security (CORS)</span>
+                    <span class="audit-advice">Action: Try using Safari/Edge, or switch network.</span>
+                `;
                 DOM.l_time.style.display = 'none';
             }
 
@@ -275,10 +285,6 @@
                 DOM.l_device_time.innerHTML = `Camera Device Time: ${state.deviceTimeStr}`;
                 DOM.l_device_time.style.display = 'block';
             }
-            
-            // 加入第五行之後，重新套用排版計算防溢出
-            const elementsToMeasure = [DOM.l_gps, DOM.l_geo, DOM.l_audit, DOM.l_time, DOM.l_device_time];
-            const lines = elementsToMeasure.filter(el => el.style.display !== 'none').map(el => el.innerText.replace(/<[^>]*>?/gm, ''));
             
             applyLayout(state.overlayPos); 
         }
@@ -326,18 +332,42 @@
         DOM.overlay.addEventListener('pointerup', handlePointerEnd);
         DOM.overlay.addEventListener('pointercancel', handlePointerEnd);
 
+        // 自動轉正引擎：不管您把文字拉到哪一邊，輸出的相片都會自動旋轉成「文字正向水平」！
         DOM.capBtn.addEventListener('click', async (e) => {
             const btn = e.currentTarget;
             btn.style.transform = btn.style.transform.replace('scale(1)', 'scale(0.9)');
             setTimeout(() => { btn.style.transform = btn.style.transform.replace('scale(0.9)', 'scale(1)'); }, 100);
 
             const canvas = document.createElement('canvas');
-            const cw = DOM.video.videoWidth; 
-            const ch = DOM.video.videoHeight;
-            canvas.width = cw; canvas.height = ch;
+            const videoW = DOM.video.videoWidth; 
+            const videoH = DOM.video.videoHeight;
+            
+            const isVertical = (state.overlayPos === 'left' || state.overlayPos === 'right');
+            
+            // 如果文字在左右兩側，代表使用者橫拿手機，自動將輸出的畫布轉為橫向 (Landscape)
+            const finalW = isVertical ? videoH : videoW;
+            const finalH = isVertical ? videoW : videoH;
+            canvas.width = finalW; 
+            canvas.height = finalH;
+            
             const ctx = canvas.getContext('2d');
             
-            ctx.drawImage(DOM.video, 0, 0, cw, ch);
+            // 處理底層影片的旋轉與貼合
+            ctx.save();
+            if (state.overlayPos === 'left') {
+                // 左緣變為相片底部
+                ctx.translate(finalW / 2, finalH / 2);
+                ctx.rotate(-Math.PI / 2);
+                ctx.drawImage(DOM.video, -videoW / 2, -videoH / 2, videoW, videoH);
+            } else if (state.overlayPos === 'right') {
+                // 右緣變為相片底部
+                ctx.translate(finalW / 2, finalH / 2);
+                ctx.rotate(Math.PI / 2);
+                ctx.drawImage(DOM.video, -videoW / 2, -videoH / 2, videoW, videoH);
+            } else {
+                ctx.drawImage(DOM.video, 0, 0, finalW, finalH);
+            }
+            ctx.restore();
 
             const lines = [];
             if (state.gps) lines.push(`GPS: ${state.gps.lat.toFixed(6)}, ${state.gps.lon.toFixed(6)}`);
@@ -347,7 +377,8 @@
                 lines.push(`NTP Server: [${state.ntpServer}] (${state.ntpIp}) | Latency: ${state.latency}ms | Offset: ${state.offsetSec}s`);
                 lines.push(`NTP Server Returned Time: ${state.ntpTimeStr}`);
             } else if (state.ntpStatus === 'FAILED') {
-                lines.push(`NTP Server: Verification Blocked by Browser CORS`);
+                lines.push(`NTP Server: Blocked by Chrome Security (CORS)`);
+                lines.push(`* Action: Use Safari/Edge, or switch network.`);
             } else {
                 lines.push(`NTP Server: Initializing Tracker...`);
             }
@@ -355,10 +386,8 @@
             if (state.deviceTimeStr) lines.push(`Camera Device Time: ${state.deviceTimeStr}`);
 
             if(lines.length > 0) {
-                const isVertical = (state.overlayPos === 'left' || state.overlayPos === 'right');
-                const maxAllowedCanvasWidth = (isVertical ? ch : cw) - 40; 
-
-                let fontSize = Math.max(cw, ch) * 0.016; 
+                const maxAllowedCanvasWidth = finalW - 40; 
+                let fontSize = Math.max(finalW, finalH) * 0.016; 
                 ctx.font = `bold ${fontSize}px monospace`;
                 
                 let maxTextWidth = 0;
@@ -380,17 +409,10 @@
                 ctx.textBaseline = 'middle';
                 ctx.textAlign = 'left';
 
-                if (state.overlayPos === 'top') {
-                    ctx.translate(cw / 2, boxH / 2); 
-                } else if (state.overlayPos === 'bottom') {
-                    ctx.translate(cw / 2, ch - boxH / 2);
-                } else if (state.overlayPos === 'left') {
-                    ctx.translate(boxH / 2, ch / 2);
-                    ctx.rotate(-Math.PI / 2);
-                } else if (state.overlayPos === 'right') {
-                    ctx.translate(cw - boxH / 2, ch / 2);
-                    ctx.rotate(Math.PI / 2);
-                }
+                // 因為相片已經被我們轉正了，所以文字永遠都是水平的！
+                // 只需要決定要印在上方(Top)還是下方(Bottom)
+                const textY = (state.overlayPos === 'top') ? (boxH / 2 + padding) : (finalH - boxH / 2 - padding);
+                ctx.translate(finalW / 2, textY); 
 
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
                 ctx.beginPath();
@@ -401,8 +423,8 @@
                 lines.forEach(line => {
                     ctx.fillStyle = '#ffffff';
                     
-                    if (line.includes('Blocked')) {
-                        ctx.fillStyle = '#ff6b6b'; 
+                    if (line.includes('Blocked') || line.includes('* Action:')) {
+                        ctx.fillStyle = '#ffeb3b'; // 警告建議用黃色
                     } else if (line.includes('Offset:')) {
                         const offsetMatch = line.match(/Offset: (-?\d+\.\d+)s/);
                         if (offsetMatch && Math.abs(parseFloat(offsetMatch[1])) > 2.0) {
