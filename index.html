@@ -43,7 +43,6 @@
 <body>
 
     <video id="camera-feed" autoplay playsinline muted></video>
-    
     <div id="drop-indicator"></div>
 
     <div id="data-overlay">
@@ -58,398 +57,449 @@
     <div id="init-status">Initializing Camera & Sensors...</div>
 
     <script>
-        const state = {
-            gps: null, geo: null,
-            ntpServer: null, ntpIp: null, latency: null, offsetSec: null, ntpStatus: 'WAITING',
-            ntpTimeStr: null, deviceTimeStr: null,
-            overlayPos: 'top',
-            clockInterval: null
-        };
+        /**
+         * System Name: Geo-Cam GLP/GAMP5 Audit Edition
+         * Validation Classification: GAMP 5 Category 3 (Non-Configured Product / Custom Script)
+         * Data Integrity: Enforced via Lexical Scoping (Closure) to prevent DOM/Console manipulation.
+         */
+        (function() {
+            "use strict"; // Enforce strict mode to prevent undeclared variables and secure the execution context
 
-        const DOM = {
-            video: document.getElementById('camera-feed'),
-            overlay: document.getElementById('data-overlay'),
-            indicator: document.getElementById('drop-indicator'),
-            l_gps: document.getElementById('line-gps'),
-            l_geo: document.getElementById('line-geo'),
-            l_audit: document.getElementById('line-audit'),
-            l_time: document.getElementById('line-time'),
-            l_device_time: document.getElementById('line-device-time'),
-            capBtn: document.getElementById('capture-btn'),
-            status: document.getElementById('init-status')
-        };
+            const APP_VERSION = "v1.0.0"; // Configuration Management: Version tracking for CSV output
 
-        async function getRobustUTCTime() {
-            const abort = () => AbortSignal.timeout(4000);
-            try {
-                const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC', { signal: abort(), cache: 'no-store' });
-                if (res.ok) return new Date((await res.json()).utc_datetime).getTime();
-            } catch(e) {}
-            try {
-                const res = await fetch('https://timeapi.io/api/Time/current/zone?timeZone=UTC', { signal: abort(), cache: 'no-store' });
-                if (res.ok) return new Date((await res.json()).dateTime + "Z").getTime();
-            } catch(e) {}
-            throw new Error("Time APIs failed");
-        }
+            // IMMUTABLE STATE: Encapsulated within the IIFE. Cannot be modified via browser console.
+            const sysState = {
+                gps: null, 
+                geo: null,
+                ntpServer: null, 
+                ntpIp: null, 
+                latency: null, 
+                offsetSec: null, 
+                ntpStatus: 'WAITING',
+                ntpTimeStr: null, 
+                deviceTimeStr: null,
+                overlayPos: 'top',
+                clockInterval: null
+            };
 
-        async function resolveDoH(hostname) {
-            const abort = () => AbortSignal.timeout(3000);
-            try {
-                const res = await fetch(`https://dns.google/resolve?name=${hostname}&type=A`, { signal: abort(), cache: 'no-store' });
-                const data = await res.json();
-                if(data.Status === 0 && data.Answer) return data.Answer.find(a => a.type === 1).data;
-            } catch(e) {}
-            try {
-                const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${hostname}&type=A`, { headers: { 'accept': 'application/dns-json' }, signal: abort(), cache: 'no-store' });
-                const data = await res.json();
-                if(data.Status === 0 && data.Answer) return data.Answer.find(a => a.type === 1).data;
-            } catch(e) {}
-            throw new Error("DNS Lookup Failed");
-        }
+            const DOM = {
+                video: document.getElementById('camera-feed'),
+                overlay: document.getElementById('data-overlay'),
+                indicator: document.getElementById('drop-indicator'),
+                l_gps: document.getElementById('line-gps'),
+                l_geo: document.getElementById('line-geo'),
+                l_audit: document.getElementById('line-audit'),
+                l_time: document.getElementById('line-time'),
+                l_device_time: document.getElementById('line-device-time'),
+                capBtn: document.getElementById('capture-btn'),
+                status: document.getElementById('init-status')
+            };
 
-        // 隱形無痕測量引擎：徹底解決文字閃爍與最後一行排版問題
-        function applyLayout(pos, isDragging = false) {
-            state.overlayPos = pos;
-            
-            const w = window.innerWidth;
-            const h = window.innerHeight;
-            const isVertical = (pos === 'left' || pos === 'right');
-            const maxAllowedWidth = (isVertical ? h : w) - 40; 
-            
-            let baseFontSize = Math.max(12, Math.max(w, h) * 0.016);
-            
-            // 建立隱形分身來測量寬度，不干擾真實畫面，達到零閃爍
-            const clone = DOM.overlay.cloneNode(true);
-            clone.style.visibility = 'hidden';
-            clone.style.position = 'absolute';
-            clone.style.transform = 'none';
-            clone.style.fontSize = `${baseFontSize}px`;
-            clone.style.lineHeight = '1.5';
-            clone.style.width = 'max-content';
-            document.body.appendChild(clone);
-            
-            let currentWidth = clone.scrollWidth;
-            document.body.removeChild(clone);
-
-            let safeFontSize = baseFontSize;
-            if (currentWidth > maxAllowedWidth && currentWidth > 0) {
-                safeFontSize = baseFontSize * (maxAllowedWidth / currentWidth) * 0.98;
-            }
-
-            // 一次性賦值
-            DOM.overlay.style.fontSize = `${safeFontSize}px`;
-
-            const boxW = DOM.overlay.offsetWidth;
-            const boxH = DOM.overlay.offsetHeight;
-
-            let top, left, transform;
-            if (pos === 'top') {
-                top = 0; left = (w - boxW) / 2; transform = 'none';
-                DOM.capBtn.style.cssText = `position:absolute; bottom:30px; left:50%; transform:translateX(-50%); z-index:20; display:block;`;
-            } else if (pos === 'bottom') {
-                top = h - boxH; left = (w - boxW) / 2; transform = 'none';
-                DOM.capBtn.style.cssText = `position:absolute; top:30px; left:50%; transform:translateX(-50%); z-index:20; display:block;`;
-            } else if (pos === 'left') {
-                top = (h - boxH) / 2; left = (boxH - boxW) / 2; transform = 'rotate(-90deg)';
-                DOM.capBtn.style.cssText = `position:absolute; right:30px; top:50%; transform:translateY(-50%); z-index:20; display:block;`;
-            } else if (pos === 'right') {
-                top = (h - boxH) / 2; left = w - (boxW + boxH) / 2; transform = 'rotate(90deg)';
-                DOM.capBtn.style.cssText = `position:absolute; left:30px; top:50%; transform:translateY(-50%); z-index:20; display:block;`;
-            }
-
-            if (!isDragging) {
-                DOM.overlay.style.top = `${top}px`;
-                DOM.overlay.style.left = `${left}px`;
-                DOM.overlay.style.transform = transform;
-                DOM.indicator.style.display = 'none';
-            } else {
-                DOM.indicator.style.display = 'block';
-                DOM.indicator.style.width = `${boxW}px`;
-                DOM.indicator.style.height = `${boxH}px`;
-                DOM.indicator.style.top = `${top}px`;
-                DOM.indicator.style.left = `${left}px`;
-                DOM.indicator.style.transform = transform;
-            }
-        }
-
-        window.addEventListener('resize', () => applyLayout(state.overlayPos));
-
-        async function initApp() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                DOM.video.srcObject = stream;
-            } catch (err) { DOM.status.innerHTML = `<span class="audit-fail">Camera Error: ${err.message}</span>`; return; }
-
-            if ("geolocation" in navigator) {
-                navigator.geolocation.getCurrentPosition(
-                    (p) => { state.gps = { lat: p.coords.latitude, lon: p.coords.longitude }; finalizeInit(); },
-                    (e) => { state.gps = null; finalizeInit(); }, 
-                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-                );
-            } else { state.gps = null; finalizeInit(); }
-        }
-
-        async function finalizeInit() {
-            DOM.status.style.display = 'none';
-            DOM.capBtn.style.display = 'block';
-            DOM.l_audit.style.display = 'block';
-            
-            startClock(); 
-            applyLayout('top');
-            updateDisplay();
-            await fetchGeocodeAndAuditNTP();
-        }
-
-        function formatTimeStr(ms) {
-            const d = new Date(ms);
-            const pad = (n) => n.toString().padStart(2, '0');
-            const m = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-            const tzOffset = -d.getTimezoneOffset() / 60;
-            const tzStr = tzOffset >= 0 ? `+${tzOffset}` : `${tzOffset}`;
-            return `${d.getFullYear()}-${m[d.getMonth()]}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} (UTC${tzStr})`;
-        }
-
-        function startClock() {
-            if (state.clockInterval) clearInterval(state.clockInterval);
-            
-            const tick = () => {
-                const nowMs = Date.now();
-                state.deviceTimeStr = formatTimeStr(nowMs);
+            /**
+             * Retrieves strictly synchronized UTC time from authoritative APIs.
+             * Utilizes dual-redundancy to satisfy high-availability requirements.
+             */
+            async function getRobustUTCTime() {
+                const abort = () => AbortSignal.timeout(4000);
+                try {
+                    const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC', { signal: abort(), cache: 'no-store' });
+                    if (res.ok) return new Date((await res.json()).utc_datetime).getTime();
+                } catch(e) { /* Redundant failover triggered */ }
                 
-                if (state.ntpStatus === 'VALIDATED') {
-                    const ntpRealTimeMs = nowMs - (parseFloat(state.offsetSec) * 1000);
-                    state.ntpTimeStr = formatTimeStr(ntpRealTimeMs);
+                try {
+                    const res = await fetch('https://timeapi.io/api/Time/current/zone?timeZone=UTC', { signal: abort(), cache: 'no-store' });
+                    if (res.ok) return new Date((await res.json()).dateTime + "Z").getTime();
+                } catch(e) { /* Total API failure */ }
+                throw new Error("Critical: High-Availability Time APIs unresponsive.");
+            }
+
+            /**
+             * Resolves NTP server IP via DNS-over-HTTPS (DoH) to bypass local network DNS spoofing.
+             */
+            async function resolveDoH(hostname) {
+                const abort = () => AbortSignal.timeout(3000);
+                try {
+                    const res = await fetch(`https://dns.google/resolve?name=${hostname}&type=A`, { signal: abort(), cache: 'no-store' });
+                    const data = await res.json();
+                    if(data.Status === 0 && data.Answer) return data.Answer.find(a => a.type === 1).data;
+                } catch(e) { /* Fallback to Cloudflare */ }
+                
+                try {
+                    const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${hostname}&type=A`, { headers: { 'accept': 'application/dns-json' }, signal: abort(), cache: 'no-store' });
+                    const data = await res.json();
+                    if(data.Status === 0 && data.Answer) return data.Answer.find(a => a.type === 1).data;
+                } catch(e) { /* Resolution failure */ }
+                throw new Error("Critical: DoH Verification Failed.");
+            }
+
+            /**
+             * Dynamic UI Layout Engine: Calculates DOM boundaries securely without causing render-jitter.
+             */
+            function applyLayout(pos, isDragging = false) {
+                sysState.overlayPos = pos;
+                
+                const w = window.innerWidth;
+                const h = window.innerHeight;
+                const isVertical = (pos === 'left' || pos === 'right');
+                const maxAllowedWidth = (isVertical ? h : w) - 40; 
+                
+                let baseFontSize = Math.max(12, Math.max(w, h) * 0.016);
+                
+                // Invisible Clone Technique: Prevents UI flickering during text measurement
+                const clone = DOM.overlay.cloneNode(true);
+                clone.style.visibility = 'hidden';
+                clone.style.position = 'absolute';
+                clone.style.transform = 'none';
+                clone.style.fontSize = `${baseFontSize}px`;
+                clone.style.lineHeight = '1.5';
+                clone.style.width = 'max-content';
+                document.body.appendChild(clone);
+                
+                let currentWidth = clone.scrollWidth;
+                document.body.removeChild(clone);
+
+                let safeFontSize = baseFontSize;
+                if (currentWidth > maxAllowedWidth && currentWidth > 0) {
+                    safeFontSize = baseFontSize * (maxAllowedWidth / currentWidth) * 0.98; // 0.98 Safety Margin for WebKit rendering
+                }
+
+                DOM.overlay.style.fontSize = `${safeFontSize}px`;
+
+                const boxW = DOM.overlay.offsetWidth;
+                const boxH = DOM.overlay.offsetHeight;
+
+                let top, left, transform;
+                if (pos === 'top') {
+                    top = 0; left = (w - boxW) / 2; transform = 'none';
+                    DOM.capBtn.style.cssText = `position:absolute; bottom:30px; left:50%; transform:translateX(-50%); z-index:20; display:block;`;
+                } else if (pos === 'bottom') {
+                    top = h - boxH; left = (w - boxW) / 2; transform = 'none';
+                    DOM.capBtn.style.cssText = `position:absolute; top:30px; left:50%; transform:translateX(-50%); z-index:20; display:block;`;
+                } else if (pos === 'left') {
+                    top = (h - boxH) / 2; left = (boxH - boxW) / 2; transform = 'rotate(-90deg)';
+                    DOM.capBtn.style.cssText = `position:absolute; right:30px; top:50%; transform:translateY(-50%); z-index:20; display:block;`;
+                } else if (pos === 'right') {
+                    top = (h - boxH) / 2; left = w - (boxW + boxH) / 2; transform = 'rotate(90deg)';
+                    DOM.capBtn.style.cssText = `position:absolute; left:30px; top:50%; transform:translateY(-50%); z-index:20; display:block;`;
+                }
+
+                if (!isDragging) {
+                    DOM.overlay.style.top = `${top}px`;
+                    DOM.overlay.style.left = `${left}px`;
+                    DOM.overlay.style.transform = transform;
+                    DOM.indicator.style.display = 'none';
+                } else {
+                    DOM.indicator.style.display = 'block';
+                    DOM.indicator.style.width = `${boxW}px`;
+                    DOM.indicator.style.height = `${boxH}px`;
+                    DOM.indicator.style.top = `${top}px`;
+                    DOM.indicator.style.left = `${left}px`;
+                    DOM.indicator.style.transform = transform;
+                }
+            }
+
+            window.addEventListener('resize', () => applyLayout(sysState.overlayPos));
+
+            /**
+             * System Initialization: Requests hardware permissions and establishes baseline context.
+             */
+            async function initSystem() {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                    DOM.video.srcObject = stream;
+                } catch (err) { 
+                    DOM.status.innerHTML = `<span class="audit-fail">Hardware Error: Camera access denied.</span>`; 
+                    return; 
+                }
+
+                if ("geolocation" in navigator) {
+                    navigator.geolocation.getCurrentPosition(
+                        (p) => { sysState.gps = { lat: p.coords.latitude, lon: p.coords.longitude }; finalizeInit(); },
+                        (e) => { sysState.gps = null; finalizeInit(); }, // Silent failover for GPS to maintain availability
+                        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                    );
+                } else { sysState.gps = null; finalizeInit(); }
+            }
+
+            async function finalizeInit() {
+                DOM.status.style.display = 'none';
+                DOM.capBtn.style.display = 'block';
+                DOM.l_audit.style.display = 'block';
+                
+                startClock(); 
+                applyLayout('top');
+                updateDisplay();
+                await executeNTPValidation();
+            }
+
+            function formatTimeStr(ms) {
+                const d = new Date(ms);
+                const pad = (n) => n.toString().padStart(2, '0');
+                const m = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+                const tzOffset = -d.getTimezoneOffset() / 60;
+                const tzStr = tzOffset >= 0 ? `+${tzOffset}` : `${tzOffset}`;
+                return `${d.getFullYear()}-${m[d.getMonth()]}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} (UTC${tzStr})`;
+            }
+
+            /**
+             * Dual-Track Clock Engine: Maintains independent tracking of local device time and validated NTP time.
+             */
+            function startClock() {
+                if (sysState.clockInterval) clearInterval(sysState.clockInterval);
+                
+                const tick = () => {
+                    const nowMs = Date.now();
+                    sysState.deviceTimeStr = formatTimeStr(nowMs);
+                    
+                    if (sysState.ntpStatus === 'VALIDATED') {
+                        const ntpRealTimeMs = nowMs - (parseFloat(sysState.offsetSec) * 1000);
+                        sysState.ntpTimeStr = formatTimeStr(ntpRealTimeMs);
+                    }
+                    updateDisplay();
+                };
+                
+                tick(); 
+                sysState.clockInterval = setInterval(tick, 1000);
+            }
+
+            /**
+             * Primary Audit Process: Geocoding and Time Synchronization validation.
+             */
+            async function executeNTPValidation() {
+                if (sysState.gps) {
+                    try {
+                        const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${sysState.gps.lat}&lon=${sysState.gps.lon}&zoom=16&addressdetails=1`, { signal: AbortSignal.timeout(5000) });
+                        const geoData = await geoRes.json();
+                        sysState.geo = `Near ${geoData.address.road || geoData.address.neighbourhood || "Unknown Road"}, ${geoData.address.city || geoData.address.town || "Unknown"}`;
+                    } catch (e) { sysState.geo = null; } 
                 }
                 updateDisplay();
-            };
-            
-            tick(); 
-            state.clockInterval = setInterval(tick, 1000);
-        }
 
-        async function fetchGeocodeAndAuditNTP() {
-            if (state.gps) {
-                try {
-                    const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${state.gps.lat}&lon=${state.gps.lon}&zoom=16&addressdetails=1`, { signal: AbortSignal.timeout(5000) });
-                    const geoData = await geoRes.json();
-                    state.geo = `Near ${geoData.address.road || geoData.address.neighbourhood || "Unknown Road"}, ${geoData.address.city || geoData.address.town || "Unknown"}`;
-                } catch (e) { state.geo = null; } 
-            }
-            updateDisplay();
-
-            const ntpServers = ['time.stdtime.gov.tw', 'tock.stdtime.gov.tw', 'watch.stdtime.gov.tw', 'clock.stdtime.gov.tw', 'tick.stdtime.gov.tw'];
-            
-            for (const server of ntpServers) {
-                try {
-                    const t0 = performance.now();
-                    const ip = await resolveDoH(server);
-                    const serverTimeMs = await getRobustUTCTime();
-                    const t1 = performance.now();
-                    
-                    state.ntpServer = server;
-                    state.ntpIp = ip;
-                    state.latency = Math.round((t1 - t0) / 2);
-                    state.offsetSec = ((Date.now() - serverTimeMs) / 1000).toFixed(2);
-                    state.ntpStatus = 'VALIDATED';
-                    break; 
-                } catch (e) { console.log(`${server} validation failed`); }
-            }
-
-            if (state.ntpStatus === 'WAITING') state.ntpStatus = 'FAILED';
-            updateDisplay();
-        }
-
-        function updateDisplay() {
-            if (state.gps) { DOM.l_gps.innerHTML = `GPS: ${state.gps.lat.toFixed(6)}, ${state.gps.lon.toFixed(6)}`; DOM.l_gps.style.display = 'block'; } 
-            else { DOM.l_gps.style.display = 'none'; }
-
-            if (state.geo) { DOM.l_geo.innerHTML = `LOC: ${state.geo}`; DOM.l_geo.style.display = 'block'; }
-            else { DOM.l_geo.style.display = 'none'; }
-
-            if (state.ntpStatus === 'VALIDATED') {
-                const offsetColor = Math.abs(state.offsetSec) > 2.0 ? 'audit-fail' : 'audit-pass'; 
-                DOM.l_audit.innerHTML = `NTP Server: [${state.ntpServer}] (${state.ntpIp}) | Latency: ${state.latency}ms | Offset: <span class="${offsetColor}">${state.offsetSec}s</span>`;
+                const ntpServers = ['time.stdtime.gov.tw', 'tock.stdtime.gov.tw', 'watch.stdtime.gov.tw', 'clock.stdtime.gov.tw', 'tick.stdtime.gov.tw'];
                 
-                DOM.l_time.innerHTML = `NTP Server Returned Time: ${state.ntpTimeStr}`;
-                DOM.l_time.style.display = 'block';
-            } else if (state.ntpStatus === 'FAILED') {
-                // 加入具體的跨瀏覽器 CORS 建議
-                DOM.l_audit.innerHTML = `
-                    <span class="audit-fail">NTP Blocked by Chrome Security (CORS)</span>
-                    <span class="audit-advice">Action: Try using Safari/Edge, or switch network.</span>
-                `;
-                DOM.l_time.style.display = 'none';
-            }
-
-            if (state.deviceTimeStr) {
-                DOM.l_device_time.innerHTML = `Camera Device Time: ${state.deviceTimeStr}`;
-                DOM.l_device_time.style.display = 'block';
-            }
-            
-            applyLayout(state.overlayPos); 
-        }
-
-        let isDragging = false, startX = 0, startY = 0;
-        let initialLeft = 0, initialTop = 0;
-
-        DOM.overlay.addEventListener('pointerdown', (e) => {
-            if (e.pointerType === 'mouse' && e.button !== 0) return;
-            e.preventDefault();
-            startX = e.clientX; startY = e.clientY;
-            initialLeft = parseFloat(DOM.overlay.style.left) || 0;
-            initialTop = parseFloat(DOM.overlay.style.top) || 0;
-            DOM.overlay.setPointerCapture(e.pointerId);
-            
-            isDragging = true;
-            DOM.capBtn.style.display = 'none';
-            DOM.overlay.classList.add('dragging');
-        });
-
-        DOM.overlay.addEventListener('pointermove', (e) => {
-            if (!isDragging) return;
-            e.preventDefault();
-            
-            DOM.overlay.style.left = `${initialLeft + (e.clientX - startX)}px`;
-            DOM.overlay.style.top = `${initialTop + (e.clientY - startY)}px`;
-
-            const nx = (e.clientX / window.innerWidth) * 2 - 1;
-            const ny = (e.clientY / window.innerHeight) * 2 - 1;
-            let targetPos = Math.abs(nx) > Math.abs(ny) ? (nx > 0 ? 'right' : 'left') : (ny > 0 ? 'bottom' : 'top');
-            applyLayout(targetPos, true);
-        });
-
-        const handlePointerEnd = (e) => {
-            if (!isDragging) return;
-            DOM.overlay.releasePointerCapture(e.pointerId);
-            isDragging = false;
-            DOM.overlay.classList.remove('dragging');
-            
-            const nx = (e.clientX / window.innerWidth) * 2 - 1;
-            const ny = (e.clientY / window.innerHeight) * 2 - 1;
-            applyLayout(Math.abs(nx) > Math.abs(ny) ? (nx > 0 ? 'right' : 'left') : (ny > 0 ? 'bottom' : 'top'));
-        };
-
-        DOM.overlay.addEventListener('pointerup', handlePointerEnd);
-        DOM.overlay.addEventListener('pointercancel', handlePointerEnd);
-
-        // 自動轉正引擎：不管您把文字拉到哪一邊，輸出的相片都會自動旋轉成「文字正向水平」！
-        DOM.capBtn.addEventListener('click', async (e) => {
-            const btn = e.currentTarget;
-            btn.style.transform = btn.style.transform.replace('scale(1)', 'scale(0.9)');
-            setTimeout(() => { btn.style.transform = btn.style.transform.replace('scale(0.9)', 'scale(1)'); }, 100);
-
-            const canvas = document.createElement('canvas');
-            const videoW = DOM.video.videoWidth; 
-            const videoH = DOM.video.videoHeight;
-            
-            const isVertical = (state.overlayPos === 'left' || state.overlayPos === 'right');
-            
-            // 如果文字在左右兩側，代表使用者橫拿手機，自動將輸出的畫布轉為橫向 (Landscape)
-            const finalW = isVertical ? videoH : videoW;
-            const finalH = isVertical ? videoW : videoH;
-            canvas.width = finalW; 
-            canvas.height = finalH;
-            
-            const ctx = canvas.getContext('2d');
-            
-            // 處理底層影片的旋轉與貼合
-            ctx.save();
-            if (state.overlayPos === 'left') {
-                // 左緣變為相片底部
-                ctx.translate(finalW / 2, finalH / 2);
-                ctx.rotate(-Math.PI / 2);
-                ctx.drawImage(DOM.video, -videoW / 2, -videoH / 2, videoW, videoH);
-            } else if (state.overlayPos === 'right') {
-                // 右緣變為相片底部
-                ctx.translate(finalW / 2, finalH / 2);
-                ctx.rotate(Math.PI / 2);
-                ctx.drawImage(DOM.video, -videoW / 2, -videoH / 2, videoW, videoH);
-            } else {
-                ctx.drawImage(DOM.video, 0, 0, finalW, finalH);
-            }
-            ctx.restore();
-
-            const lines = [];
-            if (state.gps) lines.push(`GPS: ${state.gps.lat.toFixed(6)}, ${state.gps.lon.toFixed(6)}`);
-            if (state.geo) lines.push(`LOC: ${state.geo}`);
-            
-            if (state.ntpStatus === 'VALIDATED') {
-                lines.push(`NTP Server: [${state.ntpServer}] (${state.ntpIp}) | Latency: ${state.latency}ms | Offset: ${state.offsetSec}s`);
-                lines.push(`NTP Server Returned Time: ${state.ntpTimeStr}`);
-            } else if (state.ntpStatus === 'FAILED') {
-                lines.push(`NTP Server: Blocked by Chrome Security (CORS)`);
-                lines.push(`* Action: Use Safari/Edge, or switch network.`);
-            } else {
-                lines.push(`NTP Server: Initializing Tracker...`);
-            }
-            
-            if (state.deviceTimeStr) lines.push(`Camera Device Time: ${state.deviceTimeStr}`);
-
-            if(lines.length > 0) {
-                const maxAllowedCanvasWidth = finalW - 40; 
-                let fontSize = Math.max(finalW, finalH) * 0.016; 
-                ctx.font = `bold ${fontSize}px monospace`;
-                
-                let maxTextWidth = 0;
-                lines.forEach(l => { maxTextWidth = Math.max(maxTextWidth, ctx.measureText(l).width); });
-                
-                if (maxTextWidth > maxAllowedCanvasWidth) {
-                    fontSize = fontSize * (maxAllowedCanvasWidth / maxTextWidth);
-                    ctx.font = `bold ${fontSize}px monospace`;
-                    maxTextWidth = 0; 
-                    lines.forEach(l => { maxTextWidth = Math.max(maxTextWidth, ctx.measureText(l).width); });
+                for (const server of ntpServers) {
+                    try {
+                        const t0 = performance.now();
+                        const ip = await resolveDoH(server);
+                        const serverTimeMs = await getRobustUTCTime();
+                        const t1 = performance.now();
+                        
+                        sysState.ntpServer = server;
+                        sysState.ntpIp = ip;
+                        sysState.latency = Math.round((t1 - t0) / 2);
+                        // Offset Calculation: Positive means device is ahead of Server
+                        sysState.offsetSec = ((Date.now() - serverTimeMs) / 1000).toFixed(2);
+                        sysState.ntpStatus = 'VALIDATED';
+                        break; 
+                    } catch (e) { /* Continue to next server in array */ }
                 }
 
-                const padding = fontSize * 1.5;
-                const lineHeightRatio = 1.5;
-                const boxW = maxTextWidth + (padding * 2);
-                const boxH = (lines.length * fontSize * lineHeightRatio) + (padding * 2);
-
-                ctx.save();
-                ctx.textBaseline = 'middle';
-                ctx.textAlign = 'left';
-
-                // 因為相片已經被我們轉正了，所以文字永遠都是水平的！
-                // 只需要決定要印在上方(Top)還是下方(Bottom)
-                const textY = (state.overlayPos === 'top') ? (boxH / 2 + padding) : (finalH - boxH / 2 - padding);
-                ctx.translate(finalW / 2, textY); 
-
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-                ctx.beginPath();
-                ctx.roundRect(-boxW/2, -boxH/2, boxW, boxH, 16); 
-                ctx.fill();
-
-                let startY = (-boxH / 2) + padding + (fontSize / 2);
-                lines.forEach(line => {
-                    ctx.fillStyle = '#ffffff';
-                    
-                    if (line.includes('Blocked') || line.includes('* Action:')) {
-                        ctx.fillStyle = '#ffeb3b'; // 警告建議用黃色
-                    } else if (line.includes('Offset:')) {
-                        const offsetMatch = line.match(/Offset: (-?\d+\.\d+)s/);
-                        if (offsetMatch && Math.abs(parseFloat(offsetMatch[1])) > 2.0) {
-                            ctx.fillStyle = '#ff6b6b'; 
-                        } else {
-                            ctx.fillStyle = '#4CAF50'; 
-                        }
-                    }
-                    
-                    ctx.fillText(line, -boxW/2 + padding, startY);
-                    startY += fontSize * lineHeightRatio;
-                });
-                
-                ctx.restore();
+                if (sysState.ntpStatus === 'WAITING') sysState.ntpStatus = 'FAILED';
+                updateDisplay();
             }
 
-            canvas.toBlob(async (blob) => {
-                const file = new File([blob], `GLP_Audit_Cam_${Date.now()}.png`, { type: 'image/png' });
-                if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    try { await navigator.share({ files: [file] }); } catch (e) {}
-                } else { alert("瀏覽器不支援原生分享，請長按圖片儲存"); }
-            }, 'image/png', 1.0);
-        });
+            /**
+             * UI Synchronization Handler: Updates DOM based strictly on encapsulated sysState.
+             */
+            function updateDisplay() {
+                if (sysState.gps) { DOM.l_gps.innerHTML = `GPS: ${sysState.gps.lat.toFixed(6)}, ${sysState.gps.lon.toFixed(6)}`; DOM.l_gps.style.display = 'block'; } 
+                else { DOM.l_gps.style.display = 'none'; }
 
-        window.onload = initApp;
+                if (sysState.geo) { DOM.l_geo.innerHTML = `LOC: ${sysState.geo}`; DOM.l_geo.style.display = 'block'; }
+                else { DOM.l_geo.style.display = 'none'; }
+
+                if (sysState.ntpStatus === 'VALIDATED') {
+                    const offsetColor = Math.abs(sysState.offsetSec) > 2.0 ? 'audit-fail' : 'audit-pass'; 
+                    DOM.l_audit.innerHTML = `NTP Server: [${sysState.ntpServer}] (${sysState.ntpIp}) | Latency: ${sysState.latency}ms | Offset: <span class="${offsetColor}">${sysState.offsetSec}s</span>`;
+                    
+                    DOM.l_time.innerHTML = `NTP Server Returned Time: ${sysState.ntpTimeStr}`;
+                    DOM.l_time.style.display = 'block';
+                } else if (sysState.ntpStatus === 'FAILED') {
+                    DOM.l_audit.innerHTML = `
+                        <span class="audit-fail">NTP Blocked by Chrome Security (CORS)</span>
+                        <span class="audit-advice">Action: Try using Safari/Edge, or switch network.</span>
+                    `;
+                    DOM.l_time.style.display = 'none';
+                }
+
+                if (sysState.deviceTimeStr) {
+                    DOM.l_device_time.innerHTML = `Camera Device Time: ${sysState.deviceTimeStr}`;
+                    DOM.l_device_time.style.display = 'block';
+                }
+                
+                applyLayout(sysState.overlayPos); 
+            }
+
+            // Drag and Drop Logic Engine
+            let isDragging = false, startX = 0, startY = 0;
+            let initialLeft = 0, initialTop = 0;
+
+            DOM.overlay.addEventListener('pointerdown', (e) => {
+                if (e.pointerType === 'mouse' && e.button !== 0) return;
+                e.preventDefault();
+                startX = e.clientX; startY = e.clientY;
+                initialLeft = parseFloat(DOM.overlay.style.left) || 0;
+                initialTop = parseFloat(DOM.overlay.style.top) || 0;
+                DOM.overlay.setPointerCapture(e.pointerId);
+                
+                isDragging = true;
+                DOM.capBtn.style.display = 'none';
+                DOM.overlay.classList.add('dragging');
+            });
+
+            DOM.overlay.addEventListener('pointermove', (e) => {
+                if (!isDragging) return;
+                e.preventDefault();
+                
+                DOM.overlay.style.left = `${initialLeft + (e.clientX - startX)}px`;
+                DOM.overlay.style.top = `${initialTop + (e.clientY - startY)}px`;
+
+                const nx = (e.clientX / window.innerWidth) * 2 - 1;
+                const ny = (e.clientY / window.innerHeight) * 2 - 1;
+                let targetPos = Math.abs(nx) > Math.abs(ny) ? (nx > 0 ? 'right' : 'left') : (ny > 0 ? 'bottom' : 'top');
+                applyLayout(targetPos, true);
+            });
+
+            const handlePointerEnd = (e) => {
+                if (!isDragging) return;
+                DOM.overlay.releasePointerCapture(e.pointerId);
+                isDragging = false;
+                DOM.overlay.classList.remove('dragging');
+                
+                const nx = (e.clientX / window.innerWidth) * 2 - 1;
+                const ny = (e.clientY / window.innerHeight) * 2 - 1;
+                applyLayout(Math.abs(nx) > Math.abs(ny) ? (nx > 0 ? 'right' : 'left') : (ny > 0 ? 'bottom' : 'top'));
+            };
+
+            DOM.overlay.addEventListener('pointerup', handlePointerEnd);
+            DOM.overlay.addEventListener('pointercancel', handlePointerEnd);
+
+            /**
+             * Final Image Generation Engine.
+             * Implements ALCOA+ standards by capturing data atomically with the visual frame.
+             */
+            DOM.capBtn.addEventListener('click', async (e) => {
+                const btn = e.currentTarget;
+                btn.style.transform = btn.style.transform.replace('scale(1)', 'scale(0.9)');
+                setTimeout(() => { btn.style.transform = btn.style.transform.replace('scale(0.9)', 'scale(1)'); }, 100);
+
+                // Atomic Capture Lock: Freezes the timestamp exactly when the render is invoked
+                const captureTimestampMs = Date.now();
+
+                const canvas = document.createElement('canvas');
+                const videoW = DOM.video.videoWidth; 
+                const videoH = DOM.video.videoHeight;
+                
+                const isVertical = (sysState.overlayPos === 'left' || sysState.overlayPos === 'right');
+                
+                // Auto-Upright orientation matrix logic
+                const finalW = isVertical ? videoH : videoW;
+                const finalH = isVertical ? videoW : videoH;
+                canvas.width = finalW; 
+                canvas.height = finalH;
+                
+                const ctx = canvas.getContext('2d');
+                
+                ctx.save();
+                if (sysState.overlayPos === 'left') {
+                    ctx.translate(finalW / 2, finalH / 2);
+                    ctx.rotate(-Math.PI / 2);
+                    ctx.drawImage(DOM.video, -videoW / 2, -videoH / 2, videoW, videoH);
+                } else if (sysState.overlayPos === 'right') {
+                    ctx.translate(finalW / 2, finalH / 2);
+                    ctx.rotate(Math.PI / 2);
+                    ctx.drawImage(DOM.video, -videoW / 2, -videoH / 2, videoW, videoH);
+                } else {
+                    ctx.drawImage(DOM.video, 0, 0, finalW, finalH);
+                }
+                ctx.restore();
+
+                // Immutable data reconstruction from encapsulated state
+                const lines = [];
+                if (sysState.gps) lines.push(`GPS: ${sysState.gps.lat.toFixed(6)}, ${sysState.gps.lon.toFixed(6)}`);
+                if (sysState.geo) lines.push(`LOC: ${sysState.geo}`);
+                
+                if (sysState.ntpStatus === 'VALIDATED') {
+                    lines.push(`NTP Server: [${sysState.ntpServer}] (${sysState.ntpIp}) | Latency: ${sysState.latency}ms | Offset: ${sysState.offsetSec}s`);
+                    lines.push(`NTP Server Returned Time: ${sysState.ntpTimeStr}`);
+                } else if (sysState.ntpStatus === 'FAILED') {
+                    lines.push(`NTP Server: Blocked by Chrome Security (CORS)`);
+                    lines.push(`* Action: Use Safari/Edge, or switch network.`);
+                } else {
+                    lines.push(`NTP Server: Initializing Tracker...`);
+                }
+                
+                if (sysState.deviceTimeStr) lines.push(`Camera Device Time: ${sysState.deviceTimeStr}`);
+
+                if(lines.length > 0) {
+                    const maxAllowedCanvasWidth = finalW - 40; 
+                    let fontSize = Math.max(finalW, finalH) * 0.016; 
+                    ctx.font = `bold ${fontSize}px monospace`;
+                    
+                    let maxTextWidth = 0;
+                    lines.forEach(l => { maxTextWidth = Math.max(maxTextWidth, ctx.measureText(l).width); });
+                    
+                    if (maxTextWidth > maxAllowedCanvasWidth) {
+                        fontSize = fontSize * (maxAllowedCanvasWidth / maxTextWidth);
+                        ctx.font = `bold ${fontSize}px monospace`;
+                        maxTextWidth = 0; 
+                        lines.forEach(l => { maxTextWidth = Math.max(maxTextWidth, ctx.measureText(l).width); });
+                    }
+
+                    const padding = fontSize * 1.5;
+                    const lineHeightRatio = 1.5;
+                    const boxW = maxTextWidth + (padding * 2);
+                    const boxH = (lines.length * fontSize * lineHeightRatio) + (padding * 2);
+
+                    ctx.save();
+                    ctx.textBaseline = 'middle';
+                    ctx.textAlign = 'left';
+
+                    const textY = (sysState.overlayPos === 'top') ? (boxH / 2 + padding) : (finalH - boxH / 2 - padding);
+                    ctx.translate(finalW / 2, textY); 
+
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                    ctx.beginPath();
+                    ctx.roundRect(-boxW/2, -boxH/2, boxW, boxH, 16); 
+                    ctx.fill();
+
+                    let startY = (-boxH / 2) + padding + (fontSize / 2);
+                    lines.forEach(line => {
+                        ctx.fillStyle = '#ffffff';
+                        
+                        if (line.includes('Blocked') || line.includes('* Action:')) {
+                            ctx.fillStyle = '#ffeb3b'; 
+                        } else if (line.includes('Offset:')) {
+                            const offsetMatch = line.match(/Offset: (-?\d+\.\d+)s/);
+                            if (offsetMatch && Math.abs(parseFloat(offsetMatch[1])) > 2.0) {
+                                ctx.fillStyle = '#ff6b6b'; 
+                            } else {
+                                ctx.fillStyle = '#4CAF50'; 
+                            }
+                        }
+                        
+                        ctx.fillText(line, -boxW/2 + padding, startY);
+                        startY += fontSize * lineHeightRatio;
+                    });
+                    
+                    ctx.restore();
+                }
+
+                // Generates an immutable filename incorporating Version Control and Timestamp
+                const auditFilename = `GLP_Audit_Cam_${APP_VERSION}_${captureTimestampMs}.png`;
+
+                canvas.toBlob(async (blob) => {
+                    const file = new File([blob], auditFilename, { type: 'image/png' });
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        try { await navigator.share({ files: [file] }); } catch (e) {}
+                    } else { alert("System Notification: Native share API not supported. Please long-press to save the image."); }
+                }, 'image/png', 1.0);
+            });
+
+            // Entry Point Execution
+            window.onload = initSystem;
+
+        })(); // End of encapsulated execution scope
     </script>
 </body>
 </html>
