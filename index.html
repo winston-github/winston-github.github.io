@@ -10,7 +10,6 @@
         
         #camera-feed { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
 
-        /* 半透明資料區塊 - 加入 width: max-content 保證測量精準，不被螢幕強制擠壓 */
         #data-overlay {
             position: absolute; z-index: 10;
             background-color: rgba(0, 0, 0, 0.6); color: #fff; border-radius: 8px;
@@ -19,7 +18,7 @@
             pointer-events: auto; touch-action: none; cursor: grab;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
             width: max-content; 
-            transform-origin: center center; /* 確保選轉軸心永遠在正中央 */
+            transform-origin: center center;
         }
         
         #drop-indicator {
@@ -61,7 +60,8 @@
             gps: null, geo: null,
             ntpServer: null, ntpIp: null, latency: null, offsetSec: null, ntpStatus: 'WAITING',
             timeStr: null,
-            overlayPos: 'top' 
+            overlayPos: 'top',
+            clockInterval: null
         };
 
         const DOM = {
@@ -104,35 +104,28 @@
             throw new Error("DNS Lookup Failed");
         }
 
-        // 【重構排版引擎】：放棄 Canvas 預測，改用真實 DOM 測量，完美解決 Safari/Edge 切字問題
         function applyLayout(pos, isDragging = false) {
             state.overlayPos = pos;
             
             const w = window.innerWidth;
             const h = window.innerHeight;
             const isVertical = (pos === 'left' || pos === 'right');
-            const maxAllowedWidth = (isVertical ? h : w) - 40; // 保留 40px 的安全邊距
+            const maxAllowedWidth = (isVertical ? h : w) - 40; 
             
-            // 1. 設定初始標準字體大小
             let safeFontSize = Math.max(12, Math.max(w, h) * 0.016);
             DOM.overlay.style.fontSize = `${safeFontSize}px`;
             DOM.overlay.style.lineHeight = '1.5';
 
-            // 2. 讀取瀏覽器「真實渲染」出來的寬度 (scrollWidth 不受 Transform 旋轉影響)
             let currentWidth = DOM.overlay.scrollWidth;
 
-            // 3. 防溢出縮放引擎 (Shrink-to-Fit)
             if (currentWidth > maxAllowedWidth && currentWidth > 0) {
-                // 加入 0.98 安全係數，防止 Safari 亞像素渲染造成的微幅溢出
                 safeFontSize = safeFontSize * (maxAllowedWidth / currentWidth) * 0.98;
                 DOM.overlay.style.fontSize = `${safeFontSize}px`;
             }
 
-            // 4. 取得縮放後的最終真實長寬
             const boxW = DOM.overlay.offsetWidth;
             const boxH = DOM.overlay.offsetHeight;
 
-            // 5. 計算絕對定位
             let top, left, transform;
             if (pos === 'top') {
                 top = 0; left = (w - boxW) / 2; transform = 'none';
@@ -148,7 +141,6 @@
                 DOM.capBtn.style.cssText = `position:absolute; left:30px; top:50%; transform:translateY(-50%); z-index:20; display:block;`;
             }
 
-            // 6. 套用至畫面
             if (!isDragging) {
                 DOM.overlay.style.top = `${top}px`;
                 DOM.overlay.style.left = `${left}px`;
@@ -185,9 +177,28 @@
             DOM.status.style.display = 'none';
             DOM.capBtn.style.display = 'block';
             DOM.l_audit.style.display = 'block';
+            
+            // 修正1：快門按鈕出現的瞬間，時鐘必須同步啟動，確保記憶體內絕對不為 Null
+            startClock(); 
+            
             applyLayout('top');
             updateDisplay();
             await fetchGeocodeAndAuditNTP();
+        }
+
+        // 修正2：Zero-Delay 滴答引擎，第一次啟動不再等待 1000ms
+        function startClock() {
+            if (state.clockInterval) clearInterval(state.clockInterval);
+            
+            const tick = () => {
+                const d = new Date(); const pad = (n) => n.toString().padStart(2, '0');
+                const m = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+                state.timeStr = `${d.getFullYear()}-${m[d.getMonth()]}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} (UTC${-d.getTimezoneOffset()/60})`;
+                updateDisplay();
+            };
+            
+            tick(); // 第 0 毫秒立刻寫入時間
+            state.clockInterval = setInterval(tick, 1000);
         }
 
         async function fetchGeocodeAndAuditNTP() {
@@ -221,7 +232,7 @@
             }
 
             if (state.ntpStatus === 'WAITING') state.ntpStatus = 'FAILED';
-            updateDisplay(); startClock();
+            updateDisplay();
         }
 
         function updateDisplay() {
@@ -243,15 +254,6 @@
                 DOM.l_time.style.display = 'block';
             }
             applyLayout(state.overlayPos); 
-        }
-
-        function startClock() {
-            setInterval(() => {
-                const d = new Date(); const pad = (n) => n.toString().padStart(2, '0');
-                const m = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-                state.timeStr = `${d.getFullYear()}-${m[d.getMonth()]}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} (UTC${-d.getTimezoneOffset()/60})`;
-                updateDisplay();
-            }, 1000);
         }
 
         let isDragging = false, startX = 0, startY = 0;
@@ -297,6 +299,7 @@
         DOM.overlay.addEventListener('pointerup', handlePointerEnd);
         DOM.overlay.addEventListener('pointercancel', handlePointerEnd);
 
+        // 修正3：原子化資料擷取 (Atomic Data Snapshot)。不再依賴畫面，直接從系統記憶體抽出當下數據
         DOM.capBtn.addEventListener('click', async (e) => {
             const btn = e.currentTarget;
             btn.style.transform = btn.style.transform.replace('scale(1)', 'scale(0.9)');
@@ -310,11 +313,20 @@
             
             ctx.drawImage(DOM.video, 0, 0, cw, ch);
 
+            // 直接組裝底層狀態，杜絕任何畫面延遲導致的文字流失
             const lines = [];
-            if (DOM.l_gps.style.display !== 'none') lines.push(DOM.l_gps.innerText.replace(/<[^>]*>?/gm, '')); 
-            if (DOM.l_geo.style.display !== 'none') lines.push(DOM.l_geo.innerText.replace(/<[^>]*>?/gm, ''));
-            if (DOM.l_audit.style.display !== 'none') lines.push(DOM.l_audit.innerText.replace(/<[^>]*>?/gm, ''));
-            if (DOM.l_time.style.display !== 'none') lines.push(DOM.l_time.innerText.replace(/<[^>]*>?/gm, ''));
+            if (state.gps) lines.push(`GPS: ${state.gps.lat.toFixed(6)}, ${state.gps.lon.toFixed(6)}`);
+            if (state.geo) lines.push(`LOC: ${state.geo}`);
+            
+            if (state.ntpStatus === 'VALIDATED') {
+                lines.push(`Audit: [${state.ntpServer}] (${state.ntpIp}) | Latency: ${state.latency}ms | Offset: ${state.offsetSec}s`);
+            } else if (state.ntpStatus === 'FAILED') {
+                lines.push(`Audit: Verification Blocked by Browser CORS`);
+            } else {
+                lines.push(`Audit: Initializing Audit Tracker...`);
+            }
+            
+            if (state.timeStr) lines.push(`Time : ${state.timeStr}`); // 因為修正1，這裡保證 100% 存在
 
             if(lines.length > 0) {
                 const isVertical = (state.overlayPos === 'left' || state.overlayPos === 'right');
@@ -362,11 +374,19 @@
                 let startY = (-boxH / 2) + padding + (fontSize / 2);
                 lines.forEach(line => {
                     ctx.fillStyle = '#ffffff';
-                    if (line.includes('Blocked') || line.match(/Offset: -?[3-9]\./) || line.match(/Offset: -?[1-9][0-9]+\./)) {
+                    
+                    // 根據正規表示式精準上色，與畫面完全一致
+                    if (line.includes('Blocked')) {
                         ctx.fillStyle = '#ff6b6b'; 
                     } else if (line.includes('Offset:')) {
-                        ctx.fillStyle = '#4CAF50'; 
+                        const offsetMatch = line.match(/Offset: (-?\d+\.\d+)s/);
+                        if (offsetMatch && Math.abs(parseFloat(offsetMatch[1])) > 2.0) {
+                            ctx.fillStyle = '#ff6b6b'; 
+                        } else {
+                            ctx.fillStyle = '#4CAF50'; 
+                        }
                     }
+                    
                     ctx.fillText(line, -boxW/2 + padding, startY);
                     startY += fontSize * lineHeightRatio;
                 });
