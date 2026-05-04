@@ -10,7 +10,7 @@
         
         #camera-feed { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
 
-        /* 半透明資料區塊 (獨立絕對定位，完美貼合邊緣) */
+        /* 半透明資料區塊 - 加入 width: max-content 保證測量精準，不被螢幕強制擠壓 */
         #data-overlay {
             position: absolute; z-index: 10;
             background-color: rgba(0, 0, 0, 0.6); color: #fff; border-radius: 8px;
@@ -18,13 +18,15 @@
             display: flex; flex-direction: column; justify-content: center; align-items: flex-start;
             pointer-events: auto; touch-action: none; cursor: grab;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            width: max-content; 
+            transform-origin: center center; /* 確保選轉軸心永遠在正中央 */
         }
         
-        /* 拖曳時的 1:1 完美對應虛線預覽框 */
         #drop-indicator {
             position: absolute; z-index: 5;
             border: 2px dashed #4CAF50; background-color: rgba(76, 175, 80, 0.15); border-radius: 8px;
             pointer-events: none; display: none; transition: all 0.15s ease-out;
+            transform-origin: center center;
         }
 
         .audit-pass { color: #4CAF50; } 
@@ -74,7 +76,6 @@
             status: document.getElementById('init-status')
         };
 
-        // 解決 CORS 阻擋：使用專為瀏覽器開放的 Time APIs，並搭配雙重備援
         async function getRobustUTCTime() {
             const abort = () => AbortSignal.timeout(4000);
             try {
@@ -88,7 +89,6 @@
             throw new Error("Time APIs failed");
         }
 
-        // DNS-over-HTTPS 驗證台灣 NTP 伺服器的真實 IP
         async function resolveDoH(hostname) {
             const abort = () => AbortSignal.timeout(3000);
             try {
@@ -104,39 +104,36 @@
             throw new Error("DNS Lookup Failed");
         }
 
+        // 【重構排版引擎】：放棄 Canvas 預測，改用真實 DOM 測量，完美解決 Safari/Edge 切字問題
         function applyLayout(pos, isDragging = false) {
             state.overlayPos = pos;
             
             const w = window.innerWidth;
             const h = window.innerHeight;
             const isVertical = (pos === 'left' || pos === 'right');
-            const maxAllowedWidth = (isVertical ? h : w) - 20; 
+            const maxAllowedWidth = (isVertical ? h : w) - 40; // 保留 40px 的安全邊距
             
+            // 1. 設定初始標準字體大小
             let safeFontSize = Math.max(12, Math.max(w, h) * 0.016);
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            const lines = [DOM.l_gps, DOM.l_geo, DOM.l_audit, DOM.l_time].filter(el => el.style.display !== 'none').map(el => el.innerText.replace(/<[^>]*>?/gm, ''));
-            
-            if (lines.length > 0) {
-                ctx.font = `bold ${safeFontSize}px monospace`;
-                let maxTextWidth = 0;
-                lines.forEach(l => { maxTextWidth = Math.max(maxTextWidth, ctx.measureText(l).width); });
-                
-                if (maxTextWidth > maxAllowedWidth) {
-                    safeFontSize = safeFontSize * (maxAllowedWidth / maxTextWidth);
-                }
-            }
             DOM.overlay.style.fontSize = `${safeFontSize}px`;
             DOM.overlay.style.lineHeight = '1.5';
 
-            DOM.overlay.style.transform = 'none';
-            DOM.overlay.style.top = '0px';
-            DOM.overlay.style.left = '0px';
+            // 2. 讀取瀏覽器「真實渲染」出來的寬度 (scrollWidth 不受 Transform 旋轉影響)
+            let currentWidth = DOM.overlay.scrollWidth;
+
+            // 3. 防溢出縮放引擎 (Shrink-to-Fit)
+            if (currentWidth > maxAllowedWidth && currentWidth > 0) {
+                // 加入 0.98 安全係數，防止 Safari 亞像素渲染造成的微幅溢出
+                safeFontSize = safeFontSize * (maxAllowedWidth / currentWidth) * 0.98;
+                DOM.overlay.style.fontSize = `${safeFontSize}px`;
+            }
+
+            // 4. 取得縮放後的最終真實長寬
             const boxW = DOM.overlay.offsetWidth;
             const boxH = DOM.overlay.offsetHeight;
 
+            // 5. 計算絕對定位
             let top, left, transform;
-            
             if (pos === 'top') {
                 top = 0; left = (w - boxW) / 2; transform = 'none';
                 DOM.capBtn.style.cssText = `position:absolute; bottom:30px; left:50%; transform:translateX(-50%); z-index:20; display:block;`;
@@ -151,6 +148,7 @@
                 DOM.capBtn.style.cssText = `position:absolute; left:30px; top:50%; transform:translateY(-50%); z-index:20; display:block;`;
             }
 
+            // 6. 套用至畫面
             if (!isDragging) {
                 DOM.overlay.style.top = `${top}px`;
                 DOM.overlay.style.left = `${left}px`;
@@ -202,7 +200,6 @@
             }
             updateDisplay();
 
-            // 優先測試台灣 NTP 伺服器陣列
             const ntpServers = ['time.stdtime.gov.tw', 'tock.stdtime.gov.tw', 'watch.stdtime.gov.tw', 'clock.stdtime.gov.tw', 'tick.stdtime.gov.tw'];
             
             for (const server of ntpServers) {
