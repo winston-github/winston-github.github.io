@@ -1,3 +1,397 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Geo-Cam (GLP/GAMP5 Audit Edition)</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background-color: #000; font-family: monospace; }
+        
+        #camera-feed { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+
+        /* 半透明資料區塊 (獨立絕對定位，完美貼合邊緣) */
+        #data-overlay {
+            position: absolute; z-index: 10;
+            background-color: rgba(0, 0, 0, 0.6); color: #fff; border-radius: 8px;
+            padding: 12px 16px; font-weight: bold; white-space: nowrap;
+            display: flex; flex-direction: column; justify-content: center; align-items: flex-start;
+            pointer-events: auto; touch-action: none; cursor: grab;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        
+        /* 拖曳時的 1:1 完美對應虛線預覽框 */
+        #drop-indicator {
+            position: absolute; z-index: 5;
+            border: 2px dashed #4CAF50; background-color: rgba(76, 175, 80, 0.15); border-radius: 8px;
+            pointer-events: none; display: none; transition: all 0.15s ease-out;
+        }
+
+        .audit-pass { color: #4CAF50; } 
+        .audit-fail { color: #ff6b6b; } 
+
+        #capture-btn {
+            position: absolute; z-index: 20; width: 70px; height: 70px; background-color: rgba(255, 255, 255, 0.9);
+            border: 4px solid #aaa; border-radius: 50%; cursor: pointer; transition: transform 0.1s ease-out;
+        }
+        
+        #init-status { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; z-index: 100; text-align: center; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <video id="camera-feed" autoplay playsinline muted></video>
+    
+    <div id="drop-indicator"></div>
+
+    <div id="data-overlay">
+        <div id="line-gps" style="display:none;"></div>
+        <div id="line-geo" style="display:none;"></div>
+        <div id="line-audit" style="display:none;">Initializing Audit Tracker...</div>
+        <div id="line-time" style="display:none;"></div>
+    </div>
+
+    <div id="capture-btn" style="display:none;"></div>
+    <div id="init-status">Initializing Camera & Sensors...</div>
+
+    <script>
+        const state = {
+            gps: null, geo: null,
+            ntpServer: null, ntpIp: null, latency: null, offsetSec: null, ntpStatus: 'WAITING',
+            timeStr: null,
+            overlayPos: 'top' 
+        };
+
+        const DOM = {
+            video: document.getElementById('camera-feed'),
+            overlay: document.getElementById('data-overlay'),
+            indicator: document.getElementById('drop-indicator'),
+            l_gps: document.getElementById('line-gps'),
+            l_geo: document.getElementById('line-geo'),
+            l_audit: document.getElementById('line-audit'),
+            l_time: document.getElementById('line-time'),
+            capBtn: document.getElementById('capture-btn'),
+            status: document.getElementById('init-status')
+        };
+
+        // 解決 CORS 阻擋：使用專為瀏覽器開放的 Time APIs，並搭配雙重備援
+        async function getRobustUTCTime() {
+            const abort = () => AbortSignal.timeout(4000);
+            try {
+                const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC', { signal: abort(), cache: 'no-store' });
+                if (res.ok) return new Date((await res.json()).utc_datetime).getTime();
+            } catch(e) {}
+            try {
+                const res = await fetch('https://timeapi.io/api/Time/current/zone?timeZone=UTC', { signal: abort(), cache: 'no-store' });
+                if (res.ok) return new Date((await res.json()).dateTime + "Z").getTime();
+            } catch(e) {}
+            throw new Error("Time APIs failed");
+        }
+
+        // DNS-over-HTTPS 驗證台灣 NTP 伺服器的真實 IP
+        async function resolveDoH(hostname) {
+            const abort = () => AbortSignal.timeout(3000);
+            try {
+                const res = await fetch(`https://dns.google/resolve?name=${hostname}&type=A`, { signal: abort(), cache: 'no-store' });
+                const data = await res.json();
+                if(data.Status === 0 && data.Answer) return data.Answer.find(a => a.type === 1).data;
+            } catch(e) {}
+            try {
+                const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${hostname}&type=A`, { headers: { 'accept': 'application/dns-json' }, signal: abort(), cache: 'no-store' });
+                const data = await res.json();
+                if(data.Status === 0 && data.Answer) return data.Answer.find(a => a.type === 1).data;
+            } catch(e) {}
+            throw new Error("DNS Lookup Failed");
+        }
+
+        function applyLayout(pos, isDragging = false) {
+            state.overlayPos = pos;
+            
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            const isVertical = (pos === 'left' || pos === 'right');
+            const maxAllowedWidth = (isVertical ? h : w) - 20; 
+            
+            let safeFontSize = Math.max(12, Math.max(w, h) * 0.016);
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const lines = [DOM.l_gps, DOM.l_geo, DOM.l_audit, DOM.l_time].filter(el => el.style.display !== 'none').map(el => el.innerText.replace(/<[^>]*>?/gm, ''));
+            
+            if (lines.length > 0) {
+                ctx.font = `bold ${safeFontSize}px monospace`;
+                let maxTextWidth = 0;
+                lines.forEach(l => { maxTextWidth = Math.max(maxTextWidth, ctx.measureText(l).width); });
+                
+                if (maxTextWidth > maxAllowedWidth) {
+                    safeFontSize = safeFontSize * (maxAllowedWidth / maxTextWidth);
+                }
+            }
+            DOM.overlay.style.fontSize = `${safeFontSize}px`;
+            DOM.overlay.style.lineHeight = '1.5';
+
+            DOM.overlay.style.transform = 'none';
+            DOM.overlay.style.top = '0px';
+            DOM.overlay.style.left = '0px';
+            const boxW = DOM.overlay.offsetWidth;
+            const boxH = DOM.overlay.offsetHeight;
+
+            let top, left, transform;
+            
+            if (pos === 'top') {
+                top = 0; left = (w - boxW) / 2; transform = 'none';
+                DOM.capBtn.style.cssText = `position:absolute; bottom:30px; left:50%; transform:translateX(-50%); z-index:20; display:block;`;
+            } else if (pos === 'bottom') {
+                top = h - boxH; left = (w - boxW) / 2; transform = 'none';
+                DOM.capBtn.style.cssText = `position:absolute; top:30px; left:50%; transform:translateX(-50%); z-index:20; display:block;`;
+            } else if (pos === 'left') {
+                top = (h - boxH) / 2; left = (boxH - boxW) / 2; transform = 'rotate(-90deg)';
+                DOM.capBtn.style.cssText = `position:absolute; right:30px; top:50%; transform:translateY(-50%); z-index:20; display:block;`;
+            } else if (pos === 'right') {
+                top = (h - boxH) / 2; left = w - (boxW + boxH) / 2; transform = 'rotate(90deg)';
+                DOM.capBtn.style.cssText = `position:absolute; left:30px; top:50%; transform:translateY(-50%); z-index:20; display:block;`;
+            }
+
+            if (!isDragging) {
+                DOM.overlay.style.top = `${top}px`;
+                DOM.overlay.style.left = `${left}px`;
+                DOM.overlay.style.transform = transform;
+                DOM.indicator.style.display = 'none';
+            } else {
+                DOM.indicator.style.display = 'block';
+                DOM.indicator.style.width = `${boxW}px`;
+                DOM.indicator.style.height = `${boxH}px`;
+                DOM.indicator.style.top = `${top}px`;
+                DOM.indicator.style.left = `${left}px`;
+                DOM.indicator.style.transform = transform;
+            }
+        }
+
+        window.addEventListener('resize', () => applyLayout(state.overlayPos));
+
+        async function initApp() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                DOM.video.srcObject = stream;
+            } catch (err) { DOM.status.innerHTML = `<span class="audit-fail">Camera Error: ${err.message}</span>`; return; }
+
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                    (p) => { state.gps = { lat: p.coords.latitude, lon: p.coords.longitude }; finalizeInit(); },
+                    (e) => { state.gps = null; finalizeInit(); }, 
+                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                );
+            } else { state.gps = null; finalizeInit(); }
+        }
+
+        async function finalizeInit() {
+            DOM.status.style.display = 'none';
+            DOM.capBtn.style.display = 'block';
+            DOM.l_audit.style.display = 'block';
+            applyLayout('top');
+            updateDisplay();
+            await fetchGeocodeAndAuditNTP();
+        }
+
+        async function fetchGeocodeAndAuditNTP() {
+            if (state.gps) {
+                try {
+                    const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${state.gps.lat}&lon=${state.gps.lon}&zoom=16&addressdetails=1`, { signal: AbortSignal.timeout(5000) });
+                    const geoData = await geoRes.json();
+                    state.geo = `Near ${geoData.address.road || geoData.address.neighbourhood || "Unknown Road"}, ${geoData.address.city || geoData.address.town || "Unknown"}`;
+                } catch (e) { state.geo = null; } 
+            }
+            updateDisplay();
+
+            // 優先測試台灣 NTP 伺服器陣列
+            const ntpServers = ['time.stdtime.gov.tw', 'tock.stdtime.gov.tw', 'watch.stdtime.gov.tw', 'clock.stdtime.gov.tw', 'tick.stdtime.gov.tw'];
+            
+            for (const server of ntpServers) {
+                try {
+                    const t0 = performance.now();
+                    const ip = await resolveDoH(server);
+                    const serverTimeMs = await getRobustUTCTime();
+                    const t1 = performance.now();
+                    
+                    state.ntpServer = server;
+                    state.ntpIp = ip;
+                    state.latency = Math.round((t1 - t0) / 2);
+                    state.offsetSec = ((Date.now() - serverTimeMs) / 1000).toFixed(2);
+                    state.ntpStatus = 'VALIDATED';
+                    break; 
+                } catch (e) {
+                    console.log(`${server} validation failed:`, e);
+                }
+            }
+
+            if (state.ntpStatus === 'WAITING') state.ntpStatus = 'FAILED';
+            updateDisplay(); startClock();
+        }
+
+        function updateDisplay() {
+            if (state.gps) { DOM.l_gps.innerHTML = `GPS: ${state.gps.lat.toFixed(6)}, ${state.gps.lon.toFixed(6)}`; DOM.l_gps.style.display = 'block'; } 
+            else { DOM.l_gps.style.display = 'none'; }
+
+            if (state.geo) { DOM.l_geo.innerHTML = `LOC: ${state.geo}`; DOM.l_geo.style.display = 'block'; }
+            else { DOM.l_geo.style.display = 'none'; }
+
+            if (state.ntpStatus === 'VALIDATED') {
+                const offsetColor = Math.abs(state.offsetSec) > 2.0 ? 'audit-fail' : 'audit-pass'; 
+                DOM.l_audit.innerHTML = `Audit: [${state.ntpServer}] (${state.ntpIp}) | Latency: ${state.latency}ms | Offset: <span class="${offsetColor}">${state.offsetSec}s</span>`;
+            } else if (state.ntpStatus === 'FAILED') {
+                DOM.l_audit.innerHTML = `<span class="audit-fail">Audit: Verification Blocked by Browser CORS</span>`;
+            }
+
+            if (state.timeStr) {
+                DOM.l_time.innerHTML = `Time : ${state.timeStr}`;
+                DOM.l_time.style.display = 'block';
+            }
+            applyLayout(state.overlayPos); 
+        }
+
+        function startClock() {
+            setInterval(() => {
+                const d = new Date(); const pad = (n) => n.toString().padStart(2, '0');
+                const m = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+                state.timeStr = `${d.getFullYear()}-${m[d.getMonth()]}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} (UTC${-d.getTimezoneOffset()/60})`;
+                updateDisplay();
+            }, 1000);
+        }
+
+        let isDragging = false, startX = 0, startY = 0;
+        let initialLeft = 0, initialTop = 0;
+
+        DOM.overlay.addEventListener('pointerdown', (e) => {
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            e.preventDefault();
+            startX = e.clientX; startY = e.clientY;
+            initialLeft = parseFloat(DOM.overlay.style.left) || 0;
+            initialTop = parseFloat(DOM.overlay.style.top) || 0;
+            DOM.overlay.setPointerCapture(e.pointerId);
+            
+            isDragging = true;
+            DOM.capBtn.style.display = 'none';
+            DOM.overlay.classList.add('dragging');
+        });
+
+        DOM.overlay.addEventListener('pointermove', (e) => {
+            if (!isDragging) return;
+            e.preventDefault();
+            
+            DOM.overlay.style.left = `${initialLeft + (e.clientX - startX)}px`;
+            DOM.overlay.style.top = `${initialTop + (e.clientY - startY)}px`;
+
+            const nx = (e.clientX / window.innerWidth) * 2 - 1;
+            const ny = (e.clientY / window.innerHeight) * 2 - 1;
+            let targetPos = Math.abs(nx) > Math.abs(ny) ? (nx > 0 ? 'right' : 'left') : (ny > 0 ? 'bottom' : 'top');
+            applyLayout(targetPos, true);
+        });
+
+        const handlePointerEnd = (e) => {
+            if (!isDragging) return;
+            DOM.overlay.releasePointerCapture(e.pointerId);
+            isDragging = false;
+            DOM.overlay.classList.remove('dragging');
+            
+            const nx = (e.clientX / window.innerWidth) * 2 - 1;
+            const ny = (e.clientY / window.innerHeight) * 2 - 1;
+            applyLayout(Math.abs(nx) > Math.abs(ny) ? (nx > 0 ? 'right' : 'left') : (ny > 0 ? 'bottom' : 'top'));
+        };
+
+        DOM.overlay.addEventListener('pointerup', handlePointerEnd);
+        DOM.overlay.addEventListener('pointercancel', handlePointerEnd);
+
+        DOM.capBtn.addEventListener('click', async (e) => {
+            const btn = e.currentTarget;
+            btn.style.transform = btn.style.transform.replace('scale(1)', 'scale(0.9)');
+            setTimeout(() => { btn.style.transform = btn.style.transform.replace('scale(0.9)', 'scale(1)'); }, 100);
+
+            const canvas = document.createElement('canvas');
+            const cw = DOM.video.videoWidth; 
+            const ch = DOM.video.videoHeight;
+            canvas.width = cw; canvas.height = ch;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.drawImage(DOM.video, 0, 0, cw, ch);
+
+            const lines = [];
+            if (DOM.l_gps.style.display !== 'none') lines.push(DOM.l_gps.innerText.replace(/<[^>]*>?/gm, '')); 
+            if (DOM.l_geo.style.display !== 'none') lines.push(DOM.l_geo.innerText.replace(/<[^>]*>?/gm, ''));
+            if (DOM.l_audit.style.display !== 'none') lines.push(DOM.l_audit.innerText.replace(/<[^>]*>?/gm, ''));
+            if (DOM.l_time.style.display !== 'none') lines.push(DOM.l_time.innerText.replace(/<[^>]*>?/gm, ''));
+
+            if(lines.length > 0) {
+                const isVertical = (state.overlayPos === 'left' || state.overlayPos === 'right');
+                const maxAllowedCanvasWidth = (isVertical ? ch : cw) - 40; 
+
+                let fontSize = Math.max(cw, ch) * 0.016; 
+                ctx.font = `bold ${fontSize}px monospace`;
+                
+                let maxTextWidth = 0;
+                lines.forEach(l => { maxTextWidth = Math.max(maxTextWidth, ctx.measureText(l).width); });
+                
+                if (maxTextWidth > maxAllowedCanvasWidth) {
+                    fontSize = fontSize * (maxAllowedCanvasWidth / maxTextWidth);
+                    ctx.font = `bold ${fontSize}px monospace`;
+                    maxTextWidth = 0; 
+                    lines.forEach(l => { maxTextWidth = Math.max(maxTextWidth, ctx.measureText(l).width); });
+                }
+
+                const padding = fontSize * 1.5;
+                const lineHeightRatio = 1.5;
+                const boxW = maxTextWidth + (padding * 2);
+                const boxH = (lines.length * fontSize * lineHeightRatio) + (padding * 2);
+
+                ctx.save();
+                ctx.textBaseline = 'middle';
+                ctx.textAlign = 'left';
+
+                if (state.overlayPos === 'top') {
+                    ctx.translate(cw / 2, boxH / 2); 
+                } else if (state.overlayPos === 'bottom') {
+                    ctx.translate(cw / 2, ch - boxH / 2);
+                } else if (state.overlayPos === 'left') {
+                    ctx.translate(boxH / 2, ch / 2);
+                    ctx.rotate(-Math.PI / 2);
+                } else if (state.overlayPos === 'right') {
+                    ctx.translate(cw - boxH / 2, ch / 2);
+                    ctx.rotate(Math.PI / 2);
+                }
+
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                ctx.beginPath();
+                ctx.roundRect(-boxW/2, -boxH/2, boxW, boxH, 16); 
+                ctx.fill();
+
+                let startY = (-boxH / 2) + padding + (fontSize / 2);
+                lines.forEach(line => {
+                    ctx.fillStyle = '#ffffff';
+                    if (line.includes('Blocked') || line.match(/Offset: -?[3-9]\./) || line.match(/Offset: -?[1-9][0-9]+\./)) {
+                        ctx.fillStyle = '#ff6b6b'; 
+                    } else if (line.includes('Offset:')) {
+                        ctx.fillStyle = '#4CAF50'; 
+                    }
+                    ctx.fillText(line, -boxW/2 + padding, startY);
+                    startY += fontSize * lineHeightRatio;
+                });
+                
+                ctx.restore();
+            }
+
+            canvas.toBlob(async (blob) => {
+                const file = new File([blob], `GLP_Audit_Cam_${Date.now()}.png`, { type: 'image/png' });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try { await navigator.share({ files: [file] }); } catch (e) {}
+                } else { alert("瀏覽器不支援原生分享，請長按圖片儲存"); }
+            }, 'image/png', 1.0);
+        });
+
+        window.onload = initApp;
+    </script>
+</body>
+</html>
+
+ /* 
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -809,3 +1203,4 @@
 
 </body>
 </html>
+*/
