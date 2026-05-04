@@ -48,8 +48,9 @@
     <div id="data-overlay">
         <div id="line-gps" style="display:none;"></div>
         <div id="line-geo" style="display:none;"></div>
-        <div id="line-audit" style="display:none;">Initializing Audit Tracker...</div>
+        <div id="line-audit" style="display:none;">NTP Server: Initializing Tracker...</div>
         <div id="line-time" style="display:none;"></div>
+        <div id="line-device-time" style="display:none;"></div>
     </div>
 
     <div id="capture-btn" style="display:none;"></div>
@@ -59,7 +60,7 @@
         const state = {
             gps: null, geo: null,
             ntpServer: null, ntpIp: null, latency: null, offsetSec: null, ntpStatus: 'WAITING',
-            timeStr: null,
+            ntpTimeStr: null, deviceTimeStr: null,
             overlayPos: 'top',
             clockInterval: null
         };
@@ -72,6 +73,7 @@
             l_geo: document.getElementById('line-geo'),
             l_audit: document.getElementById('line-audit'),
             l_time: document.getElementById('line-time'),
+            l_device_time: document.getElementById('line-device-time'),
             capBtn: document.getElementById('capture-btn'),
             status: document.getElementById('init-status')
         };
@@ -178,7 +180,6 @@
             DOM.capBtn.style.display = 'block';
             DOM.l_audit.style.display = 'block';
             
-            // 修正1：快門按鈕出現的瞬間，時鐘必須同步啟動，確保記憶體內絕對不為 Null
             startClock(); 
             
             applyLayout('top');
@@ -186,18 +187,34 @@
             await fetchGeocodeAndAuditNTP();
         }
 
-        // 修正2：Zero-Delay 滴答引擎，第一次啟動不再等待 1000ms
+        // 時間格式化工具
+        function formatTimeStr(ms) {
+            const d = new Date(ms);
+            const pad = (n) => n.toString().padStart(2, '0');
+            const m = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+            const tzOffset = -d.getTimezoneOffset() / 60;
+            const tzStr = tzOffset >= 0 ? `+${tzOffset}` : `${tzOffset}`;
+            return `${d.getFullYear()}-${m[d.getMonth()]}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} (UTC${tzStr})`;
+        }
+
+        // 雙軌時鐘引擎
         function startClock() {
             if (state.clockInterval) clearInterval(state.clockInterval);
             
             const tick = () => {
-                const d = new Date(); const pad = (n) => n.toString().padStart(2, '0');
-                const m = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-                state.timeStr = `${d.getFullYear()}-${m[d.getMonth()]}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} (UTC${-d.getTimezoneOffset()/60})`;
+                const nowMs = Date.now();
+                state.deviceTimeStr = formatTimeStr(nowMs);
+                
+                // 如果已經跟 NTP 校準過，反推出絕對精準的世界時間
+                if (state.ntpStatus === 'VALIDATED') {
+                    const ntpRealTimeMs = nowMs - (parseFloat(state.offsetSec) * 1000);
+                    state.ntpTimeStr = formatTimeStr(ntpRealTimeMs);
+                }
+                
                 updateDisplay();
             };
             
-            tick(); // 第 0 毫秒立刻寫入時間
+            tick(); 
             state.clockInterval = setInterval(tick, 1000);
         }
 
@@ -223,6 +240,7 @@
                     state.ntpServer = server;
                     state.ntpIp = ip;
                     state.latency = Math.round((t1 - t0) / 2);
+                    // 計算設備誤差：(設備時間 - 伺服器時間)
                     state.offsetSec = ((Date.now() - serverTimeMs) / 1000).toFixed(2);
                     state.ntpStatus = 'VALIDATED';
                     break; 
@@ -244,15 +262,24 @@
 
             if (state.ntpStatus === 'VALIDATED') {
                 const offsetColor = Math.abs(state.offsetSec) > 2.0 ? 'audit-fail' : 'audit-pass'; 
-                DOM.l_audit.innerHTML = `Audit: [${state.ntpServer}] (${state.ntpIp}) | Latency: ${state.latency}ms | Offset: <span class="${offsetColor}">${state.offsetSec}s</span>`;
+                DOM.l_audit.innerHTML = `NTP Server: [${state.ntpServer}] (${state.ntpIp}) | Latency: ${state.latency}ms | Offset: <span class="${offsetColor}">${state.offsetSec}s</span>`;
+                
+                DOM.l_time.innerHTML = `NTP Server Returned Time: ${state.ntpTimeStr}`;
+                DOM.l_time.style.display = 'block';
             } else if (state.ntpStatus === 'FAILED') {
-                DOM.l_audit.innerHTML = `<span class="audit-fail">Audit: Verification Blocked by Browser CORS</span>`;
+                DOM.l_audit.innerHTML = `<span class="audit-fail">NTP Server: Verification Blocked by Browser CORS</span>`;
+                DOM.l_time.style.display = 'none';
             }
 
-            if (state.timeStr) {
-                DOM.l_time.innerHTML = `Time : ${state.timeStr}`;
-                DOM.l_time.style.display = 'block';
+            if (state.deviceTimeStr) {
+                DOM.l_device_time.innerHTML = `Camera Device Time: ${state.deviceTimeStr}`;
+                DOM.l_device_time.style.display = 'block';
             }
+            
+            // 加入第五行之後，重新套用排版計算防溢出
+            const elementsToMeasure = [DOM.l_gps, DOM.l_geo, DOM.l_audit, DOM.l_time, DOM.l_device_time];
+            const lines = elementsToMeasure.filter(el => el.style.display !== 'none').map(el => el.innerText.replace(/<[^>]*>?/gm, ''));
+            
             applyLayout(state.overlayPos); 
         }
 
@@ -299,7 +326,6 @@
         DOM.overlay.addEventListener('pointerup', handlePointerEnd);
         DOM.overlay.addEventListener('pointercancel', handlePointerEnd);
 
-        // 修正3：原子化資料擷取 (Atomic Data Snapshot)。不再依賴畫面，直接從系統記憶體抽出當下數據
         DOM.capBtn.addEventListener('click', async (e) => {
             const btn = e.currentTarget;
             btn.style.transform = btn.style.transform.replace('scale(1)', 'scale(0.9)');
@@ -313,20 +339,20 @@
             
             ctx.drawImage(DOM.video, 0, 0, cw, ch);
 
-            // 直接組裝底層狀態，杜絕任何畫面延遲導致的文字流失
             const lines = [];
             if (state.gps) lines.push(`GPS: ${state.gps.lat.toFixed(6)}, ${state.gps.lon.toFixed(6)}`);
             if (state.geo) lines.push(`LOC: ${state.geo}`);
             
             if (state.ntpStatus === 'VALIDATED') {
-                lines.push(`Audit: [${state.ntpServer}] (${state.ntpIp}) | Latency: ${state.latency}ms | Offset: ${state.offsetSec}s`);
+                lines.push(`NTP Server: [${state.ntpServer}] (${state.ntpIp}) | Latency: ${state.latency}ms | Offset: ${state.offsetSec}s`);
+                lines.push(`NTP Server Returned Time: ${state.ntpTimeStr}`);
             } else if (state.ntpStatus === 'FAILED') {
-                lines.push(`Audit: Verification Blocked by Browser CORS`);
+                lines.push(`NTP Server: Verification Blocked by Browser CORS`);
             } else {
-                lines.push(`Audit: Initializing Audit Tracker...`);
+                lines.push(`NTP Server: Initializing Tracker...`);
             }
             
-            if (state.timeStr) lines.push(`Time : ${state.timeStr}`); // 因為修正1，這裡保證 100% 存在
+            if (state.deviceTimeStr) lines.push(`Camera Device Time: ${state.deviceTimeStr}`);
 
             if(lines.length > 0) {
                 const isVertical = (state.overlayPos === 'left' || state.overlayPos === 'right');
@@ -375,7 +401,6 @@
                 lines.forEach(line => {
                     ctx.fillStyle = '#ffffff';
                     
-                    // 根據正規表示式精準上色，與畫面完全一致
                     if (line.includes('Blocked')) {
                         ctx.fillStyle = '#ff6b6b'; 
                     } else if (line.includes('Offset:')) {
