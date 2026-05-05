@@ -1,505 +1,878 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Geo-Cam (GLP/GAMP5 Audit Edition)</title>
+    <title>注音大冒險：詩詞幻境 專業賽事版 V6 永恆戰績版</title>
+    <script src="https://unpkg.com/pinyin-pro"></script>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; -webkit-text-size-adjust: 100%; }
-        body, html { width: 100%; height: 100%; overflow: hidden; background-color: #000; font-family: monospace; }
-        
-        #camera-feed { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
-
-        #data-overlay {
-            position: absolute; z-index: 10;
-            background-color: rgba(0, 0, 0, 0.6); color: #fff; border-radius: 8px;
-            padding: 12px 16px; font-weight: bold; white-space: nowrap;
-            display: flex; flex-direction: column; justify-content: center; align-items: flex-start;
-            pointer-events: auto; touch-action: none; cursor: grab;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            width: max-content; 
-            transform-origin: center center;
+        :root { 
+            --bg-color1: #0f172a; 
+            --bg-color2: #1e293b; 
+            --theme-accent: #3b82f6; 
+            --active-text: #fcd34d; 
+            --typed-text: #06b6d4;  
+            --panel-bg: rgba(15, 23, 42, 0.92); 
+            --error-color: rgba(239, 68, 68, 0.4);
+            --key-hold-bg: #fcd34d;
+            --key-hold-text: #78350f;
         }
         
-        #drop-indicator {
-            position: absolute; z-index: 5;
-            border: 2px dashed #4CAF50; background-color: rgba(76, 175, 80, 0.15); border-radius: 8px;
-            pointer-events: none; display: none; transition: all 0.15s ease-out;
-            transform-origin: center center;
-        }
-
-        .audit-pass { color: #4CAF50; } 
-        .audit-fail { color: #ff6b6b; } 
-        .audit-advice { color: #ffeb3b; font-size: 0.9em; margin-top: 4px; display: block; }
-
-        #capture-btn {
-            position: absolute; z-index: 20; width: 70px; height: 70px; background-color: rgba(255, 255, 255, 0.9);
-            border: 4px solid #aaa; border-radius: 50%; cursor: pointer; transition: transform 0.1s ease-out;
+        body { 
+            margin: 0; padding: 0; font-family: 'Microsoft JhengHei', "標楷體", monospace; 
+            background: radial-gradient(circle at center, var(--bg-color1) 0%, var(--bg-color2) 100%); 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            height: 100vh; overflow: hidden; user-select: none; color: #f3f4f6; 
+            cursor: default; transition: background 0.1s;
         }
         
-        #init-status { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; z-index: 100; text-align: center; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px; font-weight: bold; }
+        body.error-flash #zen-typing-zone { animation: shake 0.2s ease-in-out; }
+        body.error-flash { box-shadow: inset 0 0 150px var(--error-color); }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            50% { transform: translateX(8px); }
+            75% { transform: translateX(-8px); }
+        }
+
+        #game-container { 
+            width: 100%; max-width: 1200px; height: 100%; display: flex; flex-direction: column; 
+            gap: 15px; padding: 20px; box-sizing: border-box; position: relative;
+        }
+
+        #top-bar { 
+            display: flex; justify-content: space-between; align-items: flex-start;
+            padding: 20px 30px; background: rgba(0,0,0,0.55); border-radius: 15px; 
+            border-bottom: 3px solid var(--theme-accent); flex-shrink: 0; 
+            backdrop-filter: blur(10px); box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        
+        .title-section { display: flex; flex-direction: column; gap: 10px; }
+        
+        #main-title { 
+            margin: 0; font-size: 34px; color: #fff; font-family: "標楷體", "DFKai-SB", serif;
+            letter-spacing: 2px; text-shadow: 0 0 10px rgba(255,255,255,0.3);
+        }
+
+        #metadata-bar { display: flex; flex-wrap: wrap; gap: 12px; font-size: 15px; color: #cbd5e1; letter-spacing: 1px;}
+        .meta-item { background: rgba(255,255,255,0.08); padding: 5px 12px; border-radius: 6px; }
+        .meta-item span { color: var(--active-text); font-weight: bold; margin-left: 5px;}
+
+        #pro-stats { display: flex; gap: 30px; align-items: center; }
+        .stat-box { display: flex; flex-direction: column; align-items: flex-end; }
+        .stat-label { font-size: 13px; color: #9ca3af; letter-spacing: 1px; }
+        .stat-value { font-size: 28px; font-weight: bold; color: #fff; font-family: monospace; }
+        .stat-value.highlight { color: var(--active-text); text-shadow: 0 0 10px rgba(252, 211, 77, 0.4); }
+        
+        .btn-history {
+            background: linear-gradient(135deg, #3b82f6, #06b6d4); border: none; border-radius: 8px; 
+            padding: 12px 20px; color: #fff; font-weight: bold; font-size: 15px; cursor: pointer; transition: transform 0.1s;
+        }
+        .btn-history:active { transform: scale(0.95); }
+
+        #zen-typing-zone { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; }
+        
+        #lyrics-board { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; width: 100%; }
+        .lyric-line { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; width: 100%; line-height: 1.5; }
+        
+        #prev-line { color: rgba(255,255,255,0.25); font-size: 24px; height: 40px; overflow: hidden; }
+        #curr-line { font-size: 46px; font-weight: bold; margin: 15px 0; height: 65px; letter-spacing: 3px;}
+        #next-line { color: rgba(255,255,255,0.25); font-size: 24px; height: 40px; overflow: hidden; }
+
+        .story-typed { color: var(--typed-text); text-shadow: 0 0 12px rgba(6, 182, 212, 0.5); } 
+        .story-active { 
+            color: var(--active-text); 
+            text-shadow: 0 0 15px rgba(252,211,77,0.8), 0 0 30px rgba(252,211,77,0.5); 
+            display: inline-block; transform: translateY(-5px) scale(1.18); 
+            border-bottom: 4px solid var(--active-text);
+            transition: transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .story-pending { color: #e2e8f0; text-shadow: none; }
+        .punctuation { color: #64748b; font-weight: normal; margin: 0 4px;}
+
+        #target-container { display: flex; align-items: center; justify-content: center; height: 160px; gap: 40px; margin-top: 10px; }
+        
+        .ruby-container { display: inline-flex; align-items: center; font-family: "標楷體", "DFKai-SB", serif; }
+        .ruby-char { font-size: 85px; color: #fff; text-shadow: 0 0 25px rgba(255,255,255,0.3); }
+        .ruby-zhuyin {
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            margin-left: 12px; font-size: 30px; line-height: 1.1; color: rgba(255,255,255,0.25);
+            position: relative; font-weight: bold;
+        }
+        
+        .zhuyin-symbol { transition: color 0.1s, text-shadow 0.1s; position: relative; }
+        .zhuyin-symbol.typed { color: var(--active-text); text-shadow: 0 0 15px var(--active-text); }
+        .zhuyin-symbol.tone-light { position: absolute; top: -22px; left: 50%; transform: translateX(-50%); font-size: 26px;}
+        .zhuyin-symbol.tone-mark { position: absolute; right: -25px; top: 50%; transform: translateY(-50%); font-size: 26px;}
+
+        #type-target { 
+            font-size: 110px; font-weight: bold; color: var(--theme-accent); 
+            text-shadow: 0 0 35px rgba(59, 130, 246, 0.6); line-height: 1; font-family: 'Microsoft JhengHei';
+            width: 140px; text-align: center;
+        }
+
+        #keyboard-zone { flex-shrink: 0; display: flex; justify-content: center; padding-bottom: 20px; }
+        #virtual-keyboard { 
+            background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 15px; 
+            display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 900px; 
+            backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .kbd-row { display: flex; justify-content: flex-start; gap: 8px; width: 100%; }
+        
+        .key { 
+            background: linear-gradient(180deg, rgba(243,244,246,0.95) 0%, rgba(209,213,219,0.9) 100%); 
+            border: 1px solid #9ca3af; border-bottom: 4px solid #6b7280; border-radius: 8px; 
+            width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; 
+            font-size: 20px; font-weight: bold; color: #111827; transition: all 0.05s ease; flex-shrink: 0;
+        }
+        .key.active { transform: translateY(3px); border-bottom-width: 1px; background: #e5e7eb; }
+        .key.active-hold {
+            background: var(--key-hold-bg); color: var(--key-hold-text);
+            box-shadow: 0 0 20px var(--key-hold-bg); border-color: #fbbf24;
+            transform: translateY(2px); border-bottom-width: 2px;
+        }
+        .space-key { flex: 1; font-size: 16px; color: #4b5563;}
+
+        /* --- 歷史戰績 Modal 與全新提示框樣式 --- */
+        #history-modal {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 100; backdrop-filter: blur(8px); align-items: center; justify-content: center;
+        }
+        .modal-content {
+            background: var(--panel-bg); width: 90%; max-width: 900px; max-height: 80%;
+            border-radius: 15px; border: 1px solid var(--theme-accent); padding: 30px;
+            display: flex; flex-direction: column; box-shadow: 0 0 50px rgba(59, 130, 246, 0.4);
+            position: relative;
+        }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 15px; margin-bottom: 15px; }
+        .modal-header h2 { margin: 0; color: #fff; display: inline-block; }
+        
+        .btn-clear {
+            background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.5); 
+            color: #fca5a5; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 14px;
+            transition: all 0.2s; margin-left: 20px; vertical-align: bottom;
+        }
+        .btn-clear:hover { background: rgba(239, 68, 68, 0.5); color: #fff; }
+
+        .close-btn { background: none; border: none; color: #fff; font-size: 32px; cursor: pointer; }
+        
+        #modal-action-hint {
+            text-align: center; color: var(--active-text); font-weight: bold; margin-top: 15px; 
+            animation: pulse 1.5s infinite; display: none; font-size: 16px; letter-spacing: 1px;
+        }
+
+        .table-container { overflow-y: auto; flex: 1; padding-right: 10px; }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 16px; }
+        th, td { padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        th { color: #9ca3af; position: sticky; top: 0; background: var(--panel-bg); z-index: 2; }
+        
+        /* 數值區塊滑鼠互動樣式 */
+        .hover-data { cursor: help; border-bottom: 1px dashed rgba(255,255,255,0.3); transition: background 0.2s; }
+        .hover-data:hover { background: rgba(255,255,255,0.1); }
+        .td-title { font-weight: bold; color: #f3f4f6; }
+        
+        /* 自動跳出時的高亮特效 */
+        .highlight-row {
+            background-color: rgba(59, 130, 246, 0.2);
+            border-left: 4px solid var(--active-text);
+        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+        /* 浮動解說框 Tooltip */
+        #custom-tooltip {
+            position: fixed; background: rgba(15, 23, 42, 0.98); border: 1px solid var(--theme-accent);
+            color: #e2e8f0; padding: 16px; border-radius: 10px; font-size: 15px; line-height: 1.6;
+            pointer-events: none; z-index: 10000; max-width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+            display: none; opacity: 0; transition: opacity 0.2s; font-family: 'Microsoft JhengHei', sans-serif;
+        }
+
+        #loading-screen {
+            position: absolute; top:0; left:0; width:100%; height:100%; 
+            background: var(--bg-color1); z-index: 200; display: flex; 
+            align-items: center; justify-content: center; flex-direction: column;
+        }
+        .spinner { border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid var(--theme-accent); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        .fullscreen-hint { position: absolute; bottom: 10px; right: 20px; font-size: 13px; color: rgba(255,255,255,0.3); }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-    <video id="camera-feed" autoplay playsinline muted></video>
-    <div id="drop-indicator"></div>
+<div id="loading-screen">
+    <div class="spinner"></div>
+    <h3 id="loading-text">正在深度解析精準詩詞與注音題庫...</h3>
+</div>
 
-    <div id="data-overlay">
-        <div id="line-gps" style="display:none;"></div>
-        <div id="line-geo" style="display:none;"></div>
-        <div id="line-audit" style="display:none;">NTP Server: Initializing Tracker...</div>
-        <div id="line-time" style="display:none;"></div>
-        <div id="line-device-time" style="display:none;"></div>
+<!-- 浮動 Tooltip 容器 -->
+<div id="custom-tooltip"></div>
+
+<div id="game-container">
+    <div id="top-bar">
+        <div class="title-section">
+            <h1 id="main-title">等待抽取中...</h1>
+            <div id="metadata-bar"></div>
+        </div>
+        <div id="pro-stats">
+            <div class="stat-box"><span class="stat-label">競賽計時</span><span class="stat-value" id="stat-time" style="color: #60a5fa;">00:00</span></div>
+            <div class="stat-box"><span class="stat-label">中字速度 (CPM)</span><span class="stat-value highlight" id="stat-cpm">0</span></div>
+            <div class="stat-box"><span class="stat-label">準確率 (ACC)</span><span class="stat-value" id="stat-acc">100%</span></div>
+            <button class="btn-history" onclick="openHistoryModal()">📊 歷史戰績</button>
+        </div>
     </div>
 
-    <div id="capture-btn" style="display:none;"></div>
-    <div id="init-status">Initializing Camera & Sensors...</div>
+    <div id="zen-typing-zone">
+        <div id="lyrics-board">
+            <div id="prev-line" class="lyric-line"></div>
+            <div id="curr-line" class="lyric-line"></div>
+            <div id="next-line" class="lyric-line"></div>
+        </div>
+        
+        <div id="target-container">
+            <div class="ruby-container" id="ruby-display">
+                <div id="target-char" class="ruby-char">-</div>
+                <div id="target-zhuyin" class="ruby-zhuyin"></div>
+            </div>
+            <div id="type-target">-</div>
+        </div>
+    </div>
 
-    <script>
-        /**
-         * System Name: Geo-Cam GLP/GAMP5 Audit Edition
-         * Validation Classification: GAMP 5 Category 3 (Non-Configured Product / Custom Script)
-         * Data Integrity: Enforced via Lexical Scoping (Closure) to prevent DOM/Console manipulation.
-         */
-        (function() {
-            "use strict"; // Enforce strict mode to prevent undeclared variables and secure the execution context
+    <div id="keyboard-zone">
+        <div id="virtual-keyboard">
+            <div class="kbd-row" style="padding-left: 0;">
+                <div class="key" data-code="Digit1">ㄅ</div><div class="key" data-code="Digit2">ㄉ</div><div class="key" data-code="Digit3">ˇ</div><div class="key" data-code="Digit4">ˋ</div><div class="key" data-code="Digit5">ㄓ</div><div class="key" data-code="Digit6">ˊ</div><div class="key" data-code="Digit7">˙</div><div class="key" data-code="Digit8">ㄚ</div><div class="key" data-code="Digit9">ㄞ</div><div class="key" data-code="Digit0">ㄢ</div><div class="key" data-code="Minus">ㄦ</div>
+            </div>
+            <div class="kbd-row" style="padding-left: 25px;">
+                <div class="key" data-code="KeyQ">ㄆ</div><div class="key" data-code="KeyW">ㄊ</div><div class="key" data-code="KeyE">ㄍ</div><div class="key" data-code="KeyR">ㄐ</div><div class="key" data-code="KeyT">ㄔ</div><div class="key" data-code="KeyY">ㄗ</div><div class="key" data-code="KeyU">ㄧ</div><div class="key" data-code="KeyI">ㄛ</div><div class="key" data-code="KeyO">ㄟ</div><div class="key" data-code="KeyP">ㄣ</div>
+            </div>
+            <div class="kbd-row" style="padding-left: 35px;">
+                <div class="key" data-code="KeyA">ㄇ</div><div class="key" data-code="KeyS">ㄋ</div><div class="key" data-code="KeyD">ㄎ</div><div class="key" data-code="KeyF">ㄑ</div><div class="key" data-code="KeyG">ㄕ</div><div class="key" data-code="KeyH">ㄘ</div><div class="key" data-code="KeyJ">ㄨ</div><div class="key" data-code="KeyK">ㄜ</div><div class="key" data-code="KeyL">ㄠ</div><div class="key" data-code="Semicolon">ㄤ</div>
+            </div>
+            <div class="kbd-row" style="padding-left: 55px;">
+                <div class="key" data-code="KeyZ">ㄈ</div><div class="key" data-code="KeyX">ㄌ</div><div class="key" data-code="KeyC">ㄏ</div><div class="key" data-code="KeyV">ㄒ</div><div class="key" data-code="KeyB">ㄖ</div><div class="key" data-code="KeyN">ㄙ</div><div class="key" data-code="KeyM">ㄩ</div><div class="key" data-code="Comma">ㄝ</div><div class="key" data-code="Period">ㄡ</div><div class="key" data-code="Slash">ㄥ</div>
+            </div>
+            <div class="kbd-row" style="justify-content: center; margin-top: 5px;">
+                <div class="key space-key" data-code="Space">一聲 (空白鍵)</div>
+            </div>
+        </div>
+    </div>
+</div>
 
-            const APP_VERSION = "v1.0.0"; // Configuration Management: Version tracking for CSV output
+<div class="fullscreen-hint">空白處點兩下切換全螢幕</div>
 
-            // IMMUTABLE STATE: Encapsulated within the IIFE. Cannot be modified via browser console.
-            const sysState = {
-                gps: null, 
-                geo: null,
-                ntpServer: null, 
-                ntpIp: null, 
-                latency: null, 
-                offsetSec: null, 
-                ntpStatus: 'WAITING',
-                ntpTimeStr: null, 
-                deviceTimeStr: null,
-                overlayPos: 'top',
-                clockInterval: null
-            };
+<div id="history-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div>
+                <h2>競賽戰績庫</h2>
+                <button class="btn-clear" onclick="clearHistory()">🗑️ 清除紀錄</button>
+            </div>
+            <button class="close-btn" onclick="closeHistoryModal()">×</button>
+        </div>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr><th>標題 (詩名/詞牌)</th><th>嘗試次數</th><th>最佳 CPM</th><th>平均 CPM</th><th>最佳 ACC</th><th>平均 ACC</th></tr>
+                </thead>
+                <tbody id="history-tbody"></tbody>
+            </table>
+        </div>
+        <div id="modal-action-hint">【 本篇已完成！按下右上角 ✕ 鍵或鍵盤 Esc 繼續挑戰下一首 】</div>
+    </div>
+</div>
 
-            const DOM = {
-                video: document.getElementById('camera-feed'),
-                overlay: document.getElementById('data-overlay'),
-                indicator: document.getElementById('drop-indicator'),
-                l_gps: document.getElementById('line-gps'),
-                l_geo: document.getElementById('line-geo'),
-                l_audit: document.getElementById('line-audit'),
-                l_time: document.getElementById('line-time'),
-                l_device_time: document.getElementById('line-device-time'),
-                capBtn: document.getElementById('capture-btn'),
-                status: document.getElementById('init-status')
-            };
+<script>
+    const CORPU_URLS =[
+        'https://raw.githubusercontent.com/rime-aca/corpus/master/%E5%94%90%E8%A9%A9%E4%B8%89%E7%99%BE%E9%A6%96.txt',
+        'https://raw.githubusercontent.com/rime-aca/corpus/master/%E5%AE%8B%E8%A9%9E%E4%B8%89%E7%99%BE%E9%A6%96.txt'
+    ];
 
-            /**
-             * Retrieves strictly synchronized UTC time from authoritative APIs.
-             * Utilizes dual-redundancy to satisfy high-availability requirements.
-             */
-            async function getRobustUTCTime() {
-                const abort = () => AbortSignal.timeout(4000);
-                try {
-                    const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC', { signal: abort(), cache: 'no-store' });
-                    if (res.ok) return new Date((await res.json()).utc_datetime).getTime();
-                } catch(e) { /* Redundant failover triggered */ }
+    const keyMap = {
+        'ㄅ':'Digit1','ㄉ':'Digit2','ˇ':'Digit3','ˋ':'Digit4','ㄓ':'Digit5','ˊ':'Digit6','˙':'Digit7','ㄚ':'Digit8','ㄞ':'Digit9','ㄢ':'Digit0','ㄦ':'Minus',
+        'ㄆ':'KeyQ','ㄊ':'KeyW','ㄍ':'KeyE','ㄐ':'KeyR','ㄔ':'KeyT','ㄗ':'KeyY','ㄧ':'KeyU','ㄛ':'KeyI','ㄟ':'KeyO','ㄣ':'KeyP',
+        'ㄇ':'KeyA','ㄋ':'KeyS','ㄎ':'KeyD','ㄑ':'KeyF','ㄕ':'KeyG','ㄘ':'KeyH','ㄨ':'KeyJ','ㄜ':'KeyK','ㄠ':'KeyL','ㄤ':'Semicolon',
+        'ㄈ':'KeyZ','ㄌ':'KeyX','ㄏ':'KeyC','ㄒ':'KeyV','ㄖ':'KeyB','ㄙ':'KeyN','ㄩ':'KeyM','ㄝ':'Comma','ㄡ':'Period','ㄥ':'Slash',
+        ' ':'Space'
+    };
+
+    let corpusData =[];
+    let currentPoem = null;
+    let zhuyinQueue =[];
+    let currentTargetObj = null;
+    let currentSentenceIndex = -1;
+    let currentSentenceElements = [];
+    let activeHoldKeys =[];
+    let currentProcessingCharIndex = -1;
+
+    let timerInterval = null;
+    let sessionStartTime = null;
+    let totalKeysPressed = 0;
+    let correctKeysPressed = 0;
+    let totalChineseCharsFinished = 0;
+    let isGameOver = false;
+    
+    // 遊戲等待下一步的標記
+    let isWaitingForNextPoem = false;
+
+    // 永續儲存機制載入
+    let userHistory = JSON.parse(localStorage.getItem('proTypingHistory')) || {};
+
+    document.body.addEventListener('dblclick', (e) => {
+        if (e.target.tagName !== 'BUTTON' && !e.target.closest('#virtual-keyboard')) {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(err => console.log(err));
+            else document.exitFullscreen();
+        }
+    });
+
+    async function initGame() {
+        try {
+            if (typeof pinyinPro === 'undefined') throw new Error("API 載入異常，請檢查網路連線");
+            await fetchCorpus();
+            if (corpusData.length === 0) throw new Error("無可用題庫");
+            document.getElementById('loading-screen').style.display = 'none';
+            loadRandomPoem();
+        } catch (error) {
+            document.getElementById('loading-text').textContent = "載入失敗：" + error.message;
+            console.error(error);
+        }
+    }
+
+    async function fetchCorpus() {
+        for (let i = 0; i < CORPU_URLS.length; i++) {
+            try {
+                let res = await fetch(CORPU_URLS[i]);
+                let text = await res.text();
                 
-                try {
-                    const res = await fetch('https://timeapi.io/api/Time/current/zone?timeZone=UTC', { signal: abort(), cache: 'no-store' });
-                    if (res.ok) return new Date((await res.json()).dateTime + "Z").getTime();
-                } catch(e) { /* Total API failure */ }
-                throw new Error("Critical: High-Availability Time APIs unresponsive.");
-            }
-
-            /**
-             * Resolves NTP server IP via DNS-over-HTTPS (DoH) to bypass local network DNS spoofing.
-             */
-            async function resolveDoH(hostname) {
-                const abort = () => AbortSignal.timeout(3000);
-                try {
-                    const res = await fetch(`https://dns.google/resolve?name=${hostname}&type=A`, { signal: abort(), cache: 'no-store' });
-                    const data = await res.json();
-                    if(data.Status === 0 && data.Answer) return data.Answer.find(a => a.type === 1).data;
-                } catch(e) { /* Fallback to Cloudflare */ }
-                
-                try {
-                    const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${hostname}&type=A`, { headers: { 'accept': 'application/dns-json' }, signal: abort(), cache: 'no-store' });
-                    const data = await res.json();
-                    if(data.Status === 0 && data.Answer) return data.Answer.find(a => a.type === 1).data;
-                } catch(e) { /* Resolution failure */ }
-                throw new Error("Critical: DoH Verification Failed.");
-            }
-
-            /**
-             * Dynamic UI Layout Engine: Calculates DOM boundaries securely without causing render-jitter.
-             */
-            function applyLayout(pos, isDragging = false) {
-                sysState.overlayPos = pos;
-                
-                const w = window.innerWidth;
-                const h = window.innerHeight;
-                const isVertical = (pos === 'left' || pos === 'right');
-                const maxAllowedWidth = (isVertical ? h : w) - 40; 
-                
-                let baseFontSize = Math.max(12, Math.max(w, h) * 0.016);
-                
-                // Invisible Clone Technique: Prevents UI flickering during text measurement
-                const clone = DOM.overlay.cloneNode(true);
-                clone.style.visibility = 'hidden';
-                clone.style.position = 'absolute';
-                clone.style.transform = 'none';
-                clone.style.fontSize = `${baseFontSize}px`;
-                clone.style.lineHeight = '1.5';
-                clone.style.width = 'max-content';
-                document.body.appendChild(clone);
-                
-                let currentWidth = clone.scrollWidth;
-                document.body.removeChild(clone);
-
-                let safeFontSize = baseFontSize;
-                if (currentWidth > maxAllowedWidth && currentWidth > 0) {
-                    safeFontSize = baseFontSize * (maxAllowedWidth / currentWidth) * 0.98; // 0.98 Safety Margin for WebKit rendering
-                }
-
-                DOM.overlay.style.fontSize = `${safeFontSize}px`;
-
-                const boxW = DOM.overlay.offsetWidth;
-                const boxH = DOM.overlay.offsetHeight;
-
-                let top, left, transform;
-                if (pos === 'top') {
-                    top = 0; left = (w - boxW) / 2; transform = 'none';
-                    DOM.capBtn.style.cssText = `position:absolute; bottom:30px; left:50%; transform:translateX(-50%); z-index:20; display:block;`;
-                } else if (pos === 'bottom') {
-                    top = h - boxH; left = (w - boxW) / 2; transform = 'none';
-                    DOM.capBtn.style.cssText = `position:absolute; top:30px; left:50%; transform:translateX(-50%); z-index:20; display:block;`;
-                } else if (pos === 'left') {
-                    top = (h - boxH) / 2; left = (boxH - boxW) / 2; transform = 'rotate(-90deg)';
-                    DOM.capBtn.style.cssText = `position:absolute; right:30px; top:50%; transform:translateY(-50%); z-index:20; display:block;`;
-                } else if (pos === 'right') {
-                    top = (h - boxH) / 2; left = w - (boxW + boxH) / 2; transform = 'rotate(90deg)';
-                    DOM.capBtn.style.cssText = `position:absolute; left:30px; top:50%; transform:translateY(-50%); z-index:20; display:block;`;
-                }
-
-                if (!isDragging) {
-                    DOM.overlay.style.top = `${top}px`;
-                    DOM.overlay.style.left = `${left}px`;
-                    DOM.overlay.style.transform = transform;
-                    DOM.indicator.style.display = 'none';
-                } else {
-                    DOM.indicator.style.display = 'block';
-                    DOM.indicator.style.width = `${boxW}px`;
-                    DOM.indicator.style.height = `${boxH}px`;
-                    DOM.indicator.style.top = `${top}px`;
-                    DOM.indicator.style.left = `${left}px`;
-                    DOM.indicator.style.transform = transform;
-                }
-            }
-
-            window.addEventListener('resize', () => applyLayout(sysState.overlayPos));
-
-            /**
-             * System Initialization: Requests hardware permissions and establishes baseline context.
-             */
-            async function initSystem() {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                    DOM.video.srcObject = stream;
-                } catch (err) { 
-                    DOM.status.innerHTML = `<span class="audit-fail">Hardware Error: Camera access denied.</span>`; 
-                    return; 
-                }
-
-                if ("geolocation" in navigator) {
-                    navigator.geolocation.getCurrentPosition(
-                        (p) => { sysState.gps = { lat: p.coords.latitude, lon: p.coords.longitude }; finalizeInit(); },
-                        (e) => { sysState.gps = null; finalizeInit(); }, // Silent failover for GPS to maintain availability
-                        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-                    );
-                } else { sysState.gps = null; finalizeInit(); }
-            }
-
-            async function finalizeInit() {
-                DOM.status.style.display = 'none';
-                DOM.capBtn.style.display = 'block';
-                DOM.l_audit.style.display = 'block';
-                
-                startClock(); 
-                applyLayout('top');
-                updateDisplay();
-                await executeNTPValidation();
-            }
-
-            function formatTimeStr(ms) {
-                const d = new Date(ms);
-                const pad = (n) => n.toString().padStart(2, '0');
-                const m = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-                const tzOffset = -d.getTimezoneOffset() / 60;
-                const tzStr = tzOffset >= 0 ? `+${tzOffset}` : `${tzOffset}`;
-                return `${d.getFullYear()}-${m[d.getMonth()]}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} (UTC${tzStr})`;
-            }
-
-            /**
-             * Dual-Track Clock Engine: Maintains independent tracking of local device time and validated NTP time.
-             */
-            function startClock() {
-                if (sysState.clockInterval) clearInterval(sysState.clockInterval);
-                
-                const tick = () => {
-                    const nowMs = Date.now();
-                    sysState.deviceTimeStr = formatTimeStr(nowMs);
+                let blocks = text.replace(/\r/g, '').split(/\n\s*\n/);
+                for (let block of blocks) {
+                    let lines = block.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                    if (lines.length < 2) continue;
                     
-                    if (sysState.ntpStatus === 'VALIDATED') {
-                        const ntpRealTimeMs = nowMs - (parseFloat(sysState.offsetSec) * 1000);
-                        sysState.ntpTimeStr = formatTimeStr(ntpRealTimeMs);
-                    }
-                    updateDisplay();
-                };
-                
-                tick(); 
-                sysState.clockInterval = setInterval(tick, 1000);
-            }
-
-            /**
-             * Primary Audit Process: Geocoding and Time Synchronization validation.
-             */
-            async function executeNTPValidation() {
-                if (sysState.gps) {
-                    try {
-                        const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${sysState.gps.lat}&lon=${sysState.gps.lon}&zoom=16&addressdetails=1`, { signal: AbortSignal.timeout(5000) });
-                        const geoData = await geoRes.json();
-                        sysState.geo = `Near ${geoData.address.road || geoData.address.neighbourhood || "Unknown Road"}, ${geoData.address.city || geoData.address.town || "Unknown"}`;
-                    } catch (e) { sysState.geo = null; } 
-                }
-                updateDisplay();
-
-                const ntpServers = ['time.stdtime.gov.tw', 'tock.stdtime.gov.tw', 'watch.stdtime.gov.tw', 'clock.stdtime.gov.tw', 'tick.stdtime.gov.tw'];
-                
-                for (const server of ntpServers) {
-                    try {
-                        const t0 = performance.now();
-                        const ip = await resolveDoH(server);
-                        const serverTimeMs = await getRobustUTCTime();
-                        const t1 = performance.now();
-                        
-                        sysState.ntpServer = server;
-                        sysState.ntpIp = ip;
-                        sysState.latency = Math.round((t1 - t0) / 2);
-                        // Offset Calculation: Positive means device is ahead of Server
-                        sysState.offsetSec = ((Date.now() - serverTimeMs) / 1000).toFixed(2);
-                        sysState.ntpStatus = 'VALIDATED';
-                        break; 
-                    } catch (e) { /* Continue to next server in array */ }
-                }
-
-                if (sysState.ntpStatus === 'WAITING') sysState.ntpStatus = 'FAILED';
-                updateDisplay();
-            }
-
-            /**
-             * UI Synchronization Handler: Updates DOM based strictly on encapsulated sysState.
-             */
-            function updateDisplay() {
-                if (sysState.gps) { DOM.l_gps.innerHTML = `GPS: ${sysState.gps.lat.toFixed(6)}, ${sysState.gps.lon.toFixed(6)}`; DOM.l_gps.style.display = 'block'; } 
-                else { DOM.l_gps.style.display = 'none'; }
-
-                if (sysState.geo) { DOM.l_geo.innerHTML = `LOC: ${sysState.geo}`; DOM.l_geo.style.display = 'block'; }
-                else { DOM.l_geo.style.display = 'none'; }
-
-                if (sysState.ntpStatus === 'VALIDATED') {
-                    const offsetColor = Math.abs(sysState.offsetSec) > 2.0 ? 'audit-fail' : 'audit-pass'; 
-                    DOM.l_audit.innerHTML = `NTP Server: [${sysState.ntpServer}] (${sysState.ntpIp}) | Latency: ${sysState.latency}ms | Offset: <span class="${offsetColor}">${sysState.offsetSec}s</span>`;
+                    let metaType = "", title = "", author = "", rhyme = "", contentStr = "";
+                    let isContentSection = false; 
                     
-                    DOM.l_time.innerHTML = `NTP Server Returned Time: ${sysState.ntpTimeStr}`;
-                    DOM.l_time.style.display = 'block';
-                } else if (sysState.ntpStatus === 'FAILED') {
-                    DOM.l_audit.innerHTML = `
-                        <span class="audit-fail">NTP Blocked by Chrome Security (CORS)</span>
-                        <span class="audit-advice">Action: Try using Safari/Edge, or switch network.</span>
-                    `;
-                    DOM.l_time.style.display = 'none';
-                }
+                    for (let line of lines) {
+                        let rhymeMatch = line.match(/\(押(.*?)\)/) || line.match(/（押(.*?)）/) || line.match(/\((.*?韻)\)/) || line.match(/（(.*?)韻）/);
+                        if (rhymeMatch) {
+                            rhyme = rhymeMatch[1];
+                            if(!rhyme.endsWith('韻')) rhyme += '韻';
+                            line = line.replace(/\(押.*?\)/g, '').replace(/（押.*?）/g, '').replace(/\(.*?韻\)/g, '').replace(/（.*?韻）/g, '').trim();
+                            if (line === '') continue; 
+                        }
 
-                if (sysState.deviceTimeStr) {
-                    DOM.l_device_time.innerHTML = `Camera Device Time: ${sysState.deviceTimeStr}`;
-                    DOM.l_device_time.style.display = 'block';
-                }
-                
-                applyLayout(sysState.overlayPos); 
-            }
+                        let authorMatch = line.match(/^作者[:：]\s*(.*)$/);
+                        if (authorMatch) { author = authorMatch[1]; continue; }
 
-            // Drag and Drop Logic Engine
-            let isDragging = false, startX = 0, startY = 0;
-            let initialLeft = 0, initialTop = 0;
+                        let typeMatch = line.match(/^詩體[:：]\s*(.*)$/);
+                        if (typeMatch) { metaType = typeMatch[1]; continue; }
 
-            DOM.overlay.addEventListener('pointerdown', (e) => {
-                if (e.pointerType === 'mouse' && e.button !== 0) return;
-                e.preventDefault();
-                startX = e.clientX; startY = e.clientY;
-                initialLeft = parseFloat(DOM.overlay.style.left) || 0;
-                initialTop = parseFloat(DOM.overlay.style.top) || 0;
-                DOM.overlay.setPointerCapture(e.pointerId);
-                
-                isDragging = true;
-                DOM.capBtn.style.display = 'none';
-                DOM.overlay.classList.add('dragging');
-            });
+                        let ciMatch = line.match(/^詞牌[:：]\s*(.*)$/);
+                        if (ciMatch) { title = ciMatch[1]; if (!metaType) metaType = "宋詞"; continue; }
 
-            DOM.overlay.addEventListener('pointermove', (e) => {
-                if (!isDragging) return;
-                e.preventDefault();
-                
-                DOM.overlay.style.left = `${initialLeft + (e.clientX - startX)}px`;
-                DOM.overlay.style.top = `${initialTop + (e.clientY - startY)}px`;
+                        let titleMatch = line.match(/^詩名[:：]\s*(.*)$/);
+                        if (titleMatch) { title = titleMatch[1]; continue; }
 
-                const nx = (e.clientX / window.innerWidth) * 2 - 1;
-                const ny = (e.clientY / window.innerHeight) * 2 - 1;
-                let targetPos = Math.abs(nx) > Math.abs(ny) ? (nx > 0 ? 'right' : 'left') : (ny > 0 ? 'bottom' : 'top');
-                applyLayout(targetPos, true);
-            });
+                        let contentStartMatch = line.match(/^(?:詩文|詞文|內容)[:：]\s*(.*)$/);
+                        if (contentStartMatch) {
+                            isContentSection = true;
+                            let trailing = contentStartMatch[1];
+                            if (trailing) contentStr += trailing; 
+                            continue;
+                        }
 
-            const handlePointerEnd = (e) => {
-                if (!isDragging) return;
-                DOM.overlay.releasePointerCapture(e.pointerId);
-                isDragging = false;
-                DOM.overlay.classList.remove('dragging');
-                
-                const nx = (e.clientX / window.innerWidth) * 2 - 1;
-                const ny = (e.clientY / window.innerHeight) * 2 - 1;
-                applyLayout(Math.abs(nx) > Math.abs(ny) ? (nx > 0 ? 'right' : 'left') : (ny > 0 ? 'bottom' : 'top'));
-            };
+                        let bracketMatch = line.match(/【(.*?)】/);
+                        if (bracketMatch) {
+                            if (!metaType) metaType = bracketMatch[1];
+                            line = line.replace(/【.*?】/, '').trim();
+                            if (line === '') continue;
+                        }
+                        line = line.replace(/[〇○O]/g, '');
+                        if (line === '') continue;
 
-            DOM.overlay.addEventListener('pointerup', handlePointerEnd);
-            DOM.overlay.addEventListener('pointercancel', handlePointerEnd);
-
-            /**
-             * Final Image Generation Engine.
-             * Implements ALCOA+ standards by capturing data atomically with the visual frame.
-             */
-            DOM.capBtn.addEventListener('click', async (e) => {
-                const btn = e.currentTarget;
-                btn.style.transform = btn.style.transform.replace('scale(1)', 'scale(0.9)');
-                setTimeout(() => { btn.style.transform = btn.style.transform.replace('scale(0.9)', 'scale(1)'); }, 100);
-
-                // Atomic Capture Lock: Freezes the timestamp exactly when the render is invoked
-                const captureTimestampMs = Date.now();
-
-                const canvas = document.createElement('canvas');
-                const videoW = DOM.video.videoWidth; 
-                const videoH = DOM.video.videoHeight;
-                
-                const isVertical = (sysState.overlayPos === 'left' || sysState.overlayPos === 'right');
-                
-                // Auto-Upright orientation matrix logic
-                const finalW = isVertical ? videoH : videoW;
-                const finalH = isVertical ? videoW : videoH;
-                canvas.width = finalW; 
-                canvas.height = finalH;
-                
-                const ctx = canvas.getContext('2d');
-                
-                ctx.save();
-                if (sysState.overlayPos === 'left') {
-                    ctx.translate(finalW / 2, finalH / 2);
-                    ctx.rotate(-Math.PI / 2);
-                    ctx.drawImage(DOM.video, -videoW / 2, -videoH / 2, videoW, videoH);
-                } else if (sysState.overlayPos === 'right') {
-                    ctx.translate(finalW / 2, finalH / 2);
-                    ctx.rotate(Math.PI / 2);
-                    ctx.drawImage(DOM.video, -videoW / 2, -videoH / 2, videoW, videoH);
-                } else {
-                    ctx.drawImage(DOM.video, 0, 0, finalW, finalH);
-                }
-                ctx.restore();
-
-                // Immutable data reconstruction from encapsulated state
-                const lines = [];
-                if (sysState.gps) lines.push(`GPS: ${sysState.gps.lat.toFixed(6)}, ${sysState.gps.lon.toFixed(6)}`);
-                if (sysState.geo) lines.push(`LOC: ${sysState.geo}`);
-                
-                if (sysState.ntpStatus === 'VALIDATED') {
-                    lines.push(`NTP Server: [${sysState.ntpServer}] (${sysState.ntpIp}) | Latency: ${sysState.latency}ms | Offset: ${sysState.offsetSec}s`);
-                    lines.push(`NTP Server Returned Time: ${sysState.ntpTimeStr}`);
-                } else if (sysState.ntpStatus === 'FAILED') {
-                    lines.push(`NTP Server: Blocked by Chrome Security (CORS)`);
-                    lines.push(`* Action: Use Safari/Edge, or switch network.`);
-                } else {
-                    lines.push(`NTP Server: Initializing Tracker...`);
-                }
-                
-                if (sysState.deviceTimeStr) lines.push(`Camera Device Time: ${sysState.deviceTimeStr}`);
-
-                if(lines.length > 0) {
-                    const maxAllowedCanvasWidth = finalW - 40; 
-                    let fontSize = Math.max(finalW, finalH) * 0.016; 
-                    ctx.font = `bold ${fontSize}px monospace`;
-                    
-                    let maxTextWidth = 0;
-                    lines.forEach(l => { maxTextWidth = Math.max(maxTextWidth, ctx.measureText(l).width); });
-                    
-                    if (maxTextWidth > maxAllowedCanvasWidth) {
-                        fontSize = fontSize * (maxAllowedCanvasWidth / maxTextWidth);
-                        ctx.font = `bold ${fontSize}px monospace`;
-                        maxTextWidth = 0; 
-                        lines.forEach(l => { maxTextWidth = Math.max(maxTextWidth, ctx.measureText(l).width); });
-                    }
-
-                    const padding = fontSize * 1.5;
-                    const lineHeightRatio = 1.5;
-                    const boxW = maxTextWidth + (padding * 2);
-                    const boxH = (lines.length * fontSize * lineHeightRatio) + (padding * 2);
-
-                    ctx.save();
-                    ctx.textBaseline = 'middle';
-                    ctx.textAlign = 'left';
-
-                    const textY = (sysState.overlayPos === 'top') ? (boxH / 2 + padding) : (finalH - boxH / 2 - padding);
-                    ctx.translate(finalW / 2, textY); 
-
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-                    ctx.beginPath();
-                    ctx.roundRect(-boxW/2, -boxH/2, boxW, boxH, 16); 
-                    ctx.fill();
-
-                    let startY = (-boxH / 2) + padding + (fontSize / 2);
-                    lines.forEach(line => {
-                        ctx.fillStyle = '#ffffff';
-                        
-                        if (line.includes('Blocked') || line.includes('* Action:')) {
-                            ctx.fillStyle = '#ffeb3b'; 
-                        } else if (line.includes('Offset:')) {
-                            const offsetMatch = line.match(/Offset: (-?\d+\.\d+)s/);
-                            if (offsetMatch && Math.abs(parseFloat(offsetMatch[1])) > 2.0) {
-                                ctx.fillStyle = '#ff6b6b'; 
-                            } else {
-                                ctx.fillStyle = '#4CAF50'; 
-                            }
+                        if (isContentSection && !title && contentStr === '' && line.length <= 25 && !/[。？！，、；：]/.test(line)) {
+                            title = line; continue;
                         }
                         
-                        ctx.fillText(line, -boxW/2 + padding, startY);
-                        startY += fontSize * lineHeightRatio;
-                    });
+                        if (!isContentSection && !title && contentStr === '' && line.length <= 25 && !/[。？！，、；：]/.test(line)) {
+                            title = line; continue;
+                        }
+
+                        contentStr += line;
+                    }
+
+                    if (!contentStr) continue;
                     
-                    ctx.restore();
+                    let sentences = contentStr.match(/[^。？！，、；：\n]+[。？！，、；：\n]*/g) ||[contentStr];
+                    sentences = sentences.map(s => s.trim()).filter(s => s.length > 0);
+                    
+                    let mainDisplayTitle = title || '無題';
+                    let metaTags =[];
+
+                    if (i === 0) { 
+                        if (!metaType) metaType = "唐詩";
+                        metaTags.push(`詩體: <span>${metaType}</span>`);
+                    } else { 
+                        if (!metaType) metaType = "宋詞";
+                        if (mainDisplayTitle.includes('·')) {
+                            let tParts = mainDisplayTitle.split('·');
+                            mainDisplayTitle = tParts[0].trim();
+                            metaTags.push(`詞題: <span>${tParts.slice(1).join('·').trim()}</span>`);
+                        } else {
+                            metaTags.push(`體裁: <span>${metaType}</span>`);
+                        }
+                    }
+
+                    if (author && author !== '佚名') metaTags.push(`作者: <span>${author}</span>`);
+                    if (rhyme) metaTags.push(`押韻: <span>${rhyme}</span>`);
+
+                    corpusData.push({ mainDisplayTitle, metaTags, sentences });
                 }
+            } catch (err) {
+                console.warn("部分題庫擷取警告:", err);
+            }
+        }
+    }
 
-                // Generates an immutable filename incorporating Version Control and Timestamp
-                const auditFilename = `GLP_Audit_Cam_${APP_VERSION}_${captureTimestampMs}.png`;
+    function getZhuyinKeys(char) {
+        if (!/^[\u4E00-\u9FFF]+$/.test(char)) return null; 
+        
+        let pyArray = pinyinPro.pinyin(char, { toneType: 'num', type: 'array', v: true });
+        if (!pyArray || pyArray.length === 0) return null;
+        
+        let pyStr = pyArray[0];
+        let match = pyStr.match(/^([a-z]+)(\d?)$/);
+        if (!match) return null;
+        
+        let py = match[1];
+        let t = match[2] || '5';
+        if (t === '0') t = '5';
+        
+        let toneStr = '';
+        if (t === '2') toneStr = 'ˊ';
+        else if (t === '3') toneStr = 'ˇ';
+        else if (t === '4') toneStr = 'ˋ';
+        else if (t === '5') toneStr = '˙';
+        
+        let initial = '';
+        const initials =['zh','ch','sh','b','p','m','f','d','t','n','l','g','k','h','j','q','x','r','z','c','s'];
+        for (let i of initials) {
+            if (py.startsWith(i)) {
+                initial = i;
+                py = py.substring(i.length);
+                break;
+            }
+        }
+        
+        const initialMap = {
+            'b':'ㄅ','p':'ㄆ','m':'ㄇ','f':'ㄈ','d':'ㄉ','t':'ㄊ','n':'ㄋ','l':'ㄌ',
+            'g':'ㄍ','k':'ㄎ','h':'ㄏ','j':'ㄐ','q':'ㄑ','x':'ㄒ',
+            'zh':'ㄓ','ch':'ㄔ','sh':'ㄕ','r':'ㄖ','z':'ㄗ','c':'ㄘ','s':'ㄙ'
+        };
+        let bopoInitial = initialMap[initial] || '';
+        
+        if (initial === '') {
+            if (py.startsWith('y')) {
+                py = py.substring(1);
+                if (['i','in','ing'].includes(py)) {} 
+                else if (['u','ue','uan','un'].includes(py)) { py = 'v' + py.substring(1); } 
+                else if (py === 'ong') { py = 'iong'; }
+                else { py = 'i' + py; } 
+            } else if (py.startsWith('w')) {
+                py = py.substring(1);
+                if (py !== 'u') { py = 'u' + py; } 
+            }
+        }
+        
+        if (['j','q','x'].includes(initial)) {
+            if (py.startsWith('u')) py = 'v' + py.substring(1);
+        }
+        
+        if (py === 'ui') py = 'uei';
+        if (py === 'un') py = 'uen';
+        if (py === 'iu') py = 'iou';
+        
+        const finalMap = {
+            'a':'ㄚ','o':'ㄛ','e':'ㄜ','ie':'ㄧㄝ','ai':'ㄞ','ei':'ㄟ','ao':'ㄠ','ou':'ㄡ',
+            'an':'ㄢ','en':'ㄣ','ang':'ㄤ','eng':'ㄥ','er':'ㄦ',
+            'i':'ㄧ','in':'ㄧㄣ','ing':'ㄧㄥ','ia':'ㄧㄚ','iao':'ㄧㄠ','iou':'ㄧㄡ','ian':'ㄧㄢ','iang':'ㄧㄤ',
+            'u':'ㄨ','ua':'ㄨㄚ','uo':'ㄨㄛ','uai':'ㄨㄞ','uei':'ㄨㄟ','uan':'ㄨㄢ','uen':'ㄨㄣ','uang':'ㄨㄤ','ueng':'ㄨㄥ','ong':'ㄨㄥ','iong':'ㄩㄥ',
+            'v':'ㄩ','ve':'ㄩㄝ','van':'ㄩㄢ','vn':'ㄩㄣ', 'ü':'ㄩ','üe':'ㄩㄝ','üan':'ㄩㄢ','ün':'ㄩㄣ','ue':'ㄩㄝ'
+        };
+        
+        if (['z','c','s','zh','ch','sh','r'].includes(initial) && py === 'i') { py = ''; }
+        
+        let bopoFinal = finalMap[py] || '';
+        if (py && !bopoFinal) return null;
+        
+        let keys =[];
+        if (bopoInitial) keys.push(bopoInitial);
+        if (bopoFinal) keys.push(...bopoFinal.split(''));
+        
+        if (toneStr) keys.push(toneStr);
+        else keys.push(' '); 
+        
+        return keys;
+    }
 
-                canvas.toBlob(async (blob) => {
-                    const file = new File([blob], auditFilename, { type: 'image/png' });
-                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                        try { await navigator.share({ files: [file] }); } catch (e) {}
-                    } else { alert("System Notification: Native share API not supported. Please long-press to save the image."); }
-                }, 'image/png', 1.0);
+    function updateMetadataUI() {
+        document.getElementById('main-title').textContent = currentPoem.mainDisplayTitle;
+        const metaBar = document.getElementById('metadata-bar');
+        metaBar.innerHTML = '';
+        currentPoem.metaTags.forEach(htmlString => {
+            let div = document.createElement('div');
+            div.className = 'meta-item';
+            div.innerHTML = htmlString;
+            metaBar.appendChild(div);
+        });
+    }
+
+    function loadRandomPoem() {
+        if(corpusData.length === 0) return;
+        
+        sessionStartTime = null; totalKeysPressed = 0; correctKeysPressed = 0; totalChineseCharsFinished = 0;
+        isGameOver = false; isWaitingForNextPoem = false; clearHoldKeys(); currentSentenceIndex = -1;
+        
+        document.getElementById('stat-cpm').textContent = '0'; 
+        document.getElementById('stat-acc').textContent = '100%';
+        document.getElementById('stat-time').textContent = '00:00';
+        clearInterval(timerInterval);
+
+        let randIndex = Math.floor(Math.random() * corpusData.length);
+        currentPoem = corpusData[randIndex];
+        
+        zhuyinQueue =[];
+        let charGlobalIdx = 0;
+        currentPoem.sentences.forEach((sentence, sIdx) => {
+            let charArray = sentence.split('');
+            charArray.forEach((char, cIdx) => {
+                let keys = getZhuyinKeys(char);
+                if(keys) {
+                    keys.forEach((z, zIdx) => {
+                        zhuyinQueue.push({ char: char, z: z, sIdx, cIdx, charGlobalIdx, zTotal: keys.length, zIdx });
+                    });
+                    charGlobalIdx++;
+                }
             });
+        });
 
-            // Entry Point Execution
-            window.onload = initSystem;
+        if (zhuyinQueue.length === 0) {
+            corpusData.splice(randIndex, 1);
+            return loadRandomPoem(); 
+        }
 
-        })(); // End of encapsulated execution scope
-    </script>
+        updateMetadataUI();
+        loadNextTyping();
+    }
+
+    function initSentenceDOM() {
+        let currLineEl = document.getElementById('curr-line');
+        currLineEl.innerHTML = '';
+        currentSentenceElements = [];
+        
+        let chars = currentPoem.sentences[currentSentenceIndex].split('');
+        chars.forEach((char) => {
+            let span = document.createElement('span');
+            span.textContent = char;
+            let isChinese = /^[\u4E00-\u9FFF]+$/.test(char);
+            
+            if (!isChinese) span.className = 'punctuation';
+            else span.className = 'story-pending';
+            
+            currLineEl.appendChild(span);
+            currentSentenceElements.push({ span, isChinese });
+        });
+    }
+
+    function updateKTVLines() {
+        if (!currentTargetObj) return;
+        let curCIdx = currentTargetObj.cIdx;
+        
+        currentSentenceElements.forEach((item, idx) => {
+            if (!item.isChinese) return;
+            if (idx < curCIdx) item.span.className = 'story-typed';
+            else if (idx === curCIdx) item.span.className = 'story-active';
+            else item.span.className = 'story-pending';
+        });
+    }
+
+    function renderTargetZhuyin() {
+        if (!currentTargetObj) return;
+        
+        document.getElementById('target-char').textContent = currentTargetObj.parentChar;
+        
+        let zhuyinContainer = document.getElementById('target-zhuyin');
+        zhuyinContainer.innerHTML = '';
+        
+        let currentWordZhuyins = zhuyinQueue.filter(q => q.charGlobalIdx === currentTargetObj.charGlobalIdx);
+        let typedCount = currentTargetObj.zTotal - currentWordZhuyins.length;
+        
+        let rawKeys = getZhuyinKeys(currentTargetObj.parentChar) ||[];
+
+        rawKeys.forEach((z, i) => {
+            if (z === ' ') return;
+            let span = document.createElement('span');
+            span.textContent = z;
+            span.className = 'zhuyin-symbol';
+            
+            if (i < typedCount) span.classList.add('typed');
+            
+            if (z === '˙') span.classList.add('tone-light');
+            else if (['ˊ', 'ˇ', 'ˋ'].includes(z)) span.classList.add('tone-mark');
+            
+            zhuyinContainer.appendChild(span);
+        });
+
+        document.getElementById('type-target').textContent = currentTargetObj.char === ' ' ? '␣' : currentTargetObj.char;
+    }
+
+    function loadNextTyping() {
+        if (zhuyinQueue.length === 0) {
+            isGameOver = true;
+            clearInterval(timerInterval);
+            saveCurrentSessionStats();
+            
+            // 延遲 800 毫秒後，自動彈出歷史戰績畫面並高亮當前詩詞
+            setTimeout(() => {
+                openHistoryModal(currentPoem.mainDisplayTitle);
+            }, 800);
+            return;
+        }
+
+        let nextData = zhuyinQueue[0];
+        
+        if (nextData.charGlobalIdx !== currentProcessingCharIndex) {
+            clearHoldKeys();
+            currentProcessingCharIndex = nextData.charGlobalIdx;
+        }
+
+        currentTargetObj = { 
+            char: nextData.z, code: keyMap[nextData.z], 
+            sIdx: nextData.sIdx, cIdx: nextData.cIdx,
+            parentChar: nextData.char, charGlobalIdx: nextData.charGlobalIdx, zTotal: nextData.zTotal
+        };
+        
+        if (currentSentenceIndex !== nextData.sIdx) {
+            currentSentenceIndex = nextData.sIdx;
+            initSentenceDOM();
+            document.getElementById('prev-line').textContent = currentSentenceIndex > 0 ? currentPoem.sentences[currentSentenceIndex - 1] : '';
+            document.getElementById('next-line').textContent = currentSentenceIndex < currentPoem.sentences.length - 1 ? currentPoem.sentences[currentSentenceIndex + 1] : '';
+        }
+
+        updateKTVLines();
+        renderTargetZhuyin();
+    }
+
+    function addHoldKey(code) {
+        if (code === 'Space') return; 
+        if (!activeHoldKeys.includes(code)) {
+            activeHoldKeys.push(code);
+            let el = document.querySelector(`.key[data-code="${code}"]`);
+            if (el) el.classList.add('active-hold');
+        }
+    }
+
+    function clearHoldKeys() {
+        activeHoldKeys.forEach(code => {
+            let el = document.querySelector(`.key[data-code="${code}"]`);
+            if (el) el.classList.remove('active-hold');
+        });
+        activeHoldKeys =[];
+    }
+
+    function updateLiveStats() {
+        if (!sessionStartTime) return;
+        let elapsedSec = Math.floor((Date.now() - sessionStartTime) / 1000);
+        let m = String(Math.floor(elapsedSec / 60)).padStart(2, '0');
+        let s = String(elapsedSec % 60).padStart(2, '0');
+        document.getElementById('stat-time').textContent = `${m}:${s}`;
+
+        let elapsedMinutes = elapsedSec / 60;
+        if (elapsedMinutes > 0) {
+            let cpm = Math.round(totalChineseCharsFinished / elapsedMinutes);
+            document.getElementById('stat-cpm').textContent = cpm;
+        }
+        
+        let acc = totalKeysPressed > 0 ? Math.round((correctKeysPressed / totalKeysPressed) * 100) : 100;
+        document.getElementById('stat-acc').textContent = acc + '%';
+    }
+
+    function saveCurrentSessionStats() {
+        if (!currentPoem || totalChineseCharsFinished < 5 || !sessionStartTime) return; 
+
+        let elapsedMinutes = (Date.now() - sessionStartTime) / 60000;
+        if(elapsedMinutes === 0) return;
+        let finalCpm = Math.round(totalChineseCharsFinished / elapsedMinutes);
+        let finalAcc = Math.round((correctKeysPressed / totalKeysPressed) * 100);
+
+        let t = currentPoem.mainDisplayTitle;
+        if (!userHistory[t]) userHistory[t] = { attempts: 0, bestCpm: 0, totalCpm: 0, bestAcc: 0, totalAcc: 0 };
+        
+        let hs = userHistory[t];
+        hs.attempts++;
+        hs.bestCpm = Math.max(hs.bestCpm, finalCpm);
+        hs.totalCpm += finalCpm;
+        hs.bestAcc = Math.max(hs.bestAcc, finalAcc);
+        hs.totalAcc += finalAcc;
+
+        // 永續寫入瀏覽器 Local Storage
+        localStorage.setItem('proTypingHistory', JSON.stringify(userHistory));
+    }
+
+    // --- 詳細解說 Tooltip 系統 ---
+    const tooltipEl = document.getElementById('custom-tooltip');
+    
+    function showTooltip(e, content) {
+        tooltipEl.innerHTML = content;
+        tooltipEl.style.display = 'block';
+        setTimeout(() => tooltipEl.style.opacity = '1', 10);
+        moveTooltip(e);
+    }
+    
+    function hideTooltip() {
+        tooltipEl.style.opacity = '0';
+        setTimeout(() => { if (tooltipEl.style.opacity === '0') tooltipEl.style.display = 'none'; }, 200);
+    }
+    
+    function moveTooltip(e) {
+        if(tooltipEl.style.display === 'none') return;
+        let x = e.clientX + 15;
+        let y = e.clientY + 15;
+        
+        // 邊界防溢出處理
+        if (x + tooltipEl.offsetWidth > window.innerWidth) x = e.clientX - tooltipEl.offsetWidth - 15;
+        if (y + tooltipEl.offsetHeight > window.innerHeight) y = e.clientY - tooltipEl.offsetHeight - 15;
+        
+        tooltipEl.style.left = x + 'px';
+        tooltipEl.style.top = y + 'px';
+    }
+
+    // 事件委派：統一監聽表格內的滑鼠移動
+    document.getElementById('history-tbody').addEventListener('mouseover', function(e) {
+        let td = e.target.closest('td.hover-data');
+        if (td) showTooltip(e, td.getAttribute('data-tooltip'));
+    });
+    document.getElementById('history-tbody').addEventListener('mouseout', function(e) {
+        hideTooltip();
+    });
+    document.getElementById('history-tbody').addEventListener('mousemove', function(e) {
+        let td = e.target.closest('td.hover-data');
+        if (td) moveTooltip(e);
+    });
+
+    // --- 歷史戰績 Modal 處理 ---
+    function openHistoryModal(highlightTitle = null) {
+        const tbody = document.getElementById('history-tbody');
+        tbody.innerHTML = '';
+        let titles = Object.keys(userHistory);
+        
+        if(titles.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 40px;">尚無紀錄，按下第一鍵開始競速！</td></tr>';
+        } else {
+            // 將最新的高亮項目移到最上方
+            if (highlightTitle && titles.includes(highlightTitle)) {
+                titles = titles.filter(t => t !== highlightTitle);
+                titles.unshift(highlightTitle);
+            }
+
+            titles.forEach(title => {
+                let hs = userHistory[title];
+                let avgCpm = Math.round(hs.totalCpm / hs.attempts);
+                let avgAcc = Math.round(hs.totalAcc / hs.attempts);
+                
+                // 動態生成 Tooltip 內容
+                let ttAttempts = `您總共挑戰了這首詩詞 <b style="color:#60a5fa">${hs.attempts}</b> 次。<br><br>📝 <span style="color:#9ca3af">意義：持續不斷的練習是建立肌肉記憶與提升速度的最佳捷徑！</span>`;
+                let ttBestCpm = `最高紀錄為每分鐘打對 <b style="color:#fcd34d">${hs.bestCpm}</b> 個中文字。<br><br>⚡ <span style="color:#9ca3af">意義 (CPM)：Characters Per Minute (每分鐘字數)。這是衡量盲打速度的最核心指標，代表您大腦與指尖的連線速度！</span>`;
+                let ttAvgCpm = `平均每分鐘打出 <b style="color:#fff">${avgCpm}</b> 個中文字。<br><br>📊 <span style="color:#9ca3af">意義：代表您在這首詩詞的平均穩定實力，避免單次手感好壞的誤差。</span>`;
+                let ttBestAcc = `最高達成 <b style="color:#10b981">${hs.bestAcc}%</b> 的準確率。<br><br>🎯 <span style="color:#9ca3af">意義 (ACC)：Accuracy (準確率)。打字不僅要求快，精準更是神手的基本功。減少按錯退位，能大幅度提升整體的真實打字速度！</span>`;
+                let ttAvgAcc = `平均準確率為 <b style="color:#fff">${avgAcc}%</b>。<br><br>⚖️ <span style="color:#9ca3af">意義：若您的平均準確率低於 90%，建議您先放慢速度，專注在每個注音的正確性。肌肉記憶正確後，速度自然會飛速提升！</span>`;
+
+                let tr = document.createElement('tr');
+                if (title === highlightTitle) {
+                    tr.className = 'highlight-row';
+                    isWaitingForNextPoem = true;
+                }
+                
+                tr.innerHTML = `
+                    <td class="td-title">${title}</td>
+                    <td class="hover-data" data-tooltip="${ttAttempts}">${hs.attempts}</td>
+                    <td class="hover-data" data-tooltip="${ttBestCpm}" style="color:var(--active-text); font-weight:bold;">${hs.bestCpm}</td>
+                    <td class="hover-data" data-tooltip="${ttAvgCpm}">${avgCpm}</td>
+                    <td class="hover-data" data-tooltip="${ttBestAcc}" style="color:#10b981;">${hs.bestAcc}%</td>
+                    <td class="hover-data" data-tooltip="${ttAvgAcc}">${avgAcc}%</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+        
+        document.getElementById('modal-action-hint').style.display = isWaitingForNextPoem ? 'block' : 'none';
+        document.getElementById('history-modal').style.display = 'flex';
+    }
+    
+    function closeHistoryModal() { 
+        document.getElementById('history-modal').style.display = 'none'; 
+        hideTooltip();
+        window.focus(); 
+        
+        // 如果剛剛是因為打完自動跳出，關閉時自動載入下一首
+        if (isWaitingForNextPoem) {
+            isWaitingForNextPoem = false;
+            loadRandomPoem();
+        }
+    }
+
+    // --- 手動清除戰績防呆機制 ---
+    function clearHistory() {
+        if (confirm("確定要清除所有歷史戰績嗎？\n此動作將會清空瀏覽器中的永久紀錄，且無法復原！")) {
+            localStorage.removeItem('proTypingHistory');
+            userHistory = {};
+            openHistoryModal(); // 清空後重新渲染空白表格
+        }
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (document.getElementById('history-modal').style.display === 'flex') {
+            if(e.code === 'Escape') closeHistoryModal();
+            return;
+        }
+
+        if (e.code === 'Space' || e.key.length === 1) e.preventDefault();
+        if (!currentTargetObj || isGameOver) return;
+
+        if (!sessionStartTime) {
+            sessionStartTime = Date.now();
+            timerInterval = setInterval(updateLiveStats, 1000);
+        }
+
+        let inputCode = e.code;
+        totalKeysPressed++;
+
+        const keyEl = document.querySelector(`.key[data-code="${inputCode}"]`);
+        if (keyEl) {
+            keyEl.classList.add('active');
+            setTimeout(() => keyEl.classList.remove('active'), 80);
+        }
+
+        if (inputCode === currentTargetObj.code || (currentTargetObj.char === '˙' && (inputCode === 'Space' || inputCode === 'Digit7'))) {
+            correctKeysPressed++;
+            addHoldKey(inputCode); 
+            
+            let finishedCharGlobalIdx = currentTargetObj.charGlobalIdx;
+            zhuyinQueue.shift();
+            
+            if (zhuyinQueue.length === 0 || zhuyinQueue[0].charGlobalIdx !== finishedCharGlobalIdx) {
+                totalChineseCharsFinished++;
+            }
+            
+            updateLiveStats();
+            loadNextTyping(); 
+        } else {
+            document.body.classList.add('error-flash');
+            setTimeout(() => document.body.classList.remove('error-flash'), 180);
+            updateLiveStats();
+        }
+    });
+
+    window.onload = initGame;
+</script>
 </body>
 </html>
