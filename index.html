@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>注音大冒險：詩詞幻境 專業賽事版 V6 永恆戰績版</title>
+    <title>注音大冒險：詩詞幻境 專業賽事版 V7 完美戰績表</title>
     <script src="https://unpkg.com/pinyin-pro"></script>
     <style>
         :root { 
@@ -134,7 +134,7 @@
         }
         .space-key { flex: 1; font-size: 16px; color: #4b5563;}
 
-        /* --- 歷史戰績 Modal 與全新提示框樣式 --- */
+        /* --- 歷史戰績 Modal 樣式 --- */
         #history-modal {
             display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); z-index: 100; backdrop-filter: blur(8px); align-items: center; justify-content: center;
@@ -165,18 +165,14 @@
         .table-container { overflow-y: auto; flex: 1; padding-right: 10px; }
         table { width: 100%; border-collapse: collapse; text-align: left; font-size: 16px; }
         th, td { padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); }
-        th { color: #9ca3af; position: sticky; top: 0; background: var(--panel-bg); z-index: 2; }
+        th { color: #9ca3af; position: sticky; top: 0; background: var(--panel-bg); z-index: 2; white-space: nowrap;}
         
         /* 數值區塊滑鼠互動樣式 */
-        .hover-data { cursor: help; border-bottom: 1px dashed rgba(255,255,255,0.3); transition: background 0.2s; }
+        .hover-data { cursor: help; border-bottom: 1px dashed rgba(255,255,255,0.3); transition: background 0.2s; white-space: nowrap;}
         .hover-data:hover { background: rgba(255,255,255,0.1); }
-        .td-title { font-weight: bold; color: #f3f4f6; }
+        .td-title { font-weight: bold; color: #f3f4f6; width: 35%; line-height: 1.4; } 
         
-        /* 自動跳出時的高亮特效 */
-        .highlight-row {
-            background-color: rgba(59, 130, 246, 0.2);
-            border-left: 4px solid var(--active-text);
-        }
+        .highlight-row { background-color: rgba(59, 130, 246, 0.2); border-left: 4px solid var(--active-text); }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 
         /* 浮動解說框 Tooltip */
@@ -310,11 +306,8 @@
     let correctKeysPressed = 0;
     let totalChineseCharsFinished = 0;
     let isGameOver = false;
-    
-    // 遊戲等待下一步的標記
     let isWaitingForNextPoem = false;
 
-    // 永續儲存機制載入
     let userHistory = JSON.parse(localStorage.getItem('proTypingHistory')) || {};
 
     document.body.addEventListener('dblclick', (e) => {
@@ -631,7 +624,6 @@
             clearInterval(timerInterval);
             saveCurrentSessionStats();
             
-            // 延遲 800 毫秒後，自動彈出歷史戰績畫面並高亮當前詩詞
             setTimeout(() => {
                 openHistoryModal(currentPoem.mainDisplayTitle);
             }, 800);
@@ -714,7 +706,6 @@
         hs.bestAcc = Math.max(hs.bestAcc, finalAcc);
         hs.totalAcc += finalAcc;
 
-        // 永續寫入瀏覽器 Local Storage
         localStorage.setItem('proTypingHistory', JSON.stringify(userHistory));
     }
 
@@ -738,7 +729,6 @@
         let x = e.clientX + 15;
         let y = e.clientY + 15;
         
-        // 邊界防溢出處理
         if (x + tooltipEl.offsetWidth > window.innerWidth) x = e.clientX - tooltipEl.offsetWidth - 15;
         if (y + tooltipEl.offsetHeight > window.innerHeight) y = e.clientY - tooltipEl.offsetHeight - 15;
         
@@ -746,7 +736,6 @@
         tooltipEl.style.top = y + 'px';
     }
 
-    // 事件委派：統一監聽表格內的滑鼠移動
     document.getElementById('history-tbody').addEventListener('mouseover', function(e) {
         let td = e.target.closest('td.hover-data');
         if (td) showTooltip(e, td.getAttribute('data-tooltip'));
@@ -768,7 +757,6 @@
         if(titles.length === 0) {
             tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 40px;">尚無紀錄，按下第一鍵開始競速！</td></tr>';
         } else {
-            // 將最新的高亮項目移到最上方
             if (highlightTitle && titles.includes(highlightTitle)) {
                 titles = titles.filter(t => t !== highlightTitle);
                 titles.unshift(highlightTitle);
@@ -779,12 +767,12 @@
                 let avgCpm = Math.round(hs.totalCpm / hs.attempts);
                 let avgAcc = Math.round(hs.totalAcc / hs.attempts);
                 
-                // 動態生成 Tooltip 內容
-                let ttAttempts = `您總共挑戰了這首詩詞 <b style="color:#60a5fa">${hs.attempts}</b> 次。<br><br>📝 <span style="color:#9ca3af">意義：持續不斷的練習是建立肌肉記憶與提升速度的最佳捷徑！</span>`;
-                let ttBestCpm = `最高紀錄為每分鐘打對 <b style="color:#fcd34d">${hs.bestCpm}</b> 個中文字。<br><br>⚡ <span style="color:#9ca3af">意義 (CPM)：Characters Per Minute (每分鐘字數)。這是衡量盲打速度的最核心指標，代表您大腦與指尖的連線速度！</span>`;
-                let ttAvgCpm = `平均每分鐘打出 <b style="color:#fff">${avgCpm}</b> 個中文字。<br><br>📊 <span style="color:#9ca3af">意義：代表您在這首詩詞的平均穩定實力，避免單次手感好壞的誤差。</span>`;
-                let ttBestAcc = `最高達成 <b style="color:#10b981">${hs.bestAcc}%</b> 的準確率。<br><br>🎯 <span style="color:#9ca3af">意義 (ACC)：Accuracy (準確率)。打字不僅要求快，精準更是神手的基本功。減少按錯退位，能大幅度提升整體的真實打字速度！</span>`;
-                let ttAvgAcc = `平均準確率為 <b style="color:#fff">${avgAcc}%</b>。<br><br>⚖️ <span style="color:#9ca3af">意義：若您的平均準確率低於 90%，建議您先放慢速度，專注在每個注音的正確性。肌肉記憶正確後，速度自然會飛速提升！</span>`;
+                // 注意這裡完全移除了「意義：」字眼，並且使用「單引號」避免 HTML 解析錯誤
+                let ttAttempts = `您總共挑戰了這首詩詞 <b style='color:#60a5fa'>${hs.attempts}</b> 次。<br><br>📝 <span style='color:#9ca3af'>持續不斷的練習是建立肌肉記憶與提升速度的最佳捷徑！</span>`;
+                let ttBestCpm = `最高紀錄為每分鐘打對 <b style='color:#fcd34d'>${hs.bestCpm}</b> 個中文字。<br><br>⚡ <span style='color:#9ca3af'>Characters Per Minute (每分鐘字數)。這是衡量盲打速度的最核心指標，代表您大腦與指尖的連線速度！</span>`;
+                let ttAvgCpm = `平均每分鐘打出 <b style='color:#fff'>${avgCpm}</b> 個中文字。<br><br>📊 <span style='color:#9ca3af'>代表您在這首詩詞的平均穩定實力，避免單次手感好壞的誤差。</span>`;
+                let ttBestAcc = `最高達成 <b style='color:#10b981'>${hs.bestAcc}%</b> 的準確率。<br><br>🎯 <span style='color:#9ca3af'>Accuracy (準確率)。打字不僅要求快，精準更是神手的基本功。減少按錯退位，能大幅度提升整體的真實打字速度！</span>`;
+                let ttAvgAcc = `平均準確率為 <b style='color:#fff'>${avgAcc}%</b>。<br><br>⚖️ <span style='color:#9ca3af'>若您的平均準確率低於 90%，建議您先放慢速度，專注在每個注音的正確性。肌肉記憶正確後，速度自然會飛速提升！</span>`;
 
                 let tr = document.createElement('tr');
                 if (title === highlightTitle) {
@@ -813,19 +801,17 @@
         hideTooltip();
         window.focus(); 
         
-        // 如果剛剛是因為打完自動跳出，關閉時自動載入下一首
         if (isWaitingForNextPoem) {
             isWaitingForNextPoem = false;
             loadRandomPoem();
         }
     }
 
-    // --- 手動清除戰績防呆機制 ---
     function clearHistory() {
         if (confirm("確定要清除所有歷史戰績嗎？\n此動作將會清空瀏覽器中的永久紀錄，且無法復原！")) {
             localStorage.removeItem('proTypingHistory');
             userHistory = {};
-            openHistoryModal(); // 清空後重新渲染空白表格
+            openHistoryModal(); 
         }
     }
 
