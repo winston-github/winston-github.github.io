@@ -2,12 +2,14 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <!-- 加入 viewport-fit=cover 與 user-scalable=no 徹底防堵 iOS 雙指放大與瀏海遮擋 -->
+    <!-- 強制鎖定視口，防縮放與排版錯位 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>注音大冒險：詩詞幻境 專業賽事版 V10 沉浸無干擾版</title>
+    <title>注音大冒險：詩詞幻境 專業賽事版 V11 極致無暇版</title>
     <script src="https://unpkg.com/pinyin-pro"></script>
     <style>
         :root { 
+            /* 告訴所有瀏覽器此為原生深色網頁，絕對禁止自動漂白背景 */
+            color-scheme: dark;
             --bg-color1: #0f172a; 
             --bg-color2: #1e293b; 
             --theme-accent: #3b82f6; 
@@ -19,15 +21,18 @@
             --key-hold-text: #78350f;
         }
         
+        /* 雙重鎖定背景，防止 iOS 渲染異常 */
+        html { background-color: var(--bg-color1); width: 100%; height: 100%; overflow: hidden; }
+        
         body { 
-            /* 終極鎖定視口機制，徹底消滅 iOS Chrome/Safari 底部導覽列遮擋與放大問題 */
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            position: fixed; inset: 0; width: 100%; height: 100%;
             margin: 0; padding: 0; font-family: 'Microsoft JhengHei', "標楷體", monospace; 
-            background: radial-gradient(circle at center, var(--bg-color1) 0%, var(--bg-color2) 100%); 
+            background-color: var(--bg-color1);
+            background-image: radial-gradient(circle at center, var(--bg-color1) 0%, var(--bg-color2) 100%); 
             display: flex; flex-direction: column; align-items: center; justify-content: center; 
             overflow: hidden; user-select: none; color: #f3f4f6; 
-            cursor: default; transition: background 0.1s; 
-            touch-action: none; /* 禁用瀏覽器全域的雙指縮放與拖曳 */
+            cursor: default; touch-action: none; 
+            -webkit-user-select: none; /* 防止 iOS 文字反白 */
         }
         
         body.error-flash #zen-typing-zone { animation: shake 0.2s ease-in-out; }
@@ -44,11 +49,8 @@
             width: 100%; height: 100%; max-width: 1200px; 
             display: flex; flex-direction: column; 
             gap: 15px; padding: 20px; box-sizing: border-box; position: relative;
-            /* 針對 iPhone X 以上的底部 Home 橫條進行安全距離避讓 */
-            padding-bottom: max(20px, env(safe-area-inset-bottom));
         }
 
-        /* --- 頂部面板區 --- */
         #top-bar { 
             display: flex; justify-content: space-between; align-items: flex-start;
             padding: 20px 30px; background: rgba(0,0,0,0.55); border-radius: 15px; 
@@ -58,7 +60,6 @@
         
         .title-section { display: flex; flex-direction: column; gap: 10px; }
         
-        /* 標題設定 cursor 為 pointer，但不改變任何外觀 */
         #main-title { 
             margin: 0; font-size: 34px; color: #fff; font-family: "標楷體", "DFKai-SB", serif;
             letter-spacing: 2px; text-shadow: 0 0 10px rgba(255,255,255,0.3);
@@ -81,7 +82,6 @@
         }
         .btn-history:active { transform: scale(0.95); }
 
-        /* --- 中央打字與注音提示區 --- */
         #zen-typing-zone { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; }
         
         #lyrics-board { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; width: 100%; }
@@ -113,14 +113,17 @@
 
         #type-target { font-size: 110px; font-weight: bold; color: var(--theme-accent); text-shadow: 0 0 35px rgba(59, 130, 246, 0.6); line-height: 1; font-family: 'Microsoft JhengHei'; width: 140px; text-align: center; }
 
-        /* --- 實體與虛擬鍵盤區 --- */
-        #keyboard-zone { flex-shrink: 0; display: flex; justify-content: center; width: 100%;}
+        #keyboard-zone { 
+            flex-shrink: 0; display: flex; justify-content: center; width: 100%;
+            /* 預設底部安全距離 */
+            padding-bottom: env(safe-area-inset-bottom, 10px);
+        }
         
         #virtual-keyboard { 
             background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 15px; 
             display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 900px; 
             backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1);
-            position: relative; overflow: hidden; /* 用於包容內部彈窗 */
+            position: relative; overflow: hidden; 
         }
         
         .kbd-row { display: flex; justify-content: flex-start; gap: 8px; width: 100%; }
@@ -136,7 +139,6 @@
         .key.active-hold { background: var(--key-hold-bg); color: var(--key-hold-text); box-shadow: 0 0 20px var(--key-hold-bg); border-color: #fbbf24; transform: translateY(2px); border-bottom-width: 2px; }
         .space-key { flex: 1; font-size: 16px; color: #4b5563;}
 
-        /* --- 鍵盤區內的「更換詞曲」彈窗 --- */
         #replace-dialog {
             position: absolute; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px);
@@ -146,15 +148,11 @@
         #replace-dialog h2 { margin: 0 0 5px 0; color: #fff; font-size: 24px; letter-spacing: 2px;}
         #replace-dialog p { margin: 0 0 25px 0; color: #fca5a5; font-size: 15px; }
         .dialog-btns { display: flex; gap: 20px; }
-        .dialog-btn { 
-            padding: 12px 25px; border: none; border-radius: 8px; font-size: 16px; 
-            font-weight: bold; cursor: pointer; transition: transform 0.1s;
-        }
+        .dialog-btn { padding: 12px 25px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: transform 0.1s; }
         .dialog-btn:active { transform: scale(0.95); }
         .btn-confirm { background: #ef4444; color: white; }
         .btn-cancel { background: #3b82f6; color: white; }
 
-        /* --- 極簡右下角全螢幕按鈕 --- */
         #corner-fullscreen-btn {
             position: fixed; bottom: 15px; right: 15px; width: 36px; height: 36px;
             background: transparent; border: none; color: rgba(255, 255, 255, 0.25);
@@ -163,7 +161,6 @@
         #corner-fullscreen-btn:hover { color: rgba(255, 255, 255, 0.8); transform: scale(1.1); }
         #corner-fullscreen-btn svg { width: 100%; height: 100%; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
-        /* --- 歷史戰績與彈窗區 --- */
         #history-modal { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 100; backdrop-filter: blur(8px); align-items: center; justify-content: center; }
         .modal-content { background: var(--panel-bg); width: 90%; max-width: 900px; max-height: 80%; border-radius: 15px; border: 1px solid var(--theme-accent); padding: 30px; display: flex; flex-direction: column; box-shadow: 0 0 50px rgba(59, 130, 246, 0.4); position: relative; }
         .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 15px; margin-bottom: 15px; }
@@ -189,7 +186,7 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
         /* =======================================================
-           📱 行動裝置與窄版螢幕自適應極致優化
+           📱 行動裝置與窄版螢幕自適應：終極防遮擋
            ======================================================= */
         @media (max-width: 768px) {
             #game-container { padding: 10px; gap: 8px; }
@@ -213,7 +210,11 @@
             .zhuyin-symbol.tone-mark { right: -14px; font-size: 16px; }
             #type-target { font-size: 55px; width: 70px; }
 
-            /* 手機板虛擬鍵盤：極限縮小空隙，強制撐滿寬度 */
+            /* 鍵盤區防遮擋：強制加上 35px 以上的底部空間，徹底避開 Chrome 網址列 */
+            #keyboard-zone {
+                padding-bottom: max(35px, env(safe-area-inset-bottom, 35px));
+            }
+
             #virtual-keyboard { padding: 6px; gap: 5px; border-radius: 10px; }
             .kbd-row { padding-left: 0 !important; justify-content: center; gap: 4px; }
             .kbd-row:nth-child(1) { width: 100%; }
@@ -245,7 +246,6 @@
 
 <div id="custom-tooltip"></div>
 
-<!-- 極簡化右下角全螢幕按鈕 -->
 <button id="corner-fullscreen-btn" onclick="toggleFullscreen()" title="切換全螢幕">
     <svg viewBox="0 0 24 24">
         <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
@@ -255,7 +255,6 @@
 <div id="game-container">
     <div id="top-bar">
         <div class="title-section">
-            <!-- 點擊標題即可觸發暫停與更換選項 -->
             <h1 id="main-title" title="點擊更換詩詞">等待抽取中...</h1>
             <div id="metadata-bar"></div>
         </div>
@@ -285,8 +284,6 @@
 
     <div id="keyboard-zone">
         <div id="virtual-keyboard">
-            
-            <!-- 更換詩詞的內部毛玻璃彈窗 -->
             <div id="replace-dialog">
                 <h2>是否更換詞曲？</h2>
                 <p>(本首未打完戰績將不保留)</p>
@@ -359,7 +356,6 @@
     let activeHoldKeys =[];
     let currentProcessingCharIndex = -1;
 
-    // 時間軌跡追蹤，支援暫停/恢復
     let timerInterval = null;
     let sessionStartTime = null;
     let totalElapsedMs = 0; 
@@ -373,7 +369,6 @@
 
     let userHistory = JSON.parse(localStorage.getItem('proTypingHistory')) || {};
 
-    // --- 全螢幕切換雙重機制 (按鈕 + 雙擊空白處) ---
     function toggleFullscreen() {
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch(err => console.log(err));
@@ -383,7 +378,6 @@
     }
     
     document.body.addEventListener('dblclick', (e) => {
-        // 避開所有按鈕與鍵盤區域，只在純空白處觸發
         if (e.target.tagName !== 'BUTTON' && !e.target.closest('#virtual-keyboard') && e.target.id !== 'main-title') {
             toggleFullscreen();
         }
@@ -478,6 +472,11 @@
                     }
 
                     if (!contentStr) continue;
+                    
+                    // 【終極防呆篩選器】：唐詩宋詞絕對不會有英文或阿拉伯數字，有出現就直接丟掉！
+                    if (/[a-zA-Z0-9]/.test(contentStr)) continue;
+                    // 阻擋標題為「XXX三百首全文」的簡介段落
+                    if (/三百首/.test(title)) continue;
                     
                     let sentences = contentStr.match(/[^。？！，、；：\n]+[。？！，、；：\n]*/g) ||[contentStr];
                     sentences = sentences.map(s => s.trim()).filter(s => s.length > 0);
@@ -645,11 +644,9 @@
         loadNextTyping();
     }
 
-    // --- 換詩詞彈窗與計時器暫停機制 ---
     document.getElementById('main-title').addEventListener('click', () => {
         if (isGameOver || zhuyinQueue.length === 0 || document.getElementById('replace-dialog').style.display === 'flex') return;
         
-        // 瞬間暫停計時
         isPaused = true;
         clearInterval(timerInterval);
         timerInterval = null;
@@ -665,7 +662,6 @@
         document.getElementById('replace-dialog').style.display = 'none';
         isPaused = false;
         
-        // 如果已經開始打字了才恢復計時器
         if (totalKeysPressed > 0) {
             sessionStartTime = Date.now();
             timerInterval = setInterval(updateLiveStats, 1000);
