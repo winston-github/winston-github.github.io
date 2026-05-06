@@ -2,8 +2,9 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>注音大冒險：詩詞幻境 專業賽事版 V9 終極跨屏優化版</title>
+    <!-- 加入 viewport-fit=cover 與 user-scalable=no 徹底防堵 iOS 雙指放大與瀏海遮擋 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>注音大冒險：詩詞幻境 專業賽事版 V10 沉浸無干擾版</title>
     <script src="https://unpkg.com/pinyin-pro"></script>
     <style>
         :root { 
@@ -19,13 +20,14 @@
         }
         
         body { 
+            /* 終極鎖定視口機制，徹底消滅 iOS Chrome/Safari 底部導覽列遮擋與放大問題 */
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             margin: 0; padding: 0; font-family: 'Microsoft JhengHei', "標楷體", monospace; 
             background: radial-gradient(circle at center, var(--bg-color1) 0%, var(--bg-color2) 100%); 
             display: flex; flex-direction: column; align-items: center; justify-content: center; 
-            /* 使用 dvh 解決 iOS Chrome/Safari 底部導覽列遮擋問題，相容舊版保留 100vh */
-            height: 100vh; height: 100dvh; 
             overflow: hidden; user-select: none; color: #f3f4f6; 
-            cursor: default; transition: background 0.1s; touch-action: none; 
+            cursor: default; transition: background 0.1s; 
+            touch-action: none; /* 禁用瀏覽器全域的雙指縮放與拖曳 */
         }
         
         body.error-flash #zen-typing-zone { animation: shake 0.2s ease-in-out; }
@@ -39,12 +41,14 @@
         }
 
         #game-container { 
-            width: 100%; max-width: 1200px; height: 100%; display: flex; flex-direction: column; 
+            width: 100%; height: 100%; max-width: 1200px; 
+            display: flex; flex-direction: column; 
             gap: 15px; padding: 20px; box-sizing: border-box; position: relative;
-            /* 導入 iOS 底部安全距離，徹底防止空白鍵被 iPhone 橫條擋住 */
-            padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+            /* 針對 iPhone X 以上的底部 Home 橫條進行安全距離避讓 */
+            padding-bottom: max(20px, env(safe-area-inset-bottom));
         }
 
+        /* --- 頂部面板區 --- */
         #top-bar { 
             display: flex; justify-content: space-between; align-items: flex-start;
             padding: 20px 30px; background: rgba(0,0,0,0.55); border-radius: 15px; 
@@ -54,21 +58,11 @@
         
         .title-section { display: flex; flex-direction: column; gap: 10px; }
         
-        /* 標題與左右功能按鈕的容器 */
-        .title-header { display: flex; align-items: center; gap: 15px; }
-
-        .action-icon {
-            background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 8px; color: #fff; width: 38px; height: 38px;
-            display: flex; align-items: center; justify-content: center;
-            cursor: pointer; transition: all 0.2s; padding: 0; flex-shrink: 0;
-        }
-        .action-icon:hover { background: rgba(255, 255, 255, 0.2); transform: scale(1.1); }
-        .action-icon svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-
+        /* 標題設定 cursor 為 pointer，但不改變任何外觀 */
         #main-title { 
             margin: 0; font-size: 34px; color: #fff; font-family: "標楷體", "DFKai-SB", serif;
             letter-spacing: 2px; text-shadow: 0 0 10px rgba(255,255,255,0.3);
+            cursor: pointer; 
         }
 
         #metadata-bar { display: flex; flex-wrap: wrap; gap: 12px; font-size: 15px; color: #cbd5e1; letter-spacing: 1px;}
@@ -87,6 +81,7 @@
         }
         .btn-history:active { transform: scale(0.95); }
 
+        /* --- 中央打字與注音提示區 --- */
         #zen-typing-zone { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; }
         
         #lyrics-board { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; width: 100%; }
@@ -98,11 +93,9 @@
 
         .story-typed { color: var(--typed-text); text-shadow: 0 0 12px rgba(6, 182, 212, 0.5); } 
         .story-active { 
-            color: var(--active-text); 
-            text-shadow: 0 0 15px rgba(252,211,77,0.8), 0 0 30px rgba(252,211,77,0.5); 
+            color: var(--active-text); text-shadow: 0 0 15px rgba(252,211,77,0.8), 0 0 30px rgba(252,211,77,0.5); 
             display: inline-block; transform: translateY(-5px) scale(1.18); 
-            border-bottom: 4px solid var(--active-text);
-            transition: transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border-bottom: 4px solid var(--active-text); transition: transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
         .story-pending { color: #e2e8f0; text-shadow: none; }
         .punctuation { color: #64748b; font-weight: normal; margin: 0 4px;}
@@ -111,29 +104,23 @@
         
         .ruby-container { display: inline-flex; align-items: center; font-family: "標楷體", "DFKai-SB", serif; }
         .ruby-char { font-size: 85px; color: #fff; text-shadow: 0 0 25px rgba(255,255,255,0.3); }
-        .ruby-zhuyin {
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            margin-left: 12px; font-size: 30px; line-height: 1.1; color: rgba(255,255,255,0.25);
-            position: relative; font-weight: bold;
-        }
+        .ruby-zhuyin { display: flex; flex-direction: column; justify-content: center; align-items: center; margin-left: 12px; font-size: 30px; line-height: 1.1; color: rgba(255,255,255,0.25); position: relative; font-weight: bold; }
         
         .zhuyin-symbol { transition: color 0.1s, text-shadow 0.1s; position: relative; }
         .zhuyin-symbol.typed { color: var(--active-text); text-shadow: 0 0 15px var(--active-text); }
         .zhuyin-symbol.tone-light { position: absolute; top: -22px; left: 50%; transform: translateX(-50%); font-size: 26px;}
         .zhuyin-symbol.tone-mark { position: absolute; right: -25px; top: 50%; transform: translateY(-50%); font-size: 26px;}
 
-        #type-target { 
-            font-size: 110px; font-weight: bold; color: var(--theme-accent); 
-            text-shadow: 0 0 35px rgba(59, 130, 246, 0.6); line-height: 1; font-family: 'Microsoft JhengHei';
-            width: 140px; text-align: center;
-        }
+        #type-target { font-size: 110px; font-weight: bold; color: var(--theme-accent); text-shadow: 0 0 35px rgba(59, 130, 246, 0.6); line-height: 1; font-family: 'Microsoft JhengHei'; width: 140px; text-align: center; }
 
+        /* --- 實體與虛擬鍵盤區 --- */
         #keyboard-zone { flex-shrink: 0; display: flex; justify-content: center; width: 100%;}
+        
         #virtual-keyboard { 
             background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 15px; 
             display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 900px; 
             backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1);
-            touch-action: none; 
+            position: relative; overflow: hidden; /* 用於包容內部彈窗 */
         }
         
         .kbd-row { display: flex; justify-content: flex-start; gap: 8px; width: 100%; }
@@ -146,38 +133,52 @@
             cursor: pointer; touch-action: manipulation;
         }
         .key.active { transform: translateY(3px); border-bottom-width: 1px; background: #e5e7eb; }
-        .key.active-hold {
-            background: var(--key-hold-bg); color: var(--key-hold-text);
-            box-shadow: 0 0 20px var(--key-hold-bg); border-color: #fbbf24;
-            transform: translateY(2px); border-bottom-width: 2px;
-        }
+        .key.active-hold { background: var(--key-hold-bg); color: var(--key-hold-text); box-shadow: 0 0 20px var(--key-hold-bg); border-color: #fbbf24; transform: translateY(2px); border-bottom-width: 2px; }
         .space-key { flex: 1; font-size: 16px; color: #4b5563;}
 
-        #history-modal {
-            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85); z-index: 100; backdrop-filter: blur(8px); align-items: center; justify-content: center;
+        /* --- 鍵盤區內的「更換詞曲」彈窗 --- */
+        #replace-dialog {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px);
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 10; border-radius: 15px; text-align: center;
         }
-        .modal-content {
-            background: var(--panel-bg); width: 90%; max-width: 900px; max-height: 80%;
-            border-radius: 15px; border: 1px solid var(--theme-accent); padding: 30px;
-            display: flex; flex-direction: column; box-shadow: 0 0 50px rgba(59, 130, 246, 0.4); position: relative;
+        #replace-dialog h2 { margin: 0 0 5px 0; color: #fff; font-size: 24px; letter-spacing: 2px;}
+        #replace-dialog p { margin: 0 0 25px 0; color: #fca5a5; font-size: 15px; }
+        .dialog-btns { display: flex; gap: 20px; }
+        .dialog-btn { 
+            padding: 12px 25px; border: none; border-radius: 8px; font-size: 16px; 
+            font-weight: bold; cursor: pointer; transition: transform 0.1s;
         }
+        .dialog-btn:active { transform: scale(0.95); }
+        .btn-confirm { background: #ef4444; color: white; }
+        .btn-cancel { background: #3b82f6; color: white; }
+
+        /* --- 極簡右下角全螢幕按鈕 --- */
+        #corner-fullscreen-btn {
+            position: fixed; bottom: 15px; right: 15px; width: 36px; height: 36px;
+            background: transparent; border: none; color: rgba(255, 255, 255, 0.25);
+            cursor: pointer; z-index: 100; transition: all 0.2s; padding: 4px;
+        }
+        #corner-fullscreen-btn:hover { color: rgba(255, 255, 255, 0.8); transform: scale(1.1); }
+        #corner-fullscreen-btn svg { width: 100%; height: 100%; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+        /* --- 歷史戰績與彈窗區 --- */
+        #history-modal { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 100; backdrop-filter: blur(8px); align-items: center; justify-content: center; }
+        .modal-content { background: var(--panel-bg); width: 90%; max-width: 900px; max-height: 80%; border-radius: 15px; border: 1px solid var(--theme-accent); padding: 30px; display: flex; flex-direction: column; box-shadow: 0 0 50px rgba(59, 130, 246, 0.4); position: relative; }
         .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 15px; margin-bottom: 15px; }
         .modal-header h2 { margin: 0; color: #fff; display: inline-block; }
         .btn-clear { background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.5); color: #fca5a5; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; margin-left: 20px; vertical-align: bottom; }
         .btn-clear:hover { background: rgba(239, 68, 68, 0.5); color: #fff; }
         .close-btn { background: none; border: none; color: #fff; font-size: 32px; cursor: pointer; }
-        
         #modal-action-hint { text-align: center; color: var(--active-text); font-weight: bold; margin-top: 15px; animation: pulse 1.5s infinite; display: none; font-size: 16px; letter-spacing: 1px;}
         .table-container { overflow-y: auto; flex: 1; padding-right: 10px; }
         table { width: 100%; border-collapse: collapse; text-align: left; font-size: 16px; }
         th, td { padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); }
         th { color: #9ca3af; position: sticky; top: 0; background: var(--panel-bg); z-index: 2; white-space: nowrap;}
-        
         .hover-data { cursor: help; border-bottom: 1px dashed rgba(255,255,255,0.3); transition: background 0.2s; white-space: nowrap;}
         .hover-data:hover { background: rgba(255,255,255,0.1); }
         .td-title { font-weight: bold; color: #f3f4f6; width: 35%; line-height: 1.4; } 
-        
         .highlight-row { background-color: rgba(59, 130, 246, 0.2); border-left: 4px solid var(--active-text); }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 
@@ -188,44 +189,44 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
         /* =======================================================
-           📱 行動裝置與窄版螢幕自適應優化
+           📱 行動裝置與窄版螢幕自適應極致優化
            ======================================================= */
         @media (max-width: 768px) {
             #game-container { padding: 10px; gap: 8px; }
             #top-bar { flex-direction: column; padding: 12px 15px; }
-            
-            /* 手機板：標題與按鈕並排，自動推開置左右兩側 */
-            .title-section { width: 100%; }
-            .title-header { width: 100%; justify-content: space-between; }
-            #main-title { font-size: 22px; flex: 1; text-align: center; }
-            .action-icon { width: 36px; height: 36px; }
-
-            #metadata-bar { justify-content: center; font-size: 12px; gap: 8px; width: 100%; margin-top: 5px;}
+            .title-section { width: 100%; align-items: center; text-align: center; }
+            #main-title { font-size: 22px; }
+            #metadata-bar { justify-content: center; font-size: 12px; gap: 8px; }
             #pro-stats { width: 100%; justify-content: space-between; gap: 5px; margin-top: 10px; }
             .stat-label { font-size: 11px; }
             .stat-value { font-size: 20px; }
             .btn-history { padding: 6px 12px; font-size: 13px; }
             
-            #lyrics-board { height: 160px; }
-            #curr-line { font-size: 30px; height: 45px; letter-spacing: 1px; margin: 10px 0; }
+            #lyrics-board { height: 140px; }
+            #curr-line { font-size: 28px; height: 40px; letter-spacing: 1px; margin: 10px 0; }
             #prev-line, #next-line { font-size: 18px; height: 25px; }
             
-            #target-container { height: 110px; gap: 15px; margin-top: 0; }
-            .ruby-char { font-size: 55px; }
-            .ruby-zhuyin { font-size: 22px; margin-left: 6px; }
-            .zhuyin-symbol.tone-light { top: -16px; font-size: 18px; }
-            .zhuyin-symbol.tone-mark { right: -16px; font-size: 18px; }
-            #type-target { font-size: 65px; width: 80px; }
+            #target-container { height: 100px; gap: 15px; margin-top: 0; }
+            .ruby-char { font-size: 50px; }
+            .ruby-zhuyin { font-size: 20px; margin-left: 6px; }
+            .zhuyin-symbol.tone-light { top: -14px; font-size: 16px; }
+            .zhuyin-symbol.tone-mark { right: -14px; font-size: 16px; }
+            #type-target { font-size: 55px; width: 70px; }
 
-            #virtual-keyboard { padding: 8px; gap: 5px; border-radius: 10px; }
+            /* 手機板虛擬鍵盤：極限縮小空隙，強制撐滿寬度 */
+            #virtual-keyboard { padding: 6px; gap: 5px; border-radius: 10px; }
             .kbd-row { padding-left: 0 !important; justify-content: center; gap: 4px; }
             .kbd-row:nth-child(1) { width: 100%; }
             .kbd-row:nth-child(2) { width: 95%; margin: 0 auto; }
             .kbd-row:nth-child(3) { width: 90%; margin: 0 auto; }
             .kbd-row:nth-child(4) { width: 85%; margin: 0 auto; }
             
-            .key { flex: 1; height: 44px; font-size: 18px; border-radius: 6px; padding: 0; border-bottom-width: 3px; min-width: 0; }
-            .space-key { flex: none; width: 55%; max-width: 220px; margin: 0 auto; font-size: 14px; }
+            .key { flex: 1; height: 46px; font-size: 18px; border-radius: 6px; padding: 0; border-bottom-width: 3px; min-width: 0; }
+            .space-key { flex: none; width: 60%; max-width: 250px; margin: 0 auto; font-size: 14px; }
+            
+            #replace-dialog h2 { font-size: 20px; }
+            #replace-dialog p { font-size: 13px; }
+            .dialog-btn { padding: 10px 20px; font-size: 14px; }
 
             .modal-content { width: 95%; padding: 15px; max-height: 90%; }
             .modal-header h2 { font-size: 18px; }
@@ -244,26 +245,18 @@
 
 <div id="custom-tooltip"></div>
 
+<!-- 極簡化右下角全螢幕按鈕 -->
+<button id="corner-fullscreen-btn" onclick="toggleFullscreen()" title="切換全螢幕">
+    <svg viewBox="0 0 24 24">
+        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+    </svg>
+</button>
+
 <div id="game-container">
     <div id="top-bar">
         <div class="title-section">
-            <div class="title-header">
-                <!-- 左上方：雙向彎曲箭頭 (重新整理/換一首) -->
-                <button id="refresh-btn" class="action-icon" onclick="loadRandomPoem()" title="換一首">
-                    <svg viewBox="0 0 24 24">
-                        <polyline points="23 4 23 10 17 10"></polyline>
-                        <polyline points="1 20 1 14 7 14"></polyline>
-                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-                    </svg>
-                </button>
-                <h1 id="main-title">等待抽取中...</h1>
-                <!-- 右上方：全螢幕切換按鈕 -->
-                <button id="fullscreen-btn" class="action-icon" onclick="toggleFullscreen()" title="切換全螢幕">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
-                    </svg>
-                </button>
-            </div>
+            <!-- 點擊標題即可觸發暫停與更換選項 -->
+            <h1 id="main-title" title="點擊更換詩詞">等待抽取中...</h1>
             <div id="metadata-bar"></div>
         </div>
         <div id="pro-stats">
@@ -292,6 +285,17 @@
 
     <div id="keyboard-zone">
         <div id="virtual-keyboard">
+            
+            <!-- 更換詩詞的內部毛玻璃彈窗 -->
+            <div id="replace-dialog">
+                <h2>是否更換詞曲？</h2>
+                <p>(本首未打完戰績將不保留)</p>
+                <div class="dialog-btns">
+                    <button class="dialog-btn btn-confirm" onclick="confirmChangePoem()">確認更換</button>
+                    <button class="dialog-btn btn-cancel" onclick="cancelChangePoem()">繼續完成</button>
+                </div>
+            </div>
+
             <div class="kbd-row" style="padding-left: 0;">
                 <div class="key" data-code="Digit1">ㄅ</div><div class="key" data-code="Digit2">ㄉ</div><div class="key" data-code="Digit3">ˇ</div><div class="key" data-code="Digit4">ˋ</div><div class="key" data-code="Digit5">ㄓ</div><div class="key" data-code="Digit6">ˊ</div><div class="key" data-code="Digit7">˙</div><div class="key" data-code="Digit8">ㄚ</div><div class="key" data-code="Digit9">ㄞ</div><div class="key" data-code="Digit0">ㄢ</div><div class="key" data-code="Minus">ㄦ</div>
             </div>
@@ -355,8 +359,12 @@
     let activeHoldKeys =[];
     let currentProcessingCharIndex = -1;
 
+    // 時間軌跡追蹤，支援暫停/恢復
     let timerInterval = null;
     let sessionStartTime = null;
+    let totalElapsedMs = 0; 
+    let isPaused = false;
+    
     let totalKeysPressed = 0;
     let correctKeysPressed = 0;
     let totalChineseCharsFinished = 0;
@@ -365,7 +373,7 @@
 
     let userHistory = JSON.parse(localStorage.getItem('proTypingHistory')) || {};
 
-    // --- 全螢幕切換功能 ---
+    // --- 全螢幕切換雙重機制 (按鈕 + 雙擊空白處) ---
     function toggleFullscreen() {
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch(err => console.log(err));
@@ -373,6 +381,13 @@
             document.exitFullscreen();
         }
     }
+    
+    document.body.addEventListener('dblclick', (e) => {
+        // 避開所有按鈕與鍵盤區域，只在純空白處觸發
+        if (e.target.tagName !== 'BUTTON' && !e.target.closest('#virtual-keyboard') && e.target.id !== 'main-title') {
+            toggleFullscreen();
+        }
+    });
 
     async function initGame() {
         try {
@@ -591,8 +606,12 @@
     function loadRandomPoem() {
         if(corpusData.length === 0) return;
         
-        sessionStartTime = null; totalKeysPressed = 0; correctKeysPressed = 0; totalChineseCharsFinished = 0;
-        isGameOver = false; isWaitingForNextPoem = false; clearHoldKeys(); currentSentenceIndex = -1;
+        sessionStartTime = null; totalElapsedMs = 0;
+        totalKeysPressed = 0; correctKeysPressed = 0; totalChineseCharsFinished = 0;
+        isGameOver = false; isWaitingForNextPoem = false; isPaused = false;
+        
+        clearHoldKeys(); currentSentenceIndex = -1;
+        document.getElementById('replace-dialog').style.display = 'none';
         
         document.getElementById('stat-cpm').textContent = '0'; 
         document.getElementById('stat-acc').textContent = '100%';
@@ -624,6 +643,37 @@
 
         updateMetadataUI();
         loadNextTyping();
+    }
+
+    // --- 換詩詞彈窗與計時器暫停機制 ---
+    document.getElementById('main-title').addEventListener('click', () => {
+        if (isGameOver || zhuyinQueue.length === 0 || document.getElementById('replace-dialog').style.display === 'flex') return;
+        
+        // 瞬間暫停計時
+        isPaused = true;
+        clearInterval(timerInterval);
+        timerInterval = null;
+        if (sessionStartTime) {
+            totalElapsedMs += (Date.now() - sessionStartTime);
+            sessionStartTime = null;
+        }
+        
+        document.getElementById('replace-dialog').style.display = 'flex';
+    });
+
+    function cancelChangePoem() {
+        document.getElementById('replace-dialog').style.display = 'none';
+        isPaused = false;
+        
+        // 如果已經開始打字了才恢復計時器
+        if (totalKeysPressed > 0) {
+            sessionStartTime = Date.now();
+            timerInterval = setInterval(updateLiveStats, 1000);
+        }
+    }
+
+    function confirmChangePoem() {
+        loadRandomPoem();
     }
 
     function initSentenceDOM() {
@@ -691,11 +741,13 @@
         if (zhuyinQueue.length === 0) {
             isGameOver = true;
             clearInterval(timerInterval);
+            if (sessionStartTime) {
+                totalElapsedMs += (Date.now() - sessionStartTime);
+                sessionStartTime = null;
+            }
             saveCurrentSessionStats();
             
-            setTimeout(() => {
-                openHistoryModal(currentPoem.mainDisplayTitle);
-            }, 800);
+            setTimeout(() => { openHistoryModal(currentPoem.mainDisplayTitle); }, 800);
             return;
         }
 
@@ -741,8 +793,11 @@
     }
 
     function updateLiveStats() {
-        if (!sessionStartTime) return;
-        let elapsedSec = Math.floor((Date.now() - sessionStartTime) / 1000);
+        if (!sessionStartTime && totalElapsedMs === 0) return;
+        
+        let currentSessionMs = sessionStartTime ? (Date.now() - sessionStartTime) : 0;
+        let elapsedSec = Math.floor((totalElapsedMs + currentSessionMs) / 1000);
+        
         let m = String(Math.floor(elapsedSec / 60)).padStart(2, '0');
         let s = String(elapsedSec % 60).padStart(2, '0');
         document.getElementById('stat-time').textContent = `${m}:${s}`;
@@ -758,10 +813,11 @@
     }
 
     function saveCurrentSessionStats() {
-        if (!currentPoem || totalChineseCharsFinished < 5 || !sessionStartTime) return; 
+        if (!currentPoem || totalChineseCharsFinished < 5) return; 
 
-        let elapsedMinutes = (Date.now() - sessionStartTime) / 60000;
-        if(elapsedMinutes === 0) return;
+        let elapsedMinutes = totalElapsedMs / 60000;
+        if(elapsedMinutes <= 0) return;
+        
         let finalCpm = Math.round(totalChineseCharsFinished / elapsedMinutes);
         let finalAcc = Math.round((correctKeysPressed / totalKeysPressed) * 100);
 
@@ -882,7 +938,7 @@
     }
 
     function processInputLogic(inputCode) {
-        if (!currentTargetObj || isGameOver) return;
+        if (!currentTargetObj || isGameOver || isPaused) return;
 
         if (!sessionStartTime) {
             sessionStartTime = Date.now();
