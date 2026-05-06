@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>注音大冒險：詩詞幻境 專業賽事版 V12 全面跨屏修復版</title>
+    <script src="https://unpkg.com/pinyin-pro"></script>
+    <style>
+        :root { 
+            color-scheme: dark;
+            --bg-color1: #0f172a; 
+            --bg-color2: #1e293b; 
+            --theme-accent: #3b82f6; 
+            --active-text: #fcd34d; 
+            --typed-text: #06b6d4;  
+            --panel-bg: rgba(15, 23, 42, 0.92); 
+            --error-color: rgba(239, 68, 68, 0.4);
+            --key-hold-bg: #fcd34d;
+            --key-hold-text: #78350f;
+        }
+        
+        /* 採用現代 100dvh 徹底解決 iOS/Android 瀏覽器網址列伸縮問題 */
+        html { background-color: var(--bg-color1); width: 100%; height: 100vh; height: 100dvh; overflow: hidden; }
+        
+        body { 
+            position: fixed; inset: 0; width: 100%; height: 100vh; height: 100dvh;
+            margin: 0; padding: 0; font-family: 'Microsoft JhengHei', "標楷體", monospace; 
+            background-color: var(--bg-color1);
+            background-image: radial-gradient(circle at center, var(--bg-color1) 0%, var(--bg-color2) 100%); 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            overflow: hidden; user-select: none; color: #f3f4f6; 
+            cursor: default; touch-action: none; 
+            -webkit-user-select: none; 
+        }
+        
+        body.error-flash #zen-typing-zone { animation: shake 0.2s ease-in-out; }
+        body.error-flash { box-shadow: inset 0 0 150px var(--error-color); }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            50% { transform: translateX(8px); }
+            75% { transform: translateX(-8px); }
+        }
+
+        #game-container { 
+            width: 100%; height: 100%; max-width: 1200px; 
+            display: flex; flex-direction: column; 
+            gap: 15px; padding: 20px; box-sizing: border-box; position: relative;
+        }
+
+        #top-bar { 
+            display: flex; justify-content: space-between; align-items: flex-start;
+            padding: 20px 30px; background: rgba(0,0,0,0.55); border-radius: 15px; 
+            border-bottom: 3px solid var(--theme-accent); flex-shrink: 0; 
+            backdrop-filter: blur(10px); box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        
+        .title-section { display: flex; flex-direction: column; gap: 10px; }
+        
+        #main-title { 
+            margin: 0; font-size: 34px; color: #fff; font-family: "標楷體", "DFKai-SB", serif;
+            letter-spacing: 2px; text-shadow: 0 0 10px rgba(255,255,255,0.3);
+            cursor: pointer; 
+        }
+
+        #metadata-bar { display: flex; flex-wrap: wrap; gap: 12px; font-size: 15px; color: #cbd5e1; letter-spacing: 1px;}
+        .meta-item { background: rgba(255,255,255,0.08); padding: 5px 12px; border-radius: 6px; }
+        .meta-item span { color: var(--active-text); font-weight: bold; margin-left: 5px;}
+
+        #pro-stats { display: flex; gap: 30px; align-items: center; }
+        .stat-box { display: flex; flex-direction: column; align-items: flex-end; }
+        .stat-label { font-size: 13px; color: #9ca3af; letter-spacing: 1px; }
+        .stat-value { font-size: 28px; font-weight: bold; color: #fff; font-family: monospace; }
+        .stat-value.highlight { color: var(--active-text); text-shadow: 0 0 10px rgba(252, 211, 77, 0.4); }
+        
+        .btn-history {
+            background: linear-gradient(135deg, #3b82f6, #06b6d4); border: none; border-radius: 8px; 
+            padding: 12px 20px; color: #fff; font-weight: bold; font-size: 15px; cursor: pointer; transition: transform 0.1s;
+        }
+        .btn-history:active { transform: scale(0.95); }
+
+        #zen-typing-zone { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; min-height: 0;}
+        
+        #lyrics-board { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; width: 100%; }
+        .lyric-line { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; width: 100%; line-height: 1.5; }
+        
+        #prev-line { color: rgba(255,255,255,0.25); font-size: 24px; height: 40px; overflow: hidden; }
+        #curr-line { font-size: 46px; font-weight: bold; margin: 15px 0; height: 65px; letter-spacing: 3px;}
+        #next-line { color: rgba(255,255,255,0.25); font-size: 24px; height: 40px; overflow: hidden; }
+
+        .story-typed { color: var(--typed-text); text-shadow: 0 0 12px rgba(6, 182, 212, 0.5); } 
+        .story-active { 
+            color: var(--active-text); text-shadow: 0 0 15px rgba(252,211,77,0.8), 0 0 30px rgba(252,211,77,0.5); 
+            display: inline-block; transform: translateY(-5px) scale(1.18); 
+            border-bottom: 4px solid var(--active-text); transition: transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .story-pending { color: #e2e8f0; text-shadow: none; }
+        .punctuation { color: #64748b; font-weight: normal; margin: 0 4px;}
+
+        #target-container { display: flex; align-items: center; justify-content: center; height: 160px; gap: 40px; margin-top: 10px; }
+        
+        .ruby-container { display: inline-flex; align-items: center; font-family: "標楷體", "DFKai-SB", serif; }
+        .ruby-char { font-size: 85px; color: #fff; text-shadow: 0 0 25px rgba(255,255,255,0.3); }
+        .ruby-zhuyin { display: flex; flex-direction: column; justify-content: center; align-items: center; margin-left: 12px; font-size: 30px; line-height: 1.1; color: rgba(255,255,255,0.25); position: relative; font-weight: bold; }
+        
+        .zhuyin-symbol { transition: color 0.1s, text-shadow 0.1s; position: relative; }
+        .zhuyin-symbol.typed { color: var(--active-text); text-shadow: 0 0 15px var(--active-text); }
+        .zhuyin-symbol.tone-light { position: absolute; top: -22px; left: 50%; transform: translateX(-50%); font-size: 26px;}
+        .zhuyin-symbol.tone-mark { position: absolute; right: -25px; top: 50%; transform: translateY(-50%); font-size: 26px;}
+
+        #type-target { font-size: 110px; font-weight: bold; color: var(--theme-accent); text-shadow: 0 0 35px rgba(59, 130, 246, 0.6); line-height: 1; font-family: 'Microsoft JhengHei'; width: 140px; text-align: center; }
+
+        #keyboard-zone { 
+            flex-shrink: 0; display: flex; justify-content: center; width: 100%;
+            padding-bottom: env(safe-area-inset-bottom, 15px);
+        }
+        
+        #virtual-keyboard { 
+            background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 15px; 
+            display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 900px; 
+            backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1);
+            position: relative; overflow: hidden; 
+        }
+        
+        .kbd-row { display: flex; justify-content: flex-start; gap: 8px; width: 100%; }
+        
+        .key { 
+            background: linear-gradient(180deg, rgba(243,244,246,0.95) 0%, rgba(209,213,219,0.9) 100%); 
+            border: 1px solid #9ca3af; border-bottom: 4px solid #6b7280; border-radius: 8px; 
+            width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; 
+            font-size: 20px; font-weight: bold; color: #111827; transition: all 0.05s ease; flex-shrink: 0;
+            cursor: pointer; touch-action: manipulation;
+        }
+        .key.active { transform: translateY(3px); border-bottom-width: 1px; background: #e5e7eb; }
+        .key.active-hold { background: var(--key-hold-bg); color: var(--key-hold-text); box-shadow: 0 0 20px var(--key-hold-bg); border-color: #fbbf24; transform: translateY(2px); border-bottom-width: 2px; }
+        .space-key { flex: 1; font-size: 16px; color: #4b5563;}
+
+        #replace-dialog {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px);
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 10; border-radius: 15px; text-align: center;
+        }
+        #replace-dialog h2 { margin: 0 0 5px 0; color: #fff; font-size: 24px; letter-spacing: 2px;}
+        #replace-dialog p { margin: 0 0 25px 0; color: #fca5a5; font-size: 15px; }
+        .dialog-btns { display: flex; gap: 20px; }
+        .dialog-btn { padding: 12px 25px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: transform 0.1s; }
+        .dialog-btn:active { transform: scale(0.95); }
+        .btn-confirm { background: #ef4444; color: white; }
+        .btn-cancel { background: #3b82f6; color: white; }
+
+        #corner-fullscreen-btn {
+            position: fixed; bottom: 15px; right: 15px; width: 36px; height: 36px;
+            background: transparent; border: none; color: rgba(255, 255, 255, 0.25);
+            cursor: pointer; z-index: 100; transition: all 0.2s; padding: 4px;
+        }
+        #corner-fullscreen-btn:hover { color: rgba(255, 255, 255, 0.8); transform: scale(1.1); }
+        #corner-fullscreen-btn svg { width: 100%; height: 100%; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+        #history-modal { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 100; backdrop-filter: blur(8px); align-items: center; justify-content: center; }
+        .modal-content { background: var(--panel-bg); width: 90%; max-width: 900px; max-height: 80%; border-radius: 15px; border: 1px solid var(--theme-accent); padding: 30px; display: flex; flex-direction: column; box-shadow: 0 0 50px rgba(59, 130, 246, 0.4); position: relative; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 15px; margin-bottom: 15px; }
+        .modal-header h2 { margin: 0; color: #fff; display: inline-block; }
+        .btn-clear { background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.5); color: #fca5a5; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; margin-left: 20px; vertical-align: bottom; }
+        .btn-clear:hover { background: rgba(239, 68, 68, 0.5); color: #fff; }
+        .close-btn { background: none; border: none; color: #fff; font-size: 32px; cursor: pointer; }
+        #modal-action-hint { text-align: center; color: var(--active-text); font-weight: bold; margin-top: 15px; animation: pulse 1.5s infinite; display: none; font-size: 16px; letter-spacing: 1px;}
+        .table-container { overflow-y: auto; flex: 1; padding-right: 10px; }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 16px; }
+        th, td { padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        th { color: #9ca3af; position: sticky; top: 0; background: var(--panel-bg); z-index: 2; white-space: nowrap;}
+        .hover-data { cursor: help; border-bottom: 1px dashed rgba(255,255,255,0.3); transition: background 0.2s; white-space: nowrap;}
+        .hover-data:hover { background: rgba(255,255,255,0.1); }
+        .td-title { font-weight: bold; color: #f3f4f6; width: 35%; line-height: 1.4; } 
+        .highlight-row { background-color: rgba(59, 130, 246, 0.2); border-left: 4px solid var(--active-text); }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+        #custom-tooltip { position: fixed; background: rgba(15, 23, 42, 0.98); border: 1px solid var(--theme-accent); color: #e2e8f0; padding: 16px; border-radius: 10px; font-size: 15px; line-height: 1.6; pointer-events: none; z-index: 10000; max-width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); display: none; opacity: 0; transition: opacity 0.2s; font-family: 'Microsoft JhengHei', sans-serif;}
+
+        #loading-screen { position: absolute; top:0; left:0; width:100%; height:100%; background: var(--bg-color1); z-index: 200; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+        .spinner { border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid var(--theme-accent); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* =======================================================
+           📱 行動裝置與窄版螢幕自適應：終極防切割防遮擋
+           ======================================================= */
+        @media (max-width: 768px) {
+            /* 1. 隱藏全螢幕按鈕，手機不需要且不支援 */
+            #corner-fullscreen-btn { display: none !important; }
+
+            /* 2. 大幅垂直壓縮上半部區域高度，將虛擬鍵盤推至安全區域 */
+            #game-container { padding: 8px; gap: 4px; padding-bottom: max(15px, env(safe-area-inset-bottom, 15px)); }
+            #top-bar { flex-direction: column; padding: 10px 12px; border-radius: 12px; }
+            .title-section { width: 100%; align-items: center; text-align: center; gap: 4px; }
+            #main-title { font-size: 18px; }
+            #metadata-bar { justify-content: center; font-size: 11px; gap: 6px; }
+            .meta-item { padding: 3px 8px; }
+            #pro-stats { width: 100%; justify-content: space-between; gap: 4px; margin-top: 6px; }
+            .stat-label { font-size: 10px; }
+            .stat-value { font-size: 16px; }
+            .btn-history { padding: 4px 10px; font-size: 12px; }
+            
+            #lyrics-board { height: 90px; } /* 極限壓縮歌詞顯示區 */
+            #curr-line { font-size: 24px; height: 35px; letter-spacing: 1px; margin: 5px 0; }
+            #prev-line, #next-line { font-size: 16px; height: 22px; }
+            
+            #target-container { height: 80px; gap: 12px; margin-top: 0; }
+            .ruby-char { font-size: 45px; }
+            .ruby-zhuyin { font-size: 18px; margin-left: 6px; }
+            .zhuyin-symbol.tone-light { top: -12px; font-size: 14px; }
+            .zhuyin-symbol.tone-mark { right: -12px; font-size: 14px; }
+            #type-target { font-size: 45px; width: 60px; }
+
+            /* 3. 鍵盤底座優化：推升邊距與放大觸控面積 */
+            #keyboard-zone { padding-bottom: 10px; }
+            #virtual-keyboard { padding: 6px; gap: 4px; border-radius: 10px; margin-bottom: 5px; }
+            .kbd-row { padding-left: 0 !important; justify-content: center; gap: 3px; }
+            .kbd-row:nth-child(1) { width: 100%; }
+            .kbd-row:nth-child(2) { width: 95%; margin: 0 auto; }
+            .kbd-row:nth-child(3) { width: 90%; margin: 0 auto; }
+            .kbd-row:nth-child(4) { width: 85%; margin: 0 auto; }
+            
+            .key { flex: 1; height: 42px; font-size: 17px; border-radius: 5px; padding: 0; border-bottom-width: 2px; min-width: 0; }
+            .space-key { flex: none; width: 60%; max-width: 220px; height: 38px; margin: 0 auto; font-size: 13px; }
+            
+            #replace-dialog h2 { font-size: 18px; }
+            #replace-dialog p { font-size: 12px; margin-bottom: 15px;}
+            .dialog-btn { padding: 8px 16px; font-size: 14px; }
+
+            .modal-content { width: 95%; padding: 15px; max-height: 90%; }
+            .modal-header h2 { font-size: 18px; }
+            th, td { padding: 10px 5px; font-size: 13px; }
+            .td-title { font-size: 12px; }
+            #custom-tooltip { font-size: 13px; padding: 12px; max-width: 250px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="loading-screen">
+    <div class="spinner"></div>
+    <h3 id="loading-text">正在深度解析精準詩詞與注音題庫...</h3>
+</div>
+
+<div id="custom-tooltip"></div>
+
+<!-- 電腦版專用：極簡化右下角全螢幕按鈕 -->
+<button id="corner-fullscreen-btn" onclick="toggleFullscreen()" title="切換全螢幕 (手機版自動隱藏)">
+    <svg viewBox="0 0 24 24">
+        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+    </svg>
+</button>
+
+<div id="game-container">
+    <div id="top-bar">
+        <div class="title-section">
+            <h1 id="main-title" title="點擊更換詩詞">等待抽取中...</h1>
+            <div id="metadata-bar"></div>
+        </div>
+        <div id="pro-stats">
+            <div class="stat-box"><span class="stat-label">競賽計時</span><span class="stat-value" id="stat-time" style="color: #60a5fa;">00:00</span></div>
+            <div class="stat-box"><span class="stat-label">中字速度 (CPM)</span><span class="stat-value highlight" id="stat-cpm">0</span></div>
+            <div class="stat-box"><span class="stat-label">準確率 (ACC)</span><span class="stat-value" id="stat-acc">100%</span></div>
+            <button class="btn-history" onclick="openHistoryModal()">📊 歷史戰績</button>
+        </div>
+    </div>
+
+    <div id="zen-typing-zone">
+        <div id="lyrics-board">
+            <div id="prev-line" class="lyric-line"></div>
+            <div id="curr-line" class="lyric-line"></div>
+            <div id="next-line" class="lyric-line"></div>
+        </div>
+        
+        <div id="target-container">
+            <div class="ruby-container" id="ruby-display">
+                <div id="target-char" class="ruby-char">-</div>
+                <div id="target-zhuyin" class="ruby-zhuyin"></div>
+            </div>
+            <div id="type-target">-</div>
+        </div>
+    </div>
+
+    <div id="keyboard-zone">
+        <div id="virtual-keyboard">
+            <div id="replace-dialog">
+                <h2>是否更換詞曲？</h2>
+                <p>(本首未打完戰績將不保留)</p>
+                <div class="dialog-btns">
+                    <button class="dialog-btn btn-confirm" onclick="confirmChangePoem()">確認更換</button>
+                    <button class="dialog-btn btn-cancel" onclick="cancelChangePoem()">繼續完成</button>
+                </div>
+            </div>
+
+            <div class="kbd-row" style="padding-left: 0;">
+                <div class="key" data-code="Digit1">ㄅ</div><div class="key" data-code="Digit2">ㄉ</div><div class="key" data-code="Digit3">ˇ</div><div class="key" data-code="Digit4">ˋ</div><div class="key" data-code="Digit5">ㄓ</div><div class="key" data-code="Digit6">ˊ</div><div class="key" data-code="Digit7">˙</div><div class="key" data-code="Digit8">ㄚ</div><div class="key" data-code="Digit9">ㄞ</div><div class="key" data-code="Digit0">ㄢ</div><div class="key" data-code="Minus">ㄦ</div>
+            </div>
+            <div class="kbd-row" style="padding-left: 25px;">
+                <div class="key" data-code="KeyQ">ㄆ</div><div class="key" data-code="KeyW">ㄊ</div><div class="key" data-code="KeyE">ㄍ</div><div class="key" data-code="KeyR">ㄐ</div><div class="key" data-code="KeyT">ㄔ</div><div class="key" data-code="KeyY">ㄗ</div><div class="key" data-code="KeyU">ㄧ</div><div class="key" data-code="KeyI">ㄛ</div><div class="key" data-code="KeyO">ㄟ</div><div class="key" data-code="KeyP">ㄣ</div>
+            </div>
+            <div class="kbd-row" style="padding-left: 35px;">
+                <div class="key" data-code="KeyA">ㄇ</div><div class="key" data-code="KeyS">ㄋ</div><div class="key" data-code="KeyD">ㄎ</div><div class="key" data-code="KeyF">ㄑ</div><div class="key" data-code="KeyG">ㄕ</div><div class="key" data-code="KeyH">ㄘ</div><div class="key" data-code="KeyJ">ㄨ</div><div class="key" data-code="KeyK">ㄜ</div><div class="key" data-code="KeyL">ㄠ</div><div class="key" data-code="Semicolon">ㄤ</div>
+            </div>
+            <div class="kbd-row" style="padding-left: 55px;">
+                <div class="key" data-code="KeyZ">ㄈ</div><div class="key" data-code="KeyX">ㄌ</div><div class="key" data-code="KeyC">ㄏ</div><div class="key" data-code="KeyV">ㄒ</div><div class="key" data-code="KeyB">ㄖ</div><div class="key" data-code="KeyN">ㄙ</div><div class="key" data-code="KeyM">ㄩ</div><div class="key" data-code="Comma">ㄝ</div><div class="key" data-code="Period">ㄡ</div><div class="key" data-code="Slash">ㄥ</div>
+            </div>
+            <div class="kbd-row" style="justify-content: center; margin-top: 5px;">
+                <div class="key space-key" data-code="Space">一聲 (空白鍵)</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="history-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div>
+                <h2>競賽戰績庫</h2>
+                <button class="btn-clear" onclick="clearHistory()">🗑️ 清除紀錄</button>
+            </div>
+            <button class="close-btn" onclick="closeHistoryModal()">×</button>
+        </div>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr><th>標題 (詩名/詞牌)</th><th>嘗試次數</th><th>最佳 CPM</th><th>平均 CPM</th><th>最佳 ACC</th><th>平均 ACC</th></tr>
+                </thead>
+                <tbody id="history-tbody"></tbody>
+            </table>
+        </div>
+        <div id="modal-action-hint">【 本篇已完成！按下右上角 ✕ 鍵或鍵盤 Esc 繼續挑戰下一首 】</div>
+    </div>
+</div>
+
+<script>
+    const CORPU_URLS =[
+        'https://raw.githubusercontent.com/rime-aca/corpus/master/%E5%94%90%E8%A9%A9%E4%B8%89%E7%99%BE%E9%A6%96.txt',
+        'https://raw.githubusercontent.com/rime-aca/corpus/master/%E5%AE%8B%E8%A9%9E%E4%B8%89%E7%99%BE%E9%A6%96.txt'
+    ];
+
+    const keyMap = {
+        'ㄅ':'Digit1','ㄉ':'Digit2','ˇ':'Digit3','ˋ':'Digit4','ㄓ':'Digit5','ˊ':'Digit6','˙':'Digit7','ㄚ':'Digit8','ㄞ':'Digit9','ㄢ':'Digit0','ㄦ':'Minus',
+        'ㄆ':'KeyQ','ㄊ':'KeyW','ㄍ':'KeyE','ㄐ':'KeyR','ㄔ':'KeyT','ㄗ':'KeyY','ㄧ':'KeyU','ㄛ':'KeyI','ㄟ':'KeyO','ㄣ':'KeyP',
+        'ㄇ':'KeyA','ㄋ':'KeyS','ㄎ':'KeyD','ㄑ':'KeyF','ㄕ':'KeyG','ㄘ':'KeyH','ㄨ':'KeyJ','ㄜ':'KeyK','ㄠ':'KeyL','ㄤ':'Semicolon',
+        'ㄈ':'KeyZ','ㄌ':'KeyX','ㄏ':'KeyC','ㄒ':'KeyV','ㄖ':'KeyB','ㄙ':'KeyN','ㄩ':'KeyM','ㄝ':'Comma','ㄡ':'Period','ㄥ':'Slash',
+        ' ':'Space'
+    };
+
+    let corpusData =[];
+    let currentPoem = null;
+    let zhuyinQueue =[];
+    let currentTargetObj = null;
+    let currentSentenceIndex = -1;
+    let currentSentenceElements =[];
+    let activeHoldKeys =[];
+    let currentProcessingCharIndex = -1;
+
+    let timerInterval = null;
+    let sessionStartTime = null;
+    let totalElapsedMs = 0; 
+    let isPaused = false;
+    
+    let totalKeysPressed = 0;
+    let correctKeysPressed = 0;
+    let totalChineseCharsFinished = 0;
+    let isGameOver = false;
+    let isWaitingForNextPoem = false;
+
+    let userHistory = JSON.parse(localStorage.getItem('proTypingHistory')) || {};
+
+    // ==========================================
+    // iOS Safari 雙指放大防呆與全螢幕機制
+    // ==========================================
+    function toggleFullscreen() {
+        // 電腦版才允許切換全螢幕
+        if (window.innerWidth <= 768) return; 
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => console.log(err));
+        } else {
+            document.exitFullscreen();
+        }
+    }
+    
+    // 防護 1：電腦版雙擊空白處全螢幕 (手機版已透過判斷攔截)
+    document.body.addEventListener('dblclick', (e) => {
+        if (window.innerWidth <= 768) {
+            e.preventDefault();
+            return;
+        }
+        if (e.target.tagName !== 'BUTTON' && !e.target.closest('#virtual-keyboard') && e.target.id !== 'main-title') {
+            toggleFullscreen();
+        }
+    });
+
+    // 防護 2：iOS 底層防護，偵測連續觸控時間差，徹底抹殺雙指或快速連點的放大 Bug
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', function (event) {
+        let now = (new Date()).getTime();
+        if (now - lastTouchEnd <= 300) {
+            event.preventDefault();
+        }
+        lastTouchEnd = now;
+    }, { passive: false });
+
+
+    async function initGame() {
+        try {
+            if (typeof pinyinPro === 'undefined') throw new Error("API 載入異常，請檢查網路連線");
+            await fetchCorpus();
+            if (corpusData.length === 0) throw new Error("無可用題庫");
+            document.getElementById('loading-screen').style.display = 'none';
+            
+            bindVirtualKeyboardTouch();
+            loadRandomPoem();
+        } catch (error) {
+            document.getElementById('loading-text').textContent = "載入失敗：" + error.message;
+            console.error(error);
+        }
+    }
+
+    function bindVirtualKeyboardTouch() {
+        document.querySelectorAll('.key').forEach(keyEl => {
+            keyEl.addEventListener('pointerdown', (e) => {
+                e.preventDefault(); 
+                let inputCode = keyEl.dataset.code;
+                processInputLogic(inputCode);
+            });
+        });
+    }
+
+    async function fetchCorpus() {
+        for (let i = 0; i < CORPU_URLS.length; i++) {
+            try {
+                let res = await fetch(CORPU_URLS[i]);
+                let text = await res.text();
+                
+                let blocks = text.replace(/\r/g, '').split(/\n\s*\n/);
+                for (let block of blocks) {
+                    let lines = block.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                    if (lines.length < 2) continue;
+                    
+                    let metaType = "", title = "", author = "", rhyme = "", contentStr = "";
+                    let isContentSection = false; 
+                    
+                    for (let line of lines) {
+                        let rhymeMatch = line.match(/\(押(.*?)\)/) || line.match(/（押(.*?)）/) || line.match(/\((.*?韻)\)/) || line.match(/（(.*?)韻）/);
+                        if (rhymeMatch) {
+                            rhyme = rhymeMatch[1];
+                            if(!rhyme.endsWith('韻')) rhyme += '韻';
+                            line = line.replace(/\(押.*?\)/g, '').replace(/（押.*?）/g, '').replace(/\(.*?韻\)/g, '').replace(/（.*?韻）/g, '').trim();
+                            if (line === '') continue; 
+                        }
+
+                        let authorMatch = line.match(/^作者[:：]\s*(.*)$/);
+                        if (authorMatch) { author = authorMatch[1]; continue; }
+
+                        let typeMatch = line.match(/^詩體[:：]\s*(.*)$/);
+                        if (typeMatch) { metaType = typeMatch[1]; continue; }
+
+                        let ciMatch = line.match(/^詞牌[:：]\s*(.*)$/);
+                        if (ciMatch) { title = ciMatch[1]; if (!metaType) metaType = "宋詞"; continue; }
+
+                        let titleMatch = line.match(/^詩名[:：]\s*(.*)$/);
+                        if (titleMatch) { title = titleMatch[1]; continue; }
+
+                        let contentStartMatch = line.match(/^(?:詩文|詞文|內容)[:：]\s*(.*)$/);
+                        if (contentStartMatch) {
+                            isContentSection = true;
+                            let trailing = contentStartMatch[1];
+                            if (trailing) contentStr += trailing; 
+                            continue;
+                        }
+
+                        let bracketMatch = line.match(/【(.*?)】/);
+                        if (bracketMatch) {
+                            if (!metaType) metaType = bracketMatch[1];
+                            line = line.replace(/【.*?】/, '').trim();
+                            if (line === '') continue;
+                        }
+                        line = line.replace(/[〇○O]/g, '');
+                        if (line === '') continue;
+
+                        if (isContentSection && !title && contentStr === '' && line.length <= 25 && !/[。？！，、；：]/.test(line)) {
+                            title = line; continue;
+                        }
+                        
+                        if (!isContentSection && !title && contentStr === '' && line.length <= 25 && !/[。？！，、；：]/.test(line)) {
+                            title = line; continue;
+                        }
+
+                        contentStr += line;
+                    }
+
+                    if (!contentStr) continue;
+                    
+                    // 【零英數高階篩選器】：完全阻擋網址 (http)、英文、數字，與「三百首」前言簡介
+                    if (/[a-zA-Z0-9]/.test(contentStr)) continue;
+                    if (title && /三百首/.test(title)) continue;
+                    
+                    let sentences = contentStr.match(/[^。？！，、；：\n]+[。？！，、；：\n]*/g) ||[contentStr];
+                    sentences = sentences.map(s => s.trim()).filter(s => s.length > 0);
+                    
+                    let mainDisplayTitle = title || '無題';
+                    let metaTags =[];
+
+                    if (i === 0) { 
+                        if (!metaType) metaType = "唐詩";
+                        metaTags.push(`詩體: <span>${metaType}</span>`);
+                    } else { 
+                        if (!metaType) metaType = "宋詞";
+                        if (mainDisplayTitle.includes('·')) {
+                            let tParts = mainDisplayTitle.split('·');
+                            mainDisplayTitle = tParts[0].trim();
+                            metaTags.push(`詞題: <span>${tParts.slice(1).join('·').trim()}</span>`);
+                        } else {
+                            metaTags.push(`體裁: <span>${metaType}</span>`);
+                        }
+                    }
+
+                    if (author && author !== '佚名') metaTags.push(`作者: <span>${author}</span>`);
+                    if (rhyme) metaTags.push(`押韻: <span>${rhyme}</span>`);
+
+                    corpusData.push({ mainDisplayTitle, metaTags, sentences });
+                }
+            } catch (err) {
+                console.warn("部分題庫擷取警告:", err);
+            }
+        }
+    }
+
+    function getZhuyinKeys(char) {
+        if (!/^[\u4E00-\u9FFF]+$/.test(char)) return null; 
+        
+        let pyArray = pinyinPro.pinyin(char, { toneType: 'num', type: 'array', v: true });
+        if (!pyArray || pyArray.length === 0) return null;
+        
+        let pyStr = pyArray[0];
+        let match = pyStr.match(/^([a-z]+)(\d?)$/);
+        if (!match) return null;
+        
+        let py = match[1];
+        let t = match[2] || '5';
+        if (t === '0') t = '5';
+        
+        let toneStr = '';
+        if (t === '2') toneStr = 'ˊ';
+        else if (t === '3') toneStr = 'ˇ';
+        else if (t === '4') toneStr = 'ˋ';
+        else if (t === '5') toneStr = '˙';
+        
+        let initial = '';
+        const initials =['zh','ch','sh','b','p','m','f','d','t','n','l','g','k','h','j','q','x','r','z','c','s'];
+        for (let i of initials) {
+            if (py.startsWith(i)) {
+                initial = i;
+                py = py.substring(i.length);
+                break;
+            }
+        }
+        
+        const initialMap = {
+            'b':'ㄅ','p':'ㄆ','m':'ㄇ','f':'ㄈ','d':'ㄉ','t':'ㄊ','n':'ㄋ','l':'ㄌ',
+            'g':'ㄍ','k':'ㄎ','h':'ㄏ','j':'ㄐ','q':'ㄑ','x':'ㄒ',
+            'zh':'ㄓ','ch':'ㄔ','sh':'ㄕ','r':'ㄖ','z':'ㄗ','c':'ㄘ','s':'ㄙ'
+        };
+        let bopoInitial = initialMap[initial] || '';
+        
+        if (initial === '') {
+            if (py.startsWith('y')) {
+                py = py.substring(1);
+                if (['i','in','ing'].includes(py)) {} 
+                else if (['u','ue','uan','un'].includes(py)) { py = 'v' + py.substring(1); } 
+                else if (py === 'ong') { py = 'iong'; }
+                else { py = 'i' + py; } 
+            } else if (py.startsWith('w')) {
+                py = py.substring(1);
+                if (py !== 'u') { py = 'u' + py; } 
+            }
+        }
+        
+        if (['j','q','x'].includes(initial)) {
+            if (py.startsWith('u')) py = 'v' + py.substring(1);
+        }
+        
+        if (py === 'ui') py = 'uei';
+        if (py === 'un') py = 'uen';
+        if (py === 'iu') py = 'iou';
+        
+        const finalMap = {
+            'a':'ㄚ','o':'ㄛ','e':'ㄜ','ie':'ㄧㄝ','ai':'ㄞ','ei':'ㄟ','ao':'ㄠ','ou':'ㄡ',
+            'an':'ㄢ','en':'ㄣ','ang':'ㄤ','eng':'ㄥ','er':'ㄦ',
+            'i':'ㄧ','in':'ㄧㄣ','ing':'ㄧㄥ','ia':'ㄧㄚ','iao':'ㄧㄠ','iou':'ㄧㄡ','ian':'ㄧㄢ','iang':'ㄧㄤ',
+            'u':'ㄨ','ua':'ㄨㄚ','uo':'ㄨㄛ','uai':'ㄨㄞ','uei':'ㄨㄟ','uan':'ㄨㄢ','uen':'ㄨㄣ','uang':'ㄨㄤ','ueng':'ㄨㄥ','ong':'ㄨㄥ','iong':'ㄩㄥ',
+            'v':'ㄩ','ve':'ㄩㄝ','van':'ㄩㄢ','vn':'ㄩㄣ', 'ü':'ㄩ','üe':'ㄩㄝ','üan':'ㄩㄢ','ün':'ㄩㄣ','ue':'ㄩㄝ'
+        };
+        
+        if (['z','c','s','zh','ch','sh','r'].includes(initial) && py === 'i') { py = ''; }
+        
+        let bopoFinal = finalMap[py] || '';
+        if (py && !bopoFinal) return null;
+        
+        let keys =[];
+        if (bopoInitial) keys.push(bopoInitial);
+        if (bopoFinal) keys.push(...bopoFinal.split(''));
+        
+        if (toneStr) keys.push(toneStr);
+        else keys.push(' '); 
+        
+        return keys;
+    }
+
+    function updateMetadataUI() {
+        document.getElementById('main-title').textContent = currentPoem.mainDisplayTitle;
+        const metaBar = document.getElementById('metadata-bar');
+        metaBar.innerHTML = '';
+        currentPoem.metaTags.forEach(htmlString => {
+            let div = document.createElement('div');
+            div.className = 'meta-item';
+            div.innerHTML = htmlString;
+            metaBar.appendChild(div);
+        });
+    }
+
+    function loadRandomPoem() {
+        if(corpusData.length === 0) return;
+        
+        sessionStartTime = null; totalElapsedMs = 0;
+        totalKeysPressed = 0; correctKeysPressed = 0; totalChineseCharsFinished = 0;
+        isGameOver = false; isWaitingForNextPoem = false; isPaused = false;
+        
+        clearHoldKeys(); currentSentenceIndex = -1;
+        document.getElementById('replace-dialog').style.display = 'none';
+        
+        document.getElementById('stat-cpm').textContent = '0'; 
+        document.getElementById('stat-acc').textContent = '100%';
+        document.getElementById('stat-time').textContent = '00:00';
+        clearInterval(timerInterval);
+
+        let randIndex = Math.floor(Math.random() * corpusData.length);
+        currentPoem = corpusData[randIndex];
+        
+        zhuyinQueue =[];
+        let charGlobalIdx = 0;
+        currentPoem.sentences.forEach((sentence, sIdx) => {
+            let charArray = sentence.split('');
+            charArray.forEach((char, cIdx) => {
+                let keys = getZhuyinKeys(char);
+                if(keys) {
+                    keys.forEach((z, zIdx) => {
+                        zhuyinQueue.push({ char: char, z: z, sIdx, cIdx, charGlobalIdx, zTotal: keys.length, zIdx });
+                    });
+                    charGlobalIdx++;
+                }
+            });
+        });
+
+        if (zhuyinQueue.length === 0) {
+            corpusData.splice(randIndex, 1);
+            return loadRandomPoem(); 
+        }
+
+        updateMetadataUI();
+        loadNextTyping();
+    }
+
+    document.getElementById('main-title').addEventListener('click', () => {
+        if (isGameOver || zhuyinQueue.length === 0 || document.getElementById('replace-dialog').style.display === 'flex') return;
+        
+        isPaused = true;
+        clearInterval(timerInterval);
+        timerInterval = null;
+        if (sessionStartTime) {
+            totalElapsedMs += (Date.now() - sessionStartTime);
+            sessionStartTime = null;
+        }
+        
+        document.getElementById('replace-dialog').style.display = 'flex';
+    });
+
+    function cancelChangePoem() {
+        document.getElementById('replace-dialog').style.display = 'none';
+        isPaused = false;
+        
+        if (totalKeysPressed > 0) {
+            sessionStartTime = Date.now();
+            timerInterval = setInterval(updateLiveStats, 1000);
+        }
+    }
+
+    function confirmChangePoem() {
+        loadRandomPoem();
+    }
+
+    function initSentenceDOM() {
+        let currLineEl = document.getElementById('curr-line');
+        currLineEl.innerHTML = '';
+        currentSentenceElements =[];
+        
+        let chars = currentPoem.sentences[currentSentenceIndex].split('');
+        chars.forEach((char) => {
+            let span = document.createElement('span');
+            span.textContent = char;
+            let isChinese = /^[\u4E00-\u9FFF]+$/.test(char);
+            
+            if (!isChinese) span.className = 'punctuation';
+            else span.className = 'story-pending';
+            
+            currLineEl.appendChild(span);
+            currentSentenceElements.push({ span, isChinese });
+        });
+    }
+
+    function updateKTVLines() {
+        if (!currentTargetObj) return;
+        let curCIdx = currentTargetObj.cIdx;
+        
+        currentSentenceElements.forEach((item, idx) => {
+            if (!item.isChinese) return;
+            if (idx < curCIdx) item.span.className = 'story-typed';
+            else if (idx === curCIdx) item.span.className = 'story-active';
+            else item.span.className = 'story-pending';
+        });
+    }
+
+    function renderTargetZhuyin() {
+        if (!currentTargetObj) return;
+        
+        document.getElementById('target-char').textContent = currentTargetObj.parentChar;
+        
+        let zhuyinContainer = document.getElementById('target-zhuyin');
+        zhuyinContainer.innerHTML = '';
+        
+        let currentWordZhuyins = zhuyinQueue.filter(q => q.charGlobalIdx === currentTargetObj.charGlobalIdx);
+        let typedCount = currentTargetObj.zTotal - currentWordZhuyins.length;
+        
+        let rawKeys = getZhuyinKeys(currentTargetObj.parentChar) ||[];
+
+        rawKeys.forEach((z, i) => {
+            if (z === ' ') return;
+            let span = document.createElement('span');
+            span.textContent = z;
+            span.className = 'zhuyin-symbol';
+            
+            if (i < typedCount) span.classList.add('typed');
+            
+            if (z === '˙') span.classList.add('tone-light');
+            else if (['ˊ', 'ˇ', 'ˋ'].includes(z)) span.classList.add('tone-mark');
+            
+            zhuyinContainer.appendChild(span);
+        });
+
+        document.getElementById('type-target').textContent = currentTargetObj.char === ' ' ? '␣' : currentTargetObj.char;
+    }
+
+    function loadNextTyping() {
+        if (zhuyinQueue.length === 0) {
+            isGameOver = true;
+            clearInterval(timerInterval);
+            if (sessionStartTime) {
+                totalElapsedMs += (Date.now() - sessionStartTime);
+                sessionStartTime = null;
+            }
+            saveCurrentSessionStats();
+            
+            setTimeout(() => { openHistoryModal(currentPoem.mainDisplayTitle); }, 800);
+            return;
+        }
+
+        let nextData = zhuyinQueue[0];
+        
+        if (nextData.charGlobalIdx !== currentProcessingCharIndex) {
+            clearHoldKeys();
+            currentProcessingCharIndex = nextData.charGlobalIdx;
+        }
+
+        currentTargetObj = { 
+            char: nextData.z, code: keyMap[nextData.z], 
+            sIdx: nextData.sIdx, cIdx: nextData.cIdx,
+            parentChar: nextData.char, charGlobalIdx: nextData.charGlobalIdx, zTotal: nextData.zTotal
+        };
+        
+        if (currentSentenceIndex !== nextData.sIdx) {
+            currentSentenceIndex = nextData.sIdx;
+            initSentenceDOM();
+            document.getElementById('prev-line').textContent = currentSentenceIndex > 0 ? currentPoem.sentences[currentSentenceIndex - 1] : '';
+            document.getElementById('next-line').textContent = currentSentenceIndex < currentPoem.sentences.length - 1 ? currentPoem.sentences[currentSentenceIndex + 1] : '';
+        }
+
+        updateKTVLines();
+        renderTargetZhuyin();
+    }
+
+    function addHoldKey(code) {
+        if (code === 'Space') return; 
+        if (!activeHoldKeys.includes(code)) {
+            activeHoldKeys.push(code);
+            let el = document.querySelector(`.key[data-code="${code}"]`);
+            if (el) el.classList.add('active-hold');
+        }
+    }
+
+    function clearHoldKeys() {
+        activeHoldKeys.forEach(code => {
+            let el = document.querySelector(`.key[data-code="${code}"]`);
+            if (el) el.classList.remove('active-hold');
+        });
+        activeHoldKeys =[];
+    }
+
+    function updateLiveStats() {
+        if (!sessionStartTime && totalElapsedMs === 0) return;
+        
+        let currentSessionMs = sessionStartTime ? (Date.now() - sessionStartTime) : 0;
+        let elapsedSec = Math.floor((totalElapsedMs + currentSessionMs) / 1000);
+        
+        let m = String(Math.floor(elapsedSec / 60)).padStart(2, '0');
+        let s = String(elapsedSec % 60).padStart(2, '0');
+        document.getElementById('stat-time').textContent = `${m}:${s}`;
+
+        let elapsedMinutes = elapsedSec / 60;
+        if (elapsedMinutes > 0) {
+            let cpm = Math.round(totalChineseCharsFinished / elapsedMinutes);
+            document.getElementById('stat-cpm').textContent = cpm;
+        }
+        
+        let acc = totalKeysPressed > 0 ? Math.round((correctKeysPressed / totalKeysPressed) * 100) : 100;
+        document.getElementById('stat-acc').textContent = acc + '%';
+    }
+
+    function saveCurrentSessionStats() {
+        if (!currentPoem || totalChineseCharsFinished < 5) return; 
+
+        let elapsedMinutes = totalElapsedMs / 60000;
+        if(elapsedMinutes <= 0) return;
+        
+        let finalCpm = Math.round(totalChineseCharsFinished / elapsedMinutes);
+        let finalAcc = Math.round((correctKeysPressed / totalKeysPressed) * 100);
+
+        let t = currentPoem.mainDisplayTitle;
+        if (!userHistory[t]) userHistory[t] = { attempts: 0, bestCpm: 0, totalCpm: 0, bestAcc: 0, totalAcc: 0 };
+        
+        let hs = userHistory[t];
+        hs.attempts++;
+        hs.bestCpm = Math.max(hs.bestCpm, finalCpm);
+        hs.totalCpm += finalCpm;
+        hs.bestAcc = Math.max(hs.bestAcc, finalAcc);
+        hs.totalAcc += finalAcc;
+
+        localStorage.setItem('proTypingHistory', JSON.stringify(userHistory));
+    }
+
+    const tooltipEl = document.getElementById('custom-tooltip');
+    
+    function showTooltip(e, content) {
+        // 電腦版才顯示 Tooltip
+        if (window.innerWidth <= 768) return; 
+        tooltipEl.innerHTML = content;
+        tooltipEl.style.display = 'block';
+        setTimeout(() => tooltipEl.style.opacity = '1', 10);
+        moveTooltip(e);
+    }
+    
+    function hideTooltip() {
+        tooltipEl.style.opacity = '0';
+        setTimeout(() => { if (tooltipEl.style.opacity === '0') tooltipEl.style.display = 'none'; }, 200);
+    }
+    
+    function moveTooltip(e) {
+        if(tooltipEl.style.display === 'none') return;
+        let x = e.clientX + 15;
+        let y = e.clientY + 15;
+        
+        if (x + tooltipEl.offsetWidth > window.innerWidth) x = e.clientX - tooltipEl.offsetWidth - 15;
+        if (y + tooltipEl.offsetHeight > window.innerHeight) y = e.clientY - tooltipEl.offsetHeight - 15;
+        
+        tooltipEl.style.left = x + 'px';
+        tooltipEl.style.top = y + 'px';
+    }
+
+    document.getElementById('history-tbody').addEventListener('mouseover', function(e) {
+        let td = e.target.closest('td.hover-data');
+        if (td) showTooltip(e, td.getAttribute('data-tooltip'));
+    });
+    document.getElementById('history-tbody').addEventListener('mouseout', function(e) {
+        hideTooltip();
+    });
+    document.getElementById('history-tbody').addEventListener('mousemove', function(e) {
+        let td = e.target.closest('td.hover-data');
+        if (td) moveTooltip(e);
+    });
+
+    function openHistoryModal(highlightTitle = null) {
+        const tbody = document.getElementById('history-tbody');
+        tbody.innerHTML = '';
+        let titles = Object.keys(userHistory);
+        
+        if(titles.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 40px;">尚無紀錄，按下第一鍵開始競速！</td></tr>';
+        } else {
+            if (highlightTitle && titles.includes(highlightTitle)) {
+                titles = titles.filter(t => t !== highlightTitle);
+                titles.unshift(highlightTitle);
+            }
+
+            titles.forEach(title => {
+                let hs = userHistory[title];
+                let avgCpm = Math.round(hs.totalCpm / hs.attempts);
+                let avgAcc = Math.round(hs.totalAcc / hs.attempts);
+                
+                let ttAttempts = `您總共挑戰了這首詩詞 <b style='color:#60a5fa'>${hs.attempts}</b> 次。<br><br>📝 <span style='color:#9ca3af'>持續不斷的練習是建立肌肉記憶與提升速度的最佳捷徑！</span>`;
+                let ttBestCpm = `最高紀錄為每分鐘打對 <b style='color:#fcd34d'>${hs.bestCpm}</b> 個中文字。<br><br>⚡ <span style='color:#9ca3af'>Characters Per Minute (每分鐘字數)。這是衡量盲打速度的最核心指標，代表您大腦與指尖的連線速度！</span>`;
+                let ttAvgCpm = `平均每分鐘打出 <b style='color:#fff'>${avgCpm}</b> 個中文字。<br><br>📊 <span style='color:#9ca3af'>代表您在這首詩詞的平均穩定實力，避免單次手感好壞的誤差。</span>`;
+                let ttBestAcc = `最高達成 <b style='color:#10b981'>${hs.bestAcc}%</b> 的準確率。<br><br>🎯 <span style='color:#9ca3af'>Accuracy (準確率)。打字不僅要求快，精準更是神手的基本功。減少按錯退位，能大幅度提升整體的真實打字速度！</span>`;
+                let ttAvgAcc = `平均準確率為 <b style='color:#fff'>${avgAcc}%</b>。<br><br>⚖️ <span style='color:#9ca3af'>若您的平均準確率低於 90%，建議您先放慢速度，專注在每個注音的正確性。肌肉記憶正確後，速度自然會飛速提升！</span>`;
+
+                let tr = document.createElement('tr');
+                if (title === highlightTitle) {
+                    tr.className = 'highlight-row';
+                    isWaitingForNextPoem = true;
+                }
+                
+                tr.innerHTML = `
+                    <td class="td-title">${title}</td>
+                    <td class="hover-data" data-tooltip="${ttAttempts}">${hs.attempts}</td>
+                    <td class="hover-data" data-tooltip="${ttBestCpm}" style="color:var(--active-text); font-weight:bold;">${hs.bestCpm}</td>
+                    <td class="hover-data" data-tooltip="${ttAvgCpm}">${avgCpm}</td>
+                    <td class="hover-data" data-tooltip="${ttBestAcc}" style="color:#10b981;">${hs.bestAcc}%</td>
+                    <td class="hover-data" data-tooltip="${ttAvgAcc}">${avgAcc}%</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+        
+        document.getElementById('modal-action-hint').style.display = isWaitingForNextPoem ? 'block' : 'none';
+        document.getElementById('history-modal').style.display = 'flex';
+    }
+    
+    function closeHistoryModal() { 
+        document.getElementById('history-modal').style.display = 'none'; 
+        hideTooltip();
+        window.focus(); 
+        
+        if (isWaitingForNextPoem) {
+            isWaitingForNextPoem = false;
+            loadRandomPoem();
+        }
+    }
+
+    function clearHistory() {
+        if (confirm("確定要清除所有歷史戰績嗎？\n此動作將會清空瀏覽器中的永久紀錄，且無法復原！")) {
+            localStorage.removeItem('proTypingHistory');
+            userHistory = {};
+            openHistoryModal(); 
+        }
+    }
+
+    function processInputLogic(inputCode) {
+        if (!currentTargetObj || isGameOver || isPaused) return;
+
+        if (!sessionStartTime) {
+            sessionStartTime = Date.now();
+            timerInterval = setInterval(updateLiveStats, 1000);
+        }
+
+        totalKeysPressed++;
+
+        const keyEl = document.querySelector(`.key[data-code="${inputCode}"]`);
+        if (keyEl) {
+            keyEl.classList.add('active');
+            setTimeout(() => keyEl.classList.remove('active'), 80);
+        }
+
+        if (inputCode === currentTargetObj.code || (currentTargetObj.char === '˙' && (inputCode === 'Space' || inputCode === 'Digit7'))) {
+            correctKeysPressed++;
+            addHoldKey(inputCode); 
+            
+            let finishedCharGlobalIdx = currentTargetObj.charGlobalIdx;
+            zhuyinQueue.shift();
+            
+            if (zhuyinQueue.length === 0 || zhuyinQueue[0].charGlobalIdx !== finishedCharGlobalIdx) {
+                totalChineseCharsFinished++;
+            }
+            
+            updateLiveStats();
+            loadNextTyping(); 
+        } else {
+            document.body.classList.add('error-flash');
+            setTimeout(() => document.body.classList.remove('error-flash'), 180);
+            updateLiveStats();
+        }
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (document.getElementById('history-modal').style.display === 'flex') {
+            if(e.code === 'Escape') closeHistoryModal();
+            return;
+        }
+
+        if (e.code === 'Space' || e.key.length === 1) e.preventDefault();
+        processInputLogic(e.code);
+    });
+
+    window.onload = initGame;
+</script>
+</body>
+</html>
