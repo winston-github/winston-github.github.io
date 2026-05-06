@@ -1,296 +1,372 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Loading... | Portfolio</title>
-    
-    <!-- Google AdSense 腳本 -->
+    <!-- Google AdSense 基礎資源 -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5350539988014376" crossorigin="anonymous"></script>
     <meta name="google-adsense-account" content="ca-pub-5350539988014376">
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>無限維度 | 創意工坊</title>
 
-    <!-- 載入 Google 字體 -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700&family=Noto+Sans+TC:wght@300;500;700&display=swap" rel="stylesheet">
+    <!-- 載入頂級排版字體 -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Noto+Sans+TC:wght@300;400;600;800&display=swap" rel="stylesheet">
 
     <style>
         /* =========================================================
-           世界頂級 UI 設計：深色模式、玻璃擬物、互動光暈
+           頂級 UI 核心變數與重置
            ========================================================= */
         :root {
-            --bg: #09090b; /* 極致深灰底色 */
-            --border: rgba(255, 255, 255, 0.1);
+            --bg-base: #030305;
             --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --accent: #3b82f6;
-            --accent-glow: rgba(59, 130, 246, 0.5);
+            --text-muted: #8b949e;
+            --accent: #00f0ff;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --card-hover: rgba(255, 255, 255, 0.06);
+            --spring-easing: cubic-bezier(0.175, 0.885, 0.32, 1.05);
         }
 
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
         body, html {
-            margin: 0;
-            padding: 0;
-            background-color: var(--bg);
+            margin: 0; padding: 0;
+            background-color: var(--bg-base);
             color: var(--text-main);
             font-family: 'Inter', 'Noto Sans TC', sans-serif;
-            min-height: 100vh;
+            min-height: 100dvh;
             overflow-x: hidden;
-            scroll-behavior: smooth;
+            overscroll-behavior-y: none;
         }
 
-        /* 背景互動光暈 (由 JS 控制位置) */
-        #glow {
-            position: fixed;
-            top: 50%; left: 50%;
-            width: 600px; height: 600px;
-            background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
+        /* 背景環境光 (Mouse Glow & Ambient) */
+        .ambient-glow {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: radial-gradient(circle at 50% 0%, rgba(0, 240, 255, 0.08), transparent 50%),
+                        radial-gradient(circle at 80% 80%, rgba(255, 0, 85, 0.05), transparent 50%);
+            z-index: 0; pointer-events: none;
+        }
+        #cursor-glow {
+            position: fixed; top: 50%; left: 50%; width: 40vw; height: 40vw;
+            background: radial-gradient(circle, rgba(255,255,255,0.03) 0%, transparent 60%);
             transform: translate(-50%, -50%);
-            border-radius: 50%;
-            pointer-events: none; /* 不干擾點擊 */
-            z-index: 0;
-            transition: 0.1s ease-out;
+            border-radius: 50%; pointer-events: none; z-index: 1;
+            transition: opacity 0.5s; opacity: 0;
         }
 
-        /* 背景雜訊紋理 (增加質感) */
-        .noise {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-            opacity: 0.03;
-            pointer-events: none;
-            z-index: 1;
-        }
-
-        /* 雙欄排版佈局 */
-        .layout {
-            display: flex;
-            flex-direction: column;
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 4rem 2rem;
-            position: relative;
-            z-index: 2;
+        /* =========================================================
+           排版架構 (Spatial Grid)
+           ========================================================= */
+        /* 初始化時隱藏，由 JS 控制優雅淡出 */
+        #app-container {
+            display: flex; flex-direction: column;
+            max-width: 1600px; margin: 0 auto; padding: 2rem 1.5rem;
+            position: relative; z-index: 10;
+            opacity: 0; /* 關鍵：隱藏醜陋的初始閃爍 */
+            transition: opacity 1s ease;
         }
 
         @media (min-width: 1024px) {
-            .layout { flex-direction: row; gap: 4rem; height: calc(100vh - 8rem); }
-            .left-panel { flex: 1; position: sticky; top: 4rem; height: fit-content; }
-            .right-panel { flex: 1.5; overflow-y: auto; padding-right: 1rem; }
-            /* 隱藏右側捲軸但保留功能 */
-            .right-panel::-webkit-scrollbar { width: 0px; }
+            #app-container {
+                flex-direction: row; gap: 4rem; padding: 4rem;
+                height: 100dvh; overflow: hidden;
+            }
+            .sidebar { width: 350px; flex-shrink: 0; display: flex; flex-direction: column; }
+            .content-area { flex-grow: 1; overflow-y: auto; padding-right: 1rem; padding-bottom: 4rem; }
+            /* 隱藏滾動條但保留功能 */
+            .content-area::-webkit-scrollbar { width: 0px; }
         }
 
-        /* 左側：品牌與介紹 */
-        .brand-title {
-            font-size: 3.5rem;
-            font-weight: 700;
-            line-height: 1.1;
-            margin-bottom: 1.5rem;
-            background: linear-gradient(135deg, #fff 0%, #a5b4fc 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            letter-spacing: -1px;
+        /* =========================================================
+           元件設計 (Glassmorphism & Typography)
+           ========================================================= */
+        .header-section { margin-bottom: 2.5rem; position: relative; }
+        
+        .brand-name {
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 800; line-height: 1.1; margin: 0 0 0.5rem 0;
+            background: linear-gradient(180deg, #fff 0%, #a1a1aa 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            letter-spacing: -0.04em;
         }
-
+        .brand-tagline {
+            font-size: 1.2rem; font-weight: 600; color: var(--accent); margin-bottom: 1.5rem;
+        }
         .brand-desc {
-            font-size: 1.1rem;
-            line-height: 1.8;
-            color: var(--text-muted);
-            margin-bottom: 3rem;
+            font-size: 0.95rem; line-height: 1.7; color: var(--text-muted); font-weight: 300;
         }
 
-        /* 廣告區塊設計 (極致融合，不破壞美感) */
-        .ad-box {
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 1.5rem;
-            backdrop-filter: blur(10px);
-            position: relative;
-            overflow: hidden;
+        /* 語系切換按鈕 (極簡風) */
+        .lang-toggle {
+            position: absolute; top: 0; right: 0;
+            background: var(--glass-bg); border: 1px solid var(--glass-border);
+            color: #fff; border-radius: 50%; width: 40px; height: 40px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 0.85rem; font-weight: 600;
+            backdrop-filter: blur(10px); transition: 0.3s;
         }
-        .ad-box::before {
-            content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--accent);
+        .lang-toggle:hover { background: rgba(255,255,255,0.1); transform: scale(1.05); }
+
+        /* 廣告區塊 (高級融合感) */
+        .ad-container {
+            margin-top: auto; padding-top: 2rem; width: 100%;
+        }
+        .ad-glass-box {
+            background: var(--glass-bg); border: 1px solid var(--glass-border);
+            border-radius: 16px; padding: 1rem; backdrop-filter: blur(20px);
+            position: relative; overflow: hidden; min-height: 280px;
+            display: flex; flex-direction: column; justify-content: center;
         }
         .ad-label {
-            font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px; color: var(--text-muted); margin-bottom: 1rem; display: block;
+            position: absolute; top: 10px; left: 15px; font-size: 0.65rem;
+            letter-spacing: 0.1em; color: var(--text-muted); font-weight: 600;
         }
 
-        /* 右側：資料夾手風琴選單 */
-        .folder {
-            margin-bottom: 1.5rem;
-        }
+        /* 右側：資料夾與卡片網格 */
+        .folder-group { margin-bottom: 3rem; }
         .folder-title {
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: #fff;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid var(--border);
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
+            font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.1em;
+            color: var(--text-muted); font-weight: 600; margin-bottom: 1.2rem;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .folder-title::after {
+            content: ''; flex-grow: 1; height: 1px; background: linear-gradient(90deg, var(--glass-border), transparent);
         }
 
-        /* 工具卡片 (Bento Style) */
-        .item-card {
-            display: block;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            text-decoration: none;
-            color: inherit;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.2rem;
         }
 
-        .item-card:hover {
-            background: rgba(255, 255, 255, 0.08);
-            border-color: rgba(255, 255, 255, 0.3);
-            transform: translateY(-4px);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        .card {
+            display: flex; flex-direction: column;
+            background: var(--glass-bg); border: 1px solid var(--glass-border);
+            border-radius: 16px; padding: 1.5rem; text-decoration: none; color: inherit;
+            position: relative; overflow: hidden; transition: all 0.4s var(--spring-easing);
+            cursor: pointer; backdrop-filter: blur(10px);
+        }
+        
+        .card::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(800px circle at var(--mouse-x) var(--mouse-y), rgba(255,255,255,0.06), transparent 40%);
+            opacity: 0; transition: opacity 0.5s; z-index: 0;
         }
 
-        .item-card h3 { margin: 0 0 0.5rem 0; font-size: 1.25rem; color: #fff; display: flex; align-items: center; justify-content: space-between; }
-        .item-card h3::after {
-            content: '↗'; opacity: 0; transform: translate(-10px, 10px); transition: all 0.3s ease; color: var(--accent);
-        }
-        .item-card:hover h3::after { opacity: 1; transform: translate(0, 0); }
-        .item-card p { margin: 0; color: var(--text-muted); font-size: 0.95rem; line-height: 1.5; }
+        .card:hover { transform: translateY(-4px); background: var(--card-hover); border-color: rgba(255,255,255,0.2); }
+        .card:hover::before { opacity: 1; }
 
-        /* 語系切換器 (浮動) */
-        .lang-switch {
-            position: fixed; top: 20px; right: 20px; z-index: 100;
-            background: rgba(0,0,0,0.5); border: 1px solid var(--border); border-radius: 20px; padding: 5px 15px; color: #fff; cursor: pointer; backdrop-filter: blur(5px);
+        .card-content { position: relative; z-index: 1; }
+        .card h3 {
+            font-size: 1.15rem; font-weight: 600; margin: 0 0 0.8rem 0; color: #fff;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        /* 酷炫箭頭動畫 */
+        .card h3::after {
+            content: '↗'; color: var(--text-muted); font-size: 1.2rem; font-weight: 400;
+            transition: all 0.3s ease; transform: translate(-5px, 5px); opacity: 0.5;
+        }
+        .card:hover h3::after { color: var(--accent); transform: translate(0, 0); opacity: 1; }
+        
+        .card p { margin: 0; font-size: 0.9rem; line-height: 1.6; color: var(--text-muted); }
+
+        /* =========================================================
+           動畫控制 (優雅的瀑布流入場)
+           ========================================================= */
+        .stagger-item {
+            opacity: 0; transform: translateY(30px) scale(0.98);
+            animation: slideUp 0.8s var(--spring-easing) forwards;
+        }
+        @keyframes slideUp {
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* 手機版微調 */
+        @media (max-width: 1023px) {
+            .ad-container { margin-top: 3rem; margin-bottom: 2rem; }
+            .brand-desc { max-width: 90%; }
         }
     </style>
 </head>
 <body>
 
-    <div id="glow"></div>
-    <div class="noise"></div>
-    
-    <button class="lang-switch" onclick="toggleLanguage()" id="langBtn">Language</button>
+    <!-- 背景特效層 -->
+    <div class="ambient-glow"></div>
+    <div id="cursor-glow"></div>
 
-    <div class="layout">
-        <!-- 左側：標題、介紹與廣告 -->
-        <div class="left-panel">
-            <h1 class="brand-title" id="ui-title">Loading...</h1>
-            <p class="brand-desc" id="ui-desc"></p>
-            
-            <div class="ad-box">
-                <span class="ad-label" id="ui-ad-label">Advertisement</span>
-                <!-- ==============================================
-                     把你的 Google AdSense <ins> 標籤放在這個 DIV 裡面 
-                     ============================================== -->
-                <div style="min-height: 250px; display:flex; align-items:center; justify-content:center; color:#555; border:1px dashed #333; border-radius: 8px;">
-                    [Google AdSense Banner Space]
+    <!-- 主程式架構 (預設透明，防止閃爍) -->
+    <div id="app-container">
+        
+        <!-- 左側/頂部：品牌資訊與固定廣告 -->
+        <aside class="sidebar">
+            <div class="header-section stagger-item" style="animation-delay: 0.1s;">
+                <button class="lang-toggle" onclick="toggleLang()" id="ui-lang-btn">EN</button>
+                <h1 class="brand-name" id="ui-title">...</h1>
+                <div class="brand-tagline" id="ui-tagline">...</div>
+                <p class="brand-desc" id="ui-desc">...</p>
+            </div>
+
+            <!-- Google AdSense 區塊 (固定在此不隨語言切換重載) -->
+            <div class="ad-container stagger-item" style="animation-delay: 0.2s;">
+                <div class="ad-glass-box">
+                    <span class="ad-label" id="ui-ad-label">SPONSORED</span>
+                    <!-- 你的 AdSense 廣告碼 -->
+                    <ins class="adsbygoogle"
+                         style="display:block"
+                         data-ad-client="ca-pub-5350539988014376"
+                         data-ad-slot="6681492480"
+                         data-ad-format="auto"
+                         data-full-width-responsive="true"></ins>
                 </div>
             </div>
-        </div>
+        </aside>
 
-        <!-- 右側：JSON 動態生成的選單清單 -->
-        <div class="right-panel" id="menu-container">
-            <!-- 內容由 JS 動態注入 -->
-        </div>
+        <!-- 右側/底部：動態卡片內容 -->
+        <main class="content-area" id="dynamic-content">
+            <!-- JS 動態生成內容 -->
+        </main>
     </div>
 
     <script>
-        // 全域變數
         let siteData = null;
-        let currentLang = 'en-us';
+        let currentLang = 'zh-tw';
+        let adInitialized = false;
 
-        // 1. 滑鼠跟隨光暈效果 (世界級網站愛用)
-        const glow = document.getElementById('glow');
-        document.body.addEventListener('mousemove', (e) => {
-            requestAnimationFrame(() => {
-                glow.style.left = e.clientX + 'px';
-                glow.style.top = e.clientY + 'px';
+        // 1. 世界級互動細節：全域滑鼠光暈追蹤
+        const cursorGlow = document.getElementById('cursor-glow');
+        if(window.matchMedia("(pointer: fine)").matches) {
+            document.body.addEventListener('mousemove', (e) => {
+                cursorGlow.style.opacity = 1;
+                requestAnimationFrame(() => {
+                    cursorGlow.style.left = e.clientX + 'px';
+                    cursorGlow.style.top = e.clientY + 'px';
+                });
             });
-        });
+        }
 
-        // 2. 初始化：取得 IP 地理位置 -> 決定語系 -> 讀取 JSON
-        async function initApp() {
+        // 2. 啟動程序 (地理位置判斷 + 讀取 JSON)
+        async function bootApp() {
+            // 嘗試取得 IP (靜默處理錯誤)
             try {
-                // 嘗試透過 IP 判斷國家 (如果被擋，跳入 catch 使用瀏覽器語系)
-                const ipResponse = await fetch('https://ipapi.co/json/');
-                const ipData = await ipResponse.json();
-                const country = ipData.country_code; // 例如 TW, HK, US
-                
-                if (['TW', 'HK', 'MO'].includes(country)) {
-                    currentLang = 'zh-tw';
-                } else {
-                    currentLang = 'en-us';
-                }
-            } catch (error) {
-                console.warn("IP geolocation blocked or failed. Using browser language.");
-                // 備用方案：判斷瀏覽器語系
-                const browserLang = navigator.language.toLowerCase();
-                currentLang = browserLang.includes('zh') ? 'zh-tw' : 'en-us';
+                const ipRes = await fetch('https://ipapi.co/json/');
+                const ipData = await ipRes.json();
+                const twHkMo = ['TW', 'HK', 'MO'];
+                currentLang = twHkMo.includes(ipData.country_code) ? 'zh-tw' : 'en-us';
+            } catch (e) {
+                currentLang = navigator.language.toLowerCase().includes('zh') ? 'zh-tw' : 'en-us';
             }
 
-            // 讀取 index.json (注意：如果是本機直接點兩下 html 開啟可能會被 CORS 擋住，請在 GitHub Pages 或本機伺服器觀看)
+            // 讀取核心設定檔
             try {
-                const response = await fetch('index.json');
-                siteData = await response.json();
-                renderUI();
-            } catch (error) {
-                console.error("Failed to load index.json", error);
-                document.getElementById('ui-title').innerText = "Error loading data.";
+                const res = await fetch('index.json');
+                siteData = await res.json();
+                buildUI();
+                
+                // 延遲顯示主視窗 (完美優雅淡出)
+                setTimeout(() => {
+                    document.getElementById('app-container').style.opacity = 1;
+                    initAdSense(); // 畫面出現後才推播廣告
+                }, 100);
+
+            } catch (e) {
+                console.error("Failed to load JSON:", e);
+                document.getElementById('ui-title').innerText = "System Offline";
+                document.getElementById('app-container').style.opacity = 1;
             }
         }
 
-        // 3. 渲染介面 (依照目前語系)
-        function renderUI() {
+        // 3. 渲染介面 (加入 Staggered 動畫延遲)
+        function buildUI() {
             if (!siteData) return;
             const data = siteData[currentLang];
             
-            // 更新左側文字與 Title
-            document.title = data.siteName;
+            // 更新左側文字
+            document.title = `${data.siteName} | ${data.siteTagline}`;
             document.getElementById('ui-title').innerText = data.siteName;
+            document.getElementById('ui-tagline').innerText = data.siteTagline;
             document.getElementById('ui-desc').innerText = data.siteDesc;
             document.getElementById('ui-ad-label').innerText = data.adLabel;
-            document.getElementById('langBtn').innerText = currentLang === 'zh-tw' ? 'English' : '中文';
+            document.getElementById('ui-lang-btn').innerText = data.langBtn;
 
-            // 更新右側選單
-            const container = document.getElementById('menu-container');
-            container.innerHTML = ''; // 清空現有內容
+            // 建立右側卡片
+            const contentArea = document.getElementById('dynamic-content');
+            contentArea.innerHTML = ''; // 清空
+            
+            let animDelay = 0.3; // 從 0.3s 開始接續左側的動畫
 
             data.directories.forEach(dir => {
-                // 建立資料夾區塊
-                const folderDiv = document.createElement('div');
-                folderDiv.className = 'folder';
+                const group = document.createElement('div');
+                group.className = 'folder-group';
                 
-                const folderTitle = document.createElement('div');
-                folderTitle.className = 'folder-title';
-                folderTitle.innerText = dir.folderName;
-                folderDiv.appendChild(folderTitle);
+                // 資料夾標題
+                const title = document.createElement('div');
+                title.className = 'folder-title stagger-item';
+                title.style.animationDelay = `${animDelay}s`;
+                title.innerText = dir.folderName;
+                animDelay += 0.1;
+                group.appendChild(title);
 
-                // 建立該資料夾下的各個 HTML 檔案連結
+                // 卡片網格
+                const grid = document.createElement('div');
+                grid.className = 'grid';
+
                 dir.items.forEach(item => {
                     const card = document.createElement('a');
                     card.href = item.url;
-                    card.target = '_blank'; // 新分頁開啟 (符合 AdSense 且不影響主站)
-                    card.className = 'item-card';
+                    card.target = '_blank'; // 新開分頁，保障原始頁面狀態
+                    card.className = 'card stagger-item';
+                    card.style.animationDelay = `${animDelay}s`;
+                    animDelay += 0.1;
+                    
                     card.innerHTML = `
-                        <h3>${item.title}</h3>
-                        <p>${item.desc}</p>
+                        <div class="card-content">
+                            <h3>${item.title}</h3>
+                            <p>${item.desc}</p>
+                        </div>
                     `;
-                    folderDiv.appendChild(card);
+
+                    // 卡片專屬滑鼠追蹤光影 (高級 CSS 特效)
+                    card.onmousemove = e => {
+                        const rect = card.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const y = e.clientY - rect.top;
+                        card.style.setProperty('--mouse-x', `${x}px`);
+                        card.style.setProperty('--mouse-y', `${y}px`);
+                    };
+
+                    grid.appendChild(card);
                 });
 
-                container.appendChild(folderDiv);
+                group.appendChild(grid);
+                contentArea.appendChild(group);
             });
         }
 
-        // 4. 手動切換語系 (提供給用戶的備用按鈕)
-        function toggleLanguage() {
-            currentLang = currentLang === 'zh-tw' ? 'en-us' : 'zh-tw';
-            renderUI();
+        // 4. 初始化 Google AdSense
+        function initAdSense() {
+            if (adInitialized) return; // 避免切換語言時重複推播報錯
+            try {
+                (adsbygoogle = window.adsbygoogle || []).push({});
+                adInitialized = true;
+            } catch (e) {
+                console.error("AdSense Script Error:", e);
+            }
         }
 
-        // 啟動程式
-        window.onload = initApp;
+        // 5. 語言切換邏輯
+        function toggleLang() {
+            currentLang = currentLang === 'zh-tw' ? 'en-us' : 'zh-tw';
+            // 切換時讓右側內容快速重繪 (不影響左側廣告)
+            const contentArea = document.getElementById('dynamic-content');
+            contentArea.style.opacity = 0;
+            setTimeout(() => {
+                buildUI();
+                contentArea.style.transition = 'opacity 0.4s';
+                contentArea.style.opacity = 1;
+            }, 300);
+        }
+
+        // 網頁載入時啟動
+        window.onload = bootApp;
     </script>
 </body>
 </html>
