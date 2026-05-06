@@ -881,4 +881,53 @@
         }
     }
 
-    function proc
+    function processInputLogic(inputCode) {
+        if (!currentTargetObj || isGameOver) return;
+
+        if (!sessionStartTime) {
+            sessionStartTime = Date.now();
+            timerInterval = setInterval(updateLiveStats, 1000);
+        }
+
+        totalKeysPressed++;
+
+        const keyEl = document.querySelector(`.key[data-code="${inputCode}"]`);
+        if (keyEl) {
+            keyEl.classList.add('active');
+            setTimeout(() => keyEl.classList.remove('active'), 80);
+        }
+
+        if (inputCode === currentTargetObj.code || (currentTargetObj.char === '˙' && (inputCode === 'Space' || inputCode === 'Digit7'))) {
+            correctKeysPressed++;
+            addHoldKey(inputCode); 
+            
+            let finishedCharGlobalIdx = currentTargetObj.charGlobalIdx;
+            zhuyinQueue.shift();
+            
+            if (zhuyinQueue.length === 0 || zhuyinQueue[0].charGlobalIdx !== finishedCharGlobalIdx) {
+                totalChineseCharsFinished++;
+            }
+            
+            updateLiveStats();
+            loadNextTyping(); 
+        } else {
+            document.body.classList.add('error-flash');
+            setTimeout(() => document.body.classList.remove('error-flash'), 180);
+            updateLiveStats();
+        }
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (document.getElementById('history-modal').style.display === 'flex') {
+            if(e.code === 'Escape') closeHistoryModal();
+            return;
+        }
+
+        if (e.code === 'Space' || e.key.length === 1) e.preventDefault();
+        processInputLogic(e.code);
+    });
+
+    window.onload = initGame;
+</script>
+</body>
+</html>
