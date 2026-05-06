@@ -2,7 +2,8 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>注音大冒險：詩詞幻境 專業賽事版 V7 完美戰績表</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>注音大冒險：詩詞幻境 專業賽事版 V8 跨裝置優化版</title>
     <script src="https://unpkg.com/pinyin-pro"></script>
     <style>
         :root { 
@@ -22,7 +23,7 @@
             background: radial-gradient(circle at center, var(--bg-color1) 0%, var(--bg-color2) 100%); 
             display: flex; flex-direction: column; align-items: center; justify-content: center; 
             height: 100vh; overflow: hidden; user-select: none; color: #f3f4f6; 
-            cursor: default; transition: background 0.1s;
+            cursor: default; transition: background 0.1s; touch-action: none; /* 防止觸控螢幕意外滑動 */
         }
         
         body.error-flash #zen-typing-zone { animation: shake 0.2s ease-in-out; }
@@ -111,11 +112,13 @@
             width: 140px; text-align: center;
         }
 
-        #keyboard-zone { flex-shrink: 0; display: flex; justify-content: center; padding-bottom: 20px; }
+        /* --- 實體與虛擬鍵盤區 --- */
+        #keyboard-zone { flex-shrink: 0; display: flex; justify-content: center; padding-bottom: 20px; width: 100%;}
         #virtual-keyboard { 
             background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 15px; 
             display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 900px; 
             backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1);
+            touch-action: none; /* 讓鍵盤區完全鎖定不給滑動 */
         }
         
         .kbd-row { display: flex; justify-content: flex-start; gap: 8px; width: 100%; }
@@ -125,6 +128,7 @@
             border: 1px solid #9ca3af; border-bottom: 4px solid #6b7280; border-radius: 8px; 
             width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; 
             font-size: 20px; font-weight: bold; color: #111827; transition: all 0.05s ease; flex-shrink: 0;
+            cursor: pointer; touch-action: manipulation;
         }
         .key.active { transform: translateY(3px); border-bottom-width: 1px; background: #e5e7eb; }
         .key.active-hold {
@@ -134,7 +138,7 @@
         }
         .space-key { flex: 1; font-size: 16px; color: #4b5563;}
 
-        /* --- 歷史戰績 Modal 樣式 --- */
+        /* --- 歷史戰績與彈窗區 --- */
         #history-modal {
             display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); z-index: 100; backdrop-filter: blur(8px); align-items: center; justify-content: center;
@@ -142,32 +146,20 @@
         .modal-content {
             background: var(--panel-bg); width: 90%; max-width: 900px; max-height: 80%;
             border-radius: 15px; border: 1px solid var(--theme-accent); padding: 30px;
-            display: flex; flex-direction: column; box-shadow: 0 0 50px rgba(59, 130, 246, 0.4);
-            position: relative;
+            display: flex; flex-direction: column; box-shadow: 0 0 50px rgba(59, 130, 246, 0.4); position: relative;
         }
         .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 15px; margin-bottom: 15px; }
         .modal-header h2 { margin: 0; color: #fff; display: inline-block; }
-        
-        .btn-clear {
-            background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.5); 
-            color: #fca5a5; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 14px;
-            transition: all 0.2s; margin-left: 20px; vertical-align: bottom;
-        }
+        .btn-clear { background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.5); color: #fca5a5; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; margin-left: 20px; vertical-align: bottom; }
         .btn-clear:hover { background: rgba(239, 68, 68, 0.5); color: #fff; }
-
         .close-btn { background: none; border: none; color: #fff; font-size: 32px; cursor: pointer; }
         
-        #modal-action-hint {
-            text-align: center; color: var(--active-text); font-weight: bold; margin-top: 15px; 
-            animation: pulse 1.5s infinite; display: none; font-size: 16px; letter-spacing: 1px;
-        }
-
+        #modal-action-hint { text-align: center; color: var(--active-text); font-weight: bold; margin-top: 15px; animation: pulse 1.5s infinite; display: none; font-size: 16px; letter-spacing: 1px;}
         .table-container { overflow-y: auto; flex: 1; padding-right: 10px; }
         table { width: 100%; border-collapse: collapse; text-align: left; font-size: 16px; }
         th, td { padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); }
         th { color: #9ca3af; position: sticky; top: 0; background: var(--panel-bg); z-index: 2; white-space: nowrap;}
         
-        /* 數值區塊滑鼠互動樣式 */
         .hover-data { cursor: help; border-bottom: 1px dashed rgba(255,255,255,0.3); transition: background 0.2s; white-space: nowrap;}
         .hover-data:hover { background: rgba(255,255,255,0.1); }
         .td-title { font-weight: bold; color: #f3f4f6; width: 35%; line-height: 1.4; } 
@@ -175,22 +167,71 @@
         .highlight-row { background-color: rgba(59, 130, 246, 0.2); border-left: 4px solid var(--active-text); }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 
-        /* 浮動解說框 Tooltip */
-        #custom-tooltip {
-            position: fixed; background: rgba(15, 23, 42, 0.98); border: 1px solid var(--theme-accent);
-            color: #e2e8f0; padding: 16px; border-radius: 10px; font-size: 15px; line-height: 1.6;
-            pointer-events: none; z-index: 10000; max-width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.6);
-            display: none; opacity: 0; transition: opacity 0.2s; font-family: 'Microsoft JhengHei', sans-serif;
-        }
+        #custom-tooltip { position: fixed; background: rgba(15, 23, 42, 0.98); border: 1px solid var(--theme-accent); color: #e2e8f0; padding: 16px; border-radius: 10px; font-size: 15px; line-height: 1.6; pointer-events: none; z-index: 10000; max-width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); display: none; opacity: 0; transition: opacity 0.2s; font-family: 'Microsoft JhengHei', sans-serif;}
 
-        #loading-screen {
-            position: absolute; top:0; left:0; width:100%; height:100%; 
-            background: var(--bg-color1); z-index: 200; display: flex; 
-            align-items: center; justify-content: center; flex-direction: column;
-        }
+        #loading-screen { position: absolute; top:0; left:0; width:100%; height:100%; background: var(--bg-color1); z-index: 200; display: flex; align-items: center; justify-content: center; flex-direction: column; }
         .spinner { border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid var(--theme-accent); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 20px; }
-        .fullscreen-hint { position: absolute; bottom: 10px; right: 20px; font-size: 13px; color: rgba(255,255,255,0.3); }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* --- 全螢幕懸浮按鈕 --- */
+        #fullscreen-btn {
+            position: fixed; bottom: 20px; right: 20px; width: 44px; height: 44px; 
+            background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); 
+            border-radius: 10px; color: #fff; display: flex; align-items: center; justify-content: center; 
+            cursor: pointer; z-index: 100; backdrop-filter: blur(5px); transition: all 0.2s;
+        }
+        #fullscreen-btn:hover { background: rgba(255, 255, 255, 0.2); transform: scale(1.1); }
+        #fullscreen-btn svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+        /* =======================================================
+           📱 行動裝置與窄版螢幕自適應優化 (不會影響電腦版)
+           ======================================================= */
+        @media (max-width: 768px) {
+            #game-container { padding: 10px; gap: 8px; }
+            #top-bar { flex-direction: column; padding: 12px 15px; }
+            .title-section { width: 100%; align-items: center; text-align: center; }
+            #main-title { font-size: 22px; }
+            #metadata-bar { justify-content: center; font-size: 12px; gap: 8px; }
+            #pro-stats { width: 100%; justify-content: space-between; gap: 5px; margin-top: 10px; }
+            .stat-label { font-size: 11px; }
+            .stat-value { font-size: 20px; }
+            .btn-history { padding: 6px 12px; font-size: 13px; }
+            
+            #lyrics-board { height: 160px; }
+            #curr-line { font-size: 30px; height: 45px; letter-spacing: 1px; margin: 10px 0; }
+            #prev-line, #next-line { font-size: 18px; height: 25px; }
+            
+            #target-container { height: 110px; gap: 15px; margin-top: 0; }
+            .ruby-char { font-size: 55px; }
+            .ruby-zhuyin { font-size: 22px; margin-left: 6px; }
+            .zhuyin-symbol.tone-light { top: -16px; font-size: 18px; }
+            .zhuyin-symbol.tone-mark { right: -16px; font-size: 18px; }
+            #type-target { font-size: 65px; width: 80px; }
+
+            /* 鍵盤針對手機特化：消除多餘留白，讓按鍵最大化 */
+            #virtual-keyboard { padding: 8px; gap: 5px; border-radius: 10px; }
+            .kbd-row { padding-left: 0 !important; justify-content: center; gap: 4px; }
+            
+            /* 製造自然錯位並填滿寬度 */
+            .kbd-row:nth-child(1) { width: 100%; }
+            .kbd-row:nth-child(2) { width: 95%; margin: 0 auto; }
+            .kbd-row:nth-child(3) { width: 90%; margin: 0 auto; }
+            .kbd-row:nth-child(4) { width: 85%; margin: 0 auto; }
+            
+            /* 將寬高改由 Flex 動態計算，保證在各種手機都能放到最大 */
+            .key { flex: 1; height: 44px; font-size: 18px; border-radius: 6px; padding: 0; border-bottom-width: 3px; min-width: 0; }
+            .space-key { flex: none; width: 55%; max-width: 220px; margin: 0 auto; font-size: 14px; }
+
+            /* Modal 優化 */
+            .modal-content { width: 95%; padding: 15px; max-height: 90%; }
+            .modal-header h2 { font-size: 18px; }
+            th, td { padding: 10px 5px; font-size: 13px; }
+            .td-title { font-size: 12px; }
+            #custom-tooltip { font-size: 13px; padding: 12px; max-width: 250px; }
+            
+            /* 手機板隱藏全螢幕按鈕避免擋到虛擬鍵盤，且手機瀏覽器自身通常控制全螢幕更好 */
+            #fullscreen-btn { bottom: 10px; right: 10px; width: 36px; height: 36px; }
+        }
     </style>
 </head>
 <body>
@@ -200,8 +241,14 @@
     <h3 id="loading-text">正在深度解析精準詩詞與注音題庫...</h3>
 </div>
 
-<!-- 浮動 Tooltip 容器 -->
 <div id="custom-tooltip"></div>
+
+<!-- 新增：右下角全螢幕切換按鈕 (取代舊文字提示) -->
+<button id="fullscreen-btn" onclick="toggleFullscreen()" title="切換全螢幕">
+    <svg viewBox="0 0 24 24">
+        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+    </svg>
+</button>
 
 <div id="game-container">
     <div id="top-bar">
@@ -235,6 +282,7 @@
 
     <div id="keyboard-zone">
         <div id="virtual-keyboard">
+            <!-- 注意：桌面版仍以 padding-left 控制斜度，手機版會透過 CSS 強制覆蓋置中 -->
             <div class="kbd-row" style="padding-left: 0;">
                 <div class="key" data-code="Digit1">ㄅ</div><div class="key" data-code="Digit2">ㄉ</div><div class="key" data-code="Digit3">ˇ</div><div class="key" data-code="Digit4">ˋ</div><div class="key" data-code="Digit5">ㄓ</div><div class="key" data-code="Digit6">ˊ</div><div class="key" data-code="Digit7">˙</div><div class="key" data-code="Digit8">ㄚ</div><div class="key" data-code="Digit9">ㄞ</div><div class="key" data-code="Digit0">ㄢ</div><div class="key" data-code="Minus">ㄦ</div>
             </div>
@@ -253,8 +301,6 @@
         </div>
     </div>
 </div>
-
-<div class="fullscreen-hint">空白處點兩下切換全螢幕</div>
 
 <div id="history-modal">
     <div class="modal-content">
@@ -296,7 +342,7 @@
     let zhuyinQueue =[];
     let currentTargetObj = null;
     let currentSentenceIndex = -1;
-    let currentSentenceElements = [];
+    let currentSentenceElements =[];
     let activeHoldKeys =[];
     let currentProcessingCharIndex = -1;
 
@@ -310,12 +356,14 @@
 
     let userHistory = JSON.parse(localStorage.getItem('proTypingHistory')) || {};
 
-    document.body.addEventListener('dblclick', (e) => {
-        if (e.target.tagName !== 'BUTTON' && !e.target.closest('#virtual-keyboard')) {
-            if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(err => console.log(err));
-            else document.exitFullscreen();
+    // --- 全螢幕切換功能 ---
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => console.log(err));
+        } else {
+            document.exitFullscreen();
         }
-    });
+    }
 
     async function initGame() {
         try {
@@ -323,11 +371,26 @@
             await fetchCorpus();
             if (corpusData.length === 0) throw new Error("無可用題庫");
             document.getElementById('loading-screen').style.display = 'none';
+            
+            // 將虛擬鍵盤與觸控事件進行完美綁定 (取代原先只能滑鼠點擊)
+            bindVirtualKeyboardTouch();
+            
             loadRandomPoem();
         } catch (error) {
             document.getElementById('loading-text').textContent = "載入失敗：" + error.message;
             console.error(error);
         }
+    }
+
+    // 將虛擬鍵盤綁定觸控事件 (pointerdown 完美兼容滑鼠與手指)
+    function bindVirtualKeyboardTouch() {
+        document.querySelectorAll('.key').forEach(keyEl => {
+            keyEl.addEventListener('pointerdown', (e) => {
+                e.preventDefault(); // 防止雙擊放大或選取文字
+                let inputCode = keyEl.dataset.code;
+                processInputLogic(inputCode);
+            });
+        });
     }
 
     async function fetchCorpus() {
@@ -560,7 +623,7 @@
     function initSentenceDOM() {
         let currLineEl = document.getElementById('curr-line');
         currLineEl.innerHTML = '';
-        currentSentenceElements = [];
+        currentSentenceElements =[];
         
         let chars = currentPoem.sentences[currentSentenceIndex].split('');
         chars.forEach((char) => {
@@ -709,7 +772,6 @@
         localStorage.setItem('proTypingHistory', JSON.stringify(userHistory));
     }
 
-    // --- 詳細解說 Tooltip 系統 ---
     const tooltipEl = document.getElementById('custom-tooltip');
     
     function showTooltip(e, content) {
@@ -748,7 +810,6 @@
         if (td) moveTooltip(e);
     });
 
-    // --- 歷史戰績 Modal 處理 ---
     function openHistoryModal(highlightTitle = null) {
         const tbody = document.getElementById('history-tbody');
         tbody.innerHTML = '';
@@ -767,7 +828,6 @@
                 let avgCpm = Math.round(hs.totalCpm / hs.attempts);
                 let avgAcc = Math.round(hs.totalAcc / hs.attempts);
                 
-                // 注意這裡完全移除了「意義：」字眼，並且使用「單引號」避免 HTML 解析錯誤
                 let ttAttempts = `您總共挑戰了這首詩詞 <b style='color:#60a5fa'>${hs.attempts}</b> 次。<br><br>📝 <span style='color:#9ca3af'>持續不斷的練習是建立肌肉記憶與提升速度的最佳捷徑！</span>`;
                 let ttBestCpm = `最高紀錄為每分鐘打對 <b style='color:#fcd34d'>${hs.bestCpm}</b> 個中文字。<br><br>⚡ <span style='color:#9ca3af'>Characters Per Minute (每分鐘字數)。這是衡量盲打速度的最核心指標，代表您大腦與指尖的連線速度！</span>`;
                 let ttAvgCpm = `平均每分鐘打出 <b style='color:#fff'>${avgCpm}</b> 個中文字。<br><br>📊 <span style='color:#9ca3af'>代表您在這首詩詞的平均穩定實力，避免單次手感好壞的誤差。</span>`;
@@ -815,13 +875,8 @@
         }
     }
 
-    window.addEventListener('keydown', (e) => {
-        if (document.getElementById('history-modal').style.display === 'flex') {
-            if(e.code === 'Escape') closeHistoryModal();
-            return;
-        }
-
-        if (e.code === 'Space' || e.key.length === 1) e.preventDefault();
+    // 將實體鍵盤與虛擬觸控統一拉到同一個核心邏輯處理
+    function processInputLogic(inputCode) {
         if (!currentTargetObj || isGameOver) return;
 
         if (!sessionStartTime) {
@@ -829,7 +884,6 @@
             timerInterval = setInterval(updateLiveStats, 1000);
         }
 
-        let inputCode = e.code;
         totalKeysPressed++;
 
         const keyEl = document.querySelector(`.key[data-code="${inputCode}"]`);
@@ -856,6 +910,17 @@
             setTimeout(() => document.body.classList.remove('error-flash'), 180);
             updateLiveStats();
         }
+    }
+
+    // 實體鍵盤監聽器
+    window.addEventListener('keydown', (e) => {
+        if (document.getElementById('history-modal').style.display === 'flex') {
+            if(e.code === 'Escape') closeHistoryModal();
+            return;
+        }
+
+        if (e.code === 'Space' || e.key.length === 1) e.preventDefault();
+        processInputLogic(e.code);
     });
 
     window.onload = initGame;
