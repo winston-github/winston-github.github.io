@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Global Fleet V1 Decision Simulator - TRE Edition</title>
+    <style>
+        /* ================= 核心與電腦版寬螢幕優化 ================= */
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; font-family: 'Courier New', Consolas, 'PingFang TC', 'Microsoft JhengHei', sans-serif; }
+        html, body { width: 100%; height: 100dvh; background-color: #05080c; color: #c9d1d9; overflow: hidden; touch-action: manipulation; }
+        
+        #app { display: flex; flex-direction: column; height: 100%; width: 100%; opacity: 0; transition: opacity 0.5s; }
+        #loader { position: absolute; top:0; left:0; width:100%; height:100%; background:#000; z-index:9999999; display:flex; flex-direction:column; justify-content:center; align-items:center; color:#58a6ff; font-weight:bold; font-size: 24px; letter-spacing: 2px;}
+        
+        /* ================= 全域語言切換按鈕 ================= */
+        #lang-toggle {
+            position: fixed; top: 20px; right: 20px; width: 55px; height: 55px; border-radius: 50%;
+            background: #1f6feb; color: white; font-weight: bold; font-size: 18px;
+            display: flex; justify-content: center; align-items: center; cursor: pointer;
+            z-index: 9999999; box-shadow: 0 4px 15px rgba(0,0,0,0.8); border: 3px solid white;
+            transition: transform 0.2s, background 0.2s;
+        }
+        #lang-toggle:hover { transform: scale(1.05); background: #3182ce; }
+
+        /* ================= 教官動態面板 ================= */
+        #instructor-box { background: rgba(35, 134, 54, 0.15); border-bottom: 2px solid #3fb950; padding: 10px 25px; display: flex; align-items: center; justify-content: center; gap: 20px; flex: 0 0 auto; z-index: 50; box-shadow: 0 4px 15px rgba(0,0,0,0.8); }
+        #instructor-box.urgent { background: rgba(218, 54, 51, 0.25); border-bottom: 2px solid #ff7b72; }
+        #instructor-box.warning { background: rgba(210, 153, 34, 0.25); border-bottom: 2px solid #e3b341; }
+        #instructor-avatar { font-size: 32px; filter: drop-shadow(0 0 8px rgba(255,255,255,0.3)); }
+        #instructor-msg { font-size: 16px; font-weight: bold; color: #7ee787; line-height: 1.5; text-shadow: 0 0 5px rgba(0,0,0,0.9); max-width: 1400px; width: 100%;}
+        .urgent #instructor-msg { color: #ff7b72; animation: pulse 0.5s infinite; font-size: 18px;}
+        .warning #instructor-msg { color: #e3b341; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+
+        /* ================= HUD 跑道視圖 (階梯防重疊設計) ================= */
+        #hud-container { background: #0d1117; flex: 0 0 16%; display: flex; justify-content: center; border-bottom: 2px solid #30363d; box-shadow: 0 5px 20px rgba(0,0,0,0.8) inset;}
+        #hud-view { width: 100%; max-width: 1600px; position: relative; padding: 10px 30px; display: flex; flex-direction: column; justify-content: flex-end; }
+        .hud-text { position: absolute; top: 10px; left: 30px; right: 30px; font-size: 14px; color: #8b949e; display: flex; justify-content: space-between; font-weight:bold; letter-spacing: 2px;}
+        
+        .runway-track { position: relative; height: 16px; background: #484f58; border-radius: 8px; margin-bottom: 10px; border-top: 2px dashed #8b949e; box-shadow: 0 5px 8px rgba(0,0,0,0.6);}
+        .runway-track.wet { background: #2c3e50; box-shadow: 0 2px 15px rgba(88, 166, 255, 0.5) inset; border-bottom: 2px solid #58a6ff;}
+        
+        .runway-mark { position: absolute; bottom: 100%; display: flex; flex-direction: column; align-items: center; transform: translateX(-50%); pointer-events: auto; transition: left 0.3s ease;}
+        .rm-lbl { font-weight: bold; font-size: 14px; background: rgba(0,0,0,0.9); padding: 2px 6px; border-radius: 4px; white-space: nowrap; border: 1px solid #30363d;}
+        .rm-line { width: 2px; }
+
+        #rm-start .rm-lbl, #rm-end .rm-lbl { color: #8b949e; font-size: 11px; margin-bottom: 0px;}
+        #rm-start .rm-line, #rm-end .rm-line { background: #8b949e; height: 8px;}
+        #vmcg-mark .rm-lbl { color: #e3b341; font-size: 12px; margin-bottom: 0px;}
+        #vmcg-mark .rm-line { background: #e3b341; height: 15px; border-left: 1px dashed #e3b341;}
+        #v1-mark .rm-lbl { color: #ff7b72; margin-bottom: 0px;}
+        #v1-mark .rm-line { background: #ff7b72; height: 35px;}
+        #vr-mark .rm-lbl { color: #3fb950; margin-bottom: 0px;}
+        #vr-mark .rm-line { background: #3fb950; height: 55px;}
+        #v2-mark .rm-lbl { color: #58a6ff; margin-bottom: 0px;}
+        #v2-mark .rm-line { background: #58a6ff; height: 75px;}
+
+        #plane-icon { position: absolute; bottom: 10px; left: 0%; font-size: 40px; transform: translateX(-50%); z-index: 10; filter: drop-shadow(4px 4px 3px rgba(0,0,0,0.9)); transition: transform 0.1s; }
+        #plane-icon.excursion { animation: spinOut 2s forwards; }
+        @keyframes spinOut { 100% { transform: translate(-150px, 80px) rotate(-120deg) scale(0.5); opacity: 0; } }
+        
+        #green-go-line, #red-stop-line { position: absolute; height: 8px; border-radius: 4px; transition: width 0.1s, left 0.1s; }
+        #green-go-line { background: #3fb950; bottom: -12px; opacity: 0.9; box-shadow: 0 0 10px #3fb950;}
+        #red-stop-line { background: #ff7b72; bottom: -22px; opacity: 0.9; box-shadow: 0 0 10px #ff7b72;}
+
+        /* ================= 儀表板 ================= */
+        #dashboard-container { flex: 1; display: flex; justify-content: center; background: radial-gradient(circle at center, #1c2128, #05080c); padding: 20px;}
+        #dashboard { width: 100%; max-width: 1400px; display: flex; justify-content: center; gap: 80px; align-items: center; position: relative; }
+        
+        .glass-panel { border: 5px solid #111; border-radius: 15px; background: #11151a; box-shadow: 0 15px 40px rgba(0,0,0,0.9), inset 0 2px 8px rgba(255,255,255,0.05); position: relative;}
+        
+        #pfd { width: 280px; height: 280px; background: #1f6feb; overflow: hidden; transition: background 0.5s; position: relative;}
+        #pfd.pfd-cloudy { background: #5c6b73; }
+        #pfd.pfd-rainy { background: #2c3e50; }
+        
+        #ground { position: absolute; width: 200%; height: 200%; background: #8b5a2b; top: 50%; left: -50%; border-top: 4px solid white; transition: transform 0.1s ease-out, background 0.5s; }
+        .pfd-cloudy #ground { background: #6d5240; border-top-color: #cbd5e1;}
+        .pfd-rainy #ground { background: #2d2621; border-top-color: #64748b;}
+        
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 60px; height: 6px; background: #ffeb3b; transform: translate(-50%, -50%); border: 1px solid black; z-index: 5; box-shadow: 0 3px 5px rgba(0,0,0,0.6);}
+
+        .tape-container { width: 160px; height: 280px; text-align: center; display: flex; flex-direction: column; justify-content: center; position: relative;}
+        .tape-value { font-size: 60px; color: #3fb950; font-weight: bold; text-shadow: 0 0 15px #3fb950; }
+        .tape-label { position: absolute; top: 15px; width: 100%; font-size: 16px; color: #8b949e; font-weight:bold; letter-spacing:1px;}
+        .target-speed { position: absolute; bottom: 15px; width: 100%; font-size: 14px; color: #ff7b72; font-weight:bold; letter-spacing:1px; line-height: 1.4;}
+
+        #eicas { display: flex; flex-direction: column; gap: 20px; width: 320px; padding: 25px; align-items: center; justify-content: center;}
+        .engine { width: 100%; display: flex; justify-content: space-between; align-items: center; background: #010409; padding: 15px 25px; border-radius: 12px; font-size: 20px; font-weight:bold; border: 2px solid #30363d; box-shadow: inset 0 0 10px rgba(255,255,255,0.02);}
+        .engine .n1 { color: #3fb950; font-size: 36px; font-variant-numeric: tabular-nums; text-shadow: 0 0 15px rgba(63, 185, 80, 0.6);}
+        .engine.fail { background: #490202; border-color: #ff7b72; animation: flash 0.3s infinite; }
+        .engine.fail .n1 { color: #ff7b72; text-shadow: 0 0 10px red;}
+        .engine.target-n1 { border-color: #e3b341; box-shadow: 0 0 25px rgba(227, 179, 65, 0.4) inset; }
+
+        /* ====== 巨型告警 ====== */
+        #central-warning-text { 
+            position: fixed; top: 35%; left: 50%; transform: translate(-50%, -50%); 
+            color: white; background: #da3633; border: 5px solid white; 
+            font-size: 40px; font-weight: bold; padding: 20px 50px; border-radius: 12px; 
+            box-shadow: 0 0 60px #ff7b72; opacity: 0; z-index: 8500; pointer-events: none; text-align: center; white-space: nowrap;
+            text-shadow: 2px 2px 8px rgba(0,0,0,0.9);
+        }
+        #central-warning-text.show { opacity: 1; animation: flashWarning 0.8s infinite alternate; }
+        @keyframes flashWarning { 0% { box-shadow: 0 0 30px #ff7b72; background: #a40e0e;} 100% { box-shadow: 0 0 80px #ff7b72; background: #da3633;} }
+
+        /* ================= 中央操作區 ================= */
+        #controls-container { background: #161b22; border-top: 5px solid #000; display: flex; flex-direction: column; align-items: center; padding: 15px 30px 25px 30px; flex: 0 0 auto;}
+        #controls { width: 100%; max-width: 1400px; display: flex; flex-direction: column; gap: 20px; }
+        
+        .throttle-row { display: flex; align-items: center; gap: 30px; }
+        .throttle-area { flex: 1; display: flex; align-items: center; height: 60px; position: relative;}
+        
+        #throttle-slider {
+            width: 100%; height: 100%; -webkit-appearance: none; outline: none; border-radius: 12px;
+            cursor: grab; border: 3px solid #30363d; box-shadow: inset 0 5px 15px rgba(0,0,0,0.9);
+            background: linear-gradient(90deg, rgba(88, 166, 255, 0.6) var(--val, 0%), transparent var(--val, 0%)), linear-gradient(90deg, #11151a var(--tz-min, 0%), #e3b341 var(--tz-min, 0%), #e3b341 var(--tz-max, 0%), #11151a var(--tz-max, 0%));
+        }
+        #throttle-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 70px; height: 80px; background: linear-gradient(145deg, #cbd5e1, #94a3b8); border-radius: 12px; border: 4px solid #111; box-shadow: 0 6px 15px rgba(0,0,0,0.9); cursor: grab;}
+        
+        #thr-label { color: #58a6ff; font-weight: bold; font-size: 26px; width: 130px; text-align: right; text-shadow: 0 0 8px rgba(88,166,255,0.6); font-variant-numeric: tabular-nums;}
+
+        #btn-toga { flex: 0 0 80px; height: 80px; border-radius: 50%; background: #1f6feb; border: 5px solid #30363d; color: white; font-weight: bold; font-size: 20px; transition: 0.3s; opacity: 0.7; box-shadow: 0 8px 20px rgba(0,0,0,0.6); letter-spacing: 1px; cursor: pointer;}
+        #btn-toga.glow-blue { animation: glowBlue 1s infinite alternate; opacity: 1; border-color: #58a6ff;}
+        @keyframes glowBlue { from { box-shadow: 0 0 15px #1f6feb; border-color: #58a6ff; } to { box-shadow: 0 0 50px #58a6ff; border-color: #ffffff; background: #3182ce;} }
+
+        .action-btns { display: flex; gap: 30px; height: 75px; }
+
+        .rto-btn { padding: 8px 15px; border-radius: 6px; border: 2px solid #30363d; background: #161b22; color: #8b949e; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 16px; }
+        .rto-btn.active { background: #3fb950; color: white; border-color: #2ea043; box-shadow: 0 0 10px rgba(63, 185, 80, 0.4); }
+        #btn-rto-off.active { background: #da3633; border-color: #ff7b72; box-shadow: 0 0 10px rgba(218, 54, 51, 0.4); }
+
+        .btn { flex: 1; border: none; border-radius: 15px; font-size: 28px; font-weight: bold; color: white; cursor: pointer; transition: 0.1s; box-shadow: 0 8px 0 #000; letter-spacing: 3px; position: relative; overflow: hidden;}
+        .btn:active { transform: translateY(8px); box-shadow: 0 0 0 #000; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: 0 5px 0 #000; filter: grayscale(0.8); background: #30363d !important; color: #8b949e; border: 2px solid #161b22 !important;}
+        #btn-abort { background: #da3633; border: 3px solid #ff7b72; box-shadow: 0 8px 0 #8b0000;}
+        #btn-pull { background: #238636; border: 3px solid #3fb950; box-shadow: 0 8px 0 #006400;}
+
+        /* ================= 固定狀態列 ================= */
+        #status-bar-container { 
+            width: 100%; max-width: 1400px; height: 60px; flex: 0 0 60px; 
+            background: #010409; border: 2px solid #58a6ff; border-radius: 8px; margin-top: 20px; 
+            display: flex; align-items: center; justify-content: center; padding: 0 20px; 
+            box-shadow: 0 0 15px rgba(88,166,255,0.3); overflow: hidden;
+        }
+        #status-bar-text { color: #c9d1d9; font-size: 16px; line-height: 1.5; font-weight: bold; width: 100%; text-align: center; transition: opacity 0.2s; opacity: 1;}
+        .sb-num { color: #7ee787; font-family: monospace; font-size: 18px; margin: 0 4px;}
+        .sb-hl { color: #ffeb3b; }
+
+        /* ================= EFB & Modals ================= */
+        .modal-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 8, 12, 0.98); z-index: 99999; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; overflow-y: auto; padding: 40px 20px;}
+        .efb-wrapper { width: 100%; max-width: 900px; display: flex; flex-direction: column; background: #161b22; border: 2px solid #30363d; border-radius: 15px; padding: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.9); margin: 0 auto; flex-shrink: 0;}
+        
+        .efb-header { border-bottom: 2px solid #30363d; padding-bottom: 20px; margin-bottom: 25px; display:flex; justify-content:space-between; align-items:center;}
+        .efb-title { font-size: 32px; font-weight: bold; color: #58a6ff; }
+        
+        .efb-card { background: #0d1117; border: 1px solid #30363d; border-radius: 10px; padding: 20px; margin-bottom: 25px; }
+        .efb-card h3 { color: #8b949e; font-size: 18px; margin-bottom: 15px; letter-spacing:1px;}
+        
+        select { width: 100%; padding: 15px; background: #161b22; color: #c9d1d9; border: 2px solid #30363d; border-radius: 8px; font-size: 18px; margin-bottom: 15px; outline:none; cursor: pointer; font-weight:bold;}
+        select:focus { border-color: #58a6ff; }
+        
+        .option-group { display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap;}
+        .opt-btn { flex: 1; min-width: 140px; padding: 15px; background: #161b22; border: 2px solid #30363d; border-radius: 8px; text-align: center; cursor: pointer; color: #8b949e; font-weight: bold; transition: 0.2s; font-size: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center;}
+        .opt-btn.active { background: rgba(88, 166, 255, 0.1); border-color: #58a6ff; color: #58a6ff; }
+        .opt-btn.disabled { opacity: 0.4; cursor: not-allowed; border-color: #30363d; background: #0d1117; color: #484f58;}
+        .opt-btn-sub { font-size: 13px; margin-top: 6px; opacity: 0.8; font-weight: normal; }
+
+        .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; font-size: 18px; }
+        .data-label { color: #8b949e; }
+        .data-value { font-weight: bold; color: #58a6ff; }
+        .weather-box { display: flex; align-items: center; gap: 20px; background: #161b22; padding: 15px 25px; border-radius: 8px; border: 1px solid #30363d; margin-bottom: 15px;}
+        .weather-icon { font-size: 40px; }
+        
+        .efb-briefing { background: rgba(227, 179, 65, 0.1); border-left: 6px solid #e3b341; padding: 20px; margin-bottom: 25px; font-size: 16px; color: #c9d1d9; line-height: 1.6; border-radius: 0 8px 8px 0;}
+        .physics-box { background: rgba(88, 166, 255, 0.05); border: 1px dashed rgba(88, 166, 255, 0.4); padding: 20px; border-radius: 8px; font-size: 15px; color: #58a6ff; margin-top: 15px; font-family: monospace; line-height: 1.8;}
+        .physics-err { color: #ff7b72; font-weight: bold; animation: pulse 1s infinite;}
+
+        #btn-sign { background: #238636; color: white; padding: 25px; font-size: 26px; font-weight: bold; border: none; border-radius: 12px; width: 100%; cursor: pointer; box-shadow: 0 8px 20px rgba(35,134,54,0.5); letter-spacing: 2px; transition: 0.2s;}
+        #btn-sign:hover { background: #2ea043; transform: scale(1.02); }
+        #btn-sign:disabled { background: #da3633; color: #fff; opacity: 0.6; cursor: not-allowed; box-shadow: none; border: 4px solid #ff7b72;}
+        
+        #btn-log, #btn-close-log, #btn-restart { background: #30363d; color: #c9d1d9; padding: 12px 25px; font-size: 18px; font-weight:bold; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s;}
+        #btn-log:hover, #btn-close-log:hover { background: #484f58; color: white;}
+        #btn-restart { background: #1f6feb; color: white; width: 100%; padding: 20px; font-size: 22px; box-shadow: 0 5px 15px rgba(31,111,235,0.5); margin-top: 20px;}
+        #btn-restart:hover { background: #3182ce; }
+
+        #log-modal, #debrief-modal { display: none; }
+        .log-entry { background: #0d1117; border: 1px solid #30363d; border-radius: 10px; padding: 20px; margin-bottom: 20px; font-size:16px; line-height:1.6;}
+        .timeline { border-left: 3px solid #58a6ff; margin-left: 15px; padding-left: 20px; margin-top: 15px; }
+        .tl-item { margin-bottom: 10px; position: relative; color: #8b949e;}
+        .tl-item::before { content: ''; position: absolute; left: -26px; top: 6px; width: 10px; height: 10px; background: #58a6ff; border-radius: 50%; }
+        
+        .stars { font-size: 40px; color: gold; margin: 25px 0; text-align: center; text-shadow: 0 0 20px rgba(255,215,0,0.6);}
+        #debrief-text { font-size: 16px; line-height: 1.8; color: #c9d1d9; margin-bottom: 35px; border-left: 6px solid #58a6ff; padding-left: 20px; }
+        .deb-section { margin-bottom: 15px; }
+        .deb-section span { color: #8b949e; font-weight: bold; display: block; margin-bottom: 5px;}
+
+        @media (max-width: 1024px) {
+            #dashboard { flex-wrap: wrap; gap: 20px;}
+            #pfd { width: 150px; height: 160px; }
+            .tape-container { width: 100px; height: 160px; }
+            .tape-value { font-size: 36px; }
+            #eicas { width: 250px; padding: 15px;}
+            .engine { font-size: 16px; padding: 10px; }
+            .engine .n1 { font-size: 26px; }
+            #throttle-slider { height: 40px; }
+            #throttle-slider::-webkit-slider-thumb { width: 60px; height: 60px; }
+            #btn-toga { flex: 0 0 70px; height: 70px; font-size: 16px; }
+            .btn { height: 70px; font-size: 20px; }
+        }
+    </style>
+</head>
+<body>
+<div id="loader">Loading Avionics DB...</div>
+<div id="lang-toggle">EN</div>
+
+<div id="app">
+    <div id="instructor-box">
+        <div id="instructor-avatar">👨‍✈️</div>
+        <div id="instructor-msg">Standing by...</div>
+    </div>
+
+    <div id="central-warning-text"></div>
+
+    <div id="hud-container">
+        <div id="hud-view" id="hud-view-target">
+            <div class="hud-text">
+                <span id="hud-apt">---</span>
+                <span id="hud-weather">---</span>
+            </div>
+            <div class="runway-track" id="runway-track">
+                <div class="runway-mark" id="rm-start" style="left: 0%;"><div class="rm-lbl">START</div><div class="rm-line"></div></div>
+                <div class="runway-mark" id="rm-end" style="left: 100%;"><div class="rm-lbl">END</div><div class="rm-line"></div></div>
+                <div class="runway-mark" id="vmcg-mark" style="left: 30%;"><div class="rm-lbl">VMCG</div><div class="rm-line"></div></div>
+                <div class="runway-mark" id="v1-mark" style="left: 45%;"><div class="rm-lbl">V1</div><div class="rm-line"></div></div>
+                <div class="runway-mark" id="vr-mark" style="left: 55%;"><div class="rm-lbl">VR</div><div class="rm-line"></div></div>
+                <div class="runway-mark" id="v2-mark" style="left: 65%;"><div class="rm-lbl">V2</div><div class="rm-line"></div></div>
+            </div>
+            <div id="plane-icon">✈️</div>
+            <div id="green-go-line"></div>
+            <div id="red-stop-line"></div>
+        </div>
+    </div>
+
+    <div id="dashboard-container">
+        <div id="dashboard">
+            <div class="tape-container glass-panel" id="ui-airspeed">
+                <div class="tape-label">IAS KTS</div>
+                <div class="tape-value" id="airspeed">0</div>
+                <div class="target-speed" id="target-v1">V1: --<br>VR: --<br>V2: --</div>
+            </div>
+            <div id="pfd" class="glass-panel"><div id="ground"></div><div id="crosshair"></div></div>
+
+            <div id="eicas" class="glass-panel">
+                <div style="color:#8b949e; font-weight:bold; letter-spacing:1px; margin-bottom: 10px; font-size:14px; width:100%; display: flex; justify-content: space-between; padding: 0 5px;">
+                    <span id="eng-title">ENGINE TYPE</span>
+                    <span id="eng-limit-bug" style="color: #e3b341;">LIM 100%</span>
+                </div>
+                <div class="engine" id="eng1">ENG 1 <div class="n1">20.0</div></div>
+                <div class="engine" id="eng2">ENG 2 <div class="n1">20.0</div></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="controls-container">
+        <div id="controls">
+            <div class="throttle-row">
+                <button id="btn-toga">TOGA</button>
+                <div class="throttle-area">
+                    <input type="range" id="throttle-slider" min="0" max="100" step="0.1" value="0">
+                </div>
+                <div id="thr-label">THR 0%</div>
+            </div>
+
+            <div id="autobrake-panel" style="width:100%; display:flex; justify-content:space-between; align-items:center; background:#0d1117; padding:10px 25px; border-radius:12px; border:2px solid #30363d;">
+                <span style="color:#8b949e; font-weight:bold; font-size:18px;" id="lbl-autobrake">BEFORE TAKEOFF: AUTOBRAKE</span>
+                <div style="display:flex; gap:15px;">
+                    <div class="rto-btn active" id="btn-rto-off">OFF</div>
+                    <div class="rto-btn" id="btn-rto-arm">RTO ARMED</div>
+                </div>
+            </div>
+            <div class="action-btns">
+                <button id="btn-abort" class="btn" disabled>ABORT</button>
+                <button id="btn-pull" class="btn" disabled>ROTATE</button>
+            </div>
+            <div id="status-bar-container">
+                <div id="status-bar-text">💡 System Ready.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- EFB -->
+    <div id="efb-modal" class="modal-bg">
+        <div class="efb-wrapper">
+            <div class="efb-header">
+                <div class="efb-title" id="t-efb-title">EFB Dispatch Release (TRE Edition)</div>
+                <button id="btn-log">Flight Log</button>
+            </div>
+            
+            <div class="efb-card">
+                <h3 id="t-apt-title">1. Airport & Weather</h3>
+                <select id="sel-airport"></select>
+                <div class="weather-box">
+                    <div class="weather-icon" id="w-icon">☀️</div>
+                    <div><div style="font-weight:bold; color:white; font-size:20px;" id="w-temp">--°C</div><div style="font-size:14px; color:#8b949e; margin-top:5px;" id="w-cond">--</div></div>
+                    <div id="btn-refresh-weather" style="margin-left: auto; cursor: pointer; font-size: 24px; color: #8b949e; transition: color 0.2s;" onmouseover="this.style.color='#58a6ff'" onmouseout="this.style.color='#8b949e'">🔄</div>
+                </div>
+                <div class="data-grid">
+                    <div><span class="data-label" id="t-rwy-len">Runway:</span> <span class="data-value" id="info-rwy">-- m</span></div>
+                    <div><span class="data-label" id="t-elev">Elevation:</span> <span class="data-value" id="info-elev">-- m</span></div>
+                </div>
+            </div>
+
+            <div class="efb-card">
+                <h3 id="t-fleet-title">2. Aircraft Fleet Selection</h3>
+                <select id="sel-fleet"></select>
+            </div>
+
+            <div class="efb-card">
+                <h3 id="t-weight-title">3. Payload & Takeoff Flaps</h3>
+                <div class="option-group" id="group-weight">
+                    <div class="opt-btn" data-val="light" id="wt-light"><span class="opt-main">Light</span><div class="opt-btn-sub" id="w-sub-l">Fast accel</div></div>
+                    <div class="opt-btn" data-val="medium" id="wt-med"><span class="opt-main">Medium</span><div class="opt-btn-sub" id="w-sub-m">Standard</div></div>
+                    <div class="opt-btn" data-val="heavy" id="wt-heavy"><span class="opt-main">Heavy (MTOW)</span><div class="opt-btn-sub" id="w-sub-h">High Brake Energy</div></div>
+                </div>
+                <select id="sel-flaps"></select>
+                <div id="flaps-info" style="color:#8b949e; font-size:14px; margin-top:-5px; margin-bottom:15px; padding: 10px; background: rgba(63, 185, 80, 0.1); border-left: 4px solid #3fb950; border-radius: 4px;"></div>
+            </div>
+
+            <div class="efb-card">
+                <h3 id="t-thrust-title">4. Takeoff Thrust Setting (Derate / FLEX)</h3>
+                <div class="option-group" id="group-thrust">
+                    <div class="opt-btn active" data-val="toga" id="th-toga"><span class="opt-main">TOGA / MAX</span><div class="opt-btn-sub" id="th-sub-t">High wear, highest VMCG</div></div>
+                    <div class="opt-btn" data-val="d1" id="th-d1"><span class="opt-main">Derate 1 (-10%)</span><div class="opt-btn-sub" id="th-sub-d1">Standard reduction</div></div>
+                    <div class="opt-btn" data-val="d2" id="th-d2"><span class="opt-main">Derate 2 (-20%)</span><div class="opt-btn-sub" id="th-sub-d2">Low VMCG, long roll</div></div>
+                </div>
+            </div>
+
+            <div class="efb-card">
+                <h3 id="t-strategy-title">5. V1 Calculation Strategy</h3>
+                <div class="option-group" id="group-strat">
+                    <div class="opt-btn" data-val="balanced" id="st-bal"><span class="opt-main">Balanced (BFL)</span><div class="opt-btn-sub" id="s-sub-b">Standard safety</div></div>
+                    <div class="opt-btn" data-val="unbalanced" id="st-unbal"><span class="opt-main">Unbalanced</span><div class="opt-btn-sub" id="s-sub-u">High V1, favors GO</div><div id="unbal-err" style="color:#ff7b72; font-size:12px; margin-top:5px; display:none;"></div></div>
+                </div>
+                <div class="data-grid" style="margin-top:15px; background: #0d1117; padding: 20px; border-radius: 8px; border: 1px solid #30363d;">
+                    <div style="font-size: 18px;"><span class="data-label" id="t-vmcg-lbl">VMCG:</span> <span class="data-value" id="info-vmcg" style="color:#e3b341; transition: 0.3s;">-- kts</span></div>
+                    <div style="font-size: 18px;"><span class="data-label" id="t-v1-lbl">V1 (Decision):</span> <span class="data-value" id="info-v1" style="color:#ff7b72;">-- kts</span></div>
+                    <div style="font-size: 18px;"><span class="data-label" id="t-vr-lbl">VR (Rotate):</span> <span class="data-value" id="info-vr" style="color:#3fb950;">-- kts</span></div>
+                    <div style="font-size: 18px;"><span class="data-label" id="t-v2-lbl">V2 (Climb):</span> <span class="data-value" id="info-v2" style="color:#58a6ff;">-- kts</span></div>
+                </div>
+            </div>
+            
+            <div class="efb-card">
+                <h3 id="t-physics-title">6. Aerodynamics & Physics</h3>
+                <div class="physics-box" id="physics-info">Loading...</div>
+            </div>
+
+            <div class="efb-briefing" id="efb-hint">Loading...</div>
+            <button id="btn-sign">SIGN RELEASE & FLY</button>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="log-modal" class="modal-bg">
+        <div class="efb-wrapper" style="max-height: none;">
+            <div class="efb-header"><div class="efb-title" id="t-log-title">Flight Log</div><button id="btn-close-log">CLOSE</button></div>
+            <button id="btn-clear-log" style="background:#da3633; color:white; padding:15px; border:none; border-radius:8px; margin-bottom:20px; width:100%; font-weight:bold; letter-spacing:1px; font-size:16px; cursor:pointer;">Clear All Records</button>
+            <div id="log-container"></div>
+        </div>
+    </div>
+
+    <div id="debrief-modal" class="modal-bg">
+        <div class="efb-wrapper">
+            <h2 id="debrief-title" style="text-align:center; color:#58a6ff; font-size:32px;">Check Airman Debriefing</h2>
+            <div class="stars" id="debrief-stars"></div>
+            <div id="debrief-text"></div>
+            <button id="btn-restart">RETURN TO DISPATCH</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    /* ================= AIRCRAFT FLEET DATABASE ================= */
+    const FLEET =[
+        { id: 'A321N', name: 'Airbus A321neo', vendor: 'Airbus', type: 'Narrow', eng: 'CFM LEAP-1A', massF: 1.2, vBase: 140, spool: 10, vmcgBase: 112, longBody: true, flaps:[{v:1, l:'CONF 1+F (Longer Run, Climb Opt)'}, {v:2, l:'CONF 2 (Standard)'}, {v:3, l:'CONF 3 (Short Field)'}] },
+        { id: 'A320N', name: 'Airbus A320neo', vendor: 'Airbus', type: 'Narrow', eng: 'PW1127G-JM', massF: 1.0, vBase: 135, spool: 11, vmcgBase: 108, longBody: false, flaps:[{v:1, l:'CONF 1+F (Standard)'}, {v:2, l:'CONF 2 (Short Field)'}] },
+        { id: 'B738M', name: 'Boeing 737 MAX 8', vendor: 'Boeing', type: 'Narrow', eng: 'CFM LEAP-1B', massF: 1.05, vBase: 138, spool: 9, vmcgBase: 110, longBody: false, flaps:[{v:1, l:'Flaps 1'}, {v:5, l:'Flaps 5 (Standard)'}, {v:15, l:'Flaps 15 (Short Field)'}] },
+        { id: 'B789',  name: 'Boeing 787-9', vendor: 'Boeing', type: 'Wide', eng: 'GEnx-1B', massF: 3.5, vBase: 148, spool: 12, vmcgBase: 118, longBody: true, flaps:[{v:5, l:'Flaps 5'}, {v:15, l:'Flaps 15 (Standard)'}, {v:20, l:'Flaps 20'}] },
+        { id: 'B738',  name: 'Boeing 737-800', vendor: 'Boeing', type: 'Narrow', eng: 'CFM56-7B', massF: 1.0, vBase: 136, spool: 7, vmcgBase: 108, longBody: false, flaps:[{v:1, l:'Flaps 1'}, {v:5, l:'Flaps 5 (Standard)'}, {v:15, l:'Flaps 15 (Short Field)'}] },
+        { id: 'A359',  name: 'Airbus A350-900', vendor: 'Airbus', type: 'Wide', eng: 'Trent XWB-84', massF: 4.0, vBase: 145, spool: 13, vmcgBase: 120, longBody: true, flaps:[{v:1, l:'CONF 1+F'}, {v:2, l:'CONF 2 (Standard)'}, {v:3, l:'CONF 3'}] },
+        { id: 'A223',  name: 'Airbus A220-300', vendor: 'Airbus', type: 'Narrow', eng: 'PW1500G', massF: 0.8, vBase: 125, spool: 10, vmcgBase: 102, longBody: false, flaps:[{v:1, l:'Flaps 1'}, {v:2, l:'Flaps 2 (Standard)'}, {v:3, l:'Flaps 3'}, {v:4, l:'Flaps 4 (Short Field)'}] },
+        { id: 'B7310', name: 'Boeing 737 MAX 10', vendor: 'Boeing', type: 'Narrow', eng: 'CFM LEAP-1B', massF: 1.15, vBase: 144, spool: 9, vmcgBase: 115, longBody: true, flaps:[{v:1, l:'Flaps 1'}, {v:5, l:'Flaps 5 (Standard)'}, {v:15, l:'Flaps 15 (Short Field)'}] },
+        { id: 'A320C', name: 'Airbus A320ceo', vendor: 'Airbus', type: 'Narrow', eng: 'IAE V2527', massF: 0.98, vBase: 135, spool: 7, vmcgBase: 108, longBody: false, flaps:[{v:1, l:'CONF 1+F (Standard)'}, {v:2, l:'CONF 2 (Short Field)'}] },
+        { id: 'B77W',  name: 'Boeing 777-300ER', vendor: 'Boeing', type: 'Wide', eng: 'GE90-115B', massF: 4.8, vBase: 155, spool: 14, vmcgBase: 132, longBody: true, flaps:[{v:5, l:'Flaps 5 (Longer Run)'}, {v:15, l:'Flaps 15 (Standard)'}, {v:20, l:'Flaps 20'}] }
+    ];
+
+    /* ================= 1. 多國語系系統 ================= */
+    let LANG = 'en'; 
+    const I18N = {
+        tw: {
+            btnSign: "簽名確認並進入駕駛艙", btnLog: "飛行紀錄",
+            btnAbort: "ABORT (放棄起飛)", btnPull: "ROTATE (拉起機頭)", btnClear: "清除所有紀錄", logTitle: "飛行紀錄簿",
+            efbTitle: "電子飛行包 (EFB) - 機隊檢定版", debTitle: "機長結算與教官講評", close: "關閉", returnDisp: "返回簽派室",
+            aptTitle: "1. 機場與氣象參數", fleetTitle: "2. 執飛機隊選擇", weightTitle: "3. 飛機載重與外型設定", 
+            thrustTitle: "4. 起飛推力設定 (Derate / FLEX)", stratTitle: "5. V-Speeds 決策演算法", physTitle: "6. 航空力學與環境分析",
+            rwyLen: "跑道長度:", elev: "機場海拔:", wet: "濕滑跑道 (WET)", dry: "乾燥跑道 (DRY)",
+            vmcgLbl: "VMCG (最小控制):", v1Lbl: "V1 (決斷速度):", vrLbl: "VR (起飛速度):", v2Lbl: "V2 (爬升速度):", btnSignFail: "推力不足 / 跑道過短 (NO-GO)",
+            optLight: "輕載", subLight: "短途，加速極快", optMed: "標準", subMed: "平均客貨量", optHeavy: "滿載 (MTOW)", subHeavy: "注意最大煞車能量",
+            optBal: "平衡場地 (BFL)", subBal: "跑道安全極大化", optUnbal: "不平衡 (高 V1)", subUnbal: "偏向帶問題升空",
+            ttUnbalDis: "⚠️ 跑道過短或濕滑，法規禁止使用高 V1 策略",
+            thToga: "TOGA / MAX", thSubT: "高損耗，最高 VMCG", thD1: "減推力 1 (-10%)", thSubD1: "標準減推力", thD2: "深度減推力 (-20%)", thSubD2: "最低 VMCG，滑跑極長",
+            physData: "💡 物理預測模型 ({acft})：\n🔹 引擎設定推力 = {thrEff}% N1 LIMIT\n🔹 加速度 (a) = {accel} kts/s\n🔹 煞車效率 = {brk} (影響 VMBE)\n🔹 VMCG = {vmcg} kts\n🔹 V2 所需跑道長度 = {reqDist} 公尺\n\n結論：{concl}",
+            physGood: "✅ 跑道長度與推力計算在安全限度內，准許放行。", physBad: "❌ 嚴重警告：推力設定過低，TODR 超過可用跑道！禁止放行！",
+            briefTitle: "👨‍✈️ 機長起飛前決策評估：",
+            briefText: "本航段由 {acft} 執飛。氣溫 {t}°C，跑道 {wea}。載重 {w}，起飛外型 {f}，推力設定 {th}。\n👉 {vDesc}\n👉 行動方針：{stratDesc}",
+            bDescVmcgAirbus: "空巴 ECAM 守則：單發失效導致推力不對稱時，若低於 VMCG ({vmcg} kts)，方向舵將失效，必須立刻放棄起飛！",
+            bDescVmcgBoeing: "波音 QRH 守則：引擎失效導致偏航時，若低於 VMCG ({vmcg} kts)，方向舵無效，絕對必須放棄起飛！",
+            bDescWet: "跑道濕滑，煞車距離大幅增加，V1 已經下調。若在 V1 前遭遇故障，務必第一時間全力煞停。",
+            bDescBal: "採用 BFL 演算法，我們將確保煞車距離與起飛距離在跑道極限內完美平衡。",
+            bDescUnbal: "採用高 V1 策略。進入高速區後，我們傾向把問題帶上天空解決。只對致命故障進行放棄起飛。",
+            bDescTempH: " (注意：高溫導致 {eng} 引擎推力嚴重衰減，滑跑距離會明顯變長。)",
+            bDescDerate: " 本次採用深度減推力起飛，好處是即使單發失效，VMCG 仍極低，偏航容易控制。但代價是加速極慢，跑道餘裕極少，V1 後絕對不能猶豫。",
+            instSpool: "請手動推油門至約 {thr}%，等待雙側 {eng} 引擎穩定轉速。",
+            instSpoolP: "等待引擎 N1 轉速穩定同步...",
+            instToga: "引擎穩定！按下「TOGA」鍵讓自動油門接管設定的起飛推力！",
+            instRollNormal: "保持中線，注意聽 PM 的測速報數。",
+            instRollFailUnk: "⚠️ 警告！機長，根據當前速度決定 GO 或 NO-GO！",
+            instRollFailCrit: "🔥 {fail}！立刻按下「ABORT」放棄起飛！",
+            instFailAft: "💥 {fail}！已過 V1！絕對不能煞車，硬撐起飛！",
+            instBrake: "全力煞車中！自動煞車 RTO 與減速板已啟動！",
+            instFly: "仰角建立！確保速度達到 V2 爬升速度再繼續拉高！",
+            debAction: "你的行動", debOutcome: "最終結果", debAnalysis: "教官分析 (TRE Analysis)", debCorrect: "標準程序 (SOP) 與航空力學",
+            // Status Bar & Tooltips
+            efbFlapsHint: "💡 襟翼(Flaps)展開越大能越早離地(適合短跑道)，但阻力大導致爬升慢；角度小則加速快爬升佳(長跑道與重載首選)。",
+            kb_hud_weather: "天氣與推力狀態。TOGA/MAX代表引擎全輸出；Derate為減推力起飛，可延長引擎壽命但會拉長滑跑距離。",
+            kb_autobrake: "Autobrake (自動煞車)。預先設定為 RTO，可在放棄起飛時第一時間給予最大煞車壓力。",
+            kb_rto_off: "OFF (關閉)。若在此狀態下放棄起飛，只能靠純手動踩踏煞車，力道衰減極易衝出跑道。",
+            kb_rto_arm: "RTO ARMED (預先武裝)。進入跑道前的強制SOP，確保遇到致命故障時飛機能在最短距離內煞停。",
+            sys_ready: "💡 系統準備就緒。將游標移至儀表或跑道標線上檢視航空物理知識。",
+            spool_countdown: "⚙️ {eng} 引擎加速中... 距離同步穩定預計還有 <span class='sb-num'>{sec}</span> 秒",
+            kb_airspeed: "指示空速 (IAS)。空巴 SOP 於 100 節、波音於 80 節進行儀表交叉檢查，為低速與高速動能區分界。",
+            kb_pfd: "姿態儀 (PFD)。{ts_warn}",
+            kb_ts_warn_y: "本機型極長，抬頭時需以平穩的 2-3 度/秒拉起，嚴防 Tailstrike (擦尾)。",
+            kb_ts_warn_n: "到達 VR 時平穩帶桿建立仰角。",
+            kb_throttle: "推力拉桿。SOP 規定推至 ~50% 等待雙發動機穩定。推力不對稱會導致嚴重偏航。",
+            kb_toga: "TOGA。自動油門接管，依據 FADEC/FMC 計算輸出目標起飛推力。",
+            kb_abort: "ABORT (放棄起飛)。觸發 RTO 自動煞車 MAX、減速板展開與最大反推力。",
+            kb_pull: "ROTATE (抬起機頭)。達到 VR 時執行，使機翼攻角增加產生升力。",
+            kb_vmcg: "VMCG (<span class='sb-num'>{d} m</span>)：若引擎在此點前失效，方向舵無力維持直線，必須放棄起飛。推力越低，此值越低。",
+            kb_v1: "V1 決斷點 (<span class='sb-num'>{d} m</span>)：超過此點後即使引擎起火也【禁止煞車】，必須升空。",
+            kb_vr: "VR 抬頭點 (<span class='sb-num'>{d} m</span>)：到達時平穩帶桿。",
+            kb_eicas: "顯示雙引擎 N1。目前推力設定值限制於 <span class='sb-num'>{n1}%</span>。",
+            kb_eng: "發動機型號：{eng}。不同型號具備完全不同的加速慣性與推重比。",
+            kb_end: "跑道終點 (<span class='sb-num'>{d} m</span>)：若 V2 預測距離超過此點，代表跑道長度不足 (NO-GO)。",
+            kb_v2_mark: "V2 爬升點 (<span class='sb-num'>{d} m</span>)：預測飛機將在此處達到 V2 安全爬升速度。必須小於跑道長度。",
+            kb_hud: "載重狀態與機場資訊。{h_warn}",
+            kb_heavy_warn: "注意極大質量帶來的煞車動能 (VMBE) 限制。",
+            // Debrief
+            debTogaE: "⚠️ <b>操作警告：</b>未等雙發動機穩定就急按 TOGA，極易造成推力不對稱偏出跑道。<br><br>",
+            dNone: "遭遇狀況時毫無反應，飛機衝出跑道墜毀。", cNone: "必須在幾秒內做出 ABORT 或 ROTATE 的決定。",
+            dRtoV1: "致命錯誤：過 V1 煞車。巨大的動能遠超剩餘跑道與煞車能量極限，高速衝出跑道引發大災難。", cRtoV1: "過 V1 後，不論發生什麼毀滅性故障都絕對不能煞車，必須強行升空。",
+            dRtoHighOk: "飛機完全正常，你卻在高速狀態重踩煞車。巨大的動能導致熱熔絲熔斷、主輪爆胎甚至起火。", cRtoHighOk: "若無致命警告，絕對不應該在高速狀態放棄起飛。",
+            dRtoHighMinor: "因為次要警告({fail})而在高速狀態(>{spd}節)放棄起飛。高速煞停產生極大熱能引發火災，嚴重違反程序。", cRtoHighMinor: "超過 {spd} 節進入高動能區。除非引擎起火/失效或失控，否則所有次要警告都必須無視，繼續起飛。",
+            dRtoGood: "完美的決斷力！V1 之前遭遇致命故障({fail})並果斷執行高速 RTO，飛機安全停下。", cRtoGood: "面對高速致命故障，V1 之前果斷煞車是唯一活路。",
+            dRtoLowOk: "低速(<{spd}節)狀態無故放棄起飛，造成航班延誤與剎車磨損。", cRtoLowOk: "低速煞車相對安全，但仍不應隨意放棄起飛。",
+            dRtoLowGood: "優異的防禦性駕駛。低速發現異常({fail})並立刻煞車，將問題扼殺在搖籃中。", cRtoLowGood: "低速(<{spd}節)時，對任何異常都應抱持零容忍態度，立刻放棄起飛。",
+            dRotEarlyLong: "致命錯誤：提早拉起機頭！速度未達 VR，因本機型極長導致嚴重 Tailstrike (擦尾) 且失速墜毀。", cRotEarlyLong: "長機身型號必須耐心等待 VR，並以每秒 2-3 度平穩建立仰角。",
+            dRotEarly: "提早拉桿！速度不到 VR，升力不足導致失速。", cRotEarly: "必須等待飛機加速至 VR 才能拉起機頭。",
+            dRotV2: "單發故障時猛拉機頭，未達 V2 安全速度，不對稱推力導致翻覆失速墜毀。", cRotV2: "單發失效時起飛，必須確保速度達到 V2 才能保證方向舵具備足夠的控制力。",
+            dGoCritLow: "致命錯誤：帶病起飛。V1 前遭遇致命故障({fail})卻強行起飛。極度危險且嚴重違規！", cGoCritLow: "V1 前的引擎失效或起火，必須立刻重踩煞車！絕對不能強行起飛。",
+            dGoMinorLow: "低速(<{spd}節)時遭遇異常({fail})卻無視並強行起飛。極度冒險。", cGoMinorLow: "低速時發現異常，標準程序是立刻放棄起飛。",
+            dGoGood: "頂尖機師的表現！遭遇狀況({fail})，完美遵守「把問題帶上天解決」的鐵律，精準加速至 V2 成功挽救全機！", cGoGood: "過 V1 的任何故障，繼續起飛 (GO) 絕對是唯一正確的選擇。",
+            dOverPerf: "性能極限墜毀。跑道長度不足以讓你單發動機加速升空。V1 之前應該果斷煞車的。", cOverPerf: "跑道長度有限時，失去推力會需要極長的距離才能升空。",
+            dOver: "衝出跑道。達到起飛速度 (VR) 卻未拉起機頭。", cOver: "飛機不會自己飛起來。",
+            dExcursionVmcg: "慘烈的跑道偏離！單發失效且速度低於 VMCG 時未立刻煞車。不對稱推力瞬間將飛機推向一側，方向舵無效，飛機衝出解體。", cExcursionVmcg: "VMCG 是死穴。低於此速度單發失效，方向舵完全無效。你【必須】立刻收油門並重踩煞車！",
+            dBrakeFire: "極高速度且滿載狀況下煞車。雖然停在跑道內，但煞車動能 (VMBE) 爆表，熱熔絲全數熔斷，起落架引發大火。", cBrakeFire: "重載客機的煞車極限非常嚴苛。高 V1 策略下我們偏向起飛，因為煞停的代價極高。",
+            log_start: "滑跑開始。VMCG={vmcg}, V1={v1}, VR={vr}, V2={v2}, 推力={th}",
+            log_thr_drop: "手動油門設定於 {thr}%",
+            log_toga_early: "🚨 TOGA 啟動 @ {kts} kts (❌ 錯誤: 雙引擎轉速未同步穩定)",
+            log_toga_good: "✅ TOGA 啟動 @ {kts} kts (✅ 正確: 雙引擎已穩定)",
+            log_toga_max: "✅ 自動油門達到目標起飛推力",
+            log_spd_check: "✅ {spd} 節速度檢查 (進入高動能區與儀表交互檢查)",
+            log_cvmcg: "✅ 通過 VMCG (方向舵取得絕對氣動控制權)",
+            log_cv1: "✅ 通過 V1 (放棄起飛的最後極限)",
+            log_cvr: "✅ 通過 VR (起飛抬頭速度)",
+            log_cv2: "✅ 通過 V2 (安全爬升速度)",
+            log_fail: "💥 狀況發生：{fail} 於 {kts} kts",
+            log_pm_adv: "PM 呼叫: {adv}",
+            log_abort: "執行 ABORT @ {kts} kts {eval}",
+            log_rotate: "執行 ROTATE @ {kts} kts {eval}",
+            eval_abt_v1: "(❌ 致命: 超過 V1 後煞車)",
+            eval_abt_high_ok: "(❌ 錯誤: 高速下無故放棄起飛)",
+            eval_abt_high_minor: "(❌ 錯誤: 因次要警告導致高風險高速放棄起飛)",
+            eval_abt_good: "(✅ 正確: V1 前遭遇致命故障)",
+            eval_abt_low: "(✅ 安全: 低速放棄起飛)",
+            eval_rot_early: "(❌ 致命: 提早於 VR 前拉機頭/擦尾)",
+            eval_rot_good: "(✅ 正確: 於 VR 或以上速度拉機頭)",
+            pm_adv_abort_low: "機長，放棄起飛！Abort, abort!",
+            pm_adv_abort_crit: "致命故障！立刻放棄起飛！",
+            pm_adv_go_minor: "次要問題，繼續起飛！Go go go!",
+            pm_adv_go_v1: "已過 V1！繼續起飛！絕對不要停!",
+            lblAutobrake: "起飛前檢查表：自動煞車 (AUTOBRAKE)",
+            dRtoNoAutobrake: "🤬 詹哥怒吼：你這什麼機長！Checklist 沒做？自動煞車沒打在 RTO，遇到狀況用腳踩到抽筋嗎！煞車效率剩下不到一半，直接衝出跑道！",
+            cRtoNoAutobrake: "進跑道前的最後一道防線：確認 Autobrake 選在 RTO。否則高速放棄起飛必定失敗。",
+            dRtoOverrun: "衝出跑道！即使你開了 RTO，但因為 V1 策略錯誤、跑道過短或過慢決定，物理極限讓你無法停下。",
+            cRtoOverrun: "這印證了「過 V1 絕對不准停」的鐵律，跑道長度是殘酷的物理現實。"
+        },
+        en: {
+            btnSign: "SIGN RELEASE & ENTER COCKPIT", btnLog: "FLIGHT LOG",
+            btnAbort: "ABORT", btnPull: "ROTATE", btnClear: "CLEAR ALL RECORDS", logTitle: "FLIGHT LOG",
+            efbTitle: "EFB Dispatch Release (TRE Edition)", debTitle: "Type Rating Examiner Debriefing", close: "CLOSE", returnDisp: "RETURN TO DISPATCH",
+            aptTitle: "1. Airport & Weather", fleetTitle: "2. Aircraft Fleet Selection", weightTitle: "3. Payload & Takeoff Config", 
+            thrustTitle: "4. Takeoff Thrust Setting (Derate / FLEX)", stratTitle: "5. V-Speeds Strategy", physTitle: "6. Aerodynamics & Physics",
+            rwyLen: "Runway:", elev: "Elevation:", wet: "WET", dry: "DRY", btnSignFail: "THRUST TOO LOW / RWY SHORT (NO-GO)",
+            vmcgLbl: "VMCG (Min Control):", v1Lbl: "V1 (Decision):", vrLbl: "VR (Rotate):", v2Lbl: "V2 (Climb):",
+            optLight: "Light", subLight: "Fast accel", optMed: "Medium", subMed: "Standard", optHeavy: "Heavy MTOW", subHeavy: "High Brake Energy risk",
+            optBal: "Balanced (BFL)", subBal: "Standard safety", optUnbal: "Unbalanced", subUnbal: "Favors GO decision",
+            ttUnbalDis: "⚠️ Short or WET runway prohibits Unbalanced V1 strategy.",
+            thToga: "TOGA / MAX", thSubT: "High wear, highest VMCG", thD1: "Derate 1 (-10%)", thSubD1: "Standard reduction", thD2: "Derate 2 (-20%)", thSubD2: "Low VMCG, long roll",
+            physData: "💡 Physics Model ({acft}):\n🔹 Target N1 Limit = {thrEff}%\n🔹 Accel (a) = {accel} kts/s\n🔹 Braking Eff = {brk} (Affects VMBE)\n🔹 VMCG = {vmcg} kts\n🔹 Predicted V2 Dist = {reqDist} m\n\nConclusion: {concl}",
+            physGood: "✅ Sufficient runway for selected thrust. Cleared for dispatch.", physBad: "❌ FATAL WARNING: Thrust setting too low, TODR exceeds Runway. NO-GO!",
+            briefTitle: "👨‍✈️ Captain's Briefing & Assessment:",
+            briefText: "Operating {acft}. Temp is {t}°C, runway is {wea}. Payload {w}, Config {f}, Thrust {th}.\n👉 {vDesc}\n👉 Action Plan: {stratDesc}",
+            bDescVmcgAirbus: "Airbus ECAM Discipline: If an engine fails below VMCG ({vmcg} kts), rudder authority is lost. You MUST abort immediately!",
+            bDescVmcgBoeing: "Boeing QRH: If asymmetric thrust occurs below VMCG ({vmcg} kts), rudder is ineffective. ABORT IMMEDIATELY!",
+            bDescWet: "Runway is WET. V1 is reduced to account for poor braking. If any failure occurs before V1, ABORT immediately.",
+            bDescBal: "Using BFL. We are perfectly balancing the stopping distance and takeoff distance.",
+            bDescUnbal: "Using High V1 strategy. After the crosscheck speed, we are GO-minded and will only abort for critical failures.",
+            bDescTempH: " (Note: High temp degrades {eng} thrust significantly, extending takeoff roll.)",
+            bDescDerate: " Utilizing Deep Derate. VMCG is extremely low, making asymmetric yaw easy to control. However, acceleration is slow and runway margin is minimal. Do not hesitate past V1.",
+            instSpool: "Advance thrust to ~{thr}% and wait for both {eng} engines to stabilize.",
+            instSpoolP: "Waiting for symmetrical engine spool up...",
+            instToga: "Engines stable! Press 'TOGA' now to engage targeted takeoff thrust!",
+            instRollNormal: "Maintain centerline. Monitor PM's callouts.",
+            instRollFailUnk: "⚠️ Warning! Captain, evaluate speed and decide GO or NO-GO!",
+            instRollFailCrit: "🔥 {fail}! Press 'ABORT' immediately!",
+            instFailAft: "💥 {fail}! Past V1! DO NOT BRAKE! Continue takeoff!",
+            instBrake: "Max braking! Auto-brake RTO & Speedbrakes deployed!", 
+            instFly: "Positive rate! Ensure reaching V2 speed for safe single-engine climb!",
+            debAction: "Your Action", debOutcome: "Outcome", debAnalysis: "TRE Analysis", debCorrect: "SOP & Aerodynamics",
+            // Status Bar & Tooltips
+            efbFlapsHint: "💡 Higher flap settings allow for shorter liftoffs (short runway) but reduce climb performance. Lower settings provide better acceleration and climb (long runway/heavy).",
+            kb_hud_weather: "Weather & Thrust status. TOGA/MAX uses maximum thrust; Derate uses reduced thrust to save engine life but requires a longer runway roll.",
+            kb_autobrake: "Autobrake. Setting it to RTO ensures maximum brake pressure is applied immediately if the takeoff is rejected.",
+            kb_rto_off: "OFF. If an abort is performed, pilots must manually brake, which is slower and less effective, severely risking an overrun.",
+            kb_rto_arm: "RTO ARMED. A mandatory SOP before lining up. Maximizes the survival rate during a high-speed abort by applying instant max braking.",
+            sys_ready: "💡 System Ready. Hover over instruments or runway markers for aviation knowledge.",
+            spool_countdown: "⚙️ {eng} engines spooling... Symmetrical stabilization in <span class='sb-num'>{sec}</span> s",
+            kb_airspeed: "Indicated Airspeed (IAS). Airbus SOP crosschecks at 100 kts, Boeing at 80 kts, marking the transition to the High-Speed Regime.",
+            kb_pfd: "PFD. {ts_warn}",
+            kb_ts_warn_y: "Long body aircraft. Requires a smooth 2-3 deg/sec rotation to avoid a catastrophic Tailstrike.",
+            kb_ts_warn_n: "Smoothly pitch up at VR to fly.",
+            kb_throttle: "Thrust Levers. Spool to ~50% to ensure symmetrical thrust. Asymmetry causes severe yaw.",
+            kb_toga: "TOGA switch. Commands Auto-Throttle to set targeted takeoff thrust limit.",
+            kb_abort: "ABORT. Triggers RTO Autobrakes MAX, Speedbrakes, and Max Reverse Thrust.",
+            kb_pull: "ROTATE. Executed at VR to increase angle of attack and generate lift.",
+            kb_vmcg: "VMCG (<span class='sb-num'>{d} m</span>): Minimum Control Speed. Lower thrust settings reduce this speed significantly.",
+            kb_v1: "V1 Mark (<span class='sb-num'>{d} m</span>): Point of no return. Brakes are essentially locked past this.",
+            kb_vr: "VR Mark (<span class='sb-num'>{d} m</span>): Smoothly pitch up to fly.",
+            kb_eicas: "Displays N1 for both engines. Target Takeoff limit is <span class='sb-num'>{n1}%</span>.",
+            kb_eng: "Engine Model: {eng}. Dictates spool-up inertia and thrust-to-weight ratio.",
+            kb_end: "Runway End (<span class='sb-num'>{d} m</span>): If predicted V2 distance exceeds this, takeoff is prohibited (NO-GO).",
+            kb_v2_mark: "V2 Mark (<span class='sb-num'>{d} m</span>): Predicted point to reach V2 safe climb speed. Must be within runway length.",
+            kb_hud: "Airport and Payload configuration. {h_warn}",
+            kb_heavy_warn: "Beware of massive kinetic energy and VMBE (Brake Energy) limits.",
+            // Debrief
+            debTogaE: "⚠️ <b>Procedure Warning:</b> You pressed TOGA before engines were stabilized. Doing this risks severe asymmetric thrust and runway excursion.<br><br>",
+            dNone: "You did absolutely nothing during a critical failure. Aircraft overran and crashed.", cNone: "You must make a definitive decision to ABORT or ROTATE within seconds.",
+            dRtoV1: "Fatal Error. You aborted past V1. The massive kinetic energy exceeded remaining runway and Brake Energy (VMBE) limits, resulting in a catastrophic overrun.", cRtoV1: "Past V1, takeoff is MANDATORY regardless of the failure severity. You must fly the aircraft.",
+            dRtoHighOk: "Executed a high-speed RTO on a perfectly good aircraft. Kinetic energy melted fuse plugs, deflated tires, and caused brake fires.", cRtoHighOk: "Never abort at high speed without a critical, catastrophic reason.",
+            dRtoHighMinor: "Aborted at high speed (>{spd}kts) for a minor warning ({fail}). High-speed aborts generate immense heat, causing severe brake fires.", cRtoHighMinor: "Above {spd} knots, you enter the High Speed Regime. IGNORE minor warnings and continue the takeoff. Only abort for critical failures.",
+            dRtoGood: "Excellent Airmanship. Identified a critical failure ({fail}) before V1 and executed a perfect high-speed RTO.", cRtoGood: "For critical failures before V1, a prompt abort is the only correct action.",
+            dRtoLowOk: "Aborted at low speed (<{spd}kts) without cause. Safe, but resulted in unnecessary delays.", cRtoLowOk: "Low speed aborts are safer, but still require justification.",
+            dRtoLowGood: "Good defensive driving. Caught an anomaly ({fail}) at low speed and aborted safely.", cRtoLowGood: "Below {spd} knots, abort for ANY system failure or unusual condition. Keep the problem on the ground.",
+            dRotEarlyLong: "Fatal: Tailstrike! Rotated too early before VR. The long fuselage struck the runway severely, and you lacked lift to fly.", cRotEarlyLong: "Long body models demand patience for VR, followed by a smooth 2-3 deg/sec rotation.",
+            dRotEarly: "Rotated too early before VR. Lacked the lift to fly.", cRotEarly: "Wait patiently for VR before rotating.",
+            dRotV2: "Pitched up aggressively before reaching V2 with an engine out. Asymmetric thrust flipped the aircraft causing a stall.", cRotV2: "When continuing with a single engine, pitch up smoothly and ensure airspeed reaches V2 to guarantee rudder authority.",
+            dGoCritLow: "Procedural Deviation. Continued takeoff with a critical failure ({fail}) before V1. Extremely dangerous and illegal.", cGoCritLow: "Critical failures before V1 MUST be aborted.",
+            dGoMinorLow: "Ignored a low-speed anomaly ({fail}) (<{spd}kts) and continued. Highly risky behavior.", cGoMinorLow: "Below {spd} knots, abort for any abnormality.",
+            dGoGood: "Top-Tier Professionalism. Took a problem ({fail}) into the air as trained, maintaining composure, and safely climbing out!", cGoGood: "Ignoring minor high-speed failures, or ANY failure past V1, is the absolute correct SOP.",
+            dOverPerf: "Performance Crash. Rotated, but ran out of runway to accelerate. Should have aborted.", cOverPerf: "Losing thrust requires massive distance. Abort before V1 if possible.",
+            dOver: "Overrun. Reached VR but failed to rotate.", cOver: "Aircraft don't fly themselves.",
+            dExcursionVmcg: "Catastrophic Runway Excursion! An engine failed below VMCG. You failed to abort. Asymmetric thrust overpowered the rudder, violently pushing the aircraft off the runway.", cExcursionVmcg: "VMCG is critical. If an engine fails below this speed, rudder cannot counteract the yaw. You MUST close the thrust levers and abort instantly.",
+            dBrakeFire: "Executed a high-speed abort while heavy. Stopped on the runway, but exceeded Maximum Brake Energy (VMBE). Fuse plugs melted, landing gear caught fire.", cBrakeFire: "Heavy aircraft have strict brake energy limits. High V1 strategies favor GO decisions because stopping costs are immense.",
+            log_start: "Start. VMCG={vmcg}, V1={v1}, VR={vr}, V2={v2}, Thrust={th}",
+            log_thr_drop: "Manual Thrust Settled @ {thr}%",
+            log_toga_early: "🚨 TOGA engaged @ {kts} kts (❌ Error: Engines not synchronized)",
+            log_toga_good: "✅ TOGA engaged @ {kts} kts (✅ Correct: Engines stabilized)",
+            log_toga_max: "✅ Auto-Throttle reached Target Takeoff Thrust",
+            log_spd_check: "✅ {spd} knots crosscheck (Instrument check & entering High-Speed Regime)",
+            log_c80: "✅ 80 knots crosscheck (Entering High-Speed Regime)", // Legacy fallback
+            log_cvmcg: "✅ Passed VMCG (Rudder aerodynamic authority achieved)",
+            log_cv1: "✅ Passed V1 (Decision Speed - Final abort limit)",
+            log_cvr: "✅ Passed VR (Rotation Speed)",
+            log_cv2: "✅ Passed V2 (Safe Climb Speed)",
+            log_fail: "💥 {fail} triggered at {kts} kts",
+            log_pm_adv: "PM Advised: {adv}",
+            log_abort: "ABORT executed @ {kts} kts {eval}",
+            log_rotate: "ROTATE executed @ {kts} kts {eval}",
+            eval_abt_v1: "(❌ Fatal: Aborted after V1)",
+            eval_abt_high_ok: "(❌ Incorrect: Unjustified high-speed RTO)",
+            eval_abt_high_minor: "(❌ Incorrect: High-speed abort for minor issue causing massive brake heating)",
+            eval_abt_good: "(✅ Correct: Critical failure before V1)",
+            eval_abt_low: "(✅ Safe: Low-speed abort)",
+            eval_rot_early: "(❌ Fatal: Rotated too early before VR - Tailstrike risk)",
+            eval_rot_good: "(✅ Correct: Rotated at or above VR)",
+            pm_adv_abort_low: "Captain, reject takeoff! Abort, abort!",
+            pm_adv_abort_crit: "Critical failure! Abort immediately!",
+            pm_adv_go_minor: "Minor issue, continue takeoff! Go go go!",
+            pm_adv_go_v1: "V1 passed! Continue takeoff! Do not stop!",
+            lblAutobrake: "BEFORE TAKEOFF: AUTOBRAKE",
+            dRtoNoAutobrake: "🤬 Examiner: Did you even run the Before Takeoff Checklist?! You failed to arm Autobrake to RTO. Manual braking response is too slow and weak. You overran the runway!",
+            cRtoNoAutobrake: "Always arm Autobrake to RTO before takeoff. It applies immediate max brake pressure during an abort.",
+            dRtoOverrun: "Runway Overrun! Despite arming RTO, the physical limits (wet runway, late abort, or high V1) meant you couldn't stop.",
+            cRtoOverrun: "This is exactly why we never abort past V1. The physical runway margin does not exist."
+        }
+    };
+
+    function T(key, rep = {}) { 
+        let s = I18N[LANG][key] || I18N['en'][key] || key; 
+        for (let k in rep) { s = s.split(`{${k}}`).join(String(rep[k])); }
+        return s; 
+    }
+
+    // 防彈 DOM 文字替換函式
+    function setBtnText(id, text) {
+        try {
+            let el = document.querySelector(`#${id} .opt-main`);
+            if (el) el.innerText = text;
+        } catch(e) { console.error('I18N Error on', id, e); }
+    }
+
+    function applyTranslations() {
+        document.getElementById('lbl-autobrake').innerText = T('lblAutobrake');
+        document.getElementById('btn-log').innerText = T('btnLog');
+        document.getElementById('btn-sign').innerText = T('btnSign');
+        document.getElementById('btn-clear-log').innerText = T('btnClear');
+        document.getElementById('btn-close-log').innerText = T('close');
+        document.getElementById('btn-restart').innerText = T('returnDisp');
+        document.getElementById('t-efb-title').innerText = T('efbTitle');
+        document.getElementById('t-log-title').innerText = T('logTitle');
+        document.getElementById('debrief-title').innerText = T('debTitle');
+        document.getElementById('t-apt-title').innerText = T('aptTitle');
+        document.getElementById('t-fleet-title').innerText = T('fleetTitle');
+        document.getElementById('t-weight-title').innerText = T('weightTitle');
+        document.getElementById('t-thrust-title').innerText = T('thrustTitle');
+        document.getElementById('t-strategy-title').innerText = T('stratTitle');
+        document.getElementById('t-physics-title').innerText = T('physTitle');
+        
+        document.getElementById('t-rwy-len').innerText = T('rwyLen');
+        document.getElementById('t-elev').innerText = T('elev');
+        document.getElementById('t-vmcg-lbl').innerText = T('vmcgLbl');
+        document.getElementById('t-v1-lbl').innerText = T('v1Lbl');
+        document.getElementById('t-vr-lbl').innerText = T('vrLbl');
+        document.getElementById('t-v2-lbl').innerText = T('v2Lbl');
+        
+        setBtnText('wt-light', T('optLight')); document.getElementById('w-sub-l').innerText = T('subLight');
+        setBtnText('wt-med', T('optMed')); document.getElementById('w-sub-m').innerText = T('subMed');
+        setBtnText('wt-heavy', T('optHeavy')); document.getElementById('w-sub-h').innerText = T('subHeavy');
+        
+        setBtnText('th-toga', T('thToga')); document.getElementById('th-sub-t').innerText = T('thSubT');
+        setBtnText('th-d1', T('thD1')); document.getElementById('th-sub-d1').innerText = T('thSubD1');
+        setBtnText('th-d2', T('thD2')); document.getElementById('th-sub-d2').innerText = T('thSubD2');
+
+        setBtnText('st-bal', T('optBal')); document.getElementById('s-sub-b').innerText = T('subBal');
+        setBtnText('st-unbal', T('optUnbal')); document.getElementById('s-sub-u').innerText = T('subUnbal');
+        document.getElementById('unbal-err').innerText = T('ttUnbalDis');
+        
+        if (document.getElementById('flaps-info')) document.getElementById('flaps-info').innerText = T('efbFlapsHint');
+
+        let selApt = document.getElementById('sel-airport');
+        let selAptVal = selApt.value;
+        selApt.innerHTML = AIRPORTS.map((a, i) => `<option value="${i}">${LANG === 'tw' ? a.name_tw : a.name_en}</option>`).join('');
+        selApt.value = selAptVal;
+    }
+
+    /* ================= 2. 動態知識庫 ================= */
+    let precomputedDistances = { vmcg: 0, v1: 0, vr: 0, v2: 0 };
+    let hoveredElement = null; 
+    let currentThrustFactor = 1.0;
+    
+    function getKnowledgeText(id) {
+        if (id === 'ui-airspeed') return T('kb_airspeed');
+        if (id === 'pfd') return T('kb_pfd', { ts_warn: currentAcft.longBody ? T('kb_ts_warn_y') : T('kb_ts_warn_n') });
+        if (id === 'throttle-slider') return T('kb_throttle');
+        if (id === 'btn-toga') return T('kb_toga');
+        if (id === 'btn-abort') return T('kb_abort');
+        if (id === 'btn-pull') return T('kb_pull');
+        if (id === 'vmcg-mark') return T('kb_vmcg', { d: precomputedDistances.vmcg });
+        if (id === 'v1-mark') return T('kb_v1', { d: precomputedDistances.v1 });
+        if (id === 'vr-mark') return T('kb_vr', { d: precomputedDistances.vr });
+        if (id === 'v2-mark') return T('kb_v2_mark', { d: precomputedDistances.v2 });
+        if (id === 'rm-end') return T('kb_end', { d: currentApt.rwy });
+        if (id === 'eng-title') return T('kb_eng', { eng: currentAcft.eng });
+        if (id === 'eicas') return T('kb_eicas', { n1: (maxTakeoffN1 * Math.sqrt(currentThrustFactor)).toFixed(1) });
+        if (id === 'hud-apt') return T('kb_hud', { h_warn: currentWeight === 'heavy' ? T('kb_heavy_warn') : '' });
+        if (id === 'hud-weather') return T('kb_hud_weather');
+        if (id === 'lbl-autobrake') return T('kb_autobrake');
+        if (id === 'btn-rto-off') return T('kb_rto_off');
+        if (id === 'btn-rto-arm') return T('kb_rto_arm');
+        return "";
+    }
+
+    function setupStatusTooltips() {
+        const triggerElements =['ui-airspeed', 'pfd', 'eicas', 'throttle-slider', 'btn-toga', 'btn-abort', 'btn-pull', 'vmcg-mark', 'v1-mark', 'vr-mark', 'v2-mark', 'rm-end', 'eng-title', 'hud-apt', 'hud-weather', 'lbl-autobrake', 'btn-rto-off', 'btn-rto-arm'];
+        triggerElements.forEach(id => {
+            let el = document.getElementById(id);
+            if(!el) return;
+            el.addEventListener('mouseenter', () => hoveredElement = id );
+            el.addEventListener('mouseleave', () => { if(hoveredElement === id) hoveredElement = null; });
+        });
+    }
+
+    /* ================= 語言與語音 ================= */
+    document.getElementById('lang-toggle').addEventListener('click', () => {
+        LANG = (LANG === 'tw') ? 'en' : 'tw';
+        document.getElementById('lang-toggle').innerText = (LANG === 'tw') ? 'EN' : 'ZH';
+        applyTranslations();
+        if (currentApt && currentAcft) updateEFBData();
+        renderLogs(); 
+        updateInstructor();
+        if(document.getElementById('debrief-modal').style.display === 'flex' && flightLogs.length > 0) generateDebriefHTML(flightLogs[flightLogs.length - 1]);
+    });
+
+    const AviationVoice = {
+        synth: window.speechSynthesis,
+        speak(text, role) {
+            try {
+                if (!this.synth || !text) return;
+                this.synth.cancel(); 
+                let u = new SpeechSynthesisUtterance(text);
+                u.lang = 'en-US'; 
+                if (role === 'pm') { u.rate = 1.35; u.pitch = 1.1; } 
+                else if (role === 'atc') { u.rate = 1.4; u.pitch = 0.8; } 
+                else if (role === 'inst') { u.rate = 1.15; u.pitch = 0.95; }
+                else { u.rate = 1.1; u.pitch = 1.0; }
+                this.synth.speak(u);
+            } catch (e) {}
+        }
+    };
+
+    /* ================= 3. 動態劇本庫 (Fleet Specific) ================= */
+    const AIRPORTS =[
+        { icao: 'RCTP', name_tw: '桃園 (TPE)', name_en: 'Taoyuan (TPE)', rwy: 3800, elev: 33, tempRange:[15, 35], rainProb: 0.4 },
+        { icao: 'RJTT', name_tw: '羽田 (HND)', name_en: 'Haneda (HND)', rwy: 3360, elev: 11, tempRange:[5, 30], rainProb: 0.3 },
+        { icao: 'EGLC', name_tw: '倫敦城市 (LCY) - EXTREME', name_en: 'London City (LCY) - EXTREME', rwy: 1508, elev: 5, tempRange:[0, 25], rainProb: 0.7 },
+        { icao: 'OMDB', name_tw: '杜拜 (DXB)', name_en: 'Dubai (DXB)', rwy: 4447, elev: 19, tempRange:[25, 45], rainProb: 0.05 },
+        { icao: 'KDEN', name_tw: '丹佛 (DEN) - HIGH ALT', name_en: 'Denver (DEN) - HIGH ALT', rwy: 4877, elev: 1650, tempRange:[-10, 30], rainProb: 0.2 }
+    ];
+    const WEIGHT_MODIFIERS = { 'light': { m: 0.75, v: -10 }, 'medium': { m: 1.0, v: 0 }, 'heavy': { m: 1.25, v: 12 } };
+    const METER_PER_KNOT = 0.51444;
+
+    const BASE_SCENARIOS =[
+        { id:1, tag:'UNI', en:'Cargo Shift Detected (Nose Pitch Up)', tw:'貨物重心嚴重後移警告', rule:'CRITICAL' },
+        { id:2, tag:'UNI', en:'Tiller/Nosewheel Steering Uncommanded Input', tw:'手輪/鼻輪轉向異常輸入', rule:'CRITICAL' },
+        { id:3, tag:'UNI', en:'Predictive Windshear Ahead', tw:'預測性風切警告', rule:'CRITICAL' },
+        { id:4, tag:'UNI', en:'Aft Cargo Fire', tw:'後貨艙起火', rule:'CRITICAL' },
+        { id:5, tag:'UNI', en:'Airspeed Unreliable', tw:'空速表異常 (空速不可靠)', rule:'CRITICAL' },
+        { id:6, tag:'UNI', en:'ATC: Cancel Takeoff Clearance!', tw:'塔台：立刻取消起飛許可！', rule:'ABORT_ALWAYS' },
+        { id:7, tag:'UNI', en:'Left Main Gear Tire Blowout', tw:'左主起落架爆胎', rule:'MINOR' },
+        { id:8, tag:'UNI', en:'Passenger Medical Emergency', tw:'客艙通報醫療緊急狀況', rule:'MINOR' },
+        { id:9, tag:'UNI', en:'Bird Strike (Radome)', tw:'雷達罩鳥擊 (無引擎損傷)', rule:'MINOR' },
+        { id:10, tag:'BOEING', en:'EICAS: Engine Severe Damage', tw:'單側引擎嚴重損壞 (推力喪失)', rule:'VMCG_FAIL' },
+        { id:11, tag:'BOEING', en:'EICAS: Engine Fire Warning', tw:'單側引擎起火', rule:'VMCG_FAIL' },
+        { id:12, tag:'BOEING', en:'Takeoff Configuration Warning', tw:'起飛外型警告 (配平或襟翼錯誤)', rule:'ABORT_ALWAYS' },
+        { id:13, tag:'AIRBUS', en:'ECAM: ENG FAIL', tw:'單側引擎失效 (推力喪失)', rule:'VMCG_FAIL' },
+        { id:14, tag:'AIRBUS', en:'ECAM: ENG FIRE', tw:'單側引擎起火', rule:'VMCG_FAIL' },
+        { id:15, tag:'AIRBUS', en:'ECAM: F/CTL ALTN LAW (PROT LOST)', tw:'線傳飛控降級 (失去保護)', rule:'CRITICAL' },
+        { id:16, tag:'MAX', en:'MCAS / STAB TRIM RUNAWAY', tw:'MCAS / 安定面配平失控', rule:'CRITICAL' },
+        { id:17, tag:'B77W', en:'GE90 Compressor Stall', tw:'GE90 壓縮機嚴重失速 (極大偏航)', rule:'VMCG_FAIL' },
+        { id:18, tag:'LONG', en:'Takeoff Config: Tailstrike Warning', tw:'防擦尾系統警告', rule:'CRITICAL' }
+    ];
+
+    function getFleetScenarios(acft) {
+        let pool =[];
+        BASE_SCENARIOS.forEach(s => {
+            if (s.tag === 'UNI') pool.push(s);
+            else if (s.tag === 'BOEING' && acft.vendor === 'Boeing') pool.push(s);
+            else if (s.tag === 'AIRBUS' && acft.vendor === 'Airbus') pool.push(s);
+            else if (s.tag === 'MAX' && acft.name.includes('MAX')) pool.push(s);
+            else if (s.tag === 'B77W' && acft.id === 'B77W') pool.push(s);
+            else if (s.tag === 'LONG' && acft.longBody) pool.push(s);
+        });
+        let finalPool =[];
+        for(let i=0; i<100; i++) { finalPool.push(pool[Math.floor(Math.random() * pool.length)]); }
+        return finalPool;
+    }
+    
+    let currentApt, currentAcft, currentWeight = 'medium', v1Strategy = 'balanced', flapsConfig = 0, currentThrust = 'toga';
+    let currentScenarios =[];
+    let weather = { temp: 20, isWet: false };
+    let VMCG = 110, V1, VR, V2, RUNWAY_LENGTH, targetSpoolN1 = 50, maxTakeoffN1 = 100, targetDerateN1 = 100;
+    
+    let speedKnots = 0, distanceMeters = 0, pitchAngle = 0;
+    let actualThrottle = 0, currentN1 = 20; 
+    let autoTogaActive = false, state = 'idle', rtoArmed = false;
+    let lastTime = 0, simStartTime = 0;
+    
+    let airDensityFactor = 1.0, accelBase = 0, brakeDecel = -10;
+    let scenario = { active: null, speedKnots: 0, triggered: false, handled: false };
+    let metrics = { actionTaken: 'none', speedAtAction: 0, offRunwaySpeed: 0, togaEarly: false, vmcgExcursion: false };
+    let flags = { stableAnnounced: false, togaMaxLogged: false };
+    
+    let flightLogs =[];
+    try { flightLogs = JSON.parse(localStorage.getItem('fleet_logs_final')) ||[]; } catch(e){}
+    let currentTimeline =[];
+
+    /* ================= 6. EFB (Try-Catch Safenet) ================= */
+    const uiAirspeed = document.getElementById('airspeed');
+    const uiThrottle = document.getElementById('throttle-slider');
+    const uiN1s = document.querySelectorAll('.n1');
+    const uiEngines = document.querySelectorAll('.engine');
+    const btnToga = document.getElementById('btn-toga');
+    const btnAbort = document.getElementById('btn-abort');
+    const btnPull = document.getElementById('btn-pull');
+    const instMsg = document.getElementById('instructor-msg');
+    const instBox = document.getElementById('instructor-box');
+    const btnSign = document.getElementById('btn-sign');
+
+    document.getElementById('btn-rto-off').addEventListener('click', () => { if(state !== 'idle') return; rtoArmed = false; document.getElementById('btn-rto-off').classList.add('active'); document.getElementById('btn-rto-arm').classList.remove('active'); });
+    document.getElementById('btn-rto-arm').addEventListener('click', () => { if(state !== 'idle') return; rtoArmed = true; document.getElementById('btn-rto-arm').classList.add('active'); document.getElementById('btn-rto-off').classList.remove('active'); });
+
+    function initApp() {
+        try {
+            applyTranslations();
+            setupStatusTooltips();
+            initEFB();
+            document.getElementById('loader').style.display = 'none';
+            document.getElementById('app').style.opacity = '1';
+        } catch (error) {
+            console.error("Initialization Crash Prevented:", error);
+            document.getElementById('loader').style.display = 'none';
+            document.getElementById('app').style.opacity = '1';
+        }
+    }
+
+    function randomizeWeather() {
+        let aptIdx = parseInt(document.getElementById('sel-airport').value) || 0;
+        let apt = AIRPORTS[aptIdx] || AIRPORTS[0];
+        weather.temp = Math.floor(Math.random() * (apt.tempRange[1] - apt.tempRange[0] + 1)) + apt.tempRange[0];
+        weather.isWet = Math.random() < apt.rainProb;
+    }
+
+    function initEFB() {
+        const selApt = document.getElementById('sel-airport');
+        selApt.innerHTML = AIRPORTS.map((a, i) => `<option value="${i}">${LANG === 'tw' ? a.name_tw : a.name_en}</option>`).join('');
+        selApt.addEventListener('change', () => { randomizeWeather(); updateEFBData(); });
+
+        document.getElementById('btn-refresh-weather').addEventListener('click', () => { randomizeWeather(); updateEFBData(); });
+
+        const selFleet = document.getElementById('sel-fleet');
+        selFleet.innerHTML = FLEET.map((f, i) => `<option value="${i}">${f.name} (${f.eng})</option>`).join('');
+        selFleet.value = "0";
+        selFleet.addEventListener('change', () => { updateEFBData(true); });
+
+        document.getElementById('sel-flaps').addEventListener('change', (e) => { flapsConfig = parseInt(e.target.value); updateEFBData(); });
+        
+        document.querySelectorAll('#group-weight .opt-btn').forEach(btn => { btn.addEventListener('click', () => { currentWeight = btn.dataset.val; updateEFBData(); }); });
+        document.querySelectorAll('#group-thrust .opt-btn').forEach(btn => { btn.addEventListener('click', () => { currentThrust = btn.dataset.val; updateEFBData(); }); });
+        document.querySelectorAll('#group-strat .opt-btn').forEach(btn => { btn.addEventListener('click', () => { if(!btn.classList.contains('disabled')) { v1Strategy = btn.dataset.val; updateEFBData(); } }); });
+        
+        randomizeWeather();
+        updateEFBData(true);
+    }
+
+    function updateEFBData(fleetChanged = false) {
+        let aptIdx = parseInt(document.getElementById('sel-airport').value) || 0;
+        currentApt = AIRPORTS[aptIdx];
+        let fleetIdx = parseInt(document.getElementById('sel-fleet').value) || 0;
+        currentAcft = FLEET[fleetIdx];
+        currentScenarios = getFleetScenarios(currentAcft);
+
+        if(fleetChanged) {
+            const selFlaps = document.getElementById('sel-flaps');
+            selFlaps.innerHTML = currentAcft.flaps.map(f => `<option value="${f.v}">${f.l}</option>`).join('');
+            flapsConfig = currentAcft.flaps[1] ? currentAcft.flaps[1].v : currentAcft.flaps[0].v;
+            selFlaps.value = flapsConfig;
+        }
+
+        document.getElementById('eng-title').innerText = currentAcft.eng;
+
+        document.querySelectorAll('#group-weight .opt-btn').forEach(b => { b.classList.toggle('active', b.dataset.val === currentWeight); });
+        document.querySelectorAll('#group-thrust .opt-btn').forEach(b => { b.classList.toggle('active', b.dataset.val === currentThrust); });
+        
+        let canUnbal = currentApt.rwy >= 3500 && !weather.isWet;
+        let btnUnbal = document.getElementById('st-unbal');
+        if(!canUnbal) { btnUnbal.classList.add('disabled'); document.getElementById('unbal-err').style.display = 'block'; v1Strategy = 'balanced'; } 
+        else { btnUnbal.classList.remove('disabled'); document.getElementById('unbal-err').style.display = 'none'; }
+        document.querySelectorAll('#group-strat .opt-btn').forEach(b => { b.classList.toggle('active', b.dataset.val === v1Strategy); });
+
+        document.getElementById('w-icon').innerText = weather.isWet ? '🌧️' : (weather.temp > 30 ? '🔥' : '☀️');
+        document.getElementById('w-temp').innerText = `${weather.temp}°C`;
+        document.getElementById('w-cond').innerText = weather.isWet ? T('wet') : T('dry');
+        document.getElementById('runway-track').className = weather.isWet ? 'runway-track wet' : 'runway-track';
+        document.getElementById('info-rwy').innerText = `${currentApt.rwy} m`;
+        document.getElementById('info-elev').innerText = `${currentApt.elev} m`;
+
+        maxTakeoffN1 = (weather.temp > 30) ? 94 : (weather.temp < 10 ? 104 : 100); 
+        targetSpoolN1 = 50; 
+        
+        currentThrustFactor = (currentThrust === 'd2') ? 0.80 : ((currentThrust === 'd1') ? 0.90 : 1.0);
+        targetDerateN1 = maxTakeoffN1 * Math.sqrt(currentThrustFactor);
+        document.getElementById('eng-limit-bug').innerText = `LIM ${targetDerateN1.toFixed(1)}%`;
+
+        let elevFactor = 1 + (currentApt.elev / 1000) * 0.05;
+        let tempFactor = 1 + ((weather.temp - 15) / 100) * 0.03;
+        let wData = WEIGHT_MODIFIERS[currentWeight];
+        
+        VMCG = Math.floor(currentAcft.vmcgBase * elevFactor * Math.sqrt(currentThrustFactor));
+        
+        let baseVR = Math.floor((currentAcft.vBase + wData.v) * elevFactor * tempFactor);
+        if (flapsConfig < 5 && currentAcft.vendor === 'Boeing') baseVR += 6; 
+        else if (flapsConfig === 1 && currentAcft.vendor === 'Airbus') baseVR += 6;
+
+        VR = baseVR;
+        V1 = (v1Strategy === 'unbalanced') ? VR - 2 : VR - 8;
+        if (weather.isWet) V1 -= 10;
+        V1 = Math.max(VMCG, V1); 
+        V2 = VR + 14;
+
+        let tempK = 273.15 + weather.temp;
+        let adf = (288.15 / tempK) * Math.exp(-currentApt.elev / 8000); 
+        let expectedAccel = ((4.0 * adf) / (currentAcft.massF * wData.m)) * currentThrustFactor; 
+        
+        let simSpeed = 0, simDist = 0;
+        precomputedDistances = { vmcg: 0, v1: 0, vr: 0, v2: 0 };
+        
+        while(simSpeed < V2 && simDist < 20000) {
+            let acc = expectedAccel - (simSpeed * 0.005); 
+            if(acc <= 0) break;
+            simSpeed += acc * 0.1; simDist += (simSpeed * METER_PER_KNOT) * 0.1;
+            if(simSpeed >= VMCG && precomputedDistances.vmcg === 0) precomputedDistances.vmcg = Math.floor(simDist);
+            if(simSpeed >= V1 && precomputedDistances.v1 === 0) precomputedDistances.v1 = Math.floor(simDist);
+            if(simSpeed >= VR && precomputedDistances.vr === 0) precomputedDistances.vr = Math.floor(simDist);
+        }
+        precomputedDistances.v2 = Math.floor(simDist * 1.15); 
+
+        let isSafe = precomputedDistances.v2 < (currentApt.rwy * 0.95) && precomputedDistances.v2 > 0;
+        let physConcl = isSafe ? T('physGood') : T('physBad');
+        
+        let physInfo = document.getElementById('physics-info');
+        physInfo.innerText = T('physData', { acft: currentAcft.name, thrEff: targetDerateN1.toFixed(1), accel: expectedAccel.toFixed(2), brk: weather.isWet?"0.65":"1.00", vmcg: VMCG, reqDist: precomputedDistances.v2, concl: "" });
+        
+        let conclSpan = document.createElement('span'); conclSpan.innerText = physConcl;
+        if(!isSafe) conclSpan.className = 'physics-err';
+        physInfo.appendChild(document.createElement('br')); physInfo.appendChild(conclSpan);
+
+        btnSign.disabled = !isSafe;
+        btnSign.innerText = isSafe ? T('btnSign') : T('btnSignFail');
+
+        document.getElementById('info-vmcg').innerText = `${VMCG} kts`;
+        document.getElementById('info-v1').innerText = `${V1} kts`;
+        document.getElementById('info-vr').innerText = `${VR} kts`;
+        document.getElementById('info-v2').innerText = `${V2} kts`;
+
+        let brief = `<b>${T('briefTitle')}</b><br><br>`;
+        let crosscheckSpd = currentAcft.vendor === 'Airbus' ? 100 : 80;
+        let stratDesc = weather.isWet ? T('bDescWet') : (v1Strategy === 'balanced' ? T('bDescBal') : T('bDescUnbal', {spd: crosscheckSpd}));
+        if(weather.temp > 30) stratDesc += T('bDescTempH', {eng: currentAcft.eng});
+        if(currentThrust === 'd2') stratDesc += T('bDescDerate');
+        
+        let flapLabel = currentAcft.flaps.find(f => f.v === flapsConfig)?.l || flapsConfig;
+        let thLabel = currentThrust === 'd2' ? 'Derate 2 (-20%)' : (currentThrust === 'd1' ? 'Derate 1 (-10%)' : 'TOGA/MAX');
+        let vDesc = currentAcft.vendor === 'Airbus' ? T('bDescVmcgAirbus', {vmcg: VMCG}) : T('bDescVmcgBoeing', {vmcg: VMCG});
+
+        brief += T('briefText', { apt: LANG==='tw'?currentApt.name_tw:currentApt.name_en, t: weather.temp, wea: weather.isWet?T('wet'):T('dry'), w: currentWeight.toUpperCase(), f: flapLabel, th: thLabel, acft: currentAcft.name, vDesc: vDesc, stratDesc: stratDesc });
+        document.getElementById('efb-hint').innerHTML = brief.replace(/\n/g, "<br>");
+
+        let selFleet = document.getElementById('sel-fleet');
+        let selFleetVal = selFleet.value;
+        selFleet.innerHTML = FLEET.map((f, i) => {
+            let eF = 1 + (currentApt.elev / 1000) * 0.05;
+            let tF = 1 + ((weather.temp - 15) / 100) * 0.03;
+            let tK = 273.15 + weather.temp;
+            let aD = (288.15 / tK) * Math.exp(-currentApt.elev / 8000); 
+            let simAccel = ((4.0 * aD) / (f.massF * wData.m)) * currentThrustFactor; 
+            let simVR = Math.floor((f.vBase + wData.v) * eF * tF) + 6; 
+            let simV2 = simVR + 14;
+            
+            let sSpeed = 0, sDist = 0;
+            while(sSpeed < simV2 && sDist < 20000) {
+                let acc = simAccel - (sSpeed * 0.005); 
+                if(acc <= 0) break;
+                sSpeed += acc * 0.5; 
+                sDist += (sSpeed * METER_PER_KNOT) * 0.5;
+            }
+            let reqDist = Math.floor(sDist * 1.15);
+            let isGo = reqDist < (currentApt.rwy * 0.95) && reqDist > 0;
+            return `<option value="${i}">${f.name} (${f.eng}) ${isGo ? '🟢' : '🔴'}</option>`;
+        }).join('');
+        selFleet.value = selFleetVal; 
+    }
+
+    /* ================= 7. 資料驅動日誌系統 ================= */
+    function logEvent(key, args = {}) { 
+        let elapsed = Math.floor((performance.now() - simStartTime) / 1000); 
+        currentTimeline.push({ t: elapsed, key: key, args: args }); 
+    }
+
+    function renderLogs() {
+        let html = '';[...flightLogs].reverse().forEach(log => {
+            let sc = BASE_SCENARIOS.find(s => s.id === log.scenarioId);
+            let fName = sc ? (LANG === 'tw' ? sc.tw : sc.en) : "Unknown Scenario";
+            let spd = log.acftVendor === 'Airbus' ? 100 : 80;
+            let ctx = {fail: fName, spd: spd};
+            
+            let analysis = "", correct = "";
+            if (log.togaEarly) analysis += T('debTogaE');
+            
+            if (log.action === 'none') { analysis += T('dNone'); correct = T('cNone'); }
+            else if (log.action === 'excursion_vmcg') { analysis += T('dExcursionVmcg'); correct = T('cExcursionVmcg'); }
+            else if (log.result === 'brake_fire') { analysis += T('dBrakeFire'); correct = T('cBrakeFire'); }
+            else if (log.result === 'rto_v1') { analysis += T('dRtoV1'); correct = T('cRtoV1'); }
+            else if (log.result === 'rto_high_ok') { analysis += T('dRtoHighOk'); correct = T('cRtoHighOk'); }
+            else if (log.result === 'rto_high_minor') { analysis += T('dRtoHighMinor', ctx); correct = T('cRtoHighMinor', ctx); }
+            else if (log.result === 'rto_good') { analysis += T('dRtoGood', ctx); correct = T('cRtoGood', ctx); }
+            else if (log.result === 'rto_low_ok') { analysis += T('dRtoLowOk', ctx); correct = T('cRtoLowOk', ctx); }
+            else if (log.result === 'rto_low_good') { analysis += T('dRtoLowGood', ctx); correct = T('cRtoLowGood', ctx); }
+            else if (log.result === 'rot_early') { analysis += log.longBody ? T('dRotEarlyLong') : T('dRotEarly'); correct = log.longBody ? T('cRotEarlyLong') : T('cRotEarly'); }
+            else if (log.result === 'rot_v2') { analysis += T('dRotV2'); correct = T('cRotV2'); }
+            else if (log.result === 'go_crit_low') { analysis += T('dGoCritLow', ctx); correct = T('cGoCritLow', ctx); }
+            else if (log.result === 'go_minor_low') { analysis += T('dGoMinorLow', ctx); correct = T('cGoMinorLow', ctx); }
+            else if (log.result === 'go_good') { analysis += T('dGoGood', ctx); correct = T('cGoGood', ctx); }
+            else if (log.result === 'over_perf') { analysis += T('dOverPerf'); correct = T('cOverPerf'); }
+            else if (log.result === 'rto_no_autobrake') { analysis += T('dRtoNoAutobrake'); correct = T('cRtoNoAutobrake'); }
+            else if (log.result === 'rto_overrun') { analysis += T('dRtoOverrun'); correct = T('cRtoOverrun'); }
+            else { analysis += T('dOver'); correct = T('cOver'); }
+
+            let outColor = log.outcome.includes('SUCCESS') ? '#3fb950' : '#ff7b72';
+            let flapObj = FLEET.find(f => f.id === log.acftId)?.flaps.find(f => f.v === log.flaps);
+            let flapStr = flapObj ? flapObj.l : log.flaps;
+
+            html += `<div class="log-entry"><b>${log.date}</b> | ${log.acftName} | ${log.apt} | ${log.wt} | ${flapStr}<br><b>Scenario:</b> <span style="color:#e3b341">${fName}</span><br><b>Outcome:</b> <span style="color:${outColor}; font-weight:bold;">${log.outcome}</span>`;
+            html += `<br><br><div style="background:#161b22; padding:10px; border-radius:6px; border-left:4px solid #e3b341; font-size:14px;"><b>TRE Analysis:</b> ${analysis}<br><br><b>SOP:</b> ${correct}</div>`;
+            
+            html += `<div class="timeline">`; 
+            log.timeline.forEach(tl => {
+                let clonedArgs = {...tl.args};
+                if (clonedArgs.evalKey) clonedArgs.eval = T(clonedArgs.evalKey);
+                if (clonedArgs.advKey) clonedArgs.adv = T(clonedArgs.advKey);
+                if (clonedArgs.failKey) { let sf = BASE_SCENARIOS.find(s => s.en === clonedArgs.failKey); clonedArgs.fail = sf ? (LANG === 'tw' ? sf.tw : sf.en) : clonedArgs.failKey; }
+                html += `<div class="tl-item">[T+${tl.t}s] ${T(tl.key, clonedArgs)}</div>`;
+            }); 
+            html += `</div></div>`;
+        });
+        document.getElementById('log-container').innerHTML = html || 'No records yet.';
+    }
+
+    document.getElementById('btn-log').addEventListener('click', () => { renderLogs(); document.getElementById('log-modal').style.display = 'flex'; });
+    document.getElementById('btn-close-log').addEventListener('click', () => { document.getElementById('log-modal').style.display = 'none'; });
+    document.getElementById('btn-clear-log').addEventListener('click', () => { flightLogs =[]; localStorage.removeItem('fleet_logs_final'); renderLogs(); });
+
+    /* ================= 8. 核心物理與決策引擎 ================= */
+    btnSign.addEventListener('click', () => { if(!btnSign.disabled) setTimeout(startGame, 300); });
+
+    let calls = {};
+    function startGame() {
+        document.getElementById('efb-modal').style.display = 'none';
+        
+        rtoArmed = false;
+        document.getElementById('btn-rto-off').classList.add('active');
+        document.getElementById('btn-rto-arm').classList.remove('active');
+
+        RUNWAY_LENGTH = currentApt.rwy;
+        speedKnots = 0; distanceMeters = 0; pitchAngle = 0; actualThrottle = 0; currentN1 = 20;
+        state = 'idle'; autoTogaActive = false;
+        metrics = { actionTaken: 'none', speedAtAction: 0, offRunwaySpeed: 0, togaEarly: false, vmcgExcursion: false };
+        flags = { stableAnnounced: false, togaMaxLogged: false };
+        currentTimeline =[]; simStartTime = performance.now();
+        document.getElementById('plane-icon').className = '';
+        
+        let thText = currentThrust === 'd2' ? 'DERATE 2' : (currentThrust === 'd1' ? 'DERATE 1' : 'TOGA/MAX');
+        logEvent('log_start', {vmcg: VMCG, v1: V1, vr: VR, v2: V2, strat: v1Strategy.toUpperCase(), f: flapsConfig, th: thText});
+        
+        let tempK = 273.15 + weather.temp;
+        airDensityFactor = (288.15 / tempK) * Math.exp(-currentApt.elev / 8000); 
+        let mass = WEIGHT_MODIFIERS[currentWeight].m;
+        accelBase = ((4.0 * airDensityFactor) / (currentAcft.massF * mass)) * currentThrustFactor;
+        brakeDecel = (-12.0 / (currentAcft.massF * mass)) * (weather.isWet ? 0.65 : 1.0);
+
+        scenario.active = currentScenarios[Math.floor(Math.random() * currentScenarios.length)];
+        let triggerMin = (scenario.active.rule === 'ABORT_ALWAYS') ? 40 : 60;
+        scenario.speedKnots = Math.floor(Math.random() * (V1 + 5 - triggerMin + 1)) + triggerMin; 
+        scenario.triggered = false; scenario.handled = false;
+
+        document.getElementById('hud-apt').innerText = `${currentAcft.name} | ${LANG === 'tw' ? currentApt.name_tw : currentApt.name_en}`;
+        document.getElementById('hud-weather').innerText = `${weather.temp}°C | ${weather.isWet?'WET':'DRY'} | ${thText}`;
+        document.getElementById('target-v1').innerHTML = `V1: ${V1}<br>VR: ${VR}<br><span style="color:#58a6ff">V2: ${V2}</span>`;
+        
+        document.getElementById('vmcg-mark').style.left = `${Math.min(90, precomputedDistances.vmcg / RUNWAY_LENGTH * 100)}%`;
+        document.getElementById('v1-mark').style.left = `${Math.min(93, precomputedDistances.v1 / RUNWAY_LENGTH * 100)}%`;
+        document.getElementById('vr-mark').style.left = `${Math.min(96, precomputedDistances.vr / RUNWAY_LENGTH * 100)}%`;
+        document.getElementById('v2-mark').style.left = `${Math.min(98, precomputedDistances.v2 / RUNWAY_LENGTH * 100)}%`;
+
+        uiThrottle.value = 0; uiEngines.forEach(e => { e.className = 'engine'; e.querySelector('.n1').innerText = '20.0'; });
+        document.getElementById('central-warning-text').className = '';
+        
+        btnAbort.disabled = false; btnPull.disabled = false;
+        try { AviationVoice.speak(`${currentAcft.vendor} jet, cleared for takeoff.`, "atc"); } catch(e){}
+        setTimeout(() => { try{AviationVoice.speak("Cleared for takeoff.", "pm");}catch(e){} }, 2500);
+
+        lastTime = 0; calls = { cSpd: false, cvmcg: false, cv1: false, cvr: false, cv2: false };
+        requestAnimationFrame(gameLoop);
+    }
+
+    function gameLoop(timestamp) {
+        if (state === 'end') return;
+        if (!lastTime) { lastTime = timestamp; return requestAnimationFrame(gameLoop); }
+        let dt = (timestamp - lastTime) / 1000; lastTime = timestamp;
+        if (dt > 0.1 || dt < 0) dt = 0.016; 
+
+        if (autoTogaActive && (state === 'rolling' || state === 'flying')) {
+            let targetSlider = currentThrustFactor * 100;
+            if (actualThrottle < targetSlider) {
+                actualThrottle = Math.min(targetSlider, actualThrottle + (200 / currentAcft.spool) * dt); 
+                uiThrottle.value = actualThrottle; 
+                uiThrottle.style.setProperty('--val', `${actualThrottle}%`); document.getElementById('thr-label').innerText = `THR ${Math.floor(actualThrottle)}%`;
+                if (actualThrottle === targetSlider && !flags.togaMaxLogged) { flags.togaMaxLogged = true; logEvent('log_toga_max'); }
+            }
+        }
+
+        let targetN1 = 20 + (actualThrottle / 100) * (maxTakeoffN1 - 20);
+        if (state === 'idle' && actualThrottle > 5) state = 'spooling';
+        
+        if (state === 'braking') {
+            let revN1 = (speedKnots > 60) ? 85 : 20; 
+            if (currentN1 < revN1) currentN1 += 25 * dt; else currentN1 -= 35 * dt;
+        } else {
+            let spoolRate = (targetN1 > currentN1) ? (100 / currentAcft.spool) : 25; 
+            if (currentN1 < targetN1) currentN1 += spoolRate * dt; else currentN1 -= spoolRate * dt;
+            if (Math.abs(currentN1 - targetN1) < 0.5) currentN1 = targetN1;
+        }
+
+        uiN1s.forEach((el, idx) => {
+            if(scenario.triggered) {
+                if(scenario.active.rule === 'VMCG_FAIL' && idx === 0) { el.innerText = '00.0'; uiEngines[idx].classList.add('fail'); } 
+                else el.innerText = currentN1.toFixed(1);
+            } else el.innerText = currentN1.toFixed(1);
+        });
+
+        const statusBar = document.getElementById('status-bar-text');
+        if(hoveredElement) {
+            let txt = getKnowledgeText(hoveredElement);
+            if(txt !== statusBar.innerHTML) { statusBar.innerHTML = txt; statusBar.style.opacity = 1; }
+        } else if (state === 'spooling') {
+            let remainSec = Math.max(0, (targetN1 - currentN1) / (100 / currentAcft.spool));
+            if(remainSec > 0.1) {
+                statusBar.innerHTML = T('spool_countdown', { eng: currentAcft.eng, sec: remainSec.toFixed(1) });
+            } else {
+                if(statusBar.innerHTML !== T('sys_ready')) statusBar.innerHTML = T('sys_ready');
+            }
+        } else {
+            if(statusBar.innerHTML !== T('sys_ready')) statusBar.innerHTML = T('sys_ready');
+        }
+
+        let currentAccelRate = 0;
+        if (state !== 'braking') {
+            currentAccelRate = (currentN1 / targetDerateN1) * accelBase; 
+            if (scenario.triggered) {
+                if(scenario.active.rule === 'VMCG_FAIL') currentAccelRate *= 0.65;
+            }
+            currentAccelRate -= (speedKnots * 0.005); 
+        }
+
+        let crosscheckSpd = currentAcft.vendor === 'Airbus' ? 100 : 80;
+
+        if (scenario.active && !scenario.triggered && speedKnots >= scenario.speedKnots) {
+            scenario.triggered = true;
+            let fNameTw = scenario.active.tw; let fNameEn = scenario.active.en;
+            
+            let wText = document.getElementById('central-warning-text');
+            wText.innerText = (LANG==='tw' ? fNameTw : fNameEn).toUpperCase(); wText.classList.add('show');
+            logEvent('log_fail', {failKey: fNameEn, kts: Math.floor(speedKnots)});
+            AviationVoice.speak(fNameEn + "!", "pm");
+
+            setTimeout(() => {
+                if ((state === 'rolling' || state === 'flying') && !scenario.handled) {
+                    let adviceKey = "";
+                    if (speedKnots < crosscheckSpd) adviceKey = "pm_adv_abort_low";
+                    else if (speedKnots >= crosscheckSpd && speedKnots < V1) {
+                        if (scenario.active.rule === 'CRITICAL' || scenario.active.rule === 'ABORT_ALWAYS' || scenario.active.rule === 'VMCG_FAIL') adviceKey = "pm_adv_abort_crit";
+                        else adviceKey = "pm_adv_go_minor";
+                    } else if (speedKnots >= V1) adviceKey = "pm_adv_go_v1";
+                    
+                    if (adviceKey) { AviationVoice.speak(I18N['en'][adviceKey], "pm"); logEvent('log_pm_adv', {advKey: adviceKey}); }
+                }
+            }, 2000);
+        }
+
+        if (state === 'rolling' && scenario.triggered && scenario.active.rule === 'VMCG_FAIL' && speedKnots < VMCG && !scenario.handled) {
+            if (!this.vmcgTimer) this.vmcgTimer = timestamp;
+            if (timestamp - this.vmcgTimer > 3000) {
+                state = 'end'; metrics.actionTaken = 'excursion_vmcg'; metrics.vmcgExcursion = true;
+                document.getElementById('plane-icon').classList.add('excursion');
+                setTimeout(() => checkEndConditions(), 2000);
+            }
+        } else { this.vmcgTimer = null; }
+
+        if (state === 'rolling' || state === 'flying') {
+            if (speedKnots >= crosscheckSpd && !calls.cSpd) { 
+                calls.cSpd = true; 
+                logEvent('log_spd_check', {spd: crosscheckSpd}); 
+                AviationVoice.speak(crosscheckSpd === 100 ? "One hundred knots." : "Eighty knots.", "pm"); 
+            }
+            if (speedKnots >= VMCG && !calls.cvmcg) { calls.cvmcg = true; logEvent('log_cvmcg'); }
+            if (speedKnots >= V1 && !calls.cv1) { calls.cv1 = true; logEvent('log_cv1'); AviationVoice.speak("V 1.", "pm"); }
+            if (speedKnots >= VR && !calls.cvr) { calls.cvr = true; logEvent('log_cvr'); AviationVoice.speak("Rotate.", "pm"); }
+            if (speedKnots >= V2 && !calls.cv2) { calls.cv2 = true; logEvent('log_cv2'); AviationVoice.speak("V 2.", "pm"); }
+        }
+
+        if (state === 'braking') { 
+            let brakeForce = brakeDecel;
+            if (!rtoArmed) brakeForce *= 0.45; 
+            if (currentN1 > 50) brakeForce *= 1.3; 
+            currentAccelRate = brakeForce;
+            pitchAngle = -1; btnAbort.disabled = true; btnPull.disabled = true;
+        } 
+        else if (state === 'flying') {
+            if (speedKnots < V2 - 5 && pitchAngle > 5) { pitchAngle -= 4 * dt; }
+            btnAbort.disabled = true; btnPull.disabled = true;
+        }
+
+        speedKnots += currentAccelRate * dt;
+        if (speedKnots < 0 || isNaN(speedKnots)) speedKnots = 0;
+        distanceMeters += (speedKnots * METER_PER_KNOT) * dt;
+
+        uiAirspeed.innerText = Math.floor(speedKnots);
+        let posPct = Math.min(98, (distanceMeters / RUNWAY_LENGTH) * 100);
+        document.getElementById('plane-icon').style.left = `${posPct}%`;
+        
+        let cDist = (s, a) => ((s * METER_PER_KNOT) ** 2) / (2 * (Math.abs(a) * METER_PER_KNOT));
+        let brakePx = (cDist(speedKnots, brakeDecel) / RUNWAY_LENGTH) * 100;
+        document.getElementById('red-stop-line').style.left = `${posPct}%`; document.getElementById('red-stop-line').style.width = `${Math.min(100 - posPct, brakePx)}%`;
+        
+        document.getElementById('ground').style.transform = `translateY(${pitchAngle * 2}px)`;
+        if(!metrics.vmcgExcursion) document.getElementById('plane-icon').style.transform = `translateX(-50%) rotate(-${pitchAngle}deg)`;
+
+        updateInstructor();
+        if(!metrics.vmcgExcursion) checkEndConditions();
+        if (state !== 'end') requestAnimationFrame(gameLoop);
+    }
+
+    let lastInstMsg = "";
+    function updateInstructor() {
+        let crosscheckSpd = currentAcft.vendor === 'Airbus' ? 100 : 80;
+        let newMsg = "", newClass = "";
+        
+        if (state === 'idle' || state === 'spooling') {
+            uiEngines.forEach(e => e.classList.add('target-n1'));
+            let currentTargetN1FromSlider = 20 + (actualThrottle / 100) * (maxTakeoffN1 - 20);
+            if (currentTargetN1FromSlider >= targetSpoolN1 - 10 && currentTargetN1FromSlider <= targetSpoolN1 + 10) {
+                if (currentN1 >= targetSpoolN1 - 2) { newClass = ''; state = 'toga_ready'; if(!flags.stableAnnounced) { flags.stableAnnounced = true; AviationVoice.speak("Engines stabilized.", "pm"); } } 
+                else { newClass = ''; newMsg = T('instSpoolP'); }
+            } else { newClass = ''; newMsg = T('instSpool', { thr: Math.floor(targetSpoolN1), eng: currentAcft.eng }); }
+        } 
+        else if (state === 'toga_ready') { uiEngines.forEach(e => e.classList.remove('target-n1')); newClass = ''; newMsg = T('instToga'); btnToga.classList.add('glow-blue'); }
+        else if (state === 'rolling') {
+            btnToga.classList.remove('glow-blue'); uiEngines.forEach(e => e.classList.remove('target-n1'));
+            if (scenario.triggered && !scenario.handled) {
+                newClass = 'urgent'; let fName = LANG==='tw'?scenario.active.tw:scenario.active.en;
+                if (speedKnots <= V1) { if(scenario.active.rule === 'MINOR' && speedKnots >= crosscheckSpd) newMsg = T('instRollFailUnk'); else newMsg = T('instRollFailCrit', { fail: fName }); } 
+                else newMsg = T('instFailAft', { fail: fName });
+            } else if (!scenario.triggered || scenario.handled) {
+                if (speedKnots < VMCG) newMsg = T('instRollNormal');
+                else if (speedKnots >= VR) { newClass = 'urgent'; newMsg = "ROTATE NOW!"; }
+            }
+        } 
+        else if (state === 'braking') newMsg = T('instBrake');
+        else if (state === 'flying') newMsg = T('instFly');
+
+        if(newMsg !== lastInstMsg && newMsg !== "") { instBox.className = newClass; instMsg.innerText = newMsg; lastInstMsg = newMsg; }
+    }
+
+    let isDraggingThrottle = false;
+    uiThrottle.addEventListener('mousedown', () => isDraggingThrottle = true);
+    uiThrottle.addEventListener('touchstart', () => isDraggingThrottle = true);
+    const endDrag = () => {
+        if(isDraggingThrottle && state !== 'end' && actualThrottle > 0) {
+            isDraggingThrottle = false;
+            logEvent('log_thr_drop', {thr: Math.floor(actualThrottle)});
+        }
+    };
+    window.addEventListener('mouseup', endDrag);
+    window.addEventListener('touchend', endDrag);
+
+    uiThrottle.addEventListener('input', (e) => { autoTogaActive = false; actualThrottle = parseFloat(e.target.value) || 0; uiThrottle.style.setProperty('--val', `${actualThrottle}%`); document.getElementById('thr-label').innerText = `THR ${Math.floor(actualThrottle)}%`; });
+    
+    btnToga.addEventListener('click', () => { 
+        if (state === 'end' || state === 'braking' || state === 'flying') return;
+        autoTogaActive = true; state = 'rolling'; 
+        if (currentN1 < targetSpoolN1 - 5) { metrics.togaEarly = true; logEvent('log_toga_early', {kts: Math.floor(speedKnots)}); } 
+        else logEvent('log_toga_good', {kts: Math.floor(speedKnots)});
+    });
+
+    btnAbort.addEventListener('click', () => { 
+        if(state === 'idle' || state === 'spooling' || state === 'toga_ready' || state === 'rolling') { 
+            state = 'braking'; actualThrottle = 0; uiThrottle.value = 0; autoTogaActive = false; 
+            metrics.actionTaken = 'abort'; metrics.speedAtAction = speedKnots; scenario.handled = true; 
+            
+            let crosscheckSpd = currentAcft.vendor === 'Airbus' ? 100 : 80;
+            let evalKey = "";
+            if (speedKnots >= V1) evalKey = "eval_abt_v1";
+            else if (speedKnots >= crosscheckSpd) {
+                if (!scenario.triggered) evalKey = "eval_abt_high_ok";
+                else if (scenario.active.rule === 'MINOR') evalKey = "eval_abt_high_minor";
+                else evalKey = "eval_abt_good";
+            } else evalKey = "eval_abt_low";
+            
+            logEvent('log_abort', {kts: Math.floor(speedKnots), evalKey: evalKey});
+            AviationVoice.speak("Rejecting takeoff!", "capt"); 
+        }
+    });
+
+    btnPull.addEventListener('click', () => { 
+        if(state === 'idle' || state === 'spooling' || state === 'toga_ready' || state === 'rolling') { 
+            state = 'flying'; metrics.actionTaken = 'rotate'; metrics.speedAtAction = speedKnots; scenario.handled = true; 
+            let evalKey = (speedKnots < VR - 5) ? "eval_rot_early" : "eval_rot_good";
+            logEvent('log_rotate', {kts: Math.floor(speedKnots), evalKey: evalKey});
+            
+            let pitchInterval = setInterval(() => { if(pitchAngle < 12 && state==='flying') pitchAngle += 0.5; else clearInterval(pitchInterval); }, 50); 
+            AviationVoice.speak("Positive rate, gear up.", "pm"); 
+        }
+    });
+
+    function checkEndConditions() {
+        if (metrics.vmcgExcursion) { generateDebrief('excursion_vmcg'); return; }
+        let crosscheckSpd = currentAcft.vendor === 'Airbus' ? 100 : 80;
+        
+        if (distanceMeters >= RUNWAY_LENGTH) {
+            state = 'end'; document.getElementById('central-warning-text').classList.remove('show');
+            if (metrics.actionTaken === 'rotate') {
+                if (metrics.speedAtAction < VR - 5) generateDebrief('rot_early');
+                else if (speedKnots >= V2 - 2) {
+                    if ((scenario.active.rule === 'CRITICAL' || scenario.active.rule === 'ABORT_ALWAYS' || scenario.active.rule === 'VMCG_FAIL') && scenario.speedKnots < V1) generateDebrief('go_crit_low');
+                    else if (scenario.active.rule === 'MINOR' && scenario.speedKnots < crosscheckSpd) generateDebrief('go_minor_low');
+                    else generateDebrief('go_good');
+                } else generateDebrief('over_perf'); 
+            } else if (metrics.actionTaken === 'abort') {
+                if (!rtoArmed) generateDebrief('rto_no_autobrake');
+                else generateDebrief('rto_overrun');
+            } else generateDebrief('overrun');
+        } else if (speedKnots === 0 && state === 'braking') {
+            state = 'end'; document.getElementById('central-warning-text').classList.remove('show');
+            
+            let mass = currentAcft.massF * WEIGHT_MODIFIERS[currentWeight].m;
+            let ke = 0.5 * mass * Math.pow(metrics.speedAtAction, 2);
+            let vmbeLimit = 16000; 
+            
+            if (metrics.speedAtAction >= V1) generateDebrief('rto_v1');
+            else if (ke > vmbeLimit) generateDebrief('brake_fire');
+            else if (metrics.speedAtAction >= crosscheckSpd) {
+                if (!scenario.triggered) generateDebrief('rto_high_ok');
+                else if (scenario.active.rule === 'MINOR') generateDebrief('rto_high_minor');
+                else generateDebrief('rto_good');
+            } else {
+                if (!scenario.triggered) generateDebrief('rto_low_ok');
+                else generateDebrief('rto_low_good');
+            }
+        }
+    }
+
+    function generateDebrief(resultCode) {
+        let outcome = 'CRASH';
+        if (['go_good', 'rto_good', 'rto_low_good'].includes(resultCode)) outcome = 'SUCCESS';
+        else if (['go_minor_low', 'rto_high_minor', 'go_crit_low', 'rto_high_ok', 'rto_low_ok', 'brake_fire'].includes(resultCode)) outcome = 'INCIDENT';
+
+        let newLog = { 
+            date: new Date().toLocaleString(), acftId: currentAcft.id, acftName: currentAcft.name, acftVendor: currentAcft.vendor, longBody: currentAcft.longBody,
+            apt: currentApt.icao, wt: currentWeight, flaps: flapsConfig,
+            scenarioId: scenario.active ? scenario.active.id : 0, 
+            outcome: outcome, result: resultCode, action: metrics.actionTaken, togaEarly: metrics.togaEarly, timeline: currentTimeline 
+        };
+        flightLogs.push(newLog); localStorage.setItem('fleet_logs_final', JSON.stringify(flightLogs));
+        generateDebriefHTML(newLog);
+    }
+
+    function generateDebriefHTML(logData) {
+        let sc = BASE_SCENARIOS.find(s => s.id === logData.scenarioId);
+        let fName = sc ? (LANG === 'tw' ? sc.tw : sc.en) : "";
+        let spd = logData.acftVendor === 'Airbus' ? 100 : 80;
+        let ctx = {fail: fName, spd: spd};
+        let analysis = "", correct = "";
+        
+        if (logData.togaEarly) analysis += T('debTogaE');
+        if (logData.action === 'none') { analysis += T('dNone'); correct = T('cNone'); }
+        else if (logData.action === 'excursion_vmcg') { analysis += T('dExcursionVmcg'); correct = T('cExcursionVmcg'); }
+        else if (logData.result === 'brake_fire') { analysis += T('dBrakeFire'); correct = T('cBrakeFire'); }
+        else if (logData.result === 'rto_v1') { analysis += T('dRtoV1'); correct = T('cRtoV1'); }
+        else if (logData.result === 'rto_high_ok') { analysis += T('dRtoHighOk'); correct = T('cRtoHighOk'); }
+        else if (logData.result === 'rto_high_minor') { analysis += T('dRtoHighMinor', ctx); correct = T('cRtoHighMinor', ctx); }
+        else if (logData.result === 'rto_good') { analysis += T('dRtoGood', ctx); correct = T('cRtoGood', ctx); }
+        else if (logData.result === 'rto_low_ok') { analysis += T('dRtoLowOk', ctx); correct = T('cRtoLowOk', ctx); }
+        else if (logData.result === 'rto_low_good') { analysis += T('dRtoLowGood', ctx); correct = T('cRtoLowGood', ctx); }
+        else if (logData.result === 'rot_early') { analysis += logData.longBody ? T('dRotEarlyLong') : T('dRotEarly'); correct = logData.longBody ? T('cRotEarlyLong') : T('cRotEarly'); }
+        else if (logData.result === 'rot_v2') { analysis += T('dRotV2'); correct = T('cRotV2'); }
+        else if (logData.result === 'go_crit_low') { analysis += T('dGoCritLow', ctx); correct = T('cGoCritLow', ctx); }
+        else if (logData.result === 'go_minor_low') { analysis += T('dGoMinorLow', ctx); correct = T('cGoMinorLow', ctx); }
+        else if (logData.result === 'go_good') { analysis += T('dGoGood', ctx); correct = T('cGoGood', ctx); }
+        else if (logData.result === 'over_perf') { analysis += T('dOverPerf'); correct = T('cOverPerf'); }
+        else if (logData.result === 'rto_no_autobrake') { analysis += T('dRtoNoAutobrake'); correct = T('cRtoNoAutobrake'); }
+        else if (logData.result === 'rto_overrun') { analysis += T('dRtoOverrun'); correct = T('cRtoOverrun'); }
+        else { analysis += T('dOver'); correct = T('cOver'); }
+
+        document.getElementById('debrief-stars').innerHTML = logData.outcome.includes("SUCCESS") ? "⭐⭐⭐⭐⭐" : (logData.outcome.includes("INCIDENT") ? "⭐⭐" : "❌");
+        
+        let actText = "NONE";
+        for(let i=logData.timeline.length-1; i>=0; i--) {
+            let tl = logData.timeline[i];
+            if(tl.key === 'log_abort' || tl.key === 'log_rotate') { let c = {...tl.args}; if(c.evalKey) c.eval = T(c.evalKey); actText = T(tl.key, c); break; }
+        }
+
+        let html = `<div class="deb-section"><span>${T('debAction')}:</span> <div style="color:#fff;">${actText}</div></div>
+                    <div class="deb-section"><span>${T('debOutcome')}:</span> <div style="color:${logData.outcome.includes('SUCCESS')?'#3fb950':'#ff7b72'}; font-weight:bold;">${logData.outcome}</div></div>
+                    <div class="deb-section"><span>${T('debAnalysis')}:</span> <div style="color:#c9d1d9;">${analysis}</div></div>
+                    <div class="deb-section" style="border-left: 4px solid #58a6ff; padding-left: 15px; margin-top:25px;"><span>${T('debCorrect')}:</span> <div style="color:#58a6ff; font-weight:bold;">${correct}</div></div>`;
+        document.getElementById('debrief-text').innerHTML = html;
+        document.getElementById('debrief-modal').style.display = 'flex';
+    }
+
+    document.getElementById('btn-restart').addEventListener('click', () => { document.getElementById('debrief-modal').style.display = 'none'; document.getElementById('efb-modal').style.display = 'flex'; });
+    
+    window.addEventListener('DOMContentLoaded', initApp);
+</script>
+</body>
+</html>
