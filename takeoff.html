@@ -211,7 +211,7 @@
 </head>
 <body>
 <div id="loader">Loading Avionics DB...</div>
-<div id="lang-toggle">EN</div>
+<div id="lang-toggle">ZH</div>
 
 <div id="app">
     <div id="instructor-box">
@@ -222,10 +222,10 @@
     <div id="central-warning-text"></div>
 
     <div id="hud-container">
-        <div id="hud-view" id="hud-view-target">
+        <div id="hud-view">
             <div class="hud-text">
                 <span id="hud-apt">---</span>
-                <span style="font-size:11px; color:#484f58;">*V2 = 離地後空中目標速度 / airborne speed target</span>
+                <span style="font-size:11px; color:#484f58;">*LOF = Predicted Liftoff Zone — V2 is achieved airborne at 35ft, NOT on the runway</span>
                 <span id="hud-weather">---</span>
             </div>
             <div class="runway-track" id="runway-track">
@@ -234,8 +234,9 @@
                 <div class="runway-mark" id="vmcg-mark" style="left: 30%;"><div class="rm-lbl">VMCG</div><div class="rm-line"></div></div>
                 <div class="runway-mark" id="v1-mark" style="left: 45%;"><div class="rm-lbl">V1</div><div class="rm-line"></div></div>
                 <div class="runway-mark" id="vr-mark" style="left: 55%;"><div class="rm-lbl">VR</div><div class="rm-line"></div></div>
-                <div class="runway-mark" id="v2-mark" style="left: 65%;"><div class="rm-lbl">V2*</div><div class="rm-line"></div></div>
+                <div class="runway-mark" id="v2-mark" style="left: 65%;"><div class="rm-lbl">LOF*</div><div class="rm-line"></div></div>
             </div>
+            <!-- LOF* = Predicted Liftoff Zone (V2 is achieved airborne at 35ft, not on the ground) -->
             <div id="plane-icon">✈️</div>
             <div id="green-go-line"></div>
             <div id="red-stop-line"></div>
@@ -455,7 +456,7 @@
             kb_eicas: "顯示雙引擎 N1。目前推力設定值限制於 <span class='sb-num'>{n1}%</span>。",
             kb_eng: "發動機型號：{eng}。不同型號具備完全不同的加速慣性與推重比。",
             kb_end: "跑道終點 (<span class='sb-num'>{d} m</span>)：若 V2 預測距離超過此點，代表跑道長度不足 (NO-GO)。",
-            kb_v2_mark: "V2 爬升目標點 (<span class='sb-num'>{d} m</span>)：預測飛機將在此跑道位置附近離地並在35英尺障礙物高度時達到 V2 安全爬升速度。<b>注意：V2 是空中速度目標，並非在跑道地面上達到。</b>必須在跑道終點前完成。",
+            kb_v2_mark: "LOF 預測離地區 (<span class='sb-num'>{d} m</span>)：預測飛機將在此跑道位置附近離地。V2 是飛機離地後爬升至 35 英尺障礙物高度時的目標空速，<b>V2 是空中速度目標，在地面上永遠不會「到達 V2」。</b>預測離地點必須在跑道終點前完成。",
             kb_hud: "載重狀態與機場資訊。{h_warn}",
             kb_heavy_warn: "注意極大質量帶來的煞車動能 (VMBE) 限制。",
             // Debrief
@@ -566,7 +567,7 @@
             kb_eicas: "Displays N1 for both engines. Target Takeoff limit is <span class='sb-num'>{n1}%</span>.",
             kb_eng: "Engine Model: {eng}. Dictates spool-up inertia and thrust-to-weight ratio.",
             kb_end: "Runway End (<span class='sb-num'>{d} m</span>): If predicted V2 distance exceeds this, takeoff is prohibited (NO-GO).",
-            kb_v2_mark: "V2 Climb Target (<span class='sb-num'>{d} m</span>): Predicted runway position where the aircraft will lift off and achieve V2 safe climb speed at 35ft obstacle height. <b>V2 is an airborne speed target, not a ground speed.</b> Must occur before runway end.",
+            kb_v2_mark: "LOF — Predicted Liftoff Zone (<span class='sb-num'>{d} m</span>): This is where the aircraft is predicted to become airborne. V2 is then achieved at 35ft obstacle clearance height — <b>V2 is an airborne speed target; the aircraft NEVER 'reaches V2' while still on the ground.</b> The liftoff must occur before runway end.",
             kb_hud: "Airport and Payload configuration. {h_warn}",
             kb_heavy_warn: "Beware of massive kinetic energy and VMBE (Brake Energy) limits.",
             // Debrief
@@ -902,8 +903,9 @@
         document.getElementById('info-rwy').innerText = `${currentApt.rwy} m`;
         document.getElementById('info-elev').innerText = `${currentApt.elev} m`;
 
-        // Cold day N1 can exceed 100% momentarily, but displayed limit cap is 100%
-        maxTakeoffN1 = (weather.temp > 30) ? 94 : (weather.temp < 10 ? 100 : 100); 
+        // Hot day: engine thrust degrades, lower N1 limit (simulated as reduced effective thrust)
+        // Cold day: denser air allows more thrust; FADEC manages but N1 % may read slightly higher — capped at 100% for display
+        maxTakeoffN1 = (weather.temp > 30) ? 94 : 100; 
         targetSpoolN1 = 50; 
         
         currentThrustFactor = (currentThrust === 'd2') ? 0.80 : ((currentThrust === 'd1') ? 0.90 : 1.0);
@@ -932,8 +934,9 @@
         V1 = Math.max(VMCG, V1);
         // FAR/CS-25: VR must be >= V1
         VR = Math.max(VR, V1 + 2);
-        // V2 must be > VR; use VR+14 but ensure V2 > V1 always
-        V2 = Math.max(VR + 10, V1 + 16);
+        // FAR/CS-25: V2 ≥ V1 + appropriate margin AND V2 ≥ VR + min margin (V2 is an airborne target)
+        // V2 must always be above VR — you cannot reach V2 before you rotate.
+        V2 = Math.max(VR + 12, V1 + 16);
 
         let tempK = 273.15 + weather.temp;
         let adf = (288.15 / tempK) * Math.exp(-currentApt.elev / 8000); 
@@ -986,7 +989,8 @@
         let thLabel = currentThrust === 'd2' ? 'Derate 2 (-20%)' : (currentThrust === 'd1' ? 'Derate 1 (-10%)' : 'TOGA/MAX');
         let vDesc = currentAcft.vendor === 'Airbus' ? T('bDescVmcgAirbus', {vmcg: VMCG}) : T('bDescVmcgBoeing', {vmcg: VMCG});
 
-        brief += T('briefText', { apt: LANG==='tw'?currentApt.name_tw:currentApt.name_en, t: weather.temp, wea: weather.isWet?T('wet'):T('dry'), w: currentWeight.toUpperCase(), f: flapLabel, th: thLabel, acft: currentAcft.name, vDesc: vDesc, stratDesc: stratDesc });
+        let weightLabels = { light: T('optLight'), medium: T('optMed'), heavy: T('optHeavy') };
+        brief += T('briefText', { apt: LANG==='tw'?currentApt.name_tw:currentApt.name_en, t: weather.temp, wea: weather.isWet?T('wet'):T('dry'), w: weightLabels[currentWeight] || currentWeight.toUpperCase(), f: flapLabel, th: thLabel, acft: currentAcft.name, vDesc: vDesc, stratDesc: stratDesc });
         document.getElementById('efb-hint').innerHTML = brief.replace(/\n/g, "<br>");
 
         let selFleet = document.getElementById('sel-fleet');
@@ -1102,11 +1106,17 @@
         airDensityFactor = (288.15 / tempK) * Math.exp(-currentApt.elev / 8000); 
         let mass = WEIGHT_MODIFIERS[currentWeight].m;
         accelBase = ((4.0 * airDensityFactor) / (currentAcft.massF * mass)) * currentThrustFactor;
-        brakeDecel = (-12.0 / (currentAcft.massF * mass)) * (weather.isWet ? 0.65 : 1.0);
+        // FIX PHYSICS: Braking deceleration = μg (friction coeff × gravity), independent of aircraft mass
+        // (F_brake = μ × m × g, so a = F/m = μg). Mass cancels out.
+        // Wet runway: μ drops from ~0.50 to ~0.30 (60% of dry). Heavy aircraft: VMBE limits, not decel rate.
+        brakeDecel = -12.0 * (weather.isWet ? 0.60 : 1.0);
 
         scenario.active = currentScenarios[Math.floor(Math.random() * currentScenarios.length)];
         let triggerMin = (scenario.active.rule === 'ABORT_ALWAYS') ? 40 : 60;
-        scenario.speedKnots = Math.floor(Math.random() * (V1 + 5 - triggerMin + 1)) + triggerMin; 
+        // FIX: Scenario MUST trigger before V1 — a failure past V1 gives no meaningful decision to train.
+        // Cap at V1 - 3 to ensure the player always has a window to react before V1.
+        let triggerMax = Math.max(triggerMin + 5, V1 - 3);
+        scenario.speedKnots = Math.floor(Math.random() * (triggerMax - triggerMin + 1)) + triggerMin; 
         scenario.triggered = false; scenario.handled = false;
 
         document.getElementById('hud-apt').innerText = `${currentAcft.name} | ${LANG === 'tw' ? currentApt.name_tw : currentApt.name_en}`;
@@ -1120,11 +1130,13 @@
 
         uiThrottle.value = 0; uiEngines.forEach(e => { e.className = 'engine'; e.querySelector('.n1').innerText = '20.0'; });
         document.getElementById('central-warning-text').className = '';
+        btnToga.disabled = false; btnToga.classList.remove('glow-blue');
         
-        btnAbort.disabled = false; btnPull.disabled = false;
-        btnAbort.title = ''; // reset tooltip from previous flight
-        try { AviationVoice.speak(`${currentAcft.vendor} jet, cleared for takeoff.`, "atc"); } catch(e){}
-        setTimeout(() => { try{AviationVoice.speak("Cleared for takeoff.", "pm");}catch(e){} }, 2500);
+        btnAbort.disabled = true; btnPull.disabled = true;
+        btnAbort.title = LANG === 'tw' ? '等待 TOGA 啟動...' : 'Wait for TOGA...';
+        btnPull.title = LANG === 'tw' ? '等待起飛滾跑...' : 'Wait for takeoff roll...';
+        try { AviationVoice.speak(`Cleared for takeoff.`, "atc"); } catch(e){}
+        setTimeout(() => { try{AviationVoice.speak("Runway, cleared for takeoff.", "pm");}catch(e){} }, 2500);
 
         lastTime = 0; calls = { cSpd: false, cvmcg: false, cv1: false, cvr: false, cv2: false };
         requestAnimationFrame(gameLoop);
@@ -1236,9 +1248,10 @@
             if (speedKnots >= VMCG && !calls.cvmcg) { calls.cvmcg = true; logEvent('log_cvmcg'); }
             if (speedKnots >= V1 && !calls.cv1) { 
                 calls.cv1 = true; logEvent('log_cv1'); AviationVoice.speak("V 1.", "pm");
-                // SOP: After V1, abort is no longer an option — disable the button
+                // SOP: After V1, abort is no longer an option — disable both abort and TOGA buttons
                 btnAbort.disabled = true; 
                 btnAbort.title = LANG === 'tw' ? '已過 V1 — 禁止放棄起飛！' : 'Past V1 — ABORT NOT PERMITTED!';
+                btnToga.disabled = true;
             }
             if (speedKnots >= VR && !calls.cvr) { calls.cvr = true; logEvent('log_cvr'); AviationVoice.speak("Rotate.", "pm"); }
             if (speedKnots >= V2 && !calls.cv2) { calls.cv2 = true; logEvent('log_cv2'); AviationVoice.speak("V 2.", "pm"); }
@@ -1249,11 +1262,11 @@
             if (!rtoArmed) brakeForce *= 0.45; 
             if (currentN1 > 50) brakeForce *= 1.3; 
             currentAccelRate = brakeForce;
-            pitchAngle = -1; btnAbort.disabled = true; btnPull.disabled = true;
+            pitchAngle = -1; btnAbort.disabled = true; btnPull.disabled = true; btnToga.disabled = true;
         } 
         else if (state === 'flying') {
             if (speedKnots < V2 - 5 && pitchAngle > 5) { pitchAngle -= 4 * dt; }
-            btnAbort.disabled = true; btnPull.disabled = true;
+            btnAbort.disabled = true; btnPull.disabled = true; btnToga.disabled = true;
         }
 
         speedKnots += currentAccelRate * dt;
@@ -1299,8 +1312,11 @@
                     if(scenario.active.rule === 'VMCG_FAIL' && speedKnots >= VMCG) {
                         newClass = 'urgent';
                         newMsg = LANG==='tw' ? `🔥 ${fName}！超過 VMCG — 方向舵有效可控制偏航！引擎失效/起火 = 致命故障，V1 前必須 ABORT！` : `🔥 ${fName}! Above VMCG — rudder can counter yaw! Engine failure/fire is CRITICAL — ABORT before V1!`;
-                    } else if(scenario.active.rule === 'MINOR' && speedKnots >= (currentAcft.vendor === 'Airbus' && currentAcft.id !== 'A223' ? 100 : 80)) newMsg = T('instRollFailUnk'); 
-                    else if(scenario.active.rule === 'MINOR' && speedKnots < (currentAcft.vendor === 'Airbus' && currentAcft.id !== 'A223' ? 100 : 80)) newMsg = T('instRollFailMinorLow', { fail: fName });
+                    } else if(scenario.active.rule === 'MINOR' && speedKnots >= (currentAcft.vendor === 'Airbus' && currentAcft.id !== 'A223' ? 100 : 80)) {
+                        // Above crosscheck speed: SOP for MINOR anomalies is to continue the takeoff
+                        newClass = 'warning';
+                        newMsg = LANG==='tw' ? `⚠️ ${fName}！已進入高速區 — 次要異常不值得高速 RTO！繼續加速至 V1！` : `⚠️ ${fName}! High-speed regime — minor anomaly does NOT justify high-speed abort! Continue to V1!`;
+                    } else if(scenario.active.rule === 'MINOR' && speedKnots < (currentAcft.vendor === 'Airbus' && currentAcft.id !== 'A223' ? 100 : 80)) newMsg = T('instRollFailMinorLow', { fail: fName });
                     else newMsg = T('instRollFailCrit', { fail: fName }); 
                 } else newMsg = T('instFailAft', { fail: fName });
             } else if (!scenario.triggered || scenario.handled) {
@@ -1332,6 +1348,9 @@
     btnToga.addEventListener('click', () => { 
         if (state === 'end' || state === 'braking' || state === 'flying') return;
         autoTogaActive = true; state = 'rolling'; 
+        // Enable action buttons only now that we are in the takeoff roll
+        btnAbort.disabled = false; btnPull.disabled = false;
+        btnAbort.title = ''; btnPull.title = '';
         if (currentN1 < targetSpoolN1 - 5) { metrics.togaEarly = true; logEvent('log_toga_early', {kts: Math.floor(speedKnots)}); } 
         else logEvent('log_toga_good', {kts: Math.floor(speedKnots)});
     });
@@ -1381,8 +1400,8 @@
             if (metrics.actionTaken === 'rotate') {
                 if (metrics.speedAtAction < VR - 5) generateDebrief('rot_early');
                 else if (speedKnots >= V2 - 2) {
-                    if ((scenario.active.rule === 'CRITICAL' || scenario.active.rule === 'ABORT_ALWAYS' || scenario.active.rule === 'VMCG_FAIL') && scenario.speedKnots < V1) generateDebrief('go_crit_low');
-                    else if (scenario.active.rule === 'MINOR' && scenario.speedKnots < crosscheckSpd) generateDebrief('go_minor_low');
+                    if (scenario.triggered && (scenario.active.rule === 'CRITICAL' || scenario.active.rule === 'ABORT_ALWAYS' || scenario.active.rule === 'VMCG_FAIL') && scenario.speedKnots < V1) generateDebrief('go_crit_low');
+                    else if (scenario.triggered && scenario.active.rule === 'MINOR' && scenario.speedKnots < crosscheckSpd) generateDebrief('go_minor_low');
                     else generateDebrief('go_good');
                 } else { 
                     // FIX: rot_v2 was dead code — now detects single-engine climb failure
@@ -1401,12 +1420,17 @@
         } else if (speedKnots === 0 && state === 'braking') {
             state = 'end'; document.getElementById('central-warning-text').classList.remove('show');
             
-            // FIX: KE = ½mv² requires velocity in m/s, not knots
-            // Old code used knots² which gave values ~27× too large (0.514² ≈ 0.264 conversion factor)
+            // VMBE (Maximum Brake Energy) = ½mv² limit
+            // KE units: kg × (m/s)² = Joules
+            // Real VMBE for narrow-body ~30-80 MJ, wide-body ~100-300 MJ
+            // Simulation uses normalized units: vmbeLimit scales with aircraft brake capacity
+            // Narrow-body: massF ~1.0 → vmbeLimit ~15,000; Wide-body: massF ~4.0 → limit ~40,000
+            // Heavy loading pushes KE up significantly
             let mass = currentAcft.massF * WEIGHT_MODIFIERS[currentWeight].m;
             let velocityMS = metrics.speedAtAction * METER_PER_KNOT;
             let ke = 0.5 * mass * Math.pow(velocityMS, 2);
-            let vmbeLimit = 12000; // recalibrated: wide-body heavy at V1 ≈ 13-20k → fire; narrow-body ≈ 3-5k → OK
+            // Brake capacity scales with aircraft size (more wheels, bigger brakes on widebodies)
+            let vmbeLimit = currentAcft.massF * 10000 * (currentAcft.type === 'Wide' ? 1.5 : 1.0);
             
             if (metrics.speedAtAction >= V1) generateDebrief('rto_v1');
             else if (ke > vmbeLimit) generateDebrief('brake_fire');
