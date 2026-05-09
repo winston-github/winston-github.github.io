@@ -1,14 +1,541 @@
-<!doctype html><html lang="zh-TW"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>Optical P2P Whiteboard v8</title><style>
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;touch-action:none;user-select:none}#wrap{position:relative;width:100vw;height:100vh;background:white}#grid{position:absolute;inset:0;background-image:radial-gradient(#ddd 1px,transparent 1px);background-size:20px 20px}.board{position:absolute;inset:0;width:100%;height:100%}#base{z-index:1}#live{z-index:2}#cur{z-index:3;pointer-events:none}#tb{position:absolute;z-index:10;left:50%;bottom:22px;transform:translateX(-50%);display:flex;gap:8px;background:#fffffff0;border:1px solid #ddd;border-radius:999px;padding:9px 12px;box-shadow:0 8px 28px #0002}button{border:0;border-radius:999px;padding:10px 14px;font-weight:800;background:white;box-shadow:inset 0 0 0 1px #ddd}button.active{background:#e7f1ff;color:#06f;box-shadow:inset 0 0 0 2px #07f}#color{width:36px;height:36px;border:0;background:transparent}.host{background:#07f;color:#fff}.join{background:#28cd41;color:#fff}.on{background:#f33!important;color:#fff!important}#toast{position:absolute;z-index:999;top:-80px;left:50%;transform:translateX(-50%);background:#000d;color:white;border-radius:999px;padding:12px 20px;transition:.25s}#toast.show{top:24px}#modal{display:none;position:fixed;inset:0;z-index:100;background:#050914;color:white;overflow:hidden}#modal.show{display:block}#video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}.shade{position:absolute;inset:0;background:linear-gradient(#000b,#0002,#000b)}#panel{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px}.top{position:absolute;top:max(18px,env(safe-area-inset-top));left:14px;right:14px;text-align:center}.title{font-size:20px;font-weight:900;margin-bottom:8px}.hint{display:inline-block;background:#000b;border:1px solid #fff3;border-radius:999px;padding:10px 16px;font-size:15px;font-weight:800}.bar{height:10px;background:#ffffff26;border-radius:999px;overflow:hidden;margin:10px auto 0;width:min(430px,78vw)}.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#00d4ff,#28cd41)}#frame{--deg:0deg;width:min(82vw,54vh,430px);height:min(82vw,54vh,430px);border-radius:28px;display:flex;align-items:center;justify-content:center;position:relative;background:transparent;overflow:visible}#frame:before{content:"";position:absolute;inset:-7px;border-radius:34px;padding:8px;background:conic-gradient(#28cd41 var(--deg),rgba(255,255,255,.45) 0);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;z-index:3}#frame.display:before{background:rgba(255,255,255,.55)}#frame.finding:before{background:conic-gradient(#ffcc00 var(--deg),rgba(255,255,255,.45) 0)}#frame.ok:before{background:conic-gradient(#28cd41 360deg,rgba(255,255,255,.45) 0);filter:drop-shadow(0 0 10px #28cd41)}#code{width:92%;height:92%;background:white;display:none;border-radius:12px;box-shadow:0 0 0 10px white}#info{width:min(92vw,680px);margin-top:14px;background:#000b;border:1px solid #fff2;border-radius:16px;padding:10px 14px;font:12px/1.45 ui-monospace,Consolas,monospace;white-space:pre-wrap;text-align:left;color:white}.stage{position:absolute;bottom:max(20px,env(safe-area-inset-bottom));left:14px;right:14px;text-align:center}.stage button{margin:4px}.danger{background:#ff3b30;color:white}.ghost{background:#ffffff22;color:white;box-shadow:inset 0 0 0 1px #fff4}@media(max-width:560px){#tb{gap:5px;padding:8px}button{padding:9px 11px;font-size:13px}#info{font-size:11px}}
-</style></head><body><div id="toast"></div><div id="wrap"><div id="grid"></div><canvas id="base" class="board"></canvas><canvas id="live" class="board"></canvas><canvas id="cur" class="board"></canvas></div><div id="tb"><input id="color" type="color" value="#000000"><button id="pen" class="active">✏️</button><button id="eraser">🧹</button><button id="clear">🗑️</button><button id="btnH" class="host">↑ Host</button><button id="btnV" class="join">↓ Visitor</button></div><div id="modal"><video id="video" autoplay playsinline muted></video><div class="shade"></div><div id="panel"><div class="top"><div class="title">光學 P2P 連線</div><div class="hint" id="hint">準備中</div><div class="bar"><i id="topProg"></i></div></div><div id="frame"><canvas id="code" width="420" height="420"></canvas></div><div id="info">狀態會顯示在這裡。</div><div class="stage"><button class="ghost" id="next">重試本步</button><button class="danger" id="cancel">取消</button></div></div></div><script>
-'use strict';const $=id=>document.getElementById(id),toast=s=>{$('toast').textContent=s;$('toast').classList.add('show');clearTimeout(window.tt);window.tt=setTimeout(()=>$('toast').classList.remove('show'),3000)},hint=s=>$('hint').textContent=s,uuid=()=>crypto.randomUUID?crypto.randomUUID():Date.now()+Math.random().toString(16).slice(2);function progress(v,ring=true){v=Math.max(0,Math.min(1,v));$('topProg').style.width=v*100+'%';if(ring)$('frame').style.setProperty('--deg',v*360+'deg')}
-const S={id:uuid(),tool:'pen',color:'#000',w:4,hist:[],stroke:null,drawing:false,cursors:{},pc:null,rel:null,fast:null};const cvs={base:$('base'),live:$('live'),cur:$('cur')},ctx={base:cvs.base.getContext('2d',{alpha:false}),live:cvs.live.getContext('2d'),cur:cvs.cur.getContext('2d')};function resize(){const d=devicePixelRatio||1,w=innerWidth,h=innerHeight;Object.values(cvs).forEach(c=>{c.width=w*d;c.height=h*d;c.style.width=w+'px';c.style.height=h+'px'});Object.values(ctx).forEach(x=>{x.setTransform(d,0,0,d,0,0);x.lineCap='round';x.lineJoin='round'});ctx.base.fillStyle='#fff';ctx.base.fillRect(0,0,w,h);S.hist.forEach(s=>draw(ctx.base,s))}function draw(x,s){if(!s.points?.length)return;x.beginPath();x.strokeStyle=s.tool==='eraser'?'#fff':s.color;x.lineWidth=s.tool==='eraser'?s.w*8:s.w;x.moveTo(s.points[0].x,s.points[0].y);for(let i=1;i<s.points.length-1;i++)x.quadraticCurveTo(s.points[i].x,s.points[i].y,(s.points[i].x+s.points[i+1].x)/2,(s.points[i].y+s.points[i+1].y)/2);if(s.points.length>1)x.lineTo(s.points.at(-1).x,s.points.at(-1).y);x.stroke()}function curs(){ctx.cur.clearRect(0,0,innerWidth,innerHeight);const n=Date.now();for(const[id,c]of Object.entries(S.cursors)){if(n-c.t>3000){delete S.cursors[id];continue}ctx.cur.beginPath();ctx.cur.arc(c.p.x,c.p.y,6,0,7);ctx.cur.fillStyle=c.tool==='eraser'?'#bbb':c.color;ctx.cur.fill();ctx.cur.strokeStyle='#fff';ctx.cur.lineWidth=2;ctx.cur.stroke()}requestAnimationFrame(curs)}function pnt(e){const r=cvs.live.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}function send(o){if(S.rel?.readyState==='open')S.rel.send(JSON.stringify(o))}function sendFast(o){if(S.fast?.readyState==='open'&&S.fast.bufferedAmount<2048)S.fast.send(JSON.stringify(o))}function onMsg(e){const d=JSON.parse(e.data);if(d.type==='CLEAR'){S.hist=[];resize();toast('對方清空白板')}else if(d.type==='STROKE'&&!S.hist.find(x=>x.id===d.stroke.id)){S.hist.push(d.stroke);draw(ctx.base,d.stroke)}else if(d.type==='SYNC'){const ids=new Set(S.hist.map(x=>x.id));let ch=false;d.hist.forEach(x=>{if(!ids.has(x.id)){S.hist.push(x);ch=true}});if(ch)resize()}else if(d.type==='CURSOR')S.cursors[d.id]={p:d.p,t:Date.now(),tool:d.tool,color:d.color}}function bind(rel,fast){S.rel=rel;S.fast=fast;rel.onopen=()=>{send({type:'SYNC',hist:S.hist});connected()};rel.onmessage=onMsg;fast.onmessage=onMsg}function pc(){const p=new RTCPeerConnection({iceServers:[]});S.pc=p;p.oniceconnectionstatechange=()=>{if(['connected','completed'].includes(p.iceConnectionState))connected();if(['failed','disconnected','closed'].includes(p.iceConnectionState))disconnected()};return p}function waitIce(p){return new Promise(r=>{if(p.iceGatheringState==='complete')return r();let t=setTimeout(r,1600);p.onicegatheringstatechange=()=>{if(p.iceGatheringState==='complete'){clearTimeout(t);r()}}})}function connected(){toast('🎉 已連線');$('btnH').textContent='❌';$('btnV').textContent='❌';$('btnH').classList.add('on');$('btnV').classList.add('on');closeModal()}function disconnected(){toast('已斷線');$('btnH').textContent='↑ Host';$('btnV').textContent='↓ Visitor';$('btnH').classList.remove('on');$('btnV').classList.remove('on');S.pc=S.rel=S.fast=null}async function pack(o){const s=JSON.stringify(o);try{if('CompressionStream'in window){const st=new Blob([s]).stream().pipeThrough(new CompressionStream('deflate')),b=new Uint8Array(await new Response(st).arrayBuffer());let bin='';for(const x of b)bin+=String.fromCharCode(x);return'D:'+btoa(bin)}}catch(e){}return'J:'+btoa(unescape(encodeURIComponent(s)))}async function unpack(t){if(t.startsWith('D:')){const bin=atob(t.slice(2)),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return JSON.parse(await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('deflate'))).text())}return JSON.parse(decodeURIComponent(escape(atob(t.slice(2)))))}
-const CT=(()=>{let c,t=[];for(let n=0;n<256;n++){c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0}return t})();function crc32(s){let c=0^(-1);for(let i=0;i<s.length;i++)c=(c>>>8)^CT[(c^s.charCodeAt(i))&255];return((c^(-1))>>>0).toString(16).toUpperCase().padStart(8,'0')}
-const N=32,D=24,M=4,CAP=18,MAX=70,code=$('code'),cc=code.getContext('2d');function b2bits(bytes){let bits=[];for(const b of bytes)for(let i=7;i>=0;i--)bits.push((b>>i)&1);return bits}function bits2b(bits){let out=[];for(let i=0;i+7<bits.length;i+=8){let b=0;for(let j=0;j<8;j++)b=(b<<1)|bits[i+j];out.push(b)}return new Uint8Array(out)}function pkt(k,i,n,b){const o={k,i,n,b};o.c=crc32(JSON.stringify(o));return o}function ok(o){if(!o||!o.c)return false;const c=o.c,x={...o};delete x.c;return crc32(JSON.stringify(x))===c}function chunks(k,text){let a=[];for(let i=0;i<text.length;i+=CAP)a.push(text.slice(i,i+CAP));return a.map((b,i)=>pkt(k,i,a.length,b))}function drawPkt(o){code.style.display='block';$('video').style.display='none';$('frame').className='display';const data=new TextEncoder().encode(JSON.stringify(o));if(data.length>MAX)throw Error('packet too large '+data.length+' / '+MAX);const bytes=new Uint8Array(2+data.length);bytes[0]=data.length>>8;bytes[1]=data.length&255;bytes.set(data,2);const bits=b2bits(bytes),cell=420/N;cc.fillStyle='#fff';cc.fillRect(0,0,420,420);function rect(x,y,w,h,col){cc.fillStyle=col;cc.fillRect(x*cell,y*cell,w*cell,h*cell)}rect(0,0,4,4,'#e60000');rect(N-4,0,4,4,'#00b000');rect(0,N-4,4,4,'#004cff');rect(N-4,N-4,4,4,'#d0a000');for(let y=0;y<D;y++)for(let x=0;x<D;x++){cc.fillStyle=(bits[y*D+x]||0)?'#000':'#fff';cc.fillRect((M+x)*cell,(M+y)*cell,Math.ceil(cell),Math.ceil(cell))}cc.strokeStyle='#111';cc.lineWidth=3;cc.strokeRect(0,0,420,420)}
-let stream=null,scanCanvas=document.createElement('canvas'),scanCtx=scanCanvas.getContext('2d',{willReadFrequently:true}),stat={};function resetStat(){stat={frames:0,markers:0,lenBad:0,jsonBad:0,crcBad:0,kindBad:0,lastLen:0,lastKind:'',lastMsg:'',scores:{}}}function line(kind,got,total){const c=Object.keys(got||{}).length,p=total?Math.round(c/total*100):0;return`狀態：找 ${kind}\n已收：${c} / ${total||'?'}（${p}%）\nFrame：${stat.frames}；角點：${stat.markers}/4\nLenBad：${stat.lenBad}；JSONBad：${stat.jsonBad}；CRCBad：${stat.crcBad}；KindBad：${stat.kindBad}\nLast：kind=${stat.lastKind} len=${stat.lastLen}\n角點分數 R/G/B/Y：${stat.scores.tl||0}/${stat.scores.tr||0}/${stat.scores.bl||0}/${stat.scores.br||0}\n${stat.lastMsg||''}`}async function cam(){if(stream)stream.getTracks().forEach(t=>t.stop());stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});$('video').srcObject=stream;$('video').style.display='block';code.style.display='none';$('frame').className='';await $('video').play()}function stopCam(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}}function score(r,g,b,k){if(k==='tl')return Math.max(0,r*1.4-g*.65-b*.65);if(k==='tr')return Math.max(0,g*1.35-r*.55-b*.55);if(k==='bl')return Math.max(0,b*1.35-r*.55-g*.35);return Math.max(0,(r+g)*.82-b*.75-Math.abs(r-g)*.25)}function corner(img,w,h,k,x0,y0,x1,y1){let sx=w*x0|0,sy=h*y0|0,ex=w*x1|0,ey=h*y1|0,sum=0,xx=0,yy=0,cnt=0;for(let y=sy;y<ey;y+=2)for(let x=sx;x<ex;x+=2){const p=(y*w+x)*4,sc=score(img[p],img[p+1],img[p+2],k);if(sc>70){sum+=sc;xx+=x*sc;yy+=y*sc;cnt++}}stat.scores[k]=Math.round(sum/1000);return cnt<8||sum<1200?null:{x:xx/sum,y:yy/sum}}function markers(img,w,h){let tl=corner(img,w,h,'tl',0,0,.42,.42),tr=corner(img,w,h,'tr',.58,0,1,.42),bl=corner(img,w,h,'bl',0,.58,.42,1),br=corner(img,w,h,'br',.58,.58,1,1),f=[tl,tr,bl,br].filter(Boolean).length;stat.markers=f;return f===4?{tl,tr,bl,br}:null}function interp(c,gx,gy){const qx=(gx-2)/(N-4),qy=(gy-2)/(N-4),a=(1-qx)*(1-qy),b=qx*(1-qy),d=(1-qx)*qy,e=qx*qy;return{x:a*c.tl.x+b*c.tr.x+d*c.bl.x+e*c.br.x,y:a*c.tl.y+b*c.tr.y+d*c.bl.y+e*c.br.y}}function lum(img,w,h,c,gx,gy){let pts=[[0,0],[-.22,0],[.22,0],[0,-.22],[0,.22]],v=[];for(const[dx,dy]of pts){const p=interp(c,gx+dx,gy+dy),x=Math.max(0,Math.min(w-1,Math.round(p.x))),y=Math.max(0,Math.min(h-1,Math.round(p.y))),i=(y*w+x)*4;v.push((img[i]+img[i+1]+img[i+2])/3)}v.sort((a,b)=>a-b);return v[2]}function otsu(vals){let h=new Array(256).fill(0);for(const v of vals)h[Math.max(0,Math.min(255,Math.round(v)))]++;let total=vals.length,sum=0;for(let i=0;i<256;i++)sum+=i*h[i];let sb=0,wb=0,max=0,t=128;for(let i=0;i<256;i++){wb+=h[i];if(!wb)continue;let wf=total-wb;if(!wf)break;sb+=i*h[i];let mb=sb/wb,mf=(sum-sb)/wf,b=wb*wf*(mb-mf)*(mb-mf);if(b>max){max=b;t=i}}return t}function readPkt(){stat.frames++;const v=$('video'),vw=v.videoWidth,vh=v.videoHeight;if(!vw||!vh){stat.lastMsg='等攝影機畫面';return null}const side=Math.floor(Math.min(vw,vh)*.9),sx=(vw-side)/2|0,sy=(vh-side)/2|0;scanCanvas.width=side;scanCanvas.height=side;scanCtx.drawImage(v,sx,sy,side,side,0,0,side,side);const fr=scanCtx.getImageData(0,0,side,side),img=fr.data,c=markers(img,side,side);if(!c){stat.lastMsg='還在找四個彩色角點';return null}$('frame').className='finding';let lums=[],bits=[];for(let y=0;y<D;y++)for(let x=0;x<D;x++)lums.push(lum(img,side,side,c,M+x+.5,M+y+.5));const th=otsu(lums);for(const v of lums)bits.push(v<th?1:0);const lb=bits2b(bits.slice(0,16)),len=(lb[0]<<8)|lb[1];stat.lastLen=len;if(len<10||len>MAX){stat.lenBad++;stat.lastMsg='已找到角點，但長度不合理：'+len+'，threshold='+th;return null}const bytes=bits2b(bits.slice(16,16+len*8));try{const o=JSON.parse(new TextDecoder().decode(bytes));stat.lastKind=o.k||'';if(!ok(o)){stat.crcBad++;stat.lastMsg='JSON OK 但 CRC 錯';return null}stat.lastMsg='封包 OK：'+o.k+' '+(o.i+1)+'/'+o.n;return o}catch(e){stat.jsonBad++;stat.lastMsg='長度 OK，但 JSON 解不出；threshold='+th;return null}}
-async function scan(kind){await cam();resetStat();$('next').textContent='重掃本步';hint('拍對方的框');let got={},total=null;return new Promise(res=>{let stop=false;$('next').onclick=()=>{stop=true;res(scan(kind))};const tick=()=>{if(stop)return;const o=readPkt();if(o){if(o.k===kind){got[o.i]=o.b;total=o.n;const c=Object.keys(got).length;progress(c/total,true);$('info').textContent=line(kind,got,total);if(c===total){$('frame').className='ok';stop=true;setTimeout(()=>res(Array.from({length:total},(_,i)=>got[i]).join('')),300);return}}else{stat.kindBad++;stat.lastMsg='讀到 '+o.k+'，但目前要找 '+kind;$('info').textContent=line(kind,got,total)}}else $('info').textContent=line(kind,got,total);requestAnimationFrame(tick)};tick()})}function show(kind,text){stopCam();const cs=chunks(kind,text);hint('讓對方拍這個框');let i=0,timer=null;const step=()=>{drawPkt(cs[i]);$('info').textContent=`顯示 ${kind} ${i+1}/${cs.length}\n請對方拍框內光學碼。\n每包 payload 已降到 ${CAP}，避免 packet too large。`;progress((i+1)/cs.length,false);i=(i+1)%cs.length;timer=setTimeout(step,1050)};step();return()=>clearTimeout(timer)}function waitNext(label){$('next').textContent=label;return new Promise(r=>$('next').onclick=()=>r())}function openModal(){if(S.pc&&['connected','completed'].includes(S.pc.iceConnectionState)){if(confirm('確定斷開？'))S.pc.close();return}$('modal').classList.add('show');progress(0,true)}function closeModal(){clearTimeout(window.showTimer);stopCam();$('modal').classList.remove('show')}async function runHost(){openModal();try{hint('讓對方拍這個框');const p=pc(),rel=p.createDataChannel('rel',{ordered:true}),fast=p.createDataChannel('fast',{ordered:false,maxRetransmits:0});bind(rel,fast);await p.setLocalDescription(await p.createOffer());await waitIce(p);const stop=show('OFFER',await pack(p.localDescription));await waitNext('對方拍完，下一步');stop();hint('拍對方的框');const ans=await scan('ANSWER');await p.setRemoteDescription(await unpack(ans));hint('等待連線完成')}catch(e){hint('失敗: '+e.message)}}async function runJoin(){openModal();try{hint('拍對方的框');const offer=await scan('OFFER'),p=pc();p.ondatachannel=e=>{if(e.channel.label==='rel')S.rel=e.channel;if(e.channel.label==='fast')S.fast=e.channel;if(S.rel&&S.fast)bind(S.rel,S.fast)};await p.setRemoteDescription(await unpack(offer));await p.setLocalDescription(await p.createAnswer());await waitIce(p);hint('讓對方拍這個框');show('ANSWER',await pack(p.localDescription));$('next').textContent='保持顯示中'}catch(e){hint('失敗: '+e.message)}}
-$('btnH').onclick=runHost;$('btnV').onclick=runJoin;$('cancel').onclick=closeModal;$('wrap').addEventListener('pointerdown',e=>{if(!e.isPrimary)return;S.drawing=true;const p=pnt(e);S.stroke={id:uuid(),tool:S.tool,color:S.color,w:S.w,points:[p]};sendFast({type:'CURSOR',id:S.id,p,tool:S.tool,color:S.color})});addEventListener('pointermove',e=>{const p=pnt(e);if(S.drawing&&S.stroke&&e.isPrimary){const pts=S.stroke.points,l=pts.at(-1);if(Math.hypot(p.x-l.x,p.y-l.y)>2){pts.push(p);ctx.live.clearRect(0,0,innerWidth,innerHeight);draw(ctx.live,S.stroke)}}sendFast({type:'CURSOR',id:S.id,p,tool:S.tool,color:S.color})});function up(e){if(!S.drawing||!e.isPrimary)return;S.drawing=false;if(S.stroke?.points.length){S.hist.push(S.stroke);draw(ctx.base,S.stroke);ctx.live.clearRect(0,0,innerWidth,innerHeight);send({type:'STROKE',stroke:S.stroke})}S.stroke=null}addEventListener('pointerup',up);addEventListener('pointercancel',up);$('color').oninput=e=>{S.color=e.target.value;S.tool='pen';$('pen').classList.add('active');$('eraser').classList.remove('active')};$('pen').onclick=()=>{S.tool='pen';$('pen').classList.add('active');$('eraser').classList.remove('active')};$('eraser').onclick=()=>{S.tool='eraser';$('eraser').classList.add('active');$('pen').classList.remove('active')};$('clear').onclick=()=>{if(confirm('清空白板？')){S.hist=[];resize();send({type:'CLEAR'})}};addEventListener('resize',resize);resize();curs();</script>
- <!-- 系統防禦與存取計數模組 (完全靜默 / 防拷貝 / 防衝突) -->
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>共用白板</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+:root {
+  --ink: #1a1a2e;
+  --paper: #fafaf7;
+  --accent: #e84855;
+  --accent2: #3a86ff;
+  --muted: #9a9a8a;
+  --panel-bg: rgba(250,250,247,0.96);
+  --shadow: 0 8px 40px rgba(26,26,46,0.13);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--paper);font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;touch-action:none;user-select:none}
+
+/* Canvas stack */
+#wrap{position:absolute;inset:0}
+#grid{position:absolute;inset:0;background-image:radial-gradient(circle,#d8d8cc 1px,transparent 1px);background-size:24px 24px;opacity:.7}
+.board{position:absolute;inset:0;width:100%;height:100%}
+#base{z-index:1}#live{z-index:2}#cur{z-index:3;pointer-events:none}
+
+/* Toolbar */
+#tb{
+  position:fixed;z-index:20;bottom:28px;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:6px;
+  background:var(--panel-bg);border:1px solid rgba(26,26,46,.1);
+  border-radius:999px;padding:8px 10px;
+  box-shadow:var(--shadow);backdrop-filter:blur(12px);
+}
+.tbtn{
+  border:none;background:transparent;border-radius:999px;
+  width:40px;height:40px;cursor:pointer;font-size:18px;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .15s,transform .1s;
+}
+.tbtn:hover{background:rgba(26,26,46,.07)}
+.tbtn:active{transform:scale(.9)}
+.tbtn.active-pen{background:#1a1a2e;color:white}
+.tbtn.active-eraser{background:#3a86ff;color:white}
+#colorpick{width:40px;height:40px;border:none;background:transparent;cursor:pointer;border-radius:999px;padding:4px}
+.divider{width:1px;height:28px;background:rgba(26,26,46,.12);margin:0 2px}
+#connbtn{
+  border:none;border-radius:999px;padding:8px 18px;
+  font-size:13px;font-weight:700;cursor:pointer;
+  background:var(--ink);color:var(--paper);
+  transition:opacity .2s,background .2s;white-space:nowrap;
+}
+#connbtn:hover{opacity:.85}
+#connbtn.connected{background:#2ecc71}
+
+/* Status pill */
+#statuspill{
+  position:fixed;z-index:20;top:20px;left:50%;transform:translateX(-50%);
+  background:var(--panel-bg);border:1px solid rgba(26,26,46,.1);
+  border-radius:999px;padding:7px 16px;
+  box-shadow:var(--shadow);backdrop-filter:blur(12px);
+  font-size:13px;font-weight:600;color:var(--ink);
+  display:flex;align-items:center;gap:8px;pointer-events:none;
+}
+#dot{width:8px;height:8px;border-radius:50%;background:var(--muted);transition:background .4s,box-shadow .4s;flex-shrink:0}
+#dot.live{background:#2ecc71;box-shadow:0 0 0 3px rgba(46,204,113,.25);animation:pulse 2s infinite}
+#dot.waiting{background:#f39c12;box-shadow:0 0 0 3px rgba(243,156,18,.2)}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 3px rgba(46,204,113,.25)}50%{box-shadow:0 0 0 7px rgba(46,204,113,.08)}}
+
+/* Modal */
+#modal{
+  position:fixed;inset:0;z-index:100;
+  display:none;align-items:center;justify-content:center;
+  background:rgba(26,26,46,.5);backdrop-filter:blur(8px);
+  padding:20px;
+}
+#modal.show{display:flex}
+#card{
+  background:var(--paper);border-radius:24px;
+  padding:32px 28px 28px;width:100%;max-width:400px;
+  box-shadow:0 24px 80px rgba(26,26,46,.25);
+  position:relative;
+}
+#card h2{margin:0 0 6px;font-size:22px;font-weight:800;color:var(--ink);letter-spacing:-.03em}
+#card p.sub{margin:0 0 22px;font-size:14px;color:var(--muted);line-height:1.5}
+
+/* Tabs */
+#tabs{display:flex;gap:6px;margin-bottom:22px}
+.tab{
+  flex:1;border:none;border-radius:999px;padding:10px;
+  font-size:14px;font-weight:700;cursor:pointer;
+  background:rgba(26,26,46,.06);color:var(--muted);
+  transition:all .2s;
+}
+.tab.active{background:var(--ink);color:var(--paper)}
+
+/* Panels */
+.panel{display:none}
+.panel.show{display:block}
+
+/* Host */
+.room-display{
+  background:var(--ink);border-radius:14px;padding:22px;
+  text-align:center;margin-bottom:14px;
+}
+.room-label{font-size:11px;font-weight:700;letter-spacing:.14em;color:rgba(255,255,255,.4);text-transform:uppercase;margin-bottom:10px}
+.room-code{
+  font-size:52px;font-weight:900;color:white;
+  letter-spacing:.2em;font-variant-numeric:tabular-nums;line-height:1;
+}
+.room-sub{font-size:12px;color:rgba(255,255,255,.35);margin-top:10px}
+.waiting-row{
+  display:flex;align-items:center;gap:10px;
+  font-size:13px;color:var(--muted);padding:10px 0;
+}
+.spin{width:16px;height:16px;border:2px solid rgba(26,26,46,.1);border-top-color:var(--ink);border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Join */
+.input-label{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:8px}
+#roomInput{
+  width:100%;border:2px solid rgba(26,26,46,.12);border-radius:12px;
+  padding:16px;font-size:36px;font-weight:900;letter-spacing:.2em;
+  text-align:center;text-transform:uppercase;color:var(--ink);
+  background:transparent;outline:none;transition:border-color .2s;
+  font-variant-numeric:tabular-nums;
+}
+#roomInput:focus{border-color:var(--accent2)}
+#joinBtn{
+  width:100%;border:none;border-radius:12px;padding:15px;
+  font-size:15px;font-weight:800;cursor:pointer;
+  background:var(--accent2);color:white;
+  margin-top:12px;transition:opacity .2s,transform .1s;
+}
+#joinBtn:hover{opacity:.9}
+#joinBtn:active{transform:scale(.98)}
+#joinBtn:disabled{opacity:.35;cursor:default}
+
+#modalStatus{font-size:13px;color:var(--muted);text-align:center;margin-top:14px;min-height:18px}
+#modalStatus.err{color:var(--accent)}
+#modalStatus.ok{color:#2ecc71}
+
+#closeBtn{
+  position:absolute;top:16px;right:16px;
+  border:none;background:rgba(26,26,46,.07);border-radius:999px;
+  width:32px;height:32px;font-size:16px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--muted);transition:background .15s;
+}
+#closeBtn:hover{background:rgba(26,26,46,.14)}
+
+.connected-card{
+  background:rgba(46,204,113,.08);border:1.5px solid rgba(46,204,113,.25);
+  border-radius:14px;padding:20px;text-align:center;
+}
+.connected-card strong{display:block;font-size:18px;font-weight:800;color:#27ae60;margin-bottom:6px}
+.connected-card span{font-size:13px;color:var(--muted)}
+
+/* Toast */
+#toast{
+  position:fixed;z-index:200;bottom:90px;left:50%;
+  transform:translateX(-50%) translateY(16px);
+  background:var(--ink);color:var(--paper);
+  border-radius:999px;padding:10px 22px;font-size:13px;font-weight:600;
+  opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;white-space:nowrap;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(max-width:480px){
+  .room-code{font-size:38px}
+  #roomInput{font-size:28px}
+  #card{padding:24px 18px 20px}
+  #tb{gap:4px;padding:7px 8px}
+  .tbtn{width:36px;height:36px;font-size:16px}
+  #connbtn{padding:7px 14px;font-size:12px}
+}
+</style>
+</head>
+<body>
+
+<div id="wrap">
+  <div id="grid"></div>
+  <canvas id="base" class="board"></canvas>
+  <canvas id="live" class="board"></canvas>
+  <canvas id="cur" class="board"></canvas>
+</div>
+
+<div id="statuspill">
+  <div id="dot"></div>
+  <span id="statustext">未連線</span>
+</div>
+
+<div id="tb">
+  <input id="colorpick" type="color" value="#1a1a2e" title="顏色">
+  <div class="divider"></div>
+  <button class="tbtn active-pen" id="penBtn" title="畫筆">✏️</button>
+  <button class="tbtn" id="eraserBtn" title="橡皮擦">🧹</button>
+  <button class="tbtn" id="clearBtn" title="清空">🗑️</button>
+  <div class="divider"></div>
+  <button id="connbtn">🔗 連線</button>
+</div>
+
+<div id="modal">
+  <div id="card">
+    <button id="closeBtn" aria-label="關閉">✕</button>
+    <h2>建立連線</h2>
+    <p class="sub">同一個 WiFi 下，Host 產生房間碼，Visitor 輸入後即可共用白板。</p>
+    <div id="tabs">
+      <button class="tab active" id="tabHost">🖥 我是 Host</button>
+      <button class="tab" id="tabJoin">📱 我是 Visitor</button>
+    </div>
+    <div id="host-panel" class="panel show">
+      <div class="room-display">
+        <div class="room-label">房間碼</div>
+        <div class="room-code" id="roomCode">……</div>
+        <div class="room-sub" id="roomSub">正在初始化…</div>
+      </div>
+      <div class="waiting-row" id="waitingRow">
+        <div class="spin"></div>
+        <span>等待 Visitor 輸入房間碼…</span>
+      </div>
+    </div>
+    <div id="join-panel" class="panel">
+      <div class="input-label">輸入 Host 的房間碼</div>
+      <input id="roomInput" maxlength="6" placeholder="123456" autocomplete="off" inputmode="numeric">
+      <button id="joinBtn" disabled>加入白板</button>
+    </div>
+    <div id="modalStatus"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+
+// Toast
+let _tt;
+const toast=msg=>{$('toast').textContent=msg;$('toast').classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>$('toast').classList.remove('show'),3200)};
+
+// Status pill
+function setStatus(txt,state){
+  $('statustext').textContent=txt;
+  $('dot').className=state==='live'?'live':state==='waiting'?'waiting':'';
+}
+
+// Modal status
+function setModalStatus(txt,cls){
+  $('modalStatus').textContent=txt;
+  $('modalStatus').className=cls||'';
+}
+
+// ── Canvas ─────────────────────────────────────────────────────────────────
+const cvs={base:$('base'),live:$('live'),cur:$('cur')};
+const ctx={
+  base:cvs.base.getContext('2d',{alpha:false}),
+  live:cvs.live.getContext('2d'),
+  cur:cvs.cur.getContext('2d')
+};
+
+const S={
+  id:crypto.randomUUID(),
+  tool:'pen',color:'#1a1a2e',w:4,
+  hist:[],stroke:null,drawing:false,cursors:{},
+  peer:null,conn:null,_cursorThrottle:false
+};
+
+function resize(){
+  const d=devicePixelRatio||1,w=innerWidth,h=innerHeight;
+  Object.values(cvs).forEach(c=>{c.width=w*d;c.height=h*d;c.style.width=w+'px';c.style.height=h+'px'});
+  Object.values(ctx).forEach(x=>{x.setTransform(d,0,0,d,0,0);x.lineCap='round';x.lineJoin='round'});
+  ctx.base.fillStyle='#fafaf7';ctx.base.fillRect(0,0,w,h);
+  S.hist.forEach(s=>drawStroke(ctx.base,s));
+}
+
+function drawStroke(x,s){
+  if(!s.pts?.length)return;
+  x.beginPath();
+  x.strokeStyle=s.tool==='eraser'?'#fafaf7':s.color;
+  x.lineWidth=s.tool==='eraser'?s.w*7:s.w;
+  x.moveTo(s.pts[0].x,s.pts[0].y);
+  for(let i=1;i<s.pts.length-1;i++){
+    x.quadraticCurveTo(s.pts[i].x,s.pts[i].y,(s.pts[i].x+s.pts[i+1].x)/2,(s.pts[i].y+s.pts[i+1].y)/2);
+  }
+  if(s.pts.length>1)x.lineTo(s.pts.at(-1).x,s.pts.at(-1).y);
+  x.stroke();
+}
+
+function renderCursors(){
+  ctx.cur.clearRect(0,0,innerWidth,innerHeight);
+  const now=Date.now();
+  for(const[id,c]of Object.entries(S.cursors)){
+    if(now-c.t>4000){delete S.cursors[id];continue}
+    ctx.cur.beginPath();
+    ctx.cur.arc(c.p.x,c.p.y,6,0,Math.PI*2);
+    ctx.cur.fillStyle=c.tool==='eraser'?'#bbb':c.color;
+    ctx.cur.fill();
+    ctx.cur.strokeStyle='white';ctx.cur.lineWidth=2;ctx.cur.stroke();
+  }
+  requestAnimationFrame(renderCursors);
+}
+
+function ptFrom(e){const r=cvs.live.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
+
+// ── Messaging ──────────────────────────────────────────────────────────────
+function send(o){if(S.conn?.open)S.conn.send(o)}
+
+function handleData(d){
+  if(d.type==='STROKE'){
+    if(!S.hist.find(x=>x.id===d.s.id)){S.hist.push(d.s);drawStroke(ctx.base,d.s)}
+  }else if(d.type==='CURSOR'){
+    S.cursors[d.id]={p:d.p,t:Date.now(),tool:d.tool,color:d.color};
+  }else if(d.type==='CLEAR'){
+    S.hist=[];resize();toast('對方清空了白板');
+  }else if(d.type==='SYNC'){
+    const ids=new Set(S.hist.map(x=>x.id));let ch=false;
+    d.hist.forEach(s=>{if(!ids.has(s.id)){S.hist.push(s);ch=true}});
+    if(ch)resize();
+  }
+}
+
+function onConnected(){
+  setStatus('已連線 ✓','live');
+  $('connbtn').textContent='● 已連線';
+  $('connbtn').classList.add('connected');
+  toast('🎉 連線成功！可以開始共用白板了');
+  closeModal();
+  // Sync history to the other side
+  send({type:'SYNC',hist:S.hist});
+}
+
+function onDisconnected(){
+  S.conn=null;
+  setStatus('連線已斷開','idle');
+  $('connbtn').textContent='🔗 連線';
+  $('connbtn').classList.remove('connected');
+  toast('連線已斷開');
+}
+
+function setupConn(conn){
+  S.conn=conn;
+  conn.on('open',onConnected);
+  conn.on('data',handleData);
+  conn.on('close',onDisconnected);
+  conn.on('error',err=>{toast('連線錯誤: '+(err.message||err));setStatus('錯誤','idle')});
+}
+
+// ── PeerJS ─────────────────────────────────────────────────────────────────
+function makeCode(){return String(Math.floor(100000+Math.random()*900000))}
+function codeToId(c){return'wb-'+c}
+function idToCode(id){return id.replace(/^wb-/,'')}
+
+let _peer=null;
+
+function destroyPeer(){
+  if(_peer&&!_peer.destroyed){_peer.destroy()}
+  _peer=null;S.peer=null;
+}
+
+function initHost(code){
+  destroyPeer();
+  const peer=new Peer(codeToId(code),{debug:0});
+  _peer=peer;S.peer=peer;
+
+  peer.on('open',id=>{
+    const c=idToCode(id);
+    $('roomCode').textContent=c;
+    $('roomSub').textContent='把這個碼告訴 Visitor';
+    setModalStatus('');
+    setStatus('等待 Visitor 加入…','waiting');
+  });
+
+  peer.on('connection',conn=>{
+    $('waitingRow').innerHTML='<span style="font-size:14px;font-weight:700;color:#27ae60">✓ Visitor 已加入！</span>';
+    setupConn(conn);
+  });
+
+  peer.on('error',err=>{
+    if(err.type==='unavailable-id'){
+      // Room code collision — retry
+      destroyPeer();
+      setTimeout(()=>initHost(makeCode()),400);
+    }else{
+      setModalStatus('伺服器錯誤: '+(err.message||err.type),'err');
+      setStatus('錯誤','idle');
+    }
+  });
+}
+
+function joinRoom(code){
+  destroyPeer();
+  const peer=new Peer(undefined,{debug:0});
+  _peer=peer;S.peer=peer;
+
+  $('joinBtn').disabled=true;
+  $('joinBtn').textContent='連線中…';
+  setModalStatus('正在連線，請稍候…');
+
+  let timedOut=false;
+  const timeout=setTimeout(()=>{
+    timedOut=true;
+    setModalStatus('連線逾時。請確認：房間碼正確、Host 頁面仍開著。','err');
+    $('joinBtn').disabled=false;$('joinBtn').textContent='加入白板';
+  },10000);
+
+  peer.on('open',()=>{
+    const conn=peer.connect(codeToId(code),{reliable:true,serialization:'json'});
+    setupConn(conn);
+    conn.on('open',()=>{clearTimeout(timeout)});
+    conn.on('error',err=>{
+      clearTimeout(timeout);
+      if(!timedOut){
+        setModalStatus('無法連線：'+(err.message||err)+'。請確認房間碼正確。','err');
+        $('joinBtn').disabled=false;$('joinBtn').textContent='加入白板';
+      }
+    });
+  });
+
+  peer.on('error',err=>{
+    clearTimeout(timeout);
+    setModalStatus('錯誤: '+(err.message||err.type),'err');
+    $('joinBtn').disabled=false;$('joinBtn').textContent='加入白板';
+  });
+}
+
+// ── Modal ──────────────────────────────────────────────────────────────────
+let _tab='host';
+
+function switchTab(t){
+  _tab=t;
+  $('tabHost').className='tab'+(_tab==='host'?' active':'');
+  $('tabJoin').className='tab'+(_tab==='join'?' active':'');
+  $('host-panel').className='panel'+(_tab==='host'?' show':'');
+  $('join-panel').className='panel'+(_tab==='join'?' show':'');
+  setModalStatus('');
+}
+
+function openModal(){
+  // If already connected, show connected state
+  if(S.conn?.open){
+    $('host-panel').innerHTML='<div class="connected-card"><strong>✓ 已連線中</strong><span>白板正在同步，點右上角 ✕ 回到白板</span></div>';
+    $('join-panel').innerHTML='<div class="connected-card"><strong>✓ 已連線中</strong><span>白板正在同步，點右上角 ✕ 回到白板</span></div>';
+    $('modal').classList.add('show');
+    return;
+  }
+  $('modal').classList.add('show');
+  // Auto-start hosting if not already running
+  if(!_peer||_peer.destroyed){
+    $('roomCode').textContent='……';
+    $('roomSub').textContent='正在初始化…';
+    $('waitingRow').innerHTML='<div class="spin"></div><span>等待 Visitor 輸入房間碼…</span>';
+    initHost(makeCode());
+  }
+}
+
+function closeModal(){$('modal').classList.remove('show')}
+
+$('connbtn').onclick=openModal;
+$('closeBtn').onclick=closeModal;
+$('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeModal()});
+$('tabHost').onclick=()=>switchTab('host');
+$('tabJoin').onclick=()=>switchTab('join');
+
+$('roomInput').addEventListener('input',e=>{
+  e.target.value=e.target.value.replace(/\D/g,'').slice(0,6);
+  $('joinBtn').disabled=e.target.value.length!==6;
+  setModalStatus('');
+});
+$('roomInput').addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!$('joinBtn').disabled)joinRoom($('roomInput').value);
+});
+$('joinBtn').onclick=()=>{
+  const c=$('roomInput').value.trim();
+  if(c.length===6)joinRoom(c);
+};
+
+// ── Drawing ────────────────────────────────────────────────────────────────
+$('wrap').addEventListener('pointerdown',e=>{
+  if(!e.isPrimary)return;
+  S.drawing=true;
+  const p=ptFrom(e);
+  S.stroke={id:crypto.randomUUID(),tool:S.tool,color:S.color,w:S.w,pts:[p]};
+  send({type:'CURSOR',id:S.id,p,tool:S.tool,color:S.color});
+});
+
+addEventListener('pointermove',e=>{
+  const p=ptFrom(e);
+  if(S.drawing&&S.stroke&&e.isPrimary){
+    const l=S.stroke.pts.at(-1);
+    if(Math.hypot(p.x-l.x,p.y-l.y)>2){
+      S.stroke.pts.push(p);
+      ctx.live.clearRect(0,0,innerWidth,innerHeight);
+      drawStroke(ctx.live,S.stroke);
+    }
+  }
+  if(!S._cursorThrottle){
+    S._cursorThrottle=true;
+    setTimeout(()=>S._cursorThrottle=false,50);
+    send({type:'CURSOR',id:S.id,p,tool:S.tool,color:S.color});
+  }
+});
+
+function pointerUp(e){
+  if(!S.drawing||!e.isPrimary)return;
+  S.drawing=false;
+  if(S.stroke?.pts.length){
+    S.hist.push(S.stroke);
+    drawStroke(ctx.base,S.stroke);
+    ctx.live.clearRect(0,0,innerWidth,innerHeight);
+    send({type:'STROKE',s:S.stroke});
+  }
+  S.stroke=null;
+}
+addEventListener('pointerup',pointerUp);
+addEventListener('pointercancel',pointerUp);
+
+// ── Toolbar ────────────────────────────────────────────────────────────────
+$('colorpick').oninput=e=>{
+  S.color=e.target.value;S.tool='pen';
+  $('penBtn').className='tbtn active-pen';$('eraserBtn').className='tbtn';
+};
+$('penBtn').onclick=()=>{S.tool='pen';$('penBtn').className='tbtn active-pen';$('eraserBtn').className='tbtn'};
+$('eraserBtn').onclick=()=>{S.tool='eraser';$('eraserBtn').className='tbtn active-eraser';$('penBtn').className='tbtn'};
+$('clearBtn').onclick=()=>{
+  if(confirm('確定清空白板？所有人的內容都會消失。')){
+    S.hist=[];resize();send({type:'CLEAR'});
+  }
+};
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+addEventListener('resize',resize);
+resize();
+renderCursors();
+setStatus('未連線','idle');
+setTimeout(openModal,300);
+</script>
+<!-- 系統防禦與存取計數模組 (完全靜默 / 防拷貝 / 防衝突) -->
 <script>
 (function(){
     // 1. 嚴格網域白名單檢查 (防止原始碼被盜用執行)
