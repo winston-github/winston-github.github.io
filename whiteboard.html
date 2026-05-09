@@ -699,7 +699,6 @@ function openTextEditor(o){
 
   const sp=w2s(o.x,o.y);
   edX=sp.x; edY=sp.y;
-  // Use stored box size (in world coords), scaled; or default
   edW=o.boxW?(o.boxW*cam.z):Math.max(200,40*cam.z);
   edH=o.boxH?(o.boxH*cam.z):Math.max(60,30*cam.z);
 
@@ -711,7 +710,7 @@ function openTextEditor(o){
   te.style.lineHeight='1.5';
   tfs.value=o.fontSize||20;
   te.value=o.text||'';
-  renderTextObjects(); // hide the DOM div
+  renderTextObjects();
   te.focus();
   te.select();
   tc.textContent=t('confirm');
@@ -722,12 +721,8 @@ function closeTextEditor(commit){
   if(!editingObj)return;
   if(commit){
     const txt=te.value;
-    // Save box size in world coords
     editingObj.boxW=edW/cam.z;
     editingObj.boxH=edH/cam.z;
-    // Update position from screen (editor may have been repositioned by resize)
-    editingObj.x=edX/cam.z+cam.x/cam.z;
-    // Reconstruct from cam: edX = o.x*cam.z+cam.x => o.x=(edX-cam.x)/cam.z
     editingObj.x=(edX-cam.x)/cam.z;
     editingObj.y=(edY-cam.y)/cam.z;
     if(txt.trim()!==''){
@@ -748,7 +743,6 @@ function closeTextEditor(commit){
 }
 
 // Resize handles
-const HANDLES=['nw','n','ne','e','se','s','sw','w'];
 teBox.querySelectorAll('.res-handle').forEach(handle=>{
   const dir=handle.dataset.h;
   let startPX,startPY,startEdX,startEdY,startEdW,startEdH;
@@ -783,7 +777,7 @@ teBox.querySelectorAll('.res-handle').forEach(handle=>{
   });
 });
 
-// Drag editor box by its border area (not textarea)
+// Drag editor box by its border area
 let edDragging=false,edDragPid=null,edDragStartX,edDragStartY,edDragX0,edDragY0;
 teBox.addEventListener('pointerdown',e=>{
   if(e.target===te||e.target.classList.contains('res-handle'))return;
@@ -864,7 +858,7 @@ function selectObj(id){selectedId=id;redrawUI()}
 function deselect(){selectedId=null;redrawUI()}
 
 /* ═══════════════════════════════════════════════════════
-   SHAPE RECOGNITION  (eraser is excluded — handled in finishDraw)
+   SHAPE RECOGNITION
 ═══════════════════════════════════════════════════════ */
 function recognizeShape(pts){
   if(!pts||pts.length<4)return null;
@@ -938,35 +932,48 @@ $('szPlus').addEventListener('click',e=>{e.stopPropagation();if(szIdx<SIZE_STEPS
 updateSizeDisplay();
 
 /* ═══════════════════════════════════════════════════════
-   POINTER HANDLING — robust cross-browser/touch fix
-   Key fixes:
-   1. Use a WeakRef-free pointerId map; store by id not object ref
-   2. Don't rely on e.target.closest() for draw exclusion — use a flag
-   3. Eraser strokes skip shape recognition entirely
-   4. pointermove uses the stored position, not event position mismatch
+   POINTER HANDLING
+   
+   核心修復：
+   1. 移除 drawPointerId 與 panning 的衝突邏輯
+   2. 用獨立的 panPointerId 追蹤平移手指
+   3. pointerup/pointercancel 不依賴 activePointers.size 判斷，改用各自旗標
+   4. finishDraw 不再依賴 drawing flag，改為直接判斷 liveObj
+   5. 所有 pointermove 嚴格只回應各自的 pointerId
 ═══════════════════════════════════════════════════════ */
 const vp=$('viewport');
 
-// Track all active pointers by id
-const activePointers=new Map(); // pointerId -> {x,y}
-let panning=false,panStart={};
-let pinchState={active:false,dist0:0,mid0:null,cam0:null};
-let drawing=false;
-let drawPointerId=null; // which pointer is drawing
+// 用 Map 追蹤目前所有活躍指標
+const activePointers=new Map();
+
+// 平移狀態（select 工具 或 雙指縮放後剩一指）
+let panPointerId=null;
+let panStart={};
+
+// 雙指縮放
+let pinchActive=false;
+let pinchDist0=0,pinchMid0=null,pinchCam0=null;
+
+// 繪圖狀態
+let drawPointerId=null;
+let liveObjStarted=false; // 確保 liveObj 確實已初始化
+
 let holdTimer=null;
 let snapApplied=false;
 
-// Flag: is pointer starting on UI element that should block drawing?
+// 判斷事件目標是否為 UI 元素（不應觸發繪圖）
 function isUITarget(el){
   return el.closest('#tb')||el.closest('#topRight')||el.closest('#textEditorWrap')||el.closest('#modal');
 }
 
 function getPinchDist(){
   const pts=[...activePointers.values()];
+  if(pts.length<2)return 0;
   return Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y);
 }
 function getPinchMid(){
   const pts=[...activePointers.values()];
+  if(pts.length<2)return{x:0,y:0};
   return{x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2};
 }
 
@@ -976,50 +983,54 @@ vp.addEventListener('pointerdown',e=>{
 
   activePointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
 
-  // Always capture — this ensures pointermove/up fire on vp
+  // 嘗試捕獲指標（確保 move/up 都在 vp 上觸發）
   try{vp.setPointerCapture(e.pointerId)}catch(_){}
 
   const nptrs=activePointers.size;
 
+  // ── 雙指以上：進入 pinch 模式 ──────────────────
   if(nptrs>=2){
-    // Second finger: cancel any drawing, go to pinch
-    if(drawing){cancelDraw()}
-    panning=false;
-    clearTimeout(holdTimer);
-    pinchState={
-      active:true,
-      dist0:getPinchDist(),
-      mid0:getPinchMid(),
-      cam0:{...cam}
-    };
+    // 取消正在進行的繪圖
+    if(drawPointerId!==null){
+      cancelDraw();
+    }
+    // 取消平移
+    panPointerId=null;
+
+    pinchActive=true;
+    pinchDist0=getPinchDist();
+    pinchMid0=getPinchMid();
+    pinchCam0={...cam};
     return;
   }
 
-  // Single pointer from here
-  if(pinchState.active)return; // wait for all fingers to lift
+  // ── 單指 ────────────────────────────────────────
+  // 若還在 pinch 中等最後一指抬起，不處理新操作
+  if(pinchActive)return;
 
   const w=s2w(e.clientX,e.clientY);
 
+  // select 工具 → 平移畫布
   if(activeTool==='select'){
-    panning=true;
+    panPointerId=e.pointerId;
     panStart={px:e.clientX,py:e.clientY,cx:cam.x,cy:cam.y};
     return;
   }
 
+  // text 工具 → 建立文字物件
   if(activeTool==='text'){
     createTextObj(w.x,w.y);
     return;
   }
 
-  // Start drawing
-  drawing=true;
+  // 其他工具 → 開始繪圖
   drawPointerId=e.pointerId;
+  liveObjStarted=true;
   snapApplied=false;
 
   if(activeTool==='pen'){
     liveObj={id:uid(),type:'stroke',pts:[{...w}],color:S.color,w:S.w};
   } else if(activeTool==='eraser'){
-    // Eraser: big stroke, use paper color — no shape recognition
     liveObj={id:uid(),type:'stroke',pts:[{...w}],color:'#fafaf7',w:S.w*5,_eraser:true};
   } else if(activeTool==='line'){
     liveObj={id:uid(),type:'line',x1:w.x,y1:w.y,x2:w.x,y2:w.y,color:S.color,w:S.w};
@@ -1029,18 +1040,16 @@ vp.addEventListener('pointerdown',e=>{
     liveObj={id:uid(),type:'ellipse',cx:w.x,cy:w.y,rx:0,ry:0,_ox:w.x,_oy:w.y,color:S.color,w:S.w};
   }
 
-  panStart={px:e.clientX,py:e.clientY};
-
-  // Shape-hold snap timers (pen excludes eraser now)
+  // shape-hold snap timers
   if(activeTool==='pen'){
     holdTimer=setTimeout(()=>{
-      if(drawing&&liveObj?.pts?.length>3&&!snapApplied){
+      if(liveObjStarted&&liveObj?.pts?.length>3&&!snapApplied){
         const r=recognizeShape(liveObj.pts);if(r)applyRecognizedShape(r);
       }
     },500);
   }
   if(activeTool==='line'||activeTool==='rect'||activeTool==='ellipse'){
-    holdTimer=setTimeout(()=>{if(drawing&&liveObj&&!snapApplied)snapCurrentShape()},500);
+    holdTimer=setTimeout(()=>{if(liveObjStarted&&liveObj&&!snapApplied)snapCurrentShape()},500);
   }
 },{passive:false});
 
@@ -1050,45 +1059,53 @@ vp.addEventListener('pointermove',e=>{
   activePointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
   const nptrs=activePointers.size;
 
-  if(nptrs>=2&&pinchState.active){
+  // ── 雙指縮放 ────────────────────────────────────
+  if(nptrs>=2&&pinchActive){
     const dist=getPinchDist(),mid=getPinchMid();
-    const ratio=dist/pinchState.dist0,newZ=clamp(pinchState.cam0.z*ratio,.08,12);
-    const wx=(mid.x-pinchState.cam0.x)/pinchState.cam0.z;
-    const wy=(mid.y-pinchState.cam0.y)/pinchState.cam0.z;
-    const panDx=mid.x-pinchState.mid0.x,panDy=mid.y-pinchState.mid0.y;
-    cam.z=newZ;cam.x=mid.x-wx*newZ+panDx;cam.y=mid.y-wy*newZ+panDy;
-    applyCam();renderTextObjects();return;
+    if(pinchDist0===0)return;
+    const ratio=dist/pinchDist0;
+    const newZ=clamp(pinchCam0.z*ratio,.08,12);
+    const wx=(mid.x-pinchCam0.x)/pinchCam0.z;
+    const wy=(mid.y-pinchCam0.y)/pinchCam0.z;
+    const panDx=mid.x-pinchMid0.x,panDy=mid.y-pinchMid0.y;
+    cam.z=newZ;
+    cam.x=mid.x-wx*newZ+panDx;
+    cam.y=mid.y-wy*newZ+panDy;
+    applyCam();renderTextObjects();
+    return;
   }
 
-  if(panning&&!drawing&&e.pointerId===drawPointerId||
-     panning&&!drawing&&nptrs===1){
+  // ── 平移（select 工具） ─────────────────────────
+  if(panPointerId!==null&&e.pointerId===panPointerId){
     cam.x=panStart.cx+(e.clientX-panStart.px);
     cam.y=panStart.cy+(e.clientY-panStart.py);
-    applyCam();renderTextObjects();return;
+    applyCam();renderTextObjects();
+    return;
   }
 
-  if(drawing&&liveObj&&e.pointerId===drawPointerId){
+  // ── 繪圖 ────────────────────────────────────────
+  if(drawPointerId!==null&&e.pointerId===drawPointerId&&liveObj){
     if(snapApplied)return;
     const w=s2w(e.clientX,e.clientY);
     if(liveObj.type==='stroke'){
       const last=liveObj.pts.at(-1);
       if(Math.hypot(w.x-last.x,w.y-last.y)>1.5/cam.z){
         liveObj.pts.push({...w});
-        // If moving far from start, cancel hold timer (for pen shape recognition)
         if(activeTool==='pen'){
           const startPt=liveObj.pts[0];
           if(Math.hypot(w.x-startPt.x,w.y-startPt.y)>30/cam.z)clearTimeout(holdTimer);
         }
       }
-    } else if(liveObj.type==='line'){liveObj.x2=w.x;liveObj.y2=w.y}
-    else if(liveObj.type==='rect'){liveObj.w2=w.x-liveObj._ox;liveObj.h2=w.y-liveObj._oy}
-    else if(liveObj.type==='ellipse'){
+    } else if(liveObj.type==='line'){
+      liveObj.x2=w.x;liveObj.y2=w.y;
+    } else if(liveObj.type==='rect'){
+      liveObj.w2=w.x-liveObj._ox;liveObj.h2=w.y-liveObj._oy;
+    } else if(liveObj.type==='ellipse'){
       liveObj.rx=(w.x-liveObj._ox)/2;liveObj.ry=(w.y-liveObj._oy)/2;
       liveObj.cx=liveObj._ox+liveObj.rx;liveObj.cy=liveObj._oy+liveObj.ry;
     }
     redrawCanvas();
-    // Send live preview for strokes
-    if((liveObj.type==='stroke')&&S.conn?.open){
+    if(liveObj.type==='stroke'&&S.conn?.open){
       S.conn.send({type:'LIVE',o:{...liveObj,pts:[...liveObj.pts]}});
     }
   }
@@ -1096,39 +1113,71 @@ vp.addEventListener('pointermove',e=>{
 
 vp.addEventListener('pointerup',e=>{
   if(!activePointers.has(e.pointerId))return;
+  e.preventDefault();
   activePointers.delete(e.pointerId);
-  clearTimeout(holdTimer);
-
   const nptrs=activePointers.size;
-  if(nptrs<2)pinchState.active=false;
-  if(nptrs===1){
-    const p=[...activePointers.values()][0];
-    panStart={px:p.x,py:p.y,cx:cam.x,cy:cam.y};
+
+  // 當所有手指都離開，結束 pinch
+  if(nptrs<2)pinchActive=false;
+
+  // 若是平移指標抬起
+  if(e.pointerId===panPointerId){
+    panPointerId=null;
+    return;
   }
-  if(nptrs===0){
-    panning=false;
-    if(drawing&&liveObj&&e.pointerId===drawPointerId){
-      // Eraser: no shape recognition, just finish
+
+  // 若是繪圖指標抬起
+  if(e.pointerId===drawPointerId){
+    clearTimeout(holdTimer);
+    const wasDrawing=liveObjStarted&&liveObj!==null;
+    // 重置繪圖狀態
+    drawPointerId=null;
+    liveObjStarted=false;
+
+    if(wasDrawing){
       if(liveObj._eraser||activeTool==='eraser'){
         finishDraw();
       } else if(liveObj.type==='stroke'&&!snapApplied){
         const r=recognizeShape(liveObj.pts);
-        if(r){applyRecognizedShape(r);return}
-        else finishDraw();
+        if(r){applyRecognizedShape(r)}
+        else{finishDraw()}
       } else {
         finishDraw();
       }
     }
-    drawing=false;
-    drawPointerId=null;
+    return;
+  }
+
+  // 若剩一個手指（從 pinch 退回單指），重啟平移基準
+  if(nptrs===1&&pinchActive===false){
+    const remaining=[...activePointers.entries()][0];
+    if(remaining){
+      const[pid,pos]=remaining;
+      if(activeTool==='select'){
+        panPointerId=pid;
+        panStart={px:pos.x,py:pos.y,cx:cam.x,cy:cam.y};
+      }
+    }
   }
 },{passive:false});
 
 vp.addEventListener('pointercancel',e=>{
+  if(!activePointers.has(e.pointerId))return;
   activePointers.delete(e.pointerId);
-  if(e.pointerId===drawPointerId){drawing=false;drawPointerId=null;liveObj=null;snapApplied=false;redrawCanvas()}
-  if(activePointers.size<2)pinchState.active=false;
-  if(activePointers.size===0)panning=false;
+  const nptrs=activePointers.size;
+  if(nptrs<2)pinchActive=false;
+
+  if(e.pointerId===panPointerId){
+    panPointerId=null;
+  }
+  if(e.pointerId===drawPointerId){
+    clearTimeout(holdTimer);
+    drawPointerId=null;
+    liveObjStarted=false;
+    liveObj=null;
+    snapApplied=false;
+    redrawCanvas();
+  }
 });
 
 vp.addEventListener('contextmenu',e=>e.preventDefault());
@@ -1143,7 +1192,12 @@ vp.addEventListener('wheel',e=>{
 },{passive:false});
 
 function cancelDraw(){
-  clearTimeout(holdTimer);drawing=false;drawPointerId=null;liveObj=null;snapApplied=false;redrawCanvas();
+  clearTimeout(holdTimer);
+  drawPointerId=null;
+  liveObjStarted=false;
+  liveObj=null;
+  snapApplied=false;
+  redrawCanvas();
 }
 
 let _snapHideTimer;
@@ -1192,7 +1246,7 @@ function applyRecognizedShape(recognized){
 function finishDraw(){
   if(!liveObj)return;
   clearTimeout(holdTimer);
-  // Line snap on finish (only for line tool, not eraser)
+  // line 工具：完成時自動 snap 角度
   if(liveObj.type==='line'&&!snapApplied&&!liveObj._eraser){
     const dx=liveObj.x2-liveObj.x1,dy=liveObj.y2-liveObj.y1;
     const angle=Math.atan2(dy,dx)*(180/Math.PI);
@@ -1203,10 +1257,15 @@ function finishDraw(){
     if(best!==null){const r=best*Math.PI/180;liveObj.x2=liveObj.x1+dist*Math.cos(r);liveObj.y2=liveObj.y1+dist*Math.sin(r)}
   }
   const o={...liveObj};delete o._ox;delete o._oy;delete o._eraser;
-  snapshot();objects.push(o);liveObj=null;snapApplied=false;
+  snapshot();
+  objects.push(o);
+  liveObj=null;
+  snapApplied=false;
+  // 重置繪圖指標（finishDraw 可能從 applyRecognizedShape 的 setTimeout 呼叫，此時已重置過）
+  drawPointerId=null;
+  liveObjStarted=false;
   redrawCanvas();renderTextObjects();
   send({type:'ADD',o});
-  drawing=false;drawPointerId=null;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -1369,7 +1428,6 @@ $('tclear').addEventListener('click',()=>{
 function onResize(){
   resizeGrid();resizeUI();
   redrawGrid();redrawCanvas();renderTextObjects();
-  // Re-position text editor if open
   if(editingObj&&teWrap.style.display!=='none'){
     const sp=w2s(editingObj.x,editingObj.y);
     edX=sp.x;edY=sp.y;
@@ -1381,7 +1439,7 @@ resizeGrid();resizeDrawCanvas();resizeUI();
 initCam();
 applyLang();
 setTimeout(openModal,300);
-</script>  
+</script>
 <!-- 系統防禦與存取計數模組 (完全靜默 / 防拷貝 / 防衝突) -->
 <script>
 (function(){
