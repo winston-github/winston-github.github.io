@@ -6,226 +6,231 @@
 <title>共用白板</title>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
-:root {
-  --ink: #1a1a2e;
-  --paper: #fafaf7;
-  --accent: #e84855;
-  --accent2: #3a86ff;
-  --muted: #9a9a8a;
-  --panel-bg: rgba(250,250,247,0.96);
-  --shadow: 0 8px 40px rgba(26,26,46,0.13);
+:root{
+  --ink:#1a1a2e;--paper:#fafaf7;--accent:#e84855;--blue:#3a86ff;--muted:#9a9a8a;
+  --panel:#ffffffee;--shadow:0 4px 24px rgba(0,0,0,.12);--r:12px;
 }
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--paper);font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;touch-action:none;user-select:none}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
+  font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;touch-action:none;user-select:none}
 
-/* Canvas stack */
-#wrap{position:absolute;inset:0}
-#grid{position:absolute;inset:0;background-image:radial-gradient(circle,#d8d8cc 1px,transparent 1px);background-size:24px 24px;opacity:.7}
-.board{position:absolute;inset:0;width:100%;height:100%}
-#base{z-index:1}#live{z-index:2}#cur{z-index:3;pointer-events:none}
+/* ── Canvas layer ─────────────────────────────── */
+#viewport{position:fixed;inset:0;overflow:hidden;cursor:crosshair}
+#canvas{position:absolute;top:0;left:0;transform-origin:0 0}
+#gridSvg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+#drawCanvas{position:absolute;top:0;left:0;pointer-events:none}
+#uiLayer{position:absolute;top:0;left:0;pointer-events:none}
 
-/* Toolbar */
+/* Text editing overlay */
+#textEditor{
+  position:fixed;display:none;
+  border:2px dashed var(--blue);border-radius:4px;
+  background:transparent;min-width:120px;min-height:40px;
+  font-size:18px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;
+  color:var(--ink);outline:none;resize:none;padding:4px 6px;
+  white-space:pre-wrap;word-break:break-word;overflow:hidden;
+  line-height:1.4;cursor:text;z-index:50;
+}
+
+/* ── Toolbar ──────────────────────────────────── */
 #tb{
-  position:fixed;z-index:20;bottom:28px;left:50%;transform:translateX(-50%);
-  display:flex;align-items:center;gap:6px;
-  background:var(--panel-bg);border:1px solid rgba(26,26,46,.1);
-  border-radius:999px;padding:8px 10px;
-  box-shadow:var(--shadow);backdrop-filter:blur(12px);
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:4px;
+  background:var(--panel);border:1px solid rgba(0,0,0,.1);
+  border-radius:999px;padding:7px 10px;box-shadow:var(--shadow);
+  backdrop-filter:blur(16px);z-index:30;flex-wrap:nowrap;
 }
 .tbtn{
-  border:none;background:transparent;border-radius:999px;
-  width:40px;height:40px;cursor:pointer;font-size:18px;
+  border:none;background:none;border-radius:999px;
+  width:38px;height:38px;cursor:pointer;font-size:17px;
   display:flex;align-items:center;justify-content:center;
-  transition:background .15s,transform .1s;
+  transition:background .12s,transform .08s;color:var(--ink);flex-shrink:0;
+  position:relative;
 }
-.tbtn:hover{background:rgba(26,26,46,.07)}
-.tbtn:active{transform:scale(.9)}
-.tbtn.active-pen{background:#1a1a2e;color:white}
-.tbtn.active-eraser{background:#3a86ff;color:white}
-#colorpick{width:40px;height:40px;border:none;background:transparent;cursor:pointer;border-radius:999px;padding:4px}
-.divider{width:1px;height:28px;background:rgba(26,26,46,.12);margin:0 2px}
+.tbtn:hover{background:rgba(0,0,0,.06)}
+.tbtn:active{transform:scale(.88)}
+.tbtn.sel{background:var(--ink);color:#fff}
+.tbtn.sel2{background:var(--blue);color:#fff}
+.sep{width:1px;height:26px;background:rgba(0,0,0,.1);margin:0 2px;flex-shrink:0}
+
+/* Color + size row */
+#colorpick{width:32px;height:32px;border:none;background:transparent;cursor:pointer;
+  border-radius:999px;padding:2px;flex-shrink:0}
+#sizeWrap{position:relative;flex-shrink:0}
+#sizeBtn{font-size:13px;font-weight:700;width:auto;padding:0 10px;min-width:38px}
+#sizePopup{
+  position:absolute;bottom:52px;left:50%;transform:translateX(-50%);
+  background:var(--panel);border:1px solid rgba(0,0,0,.1);
+  border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow);
+  display:none;width:200px;backdrop-filter:blur(16px);
+}
+#sizePopup.open{display:block}
+#sizePopup label{font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+#sizeSlider{width:100%;margin-top:8px;accent-color:var(--ink)}
+
+/* ── Status pill ──────────────────────────────── */
+#pill{
+  position:fixed;top:16px;left:50%;transform:translateX(-50%);
+  background:var(--panel);border:1px solid rgba(0,0,0,.1);
+  border-radius:999px;padding:6px 14px;box-shadow:var(--shadow);
+  backdrop-filter:blur(16px);font-size:12px;font-weight:600;color:var(--ink);
+  display:flex;align-items:center;gap:7px;z-index:30;white-space:nowrap;
+}
+#dot{width:7px;height:7px;border-radius:50%;background:var(--muted);transition:.3s;flex-shrink:0}
+#dot.live{background:#2ecc71;box-shadow:0 0 0 3px rgba(46,204,113,.2);animation:pulse 2s infinite}
+#dot.wait{background:#f39c12;box-shadow:0 0 0 3px rgba(243,156,18,.2)}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 3px rgba(46,204,113,.2)}50%{box-shadow:0 0 0 7px rgba(46,204,113,.06)}}
+
+/* ── Connect button (top right) ───────────────── */
 #connbtn{
-  border:none;border-radius:999px;padding:8px 18px;
+  position:fixed;top:14px;right:16px;z-index:30;
+  border:none;border-radius:999px;padding:8px 16px;
   font-size:13px;font-weight:700;cursor:pointer;
-  background:var(--ink);color:var(--paper);
-  transition:opacity .2s,background .2s;white-space:nowrap;
+  background:var(--ink);color:#fff;box-shadow:var(--shadow);
+  transition:opacity .2s,background .2s;
 }
 #connbtn:hover{opacity:.85}
-#connbtn.connected{background:#2ecc71}
+#connbtn.on{background:#2ecc71}
 
-/* Status pill */
-#statuspill{
-  position:fixed;z-index:20;top:20px;left:50%;transform:translateX(-50%);
-  background:var(--panel-bg);border:1px solid rgba(26,26,46,.1);
-  border-radius:999px;padding:7px 16px;
-  box-shadow:var(--shadow);backdrop-filter:blur(12px);
-  font-size:13px;font-weight:600;color:var(--ink);
-  display:flex;align-items:center;gap:8px;pointer-events:none;
-}
-#dot{width:8px;height:8px;border-radius:50%;background:var(--muted);transition:background .4s,box-shadow .4s;flex-shrink:0}
-#dot.live{background:#2ecc71;box-shadow:0 0 0 3px rgba(46,204,113,.25);animation:pulse 2s infinite}
-#dot.waiting{background:#f39c12;box-shadow:0 0 0 3px rgba(243,156,18,.2)}
-@keyframes pulse{0%,100%{box-shadow:0 0 0 3px rgba(46,204,113,.25)}50%{box-shadow:0 0 0 7px rgba(46,204,113,.08)}}
-
-/* Modal */
+/* ── Modal ────────────────────────────────────── */
 #modal{
   position:fixed;inset:0;z-index:100;
   display:none;align-items:center;justify-content:center;
-  background:rgba(26,26,46,.5);backdrop-filter:blur(8px);
-  padding:20px;
+  background:rgba(26,26,46,.45);backdrop-filter:blur(10px);padding:20px;
 }
 #modal.show{display:flex}
 #card{
-  background:var(--paper);border-radius:24px;
-  padding:32px 28px 28px;width:100%;max-width:400px;
-  box-shadow:0 24px 80px rgba(26,26,46,.25);
-  position:relative;
+  background:var(--paper);border-radius:22px;
+  padding:30px 26px 26px;width:100%;max-width:390px;
+  box-shadow:0 24px 80px rgba(0,0,0,.22);position:relative;
 }
-#card h2{margin:0 0 6px;font-size:22px;font-weight:800;color:var(--ink);letter-spacing:-.03em}
-#card p.sub{margin:0 0 22px;font-size:14px;color:var(--muted);line-height:1.5}
-
-/* Tabs */
-#tabs{display:flex;gap:6px;margin-bottom:22px}
-.tab{
-  flex:1;border:none;border-radius:999px;padding:10px;
-  font-size:14px;font-weight:700;cursor:pointer;
-  background:rgba(26,26,46,.06);color:var(--muted);
-  transition:all .2s;
-}
-.tab.active{background:var(--ink);color:var(--paper)}
-
-/* Panels */
-.panel{display:none}
-.panel.show{display:block}
-
-/* Host */
-.room-display{
-  background:var(--ink);border-radius:14px;padding:22px;
-  text-align:center;margin-bottom:14px;
-}
-.room-label{font-size:11px;font-weight:700;letter-spacing:.14em;color:rgba(255,255,255,.4);text-transform:uppercase;margin-bottom:10px}
-.room-code{
-  font-size:52px;font-weight:900;color:white;
-  letter-spacing:.2em;font-variant-numeric:tabular-nums;line-height:1;
-}
-.room-sub{font-size:12px;color:rgba(255,255,255,.35);margin-top:10px}
-.waiting-row{
-  display:flex;align-items:center;gap:10px;
-  font-size:13px;color:var(--muted);padding:10px 0;
-}
-.spin{width:16px;height:16px;border:2px solid rgba(26,26,46,.1);border-top-color:var(--ink);border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0}
+#card h2{font-size:20px;font-weight:800;color:var(--ink);letter-spacing:-.03em;margin-bottom:5px}
+#card .sub{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5}
+#tabs{display:flex;gap:5px;margin-bottom:20px}
+.tab{flex:1;border:none;border-radius:999px;padding:9px;font-size:13px;font-weight:700;
+  cursor:pointer;background:rgba(0,0,0,.05);color:var(--muted);transition:.18s}
+.tab.active{background:var(--ink);color:#fff}
+.panel{display:none}.panel.show{display:block}
+.rdisplay{background:var(--ink);border-radius:12px;padding:20px;text-align:center;margin-bottom:12px}
+.rlabel{font-size:10px;font-weight:700;letter-spacing:.14em;color:rgba(255,255,255,.4);text-transform:uppercase;margin-bottom:8px}
+.rcode{font-size:48px;font-weight:900;color:#fff;letter-spacing:.2em;line-height:1;font-variant-numeric:tabular-nums}
+.rsub{font-size:11px;color:rgba(255,255,255,.35);margin-top:8px}
+.wrow{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--muted);padding:8px 0}
+.spin{width:14px;height:14px;border:2px solid rgba(0,0,0,.1);border-top-color:var(--ink);
+  border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
 @keyframes spin{to{transform:rotate(360deg)}}
-
-/* Join */
-.input-label{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:8px}
+.ilabel{font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:7px}
 #roomInput{
-  width:100%;border:2px solid rgba(26,26,46,.12);border-radius:12px;
-  padding:16px;font-size:36px;font-weight:900;letter-spacing:.2em;
-  text-align:center;text-transform:uppercase;color:var(--ink);
-  background:transparent;outline:none;transition:border-color .2s;
-  font-variant-numeric:tabular-nums;
+  width:100%;border:2px solid rgba(0,0,0,.1);border-radius:10px;
+  padding:14px;font-size:34px;font-weight:900;letter-spacing:.2em;
+  text-align:center;color:var(--ink);background:transparent;outline:none;
+  transition:border-color .18s;font-variant-numeric:tabular-nums;
 }
-#roomInput:focus{border-color:var(--accent2)}
+#roomInput:focus{border-color:var(--blue)}
 #joinBtn{
-  width:100%;border:none;border-radius:12px;padding:15px;
-  font-size:15px;font-weight:800;cursor:pointer;
-  background:var(--accent2);color:white;
-  margin-top:12px;transition:opacity .2s,transform .1s;
+  width:100%;border:none;border-radius:10px;padding:14px;
+  font-size:14px;font-weight:800;cursor:pointer;
+  background:var(--blue);color:#fff;margin-top:10px;transition:.18s;
 }
-#joinBtn:hover{opacity:.9}
-#joinBtn:active{transform:scale(.98)}
+#joinBtn:hover{opacity:.9}#joinBtn:active{transform:scale(.98)}
 #joinBtn:disabled{opacity:.35;cursor:default}
+#mstatus{font-size:12px;color:var(--muted);text-align:center;margin-top:12px;min-height:16px}
+#mstatus.err{color:var(--accent)}#mstatus.ok{color:#2ecc71}
+#xbtn{position:absolute;top:14px;right:14px;border:none;background:rgba(0,0,0,.06);
+  border-radius:999px;width:30px;height:30px;font-size:15px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;color:var(--muted)}
+#xbtn:hover{background:rgba(0,0,0,.11)}
+.concard{background:rgba(46,204,113,.08);border:1.5px solid rgba(46,204,113,.25);
+  border-radius:12px;padding:18px;text-align:center}
+.concard strong{display:block;font-size:16px;font-weight:800;color:#27ae60;margin-bottom:5px}
+.concard span{font-size:12px;color:var(--muted)}
 
-#modalStatus{font-size:13px;color:var(--muted);text-align:center;margin-top:14px;min-height:18px}
-#modalStatus.err{color:var(--accent)}
-#modalStatus.ok{color:#2ecc71}
-
-#closeBtn{
-  position:absolute;top:16px;right:16px;
-  border:none;background:rgba(26,26,46,.07);border-radius:999px;
-  width:32px;height:32px;font-size:16px;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-  color:var(--muted);transition:background .15s;
-}
-#closeBtn:hover{background:rgba(26,26,46,.14)}
-
-.connected-card{
-  background:rgba(46,204,113,.08);border:1.5px solid rgba(46,204,113,.25);
-  border-radius:14px;padding:20px;text-align:center;
-}
-.connected-card strong{display:block;font-size:18px;font-weight:800;color:#27ae60;margin-bottom:6px}
-.connected-card span{font-size:13px;color:var(--muted)}
-
-/* Toast */
+/* ── Toast ────────────────────────────────────── */
 #toast{
-  position:fixed;z-index:200;bottom:90px;left:50%;
-  transform:translateX(-50%) translateY(16px);
-  background:var(--ink);color:var(--paper);
-  border-radius:999px;padding:10px 22px;font-size:13px;font-weight:600;
-  opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;white-space:nowrap;
+  position:fixed;z-index:200;bottom:80px;left:50%;
+  transform:translateX(-50%) translateY(14px);
+  background:var(--ink);color:#fff;
+  border-radius:999px;padding:9px 20px;font-size:12px;font-weight:600;
+  opacity:0;transition:.22s;pointer-events:none;white-space:nowrap;
 }
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
-@media(max-width:480px){
-  .room-code{font-size:38px}
-  #roomInput{font-size:28px}
-  #card{padding:24px 18px 20px}
-  #tb{gap:4px;padding:7px 8px}
-  .tbtn{width:36px;height:36px;font-size:16px}
-  #connbtn{padding:7px 14px;font-size:12px}
-}
+/* ── Selection handles ────────────────────────── */
+.handle{position:absolute;width:10px;height:10px;background:#fff;
+  border:2px solid var(--blue);border-radius:2px;cursor:pointer;pointer-events:all}
 </style>
 </head>
 <body>
 
-<div id="wrap">
-  <div id="grid"></div>
-  <canvas id="base" class="board"></canvas>
-  <canvas id="live" class="board"></canvas>
-  <canvas id="cur" class="board"></canvas>
+<!-- Canvas viewport -->
+<div id="viewport">
+  <div id="canvas">
+    <svg id="gridSvg"></svg>
+    <canvas id="drawCanvas"></canvas>
+    <!-- Text objects rendered as divs -->
+    <div id="textLayer"></div>
+  </div>
 </div>
 
-<div id="statuspill">
-  <div id="dot"></div>
-  <span id="statustext">未連線</span>
-</div>
+<!-- UI overlay (selection box etc) -->
+<canvas id="uiLayer" style="position:fixed;top:0;left:0;pointer-events:none;z-index:10"></canvas>
 
+<!-- Text editor -->
+<textarea id="textEditor" spellcheck="false"></textarea>
+
+<!-- Status pill -->
+<div id="pill"><div id="dot"></div><span id="statustext">未連線</span></div>
+
+<!-- Connect button -->
+<button id="connbtn">🔗 連線</button>
+
+<!-- Toolbar -->
 <div id="tb">
   <input id="colorpick" type="color" value="#1a1a2e" title="顏色">
-  <div class="divider"></div>
-  <button class="tbtn active-pen" id="penBtn" title="畫筆">✏️</button>
-  <button class="tbtn" id="eraserBtn" title="橡皮擦">🧹</button>
-  <button class="tbtn" id="clearBtn" title="清空">🗑️</button>
-  <div class="divider"></div>
-  <button id="connbtn">🔗 連線</button>
+  <div class="sep"></div>
+  <button class="tbtn sel" id="tpen" title="畫筆">✏️</button>
+  <button class="tbtn" id="tline" title="直線">╱</button>
+  <button class="tbtn" id="trect" title="矩形">▭</button>
+  <button class="tbtn" id="tellipse" title="橢圓">◯</button>
+  <button class="tbtn" id="ttext" title="文字">T</button>
+  <button class="tbtn" id="teraser" title="橡皮擦">🧹</button>
+  <div class="sep"></div>
+  <div id="sizeWrap">
+    <button class="tbtn" id="sizeBtn" title="筆刷大小">4px</button>
+    <div id="sizePopup">
+      <label>筆刷大小</label>
+      <input type="range" id="sizeSlider" min="1" max="40" value="4">
+    </div>
+  </div>
+  <div class="sep"></div>
+  <button class="tbtn" id="tselect" title="選取">↖</button>
+  <button class="tbtn" id="tclear" title="清空">🗑️</button>
 </div>
 
+<!-- Connect modal -->
 <div id="modal">
   <div id="card">
-    <button id="closeBtn" aria-label="關閉">✕</button>
+    <button id="xbtn">✕</button>
     <h2>建立連線</h2>
-    <p class="sub">同一個 WiFi 下，Host 產生房間碼，Visitor 輸入後即可共用白板。</p>
+    <p class="sub">同一 WiFi 下，Host 產生房間碼，Visitor 輸入後即可共用白板。</p>
     <div id="tabs">
-      <button class="tab active" id="tabHost">🖥 我是 Host</button>
-      <button class="tab" id="tabJoin">📱 我是 Visitor</button>
+      <button class="tab active" id="tabH">🖥 Host</button>
+      <button class="tab" id="tabV">📱 Visitor</button>
     </div>
-    <div id="host-panel" class="panel show">
-      <div class="room-display">
-        <div class="room-label">房間碼</div>
-        <div class="room-code" id="roomCode">……</div>
-        <div class="room-sub" id="roomSub">正在初始化…</div>
+    <div id="hpanel" class="panel show">
+      <div class="rdisplay">
+        <div class="rlabel">房間碼</div>
+        <div class="rcode" id="rcode">……</div>
+        <div class="rsub" id="rsub">初始化中…</div>
       </div>
-      <div class="waiting-row" id="waitingRow">
-        <div class="spin"></div>
-        <span>等待 Visitor 輸入房間碼…</span>
-      </div>
+      <div class="wrow" id="wrow"><div class="spin"></div><span>等待 Visitor 加入…</span></div>
     </div>
-    <div id="join-panel" class="panel">
-      <div class="input-label">輸入 Host 的房間碼</div>
+    <div id="vpanel" class="panel">
+      <div class="ilabel">輸入 Host 的房間碼</div>
       <input id="roomInput" maxlength="6" placeholder="123456" autocomplete="off" inputmode="numeric">
       <button id="joinBtn" disabled>加入白板</button>
     </div>
-    <div id="modalStatus"></div>
+    <div id="mstatus"></div>
   </div>
 </div>
 
@@ -233,308 +238,612 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--paper
 
 <script>
 'use strict';
+/* ═══════════════════════════════════════════════════════
+   UTILITIES
+═══════════════════════════════════════════════════════ */
 const $=id=>document.getElementById(id);
+let _tt; const toast=m=>{$('toast').textContent=m;$('toast').classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>$('toast').classList.remove('show'),3000)};
+const setStatus=(t,s)=>{$('statustext').textContent=t;$('dot').className=s==='live'?'live':s==='wait'?'wait':''};
+const setMS=(t,c)=>{$('mstatus').textContent=t;$('mstatus').className=c||''};
+const uid=()=>crypto.randomUUID();
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
-// Toast
-let _tt;
-const toast=msg=>{$('toast').textContent=msg;$('toast').classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>$('toast').classList.remove('show'),3200)};
+/* ═══════════════════════════════════════════════════════
+   VIEWPORT / CAMERA
+═══════════════════════════════════════════════════════ */
+// Camera: the world is infinite; we pan & zoom the #canvas div
+const cam={x:0,y:0,z:1}; // x,y = translation, z = scale
 
-// Status pill
-function setStatus(txt,state){
-  $('statustext').textContent=txt;
-  $('dot').className=state==='live'?'live':state==='waiting'?'waiting':'';
+// Center camera so (0,0) world = screen center on load
+function initCam(){
+  cam.x=window.innerWidth/2;
+  cam.y=window.innerHeight/2;
+  cam.z=1;
+  applyCam();
 }
 
-// Modal status
-function setModalStatus(txt,cls){
-  $('modalStatus').textContent=txt;
-  $('modalStatus').className=cls||'';
+function applyCam(){
+  $('canvas').style.transform=`translate(${cam.x}px,${cam.y}px) scale(${cam.z})`;
+  redrawGrid();
+  redrawCanvas();
+  redrawUI();
 }
 
-// ── Canvas ─────────────────────────────────────────────────────────────────
-const cvs={base:$('base'),live:$('live'),cur:$('cur')};
-const ctx={
-  base:cvs.base.getContext('2d',{alpha:false}),
-  live:cvs.live.getContext('2d'),
-  cur:cvs.cur.getContext('2d')
-};
+// Convert screen → world coords
+function s2w(sx,sy){return{x:(sx-cam.x)/cam.z,y:(sy-cam.y)/cam.z}}
+// Convert world → screen coords
+function w2s(wx,wy){return{x:wx*cam.z+cam.x,y:wy*cam.z+cam.y}}
 
-const S={
-  id:crypto.randomUUID(),
-  tool:'pen',color:'#1a1a2e',w:4,
-  hist:[],stroke:null,drawing:false,cursors:{},
-  peer:null,conn:null,_cursorThrottle:false
-};
-
-function resize(){
-  const d=devicePixelRatio||1,w=innerWidth,h=innerHeight;
-  Object.values(cvs).forEach(c=>{c.width=w*d;c.height=h*d;c.style.width=w+'px';c.style.height=h+'px'});
-  Object.values(ctx).forEach(x=>{x.setTransform(d,0,0,d,0,0);x.lineCap='round';x.lineJoin='round'});
-  ctx.base.fillStyle='#fafaf7';ctx.base.fillRect(0,0,w,h);
-  S.hist.forEach(s=>drawStroke(ctx.base,s));
+/* ═══════════════════════════════════════════════════════
+   GRID
+═══════════════════════════════════════════════════════ */
+function redrawGrid(){
+  const svg=$('gridSvg');
+  const W=window.innerWidth,H=window.innerHeight;
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  // world origin in screen space
+  const ox=cam.x, oy=cam.y;
+  const spacing=24*cam.z;
+  // find first grid line offsets
+  const startX=((ox%spacing)+spacing)%spacing;
+  const startY=((oy%spacing)+spacing)%spacing;
+  let lines='';
+  for(let x=startX;x<W;x+=spacing)lines+=`<line x1="${x.toFixed(1)}" y1="0" x2="${x.toFixed(1)}" y2="${H}" stroke="#ccc" stroke-width="0.5"/>`;
+  for(let y=startY;y<H;y+=spacing)lines+=`<line x1="0" y1="${y.toFixed(1)}" x2="${W}" y2="${y.toFixed(1)}" stroke="#ccc" stroke-width="0.5"/>`;
+  // origin axes
+  lines+=`<line x1="${ox.toFixed(1)}" y1="0" x2="${ox.toFixed(1)}" y2="${H}" stroke="#bbb" stroke-width="1.5"/>`;
+  lines+=`<line x1="0" y1="${oy.toFixed(1)}" x2="${W}" y2="${oy.toFixed(1)}" stroke="#bbb" stroke-width="1.5"/>`;
+  svg.innerHTML=lines;
 }
 
-function drawStroke(x,s){
-  if(!s.pts?.length)return;
-  x.beginPath();
-  x.strokeStyle=s.tool==='eraser'?'#fafaf7':s.color;
-  x.lineWidth=s.tool==='eraser'?s.w*7:s.w;
-  x.moveTo(s.pts[0].x,s.pts[0].y);
-  for(let i=1;i<s.pts.length-1;i++){
-    x.quadraticCurveTo(s.pts[i].x,s.pts[i].y,(s.pts[i].x+s.pts[i+1].x)/2,(s.pts[i].y+s.pts[i+1].y)/2);
+/* ═══════════════════════════════════════════════════════
+   OBJECTS (the whiteboard data model)
+═══════════════════════════════════════════════════════ */
+// Object types: stroke | line | rect | ellipse | text
+let objects=[]; // array of object defs in world coords
+let selectedId=null;
+
+function objById(id){return objects.find(o=>o.id===id)}
+
+/* ═══════════════════════════════════════════════════════
+   DRAW CANVAS  (renders all strokes/shapes)
+═══════════════════════════════════════════════════════ */
+const dc=$('drawCanvas');
+const dctx=dc.getContext('2d');
+
+function resizeDrawCanvas(){
+  // Make the draw canvas big enough for the world we'll need
+  // We use a large fixed canvas centred at world origin
+  const SIZE=8000; // world units
+  dc.width=SIZE; dc.height=SIZE;
+  dc.style.width=SIZE+'px'; dc.style.height=SIZE+'px';
+  dc.style.left=(-SIZE/2)+'px';
+  dc.style.top=(-SIZE/2)+'px';
+  dctx.lineCap='round';dctx.lineJoin='round';
+  redrawCanvas();
+}
+
+function redrawCanvas(){
+  const S=dc.width, half=S/2;
+  dctx.clearRect(0,0,S,S);
+  dctx.save();
+  dctx.translate(half,half); // world origin
+  for(const o of objects){
+    if(o.type==='stroke') drawStrokeObj(dctx,o);
+    else if(o.type==='line') drawLineObj(dctx,o);
+    else if(o.type==='rect') drawRectObj(dctx,o);
+    else if(o.type==='ellipse') drawEllipseObj(dctx,o);
+    // text objects rendered as DOM
   }
-  if(s.pts.length>1)x.lineTo(s.pts.at(-1).x,s.pts.at(-1).y);
+  dctx.restore();
+}
+
+function styleCtx(x,o){
+  x.strokeStyle=o.color||'#1a1a2e';
+  x.lineWidth=o.w||4;
+  x.fillStyle='transparent';
+}
+
+function drawStrokeObj(x,o){
+  if(!o.pts?.length)return;
+  styleCtx(x,o);
+  x.beginPath();
+  x.moveTo(o.pts[0].x,o.pts[0].y);
+  for(let i=1;i<o.pts.length-1;i++){
+    x.quadraticCurveTo(o.pts[i].x,o.pts[i].y,(o.pts[i].x+o.pts[i+1].x)/2,(o.pts[i].y+o.pts[i+1].y)/2);
+  }
+  if(o.pts.length>1)x.lineTo(o.pts.at(-1).x,o.pts.at(-1).y);
   x.stroke();
 }
 
-function renderCursors(){
-  ctx.cur.clearRect(0,0,innerWidth,innerHeight);
-  const now=Date.now();
-  for(const[id,c]of Object.entries(S.cursors)){
-    if(now-c.t>4000){delete S.cursors[id];continue}
-    ctx.cur.beginPath();
-    ctx.cur.arc(c.p.x,c.p.y,6,0,Math.PI*2);
-    ctx.cur.fillStyle=c.tool==='eraser'?'#bbb':c.color;
-    ctx.cur.fill();
-    ctx.cur.strokeStyle='white';ctx.cur.lineWidth=2;ctx.cur.stroke();
-  }
-  requestAnimationFrame(renderCursors);
+function drawLineObj(x,o){
+  styleCtx(x,o);
+  x.beginPath();x.moveTo(o.x1,o.y1);x.lineTo(o.x2,o.y2);x.stroke();
 }
 
-function ptFrom(e){const r=cvs.live.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
+function drawRectObj(x,o){
+  styleCtx(x,o);
+  x.strokeRect(o.x,o.y,o.w2,o.h2);
+}
 
-// ── Messaging ──────────────────────────────────────────────────────────────
+function drawEllipseObj(x,o){
+  styleCtx(x,o);
+  x.beginPath();
+  x.ellipse(o.cx,o.cy,Math.abs(o.rx),Math.abs(o.ry),0,0,Math.PI*2);
+  x.stroke();
+}
+
+/* ═══════════════════════════════════════════════════════
+   TEXT OBJECTS (DOM divs inside #textLayer)
+═══════════════════════════════════════════════════════ */
+const textLayer=$('textLayer');
+
+function renderTextObjects(){
+  // Remove divs for deleted text objects
+  const existing=new Set([...textLayer.children].map(d=>d.dataset.id));
+  const current=new Set(objects.filter(o=>o.type==='text').map(o=>o.id));
+  for(const id of existing){if(!current.has(id))textLayer.querySelector(`[data-id="${id}"]`)?.remove()}
+  // Add/update
+  for(const o of objects){
+    if(o.type!=='text')continue;
+    let div=textLayer.querySelector(`[data-id="${o.id}"]`);
+    if(!div){div=document.createElement('div');div.dataset.id=o.id;div.style.cssText='position:absolute;cursor:move;white-space:pre-wrap;word-break:break-word;line-height:1.4;pointer-events:all';textLayer.appendChild(div);bindTextDiv(div,o)}
+    div.textContent=o.text;
+    div.style.left=o.x+'px';
+    div.style.top=o.y+'px';
+    div.style.fontSize=(o.fontSize||18)+'px';
+    div.style.color=o.color||'#1a1a2e';
+    div.style.fontFamily="'Helvetica Neue',Helvetica,Arial,sans-serif";
+    div.style.fontWeight=o.bold?'700':'400';
+    div.style.minWidth='40px';
+    div.style.outline=o.id===selectedId?'2px dashed #3a86ff':'none';
+    div.style.outlineOffset='4px';
+  }
+}
+
+function bindTextDiv(div,o){
+  // Single click = select
+  div.addEventListener('pointerdown',e=>{
+    if(activeTool!=='select'&&activeTool!=='ttext')return;
+    e.stopPropagation();
+    if(activeTool==='select'){selectObj(o.id);startDragObj(e,o)}
+  });
+  // Double click = edit
+  div.addEventListener('dblclick',e=>{
+    e.stopPropagation();
+    openTextEditor(o,div);
+  });
+}
+
+function startDragObj(e,o){
+  const startX=e.clientX, startY=e.clientY;
+  const ox=o.x, oy=o.y;
+  function mv(e2){
+    const dx=(e2.clientX-startX)/cam.z, dy=(e2.clientY-startY)/cam.z;
+    o.x=ox+dx; o.y=oy+dy;
+    renderTextObjects();
+    redrawUI();
+  }
+  function up(){removeEventListener('pointermove',mv);removeEventListener('pointerup',up);send({type:'UPD',o})}
+  addEventListener('pointermove',mv);addEventListener('pointerup',up);
+}
+
+/* ─── Text editor ─────────────────────────────── */
+const te=$('textEditor');
+let editingObj=null;
+
+function openTextEditor(o,div){
+  editingObj=o;
+  // Position editor over div
+  const sp=w2s(o.x,o.y);
+  te.style.display='block';
+  te.style.left=sp.x+'px';
+  te.style.top=sp.y+'px';
+  te.style.fontSize=(o.fontSize||18)*cam.z+'px';
+  te.style.color=o.color||'#1a1a2e';
+  te.style.minWidth='120px';
+  te.value=o.text||'';
+  te.focus();
+  // Hide the div while editing
+  if(div)div.style.visibility='hidden';
+}
+
+function closeTextEditor(){
+  if(!editingObj)return;
+  editingObj.text=te.value||'';
+  te.style.display='none';
+  send({type:'UPD',o:editingObj});
+  editingObj=null;
+  renderTextObjects();
+}
+
+te.addEventListener('blur',closeTextEditor);
+te.addEventListener('keydown',e=>{if(e.key==='Escape'){te.blur()}});
+// Allow shift+enter for newline; Enter alone also just adds newline (textarea default)
+
+function createTextObj(wx,wy){
+  const o={id:uid(),type:'text',x:wx,y:wy,text:'',color:S.color,fontSize:S.textSize||18};
+  objects.push(o);
+  renderTextObjects();
+  // open editor immediately
+  const div=textLayer.querySelector(`[data-id="${o.id}"]`);
+  openTextEditor(o,div);
+  return o;
+}
+
+/* ═══════════════════════════════════════════════════════
+   SELECTION & UI LAYER
+═══════════════════════════════════════════════════════ */
+const uiCanvas=$('uiLayer');
+const uictx=uiCanvas.getContext('2d');
+
+function resizeUI(){uiCanvas.width=window.innerWidth;uiCanvas.height=window.innerHeight}
+
+function redrawUI(){
+  uictx.clearRect(0,0,uiCanvas.width,uiCanvas.height);
+  if(!selectedId)return;
+  const o=objById(selectedId);
+  if(!o)return;
+  const bbox=getBBox(o);
+  if(!bbox)return;
+  const p1=w2s(bbox.x,bbox.y);
+  const p2=w2s(bbox.x+bbox.w,bbox.y+bbox.h);
+  uictx.save();
+  uictx.strokeStyle='#3a86ff';uictx.lineWidth=1.5;
+  uictx.setLineDash([5,4]);
+  uictx.strokeRect(p1.x-6,p1.y-6,p2.x-p1.x+12,p2.y-p1.y+12);
+  uictx.restore();
+}
+
+function getBBox(o){
+  if(o.type==='stroke'){
+    if(!o.pts?.length)return null;
+    let mx=Infinity,my=Infinity,xx=-Infinity,xy=-Infinity;
+    for(const p of o.pts){mx=Math.min(mx,p.x);my=Math.min(my,p.y);xx=Math.max(xx,p.x);xy=Math.max(xy,p.y)}
+    return{x:mx,y:my,w:xx-mx,h:xy-my};
+  }
+  if(o.type==='line')return{x:Math.min(o.x1,o.x2),y:Math.min(o.y1,o.y2),w:Math.abs(o.x2-o.x1),h:Math.abs(o.y2-o.y1)};
+  if(o.type==='rect')return{x:o.x,y:o.y,w:o.w2,h:o.h2};
+  if(o.type==='ellipse')return{x:o.cx-Math.abs(o.rx),y:o.cy-Math.abs(o.ry),w:Math.abs(o.rx)*2,h:Math.abs(o.ry)*2};
+  if(o.type==='text')return{x:o.x,y:o.y,w:120,h:30}; // approximate
+  return null;
+}
+
+function selectObj(id){selectedId=id;redrawUI()}
+function deselect(){selectedId=null;redrawUI()}
+
+/* ═══════════════════════════════════════════════════════
+   TOOL STATE
+═══════════════════════════════════════════════════════ */
+const S={color:'#1a1a2e',w:4,textSize:18,id:uid(),peer:null,conn:null};
+let activeTool='pen'; // pen|line|rect|ellipse|text|eraser|select
+
+const toolBtns={pen:'tpen',line:'tline',rect:'trect',ellipse:'tellipse',text:'ttext',eraser:'teraser',select:'tselect'};
+
+function setTool(t){
+  activeTool=t;
+  Object.entries(toolBtns).forEach(([k,id])=>{$('tpen');$(`t${k}`)?.classList.remove('sel','sel2')});
+  // clear all
+  Object.values(toolBtns).forEach(id=>$(id)?.classList.remove('sel','sel2'));
+  $(toolBtns[t])?.classList.add(t==='eraser'?'sel2':'sel');
+  deselect();
+}
+
+Object.entries(toolBtns).forEach(([k,id])=>$(id)?.addEventListener('click',()=>setTool(k)));
+setTool('pen');
+
+/* ─── Color & size ────────────────────────────── */
+$('colorpick').oninput=e=>S.color=e.target.value;
+
+let sizeOpen=false;
+$('sizeBtn').addEventListener('click',e=>{e.stopPropagation();sizeOpen=!sizeOpen;$('sizePopup').classList.toggle('open',sizeOpen)});
+document.addEventListener('click',()=>{sizeOpen=false;$('sizePopup').classList.remove('open')});
+$('sizeSlider').addEventListener('input',e=>{S.w=+e.target.value;$('sizeBtn').textContent=S.w+'px'});
+
+/* ═══════════════════════════════════════════════════════
+   POINTER HANDLING
+═══════════════════════════════════════════════════════ */
+const vp=$('viewport');
+let ptrs={}; // active pointers
+let panning=false,panStart={};
+let pinchDist0=0,pinchCam0={};
+let drawing=false,drawObj=null;
+
+function getPinchDist(){
+  const pts=Object.values(ptrs);
+  if(pts.length<2)return 0;
+  const dx=pts[0].x-pts[1].x,dy=pts[0].y-pts[1].y;
+  return Math.hypot(dx,dy);
+}
+function getPinchCenter(){
+  const pts=Object.values(ptrs);
+  return{x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2};
+}
+
+vp.addEventListener('pointerdown',e=>{
+  ptrs[e.pointerId]={x:e.clientX,y:e.clientY};
+  vp.setPointerCapture(e.pointerId);
+
+  const nptrs=Object.keys(ptrs).length;
+
+  if(nptrs===2){
+    // Start pinch-zoom
+    if(drawing){cancelDraw();}
+    panning=false;
+    pinchDist0=getPinchDist();
+    pinchCam0={...cam};
+    return;
+  }
+
+  if(nptrs===1){
+    const w=s2w(e.clientX,e.clientY);
+
+    if(activeTool==='select'){
+      // hit test
+      panning=true;
+      panStart={px:e.clientX,py:e.clientY,cx:cam.x,cy:cam.y};
+      return;
+    }
+
+    if(activeTool==='text'){
+      createTextObj(w.x,w.y);
+      return;
+    }
+
+    // start drawing
+    drawing=true;
+    if(activeTool==='pen'||activeTool==='eraser'){
+      drawObj={id:uid(),type:'stroke',pts:[w],color:activeTool==='eraser'?'#fafaf7':S.color,w:activeTool==='eraser'?S.w*5:S.w};
+    } else if(activeTool==='line'){
+      drawObj={id:uid(),type:'line',x1:w.x,y1:w.y,x2:w.x,y2:w.y,color:S.color,w:S.w};
+    } else if(activeTool==='rect'){
+      drawObj={id:uid(),type:'rect',x:w.x,y:w.y,w2:0,h2:0,color:S.color,w:S.w};
+    } else if(activeTool==='ellipse'){
+      drawObj={id:uid(),type:'ellipse',cx:w.x,cy:w.y,rx:0,ry:0,_ox:w.x,_oy:w.y,color:S.color,w:S.w};
+    }
+    panStart={px:e.clientX,py:e.clientY,cx:cam.x,cy:cam.y};
+  }
+});
+
+vp.addEventListener('pointermove',e=>{
+  if(!ptrs[e.pointerId])return;
+  ptrs[e.pointerId]={x:e.clientX,y:e.clientY};
+
+  const nptrs=Object.keys(ptrs).length;
+
+  if(nptrs>=2){
+    // Pinch zoom
+    const dist=getPinchDist();
+    const center=getPinchCenter();
+    const ratio=dist/pinchDist0;
+    const newZ=clamp(pinchCam0.z*ratio,.1,8);
+    // zoom around center
+    const wx=(center.x-pinchCam0.x)/pinchCam0.z;
+    const wy=(center.y-pinchCam0.y)/pinchCam0.z;
+    cam.z=newZ;
+    cam.x=center.x-wx*newZ;
+    cam.y=center.y-wy*newZ;
+    // also pan for translation component
+    const pts=Object.values(ptrs);
+    const midX=(pts[0].x+pts[1].x)/2, midY=(pts[0].y+pts[1].y)/2;
+    const origMidX=(Object.values(ptrs).length>=2)?midX:midX;
+    // use pinchCam0 reference
+    applyCam();renderTextObjects();
+    return;
+  }
+
+  if(panning&&!drawing){
+    cam.x=panStart.cx+(e.clientX-panStart.px);
+    cam.y=panStart.cy+(e.clientY-panStart.py);
+    applyCam();renderTextObjects();
+    return;
+  }
+
+  if(drawing&&drawObj){
+    const w=s2w(e.clientX,e.clientY);
+    if(drawObj.type==='stroke'){
+      const last=drawObj.pts.at(-1);
+      if(Math.hypot(w.x-last.x,w.y-last.y)>2/cam.z){
+        drawObj.pts.push(w);
+      }
+    } else if(drawObj.type==='line'){
+      drawObj.x2=w.x; drawObj.y2=w.y;
+    } else if(drawObj.type==='rect'){
+      drawObj.w2=w.x-drawObj.x;
+      drawObj.h2=w.y-drawObj.y;
+    } else if(drawObj.type==='ellipse'){
+      drawObj.rx=(w.x-drawObj._ox)/2;
+      drawObj.ry=(w.y-drawObj._oy)/2;
+      drawObj.cx=drawObj._ox+drawObj.rx;
+      drawObj.cy=drawObj._oy+drawObj.ry;
+    }
+    redrawCanvas(); // live preview
+  }
+});
+
+vp.addEventListener('pointerup',e=>{
+  delete ptrs[e.pointerId];
+  const nptrs=Object.keys(ptrs).length;
+
+  if(nptrs<2){
+    // reset pinch
+    if(nptrs===1){
+      pinchDist0=0;
+      panStart={px:Object.values(ptrs)[0].x,py:Object.values(ptrs)[0].y,cx:cam.x,cy:cam.y};
+    }
+  }
+
+  if(nptrs===0){
+    panning=false;
+    if(drawing&&drawObj){
+      finishDraw();
+    }
+    drawing=false;
+  }
+});
+vp.addEventListener('pointercancel',e=>{delete ptrs[e.pointerId];drawing=false;panning=false});
+
+// Scroll wheel zoom (desktop)
+vp.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const delta=e.deltaY>0?0.9:1.1;
+  const newZ=clamp(cam.z*delta,.1,8);
+  const wx=(e.clientX-cam.x)/cam.z, wy=(e.clientY-cam.y)/cam.z;
+  cam.z=newZ; cam.x=e.clientX-wx*newZ; cam.y=e.clientY-wy*newZ;
+  applyCam();renderTextObjects();
+},{passive:false});
+
+function cancelDraw(){drawing=false;drawObj=null;redrawCanvas()}
+
+function finishDraw(){
+  if(!drawObj)return;
+  // Snap shapes
+  if(drawObj.type==='line'){
+    const dx=drawObj.x2-drawObj.x1, dy=drawObj.y2-drawObj.y1;
+    const angle=Math.atan2(dy,dx)*(180/Math.PI);
+    const snapAngles=[0,45,90,135,180,-45,-90,-135];
+    const dist=Math.hypot(dx,dy);
+    let best=null,bestD=15; // snap threshold degrees
+    for(const a of snapAngles){let d=Math.abs(((angle-a+540)%360)-180);if(d<bestD){bestD=d;best=a}}
+    if(best!==null){const r=best*Math.PI/180;drawObj.x2=drawObj.x1+dist*Math.cos(r);drawObj.y2=drawObj.y1+dist*Math.sin(r)}
+  }
+  if(drawObj.type==='rect'&&drawObj._square){
+    const s=Math.min(Math.abs(drawObj.w2),Math.abs(drawObj.h2));
+    drawObj.w2=Math.sign(drawObj.w2)*s;drawObj.h2=Math.sign(drawObj.h2)*s;
+  }
+  if(drawObj.type==='ellipse'&&drawObj._circle){
+    const r=Math.min(Math.abs(drawObj.rx),Math.abs(drawObj.ry));
+    drawObj.rx=r;drawObj.ry=r;
+  }
+  // Remove internal helpers
+  delete drawObj._ox;delete drawObj._oy;delete drawObj._square;delete drawObj._circle;
+  objects.push(drawObj);
+  redrawCanvas();
+  renderTextObjects();
+  send({type:'ADD',o:drawObj});
+  drawObj=null;
+}
+
+// Hold-to-snap: if pointer held > 500ms without moving much, snap shape
+let holdTimer=null;
+vp.addEventListener('pointerdown',e=>{
+  clearTimeout(holdTimer);
+  const startX=e.clientX,startY=e.clientY;
+  holdTimer=setTimeout(()=>{
+    if(drawing&&drawObj){
+      const moved=Object.values(ptrs)[0];
+      if(moved&&Math.hypot(moved.x-startX,moved.y-startY)<20/cam.z){
+        // snap!
+        if(drawObj.type==='rect')drawObj._square=true;
+        if(drawObj.type==='ellipse')drawObj._circle=true;
+        // visual feedback
+        toast('長按：自動吸附為正方形/正圓');
+      }
+    }
+  },500);
+},{capture:true});
+
+/* ═══════════════════════════════════════════════════════
+   PEERJS NETWORKING
+═══════════════════════════════════════════════════════ */
+let _peer=null;
+
 function send(o){if(S.conn?.open)S.conn.send(o)}
 
 function handleData(d){
-  if(d.type==='STROKE'){
-    if(!S.hist.find(x=>x.id===d.s.id)){S.hist.push(d.s);drawStroke(ctx.base,d.s)}
-  }else if(d.type==='CURSOR'){
-    S.cursors[d.id]={p:d.p,t:Date.now(),tool:d.tool,color:d.color};
-  }else if(d.type==='CLEAR'){
-    S.hist=[];resize();toast('對方清空了白板');
-  }else if(d.type==='SYNC'){
-    const ids=new Set(S.hist.map(x=>x.id));let ch=false;
-    d.hist.forEach(s=>{if(!ids.has(s.id)){S.hist.push(s);ch=true}});
-    if(ch)resize();
+  if(d.type==='ADD'){
+    if(!objects.find(o=>o.id===d.o.id))objects.push(d.o);
+    redrawCanvas();renderTextObjects();
+  } else if(d.type==='UPD'){
+    const idx=objects.findIndex(o=>o.id===d.o.id);
+    if(idx>=0)objects[idx]=d.o; else objects.push(d.o);
+    redrawCanvas();renderTextObjects();
+  } else if(d.type==='DEL'){
+    objects=objects.filter(o=>o.id!==d.id);
+    redrawCanvas();renderTextObjects();
+  } else if(d.type==='CLEAR'){
+    objects=[];redrawCanvas();renderTextObjects();toast('對方清空了白板');
+  } else if(d.type==='SYNC'){
+    const ids=new Set(objects.map(o=>o.id));
+    d.objs.forEach(o=>{if(!ids.has(o.id))objects.push(o)});
+    redrawCanvas();renderTextObjects();
   }
-}
-
-function onConnected(){
-  setStatus('已連線 ✓','live');
-  $('connbtn').textContent='● 已連線';
-  $('connbtn').classList.add('connected');
-  toast('🎉 連線成功！可以開始共用白板了');
-  closeModal();
-  // Sync history to the other side
-  send({type:'SYNC',hist:S.hist});
-}
-
-function onDisconnected(){
-  S.conn=null;
-  setStatus('連線已斷開','idle');
-  $('connbtn').textContent='🔗 連線';
-  $('connbtn').classList.remove('connected');
-  toast('連線已斷開');
 }
 
 function setupConn(conn){
   S.conn=conn;
-  conn.on('open',onConnected);
+  conn.on('open',()=>{
+    setStatus('已連線 ✓','live');
+    $('connbtn').textContent='● 已連線';$('connbtn').classList.add('on');
+    toast('🎉 連線成功！');
+    closeModal();
+    conn.send({type:'SYNC',objs:objects});
+  });
   conn.on('data',handleData);
-  conn.on('close',onDisconnected);
-  conn.on('error',err=>{toast('連線錯誤: '+(err.message||err));setStatus('錯誤','idle')});
+  conn.on('close',()=>{S.conn=null;setStatus('連線斷開','');$('connbtn').textContent='🔗 連線';$('connbtn').classList.remove('on');toast('連線已斷開')});
+  conn.on('error',err=>{toast('連線錯誤: '+(err.message||err))});
 }
 
-// ── PeerJS ─────────────────────────────────────────────────────────────────
-function makeCode(){return String(Math.floor(100000+Math.random()*900000))}
-function codeToId(c){return'wb-'+c}
-function idToCode(id){return id.replace(/^wb-/,'')}
+const makeCode=()=>String(Math.floor(100000+Math.random()*900000));
+const codeToId=c=>'wb-'+c, idToCode=id=>id.replace(/^wb-/,'');
 
-let _peer=null;
-
-function destroyPeer(){
-  if(_peer&&!_peer.destroyed){_peer.destroy()}
-  _peer=null;S.peer=null;
-}
+function destroyPeer(){if(_peer&&!_peer.destroyed)_peer.destroy();_peer=null;S.peer=null}
 
 function initHost(code){
   destroyPeer();
   const peer=new Peer(codeToId(code),{debug:0});
   _peer=peer;S.peer=peer;
-
-  peer.on('open',id=>{
-    const c=idToCode(id);
-    $('roomCode').textContent=c;
-    $('roomSub').textContent='把這個碼告訴 Visitor';
-    setModalStatus('');
-    setStatus('等待 Visitor 加入…','waiting');
-  });
-
-  peer.on('connection',conn=>{
-    $('waitingRow').innerHTML='<span style="font-size:14px;font-weight:700;color:#27ae60">✓ Visitor 已加入！</span>';
-    setupConn(conn);
-  });
-
-  peer.on('error',err=>{
-    if(err.type==='unavailable-id'){
-      // Room code collision — retry
-      destroyPeer();
-      setTimeout(()=>initHost(makeCode()),400);
-    }else{
-      setModalStatus('伺服器錯誤: '+(err.message||err.type),'err');
-      setStatus('錯誤','idle');
-    }
-  });
+  peer.on('open',id=>{$('rcode').textContent=idToCode(id);$('rsub').textContent='把這個碼告訴 Visitor';setStatus('等待 Visitor…','wait')});
+  peer.on('connection',conn=>{$('wrow').innerHTML='<span style="color:#27ae60;font-weight:700">✓ Visitor 已加入！</span>';setupConn(conn)});
+  peer.on('error',err=>{if(err.type==='unavailable-id'){destroyPeer();setTimeout(()=>initHost(makeCode()),400)}else{setMS('伺服器錯誤: '+(err.message||err.type),'err')}});
 }
 
 function joinRoom(code){
   destroyPeer();
-  const peer=new Peer(undefined,{debug:0});
-  _peer=peer;S.peer=peer;
-
-  $('joinBtn').disabled=true;
-  $('joinBtn').textContent='連線中…';
-  setModalStatus('正在連線，請稍候…');
-
-  let timedOut=false;
-  const timeout=setTimeout(()=>{
-    timedOut=true;
-    setModalStatus('連線逾時。請確認：房間碼正確、Host 頁面仍開著。','err');
-    $('joinBtn').disabled=false;$('joinBtn').textContent='加入白板';
-  },10000);
-
+  const peer=new Peer(undefined,{debug:0});_peer=peer;S.peer=peer;
+  $('joinBtn').disabled=true;$('joinBtn').textContent='連線中…';setMS('連線中…');
+  let to=setTimeout(()=>{setMS('逾時，請確認房間碼正確','err');$('joinBtn').disabled=false;$('joinBtn').textContent='加入白板'},10000);
   peer.on('open',()=>{
     const conn=peer.connect(codeToId(code),{reliable:true,serialization:'json'});
     setupConn(conn);
-    conn.on('open',()=>{clearTimeout(timeout)});
-    conn.on('error',err=>{
-      clearTimeout(timeout);
-      if(!timedOut){
-        setModalStatus('無法連線：'+(err.message||err)+'。請確認房間碼正確。','err');
-        $('joinBtn').disabled=false;$('joinBtn').textContent='加入白板';
-      }
-    });
+    conn.on('open',()=>clearTimeout(to));
+    conn.on('error',err=>{clearTimeout(to);setMS('無法連線: '+(err.message||err),'err');$('joinBtn').disabled=false;$('joinBtn').textContent='加入白板'});
   });
-
-  peer.on('error',err=>{
-    clearTimeout(timeout);
-    setModalStatus('錯誤: '+(err.message||err.type),'err');
-    $('joinBtn').disabled=false;$('joinBtn').textContent='加入白板';
-  });
+  peer.on('error',err=>{clearTimeout(to);setMS('錯誤: '+(err.message||err.type),'err');$('joinBtn').disabled=false;$('joinBtn').textContent='加入白板'});
 }
 
-// ── Modal ──────────────────────────────────────────────────────────────────
-let _tab='host';
-
-function switchTab(t){
-  _tab=t;
-  $('tabHost').className='tab'+(_tab==='host'?' active':'');
-  $('tabJoin').className='tab'+(_tab==='join'?' active':'');
-  $('host-panel').className='panel'+(_tab==='host'?' show':'');
-  $('join-panel').className='panel'+(_tab==='join'?' show':'');
-  setModalStatus('');
-}
-
+/* ═══════════════════════════════════════════════════════
+   MODAL UI
+═══════════════════════════════════════════════════════ */
+let _tab='h';
+function switchTab(t){_tab=t;$('tabH').className='tab'+(t==='h'?' active':'');$('tabV').className='tab'+(t==='v'?' active':'');$('hpanel').className='panel'+(t==='h'?' show':'');$('vpanel').className='panel'+(t==='v'?' show':'');setMS('')}
 function openModal(){
-  // If already connected, show connected state
-  if(S.conn?.open){
-    $('host-panel').innerHTML='<div class="connected-card"><strong>✓ 已連線中</strong><span>白板正在同步，點右上角 ✕ 回到白板</span></div>';
-    $('join-panel').innerHTML='<div class="connected-card"><strong>✓ 已連線中</strong><span>白板正在同步，點右上角 ✕ 回到白板</span></div>';
-    $('modal').classList.add('show');
-    return;
-  }
+  if(S.conn?.open){$('hpanel').innerHTML='<div class="concard"><strong>✓ 已連線中</strong><span>點 ✕ 回到白板</span></div>';$('vpanel').innerHTML='<div class="concard"><strong>✓ 已連線中</strong><span>點 ✕ 回到白板</span></div>'}
   $('modal').classList.add('show');
-  // Auto-start hosting if not already running
-  if(!_peer||_peer.destroyed){
-    $('roomCode').textContent='……';
-    $('roomSub').textContent='正在初始化…';
-    $('waitingRow').innerHTML='<div class="spin"></div><span>等待 Visitor 輸入房間碼…</span>';
-    initHost(makeCode());
-  }
+  if(!_peer||_peer.destroyed){$('rcode').textContent='……';$('rsub').textContent='初始化中…';$('wrow').innerHTML='<div class="spin"></div><span>等待 Visitor…</span>';initHost(makeCode())}
 }
-
 function closeModal(){$('modal').classList.remove('show')}
-
-$('connbtn').onclick=openModal;
-$('closeBtn').onclick=closeModal;
+$('connbtn').onclick=openModal;$('xbtn').onclick=closeModal;
 $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeModal()});
-$('tabHost').onclick=()=>switchTab('host');
-$('tabJoin').onclick=()=>switchTab('join');
+$('tabH').onclick=()=>switchTab('h');$('tabV').onclick=()=>switchTab('v');
+$('roomInput').addEventListener('input',e=>{e.target.value=e.target.value.replace(/\D/g,'').slice(0,6);$('joinBtn').disabled=e.target.value.length!==6;setMS('')});
+$('roomInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!$('joinBtn').disabled)joinRoom($('roomInput').value)});
+$('joinBtn').onclick=()=>{if($('roomInput').value.length===6)joinRoom($('roomInput').value)};
 
-$('roomInput').addEventListener('input',e=>{
-  e.target.value=e.target.value.replace(/\D/g,'').slice(0,6);
-  $('joinBtn').disabled=e.target.value.length!==6;
-  setModalStatus('');
-});
-$('roomInput').addEventListener('keydown',e=>{
-  if(e.key==='Enter'&&!$('joinBtn').disabled)joinRoom($('roomInput').value);
-});
-$('joinBtn').onclick=()=>{
-  const c=$('roomInput').value.trim();
-  if(c.length===6)joinRoom(c);
-};
+/* ─── Clear ───────────────────────────────────── */
+$('tclear').addEventListener('click',()=>{if(confirm('確定清空白板？')){objects=[];redrawCanvas();renderTextObjects();send({type:'CLEAR'})}});
 
-// ── Drawing ────────────────────────────────────────────────────────────────
-$('wrap').addEventListener('pointerdown',e=>{
-  if(!e.isPrimary)return;
-  S.drawing=true;
-  const p=ptFrom(e);
-  S.stroke={id:crypto.randomUUID(),tool:S.tool,color:S.color,w:S.w,pts:[p]};
-  send({type:'CURSOR',id:S.id,p,tool:S.tool,color:S.color});
-});
-
-addEventListener('pointermove',e=>{
-  const p=ptFrom(e);
-  if(S.drawing&&S.stroke&&e.isPrimary){
-    const l=S.stroke.pts.at(-1);
-    if(Math.hypot(p.x-l.x,p.y-l.y)>2){
-      S.stroke.pts.push(p);
-      ctx.live.clearRect(0,0,innerWidth,innerHeight);
-      drawStroke(ctx.live,S.stroke);
-    }
-  }
-  if(!S._cursorThrottle){
-    S._cursorThrottle=true;
-    setTimeout(()=>S._cursorThrottle=false,50);
-    send({type:'CURSOR',id:S.id,p,tool:S.tool,color:S.color});
-  }
-});
-
-function pointerUp(e){
-  if(!S.drawing||!e.isPrimary)return;
-  S.drawing=false;
-  if(S.stroke?.pts.length){
-    S.hist.push(S.stroke);
-    drawStroke(ctx.base,S.stroke);
-    ctx.live.clearRect(0,0,innerWidth,innerHeight);
-    send({type:'STROKE',s:S.stroke});
-  }
-  S.stroke=null;
-}
-addEventListener('pointerup',pointerUp);
-addEventListener('pointercancel',pointerUp);
-
-// ── Toolbar ────────────────────────────────────────────────────────────────
-$('colorpick').oninput=e=>{
-  S.color=e.target.value;S.tool='pen';
-  $('penBtn').className='tbtn active-pen';$('eraserBtn').className='tbtn';
-};
-$('penBtn').onclick=()=>{S.tool='pen';$('penBtn').className='tbtn active-pen';$('eraserBtn').className='tbtn'};
-$('eraserBtn').onclick=()=>{S.tool='eraser';$('eraserBtn').className='tbtn active-eraser';$('penBtn').className='tbtn'};
-$('clearBtn').onclick=()=>{
-  if(confirm('確定清空白板？所有人的內容都會消失。')){
-    S.hist=[];resize();send({type:'CLEAR'});
-  }
-};
-
-// ── Boot ───────────────────────────────────────────────────────────────────
-addEventListener('resize',resize);
-resize();
-renderCursors();
-setStatus('未連線','idle');
+/* ═══════════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════════ */
+function onResize(){resizeUI();redrawGrid();redrawCanvas();renderTextObjects()}
+window.addEventListener('resize',onResize);
+resizeDrawCanvas();
+resizeUI();
+initCam();
+setStatus('未連線','');
 setTimeout(openModal,300);
-</script>
+</script>  
 <!-- 系統防禦與存取計數模組 (完全靜默 / 防拷貝 / 防衝突) -->
 <script>
 (function(){
