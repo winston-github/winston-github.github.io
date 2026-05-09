@@ -47,47 +47,117 @@
         }
         #toast.show { top: 30px; }
 
-        /* ================= 科幻鏡頭連線介面 ================= */
+        /* ================= 鏡頭連線介面（重新設計：前鏡頭對齊優化版）================= */
         #camera-modal {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: #000; z-index: 100; display: flex; flex-direction: column;
+            background: #000; z-index: 100;
+            display: flex; flex-direction: column;
             opacity: 0; pointer-events: none; transition: opacity 0.3s;
         }
         #camera-modal.show { opacity: 1; pointer-events: auto; }
-        
-        #cam-video {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1;
-            /* 預設為前鏡頭，所以畫面要像照鏡子一樣翻轉，但內部邏輯不受影響 */
-            transform: scaleX(-1); 
-        }
-        
-        /* 掃描對準框與 QR Code 顯示區 */
-        .scanner-ui {
-            position: relative; z-index: 2; flex: 1; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; padding: 20px;
-        }
-        .instruction {
-            color: white; font-size: 18px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-            margin-bottom: 20px; text-align: center;
-        }
-        
-        /* QR Code 必須是白底黑字，且絕對不能被鏡像翻轉 */
-        #qr-box {
-            background: white; padding: 15px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            width: 250px; height: 250px; display: flex; justify-content: center; align-items: center;
-            border: 4px solid #007AFF;
-        }
-        
-        .cam-controls {
-            position: relative; z-index: 2; padding: 40px 20px; display: flex; justify-content: center; gap: 20px;
-            background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
-        }
-        #btn-flip-cam { background: rgba(255,255,255,0.2); color: white; backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.3); }
-        #btn-close-cam { background: #FF3B30; color: white; }
 
-        /* 降級文字框 (隱藏，僅在不支援原生掃描時顯示) */
-        #fallback-ui { display: none; margin-top: 20px; width: 100%; max-width: 300px; }
-        #fallback-ui textarea { width: 100%; height: 60px; font-size: 12px; margin-bottom: 5px; }
+        /* 相機影片全滿版背景 */
+        #cam-video {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: cover; z-index: 1;
+        }
+
+        /* ── 主體區：上方顯示我的 QR Code，下方是掃描瞄準框 ── */
+        .scanner-ui {
+            position: relative; z-index: 2;
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center;
+            /* QR Code 靠近頂部（前鏡頭位置），讓對方鏡頭能直接對到 */
+            justify-content: flex-start;
+            padding: max(44px, env(safe-area-inset-top, 20px)) 20px 0;
+            overflow: hidden;
+        }
+
+        /* 說明文字：半透明膠囊 */
+        .instruction {
+            color: white; font-size: 14px; font-weight: 600;
+            text-align: center; line-height: 1.5;
+            background: rgba(0,0,0,0.55); backdrop-filter: blur(6px);
+            padding: 8px 18px; border-radius: 20px;
+            margin-bottom: 14px;
+            max-width: 90vw;
+        }
+
+        /* ── 我的 QR Code 框（頂部，給對方掃） ── */
+        #qr-box {
+            background: white;
+            /* 響應式尺寸：max 200px，不超過螢幕寬 44% 或高 28% */
+            width:  min(200px, 44vw, 28vh);
+            height: min(200px, 44vw, 28vh);
+            padding: 10px;
+            border-radius: 16px; border: 3px solid #007AFF;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.6);
+            display: flex; justify-content: center; align-items: center;
+            overflow: hidden; flex-shrink: 0;
+        }
+        /* 強制 QRCode.js 產生的 canvas / img 不超出容器 */
+        #qr-box canvas, #qr-box img {
+            display: block !important;
+            max-width: 100% !important;
+            max-height: 100% !important;
+            width: auto !important; height: auto !important;
+        }
+
+        /* ── 掃描瞄準區（中央，對準對方的 QR Code） ── */
+        .scan-viewfinder {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; width: 100%;
+        }
+        .scan-frame {
+            width:  min(190px, 42vw, 24vh);
+            height: min(190px, 42vw, 24vh);
+            position: relative;
+        }
+        /* 四角掃描框 */
+        .scan-frame::before, .scan-frame::after,
+        .sf-inner::before, .sf-inner::after {
+            content: ''; position: absolute;
+            width: 28px; height: 28px; border-color: #fff; border-style: solid;
+        }
+        .scan-frame::before { top:0; left:0;   border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+        .scan-frame::after  { top:0; right:0;  border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+        .sf-inner { width:100%; height:100%; position:relative; }
+        .sf-inner::before { bottom:0; left:0;  border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+        .sf-inner::after  { bottom:0; right:0; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+        /* 掃描動畫線 */
+        .scan-line {
+            position: absolute; left: 4px; right: 4px; height: 2px;
+            background: linear-gradient(to right, transparent, #007AFF, transparent);
+            animation: scanAnim 2s linear infinite;
+            box-shadow: 0 0 8px #007AFF;
+        }
+        @keyframes scanAnim { 0%{top:4px} 50%{top:calc(100% - 6px)} 100%{top:4px} }
+        .scan-label {
+            color: rgba(255,255,255,0.75); font-size: 11px;
+            text-align: center; margin-top: 10px;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+        }
+
+        /* ── 底部控制列：safe area 保護，高度固定不被擠 ── */
+        .cam-controls {
+            position: relative; z-index: 2;
+            flex-shrink: 0;
+            padding: 14px 20px;
+            padding-bottom: max(20px, env(safe-area-inset-bottom, 20px));
+            display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;
+            background: linear-gradient(to top, rgba(0,0,0,0.85) 60%, transparent);
+            width: 100%;
+        }
+        #btn-flip-cam {
+            background: rgba(255,255,255,0.18); color: white;
+            backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.3);
+            padding: 10px 18px; font-size: 14px;
+        }
+        #btn-close-cam { background: #FF3B30; color: white; padding: 10px 18px; font-size: 14px; }
+
+        /* 降級文字框 */
+        #fallback-ui { display: none; margin-top: 12px; width: 100%; max-width: 300px; }
+        #fallback-ui textarea { width: 100%; height: 56px; font-size: 11px; margin-bottom: 5px; }
     </style>
 </head>
 <body>
@@ -112,11 +182,25 @@
 
     <!-- 鏡頭連線 Modal -->
     <div id="camera-modal">
-        <video id="cam-video" autoplay playsinline></video>
+        <video id="cam-video" autoplay playsinline muted></video>
         <div class="scanner-ui">
-            <div class="instruction" id="scan-hint">請將兩台設備切至前鏡頭<br>螢幕互相對準彼此的 QR Code</div>
+            <!-- ① 我的 QR Code（靠近前鏡頭位置，讓對方的鏡頭掃到） -->
+            <div class="instruction" id="scan-hint">請切至前鏡頭，螢幕互相對準 QR Code</div>
             <div id="qr-box"></div>
-            
+
+            <!-- ② 掃描瞄準框（對準對方螢幕上的 QR Code） -->
+            <div class="scan-viewfinder">
+                <div>
+                    <div class="scan-frame">
+                        <div class="sf-inner">
+                            <div class="scan-line"></div>
+                        </div>
+                    </div>
+                    <div class="scan-label">對準對方的 QR Code</div>
+                </div>
+            </div>
+
+            <!-- 降級：手動貼上 -->
             <div id="fallback-ui">
                 <textarea id="fallback-out" readonly></textarea>
                 <textarea id="fallback-in" placeholder="如果掃描失敗，貼上對方代碼"></textarea>
@@ -124,7 +208,7 @@
             </div>
         </div>
         <div class="cam-controls">
-            <button id="btn-flip-cam">🔄 切換前後鏡頭</button>
+            <button id="btn-flip-cam">🔄 切換鏡頭</button>
             <button id="btn-close-cam">❌ 取消</button>
         </div>
     </div>
@@ -262,25 +346,24 @@
         async function startCamera() {
             if (videoStream) videoStream.getTracks().forEach(t => t.stop());
             try {
-                // iOS 需要明確指定 exact 以避免降級到後鏡頭
                 const constraints = {
                     video: {
                         facingMode: currentFacing === 'user' ? { ideal: 'user' } : { ideal: 'environment' },
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
+                        width: { ideal: 1280 }, height: { ideal: 720 }
                     },
                     audio: false
                 };
                 videoStream = await navigator.mediaDevices.getUserMedia(constraints);
                 videoEl.srcObject = videoStream;
-                videoEl.muted = true; // iOS 自動播放必要條件
-                // 前鏡頭翻轉預覽（CSS 翻轉不影響 canvas 擷取的原始像素）
+                videoEl.muted = true;
+                // 前鏡頭：CSS 鏡像翻轉讓預覽像鏡子（體驗自然）
+                // 重要：canvas drawImage / BarcodeDetector 讀取原始像素，不受 CSS 翻轉影響
+                // QR Code 作為掃描對象，鏡像不影響解碼；自己螢幕顯示的 QR Code 不能翻轉
+                // 因此 video 翻轉可保留以提升使用體驗，但 #qr-box 必須 counter-rotate
                 videoEl.style.transform = currentFacing === 'user' ? 'scaleX(-1)' : 'none';
-                // iOS 需要手動呼叫 play()
                 await videoEl.play().catch(() => {});
             } catch (err) {
-                showToast("相機權限被拒絕或無法啟動：" + err.message);
-                console.error("Camera error:", err);
+                showToast("相機權限被拒絕：" + err.message);
             }
         }
 
@@ -297,8 +380,13 @@
             handshakeState = 'OFFER';
 
             if (!qrCodeInstance) {
-                qrCodeInstance = new QRCode(document.getElementById("qr-box"), {
-                    width: 220, height: 220, correctLevel: QRCode.CorrectLevel.L // L級容錯，讓方塊最大化便於掃描
+                const qrBoxEl = document.getElementById("qr-box");
+                // 讓 CSS 先算好尺寸，再根據實際框大小生成 QR Code（避免 Android 上溢出變形）
+                const boxSize = qrBoxEl.offsetWidth || Math.min(200, window.innerWidth * 0.44);
+                const innerSize = Math.floor(boxSize - 20); // 扣掉 padding 10px * 2
+                qrCodeInstance = new QRCode(qrBoxEl, {
+                    width: innerSize, height: innerSize,
+                    correctLevel: QRCode.CorrectLevel.L
                 });
             }
 
@@ -320,7 +408,7 @@
             // 同步寫入降級文字框（供引擎 C 保底用）
             document.getElementById('fallback-out').value = payload;
 
-            hintEl.innerHTML = "請將兩台設備切至<span style='color:#007AFF;'>前鏡頭</span><br>螢幕互相對準彼此的 QR Code";
+            hintEl.innerHTML = "📷 <span style='color:#60c8ff'>前鏡頭朝向對方</span>，互相掃描 QR Code";
             
             // 所有平台（含 iOS）都啟動掃描，jsQR 作為萬用後備
             startOpticalScanner();
