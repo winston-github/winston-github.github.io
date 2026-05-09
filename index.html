@@ -257,7 +257,8 @@
 
                 dir.items.forEach(item => {
                     // 自動從 URL 萃取出檔案名稱作為計數器的 ID，例如 "dice.html" -> "dice"
-                    const pageKey = item.url.replace('.html', '');
+                    // 加入 split 確保即使路徑有 ./ 也能正常擷取
+                    const pageKey = item.url.split('/').pop().replace('.html', '');
 
                     const card = document.createElement('a');
                     card.href = item.url;
@@ -290,9 +291,10 @@
             });
         }
 
-        // 統計資料讀取
+        // 統計資料讀取 (已加入破除快取與防阻擋機制)
         async function initStats() {
             const namespace = 'winston-github-io';
+            const cacheBuster = new Date().getTime(); // 強制破解 API 快取
 
             // 1. 首頁自身的計數
             if (!indexCounted) {
@@ -303,26 +305,38 @@
                 } catch(e) {}
                 indexCounted = true;
             } else {
-                // 若已經計數過（如切換語系時），只讀取不增加
                 try {
-                    const res = await fetch(`https://api.counterapi.dev/v1/${namespace}/page-index`);
+                    const res = await fetch(`https://api.counterapi.dev/v1/${namespace}/page-index?_=${cacheBuster}`);
                     const data = await res.json();
                     document.getElementById('home-view-count').innerText = data.count ? data.count.toLocaleString() : '0';
                 } catch(e) {}
             }
 
-            // 2. 抓取所有卡片內的計數 (自動找尋帶有 data-page-id 的 span)
+            // 2. 抓取所有卡片內的計數
             const statElements = document.querySelectorAll('.card-view-count');
-            statElements.forEach(async (el) => {
+            
+            // 改用 for...of 循序讀取，避免瞬間 4 個請求併發觸發免費 API 的 Rate Limit
+            for (const el of statElements) {
                 const pageId = el.getAttribute('data-page-id');
                 try {
-                    const res = await fetch(`https://api.counterapi.dev/v1/${namespace}/page-${pageId}`);
-                    const data = await res.json();
-                    el.innerText = data.count ? data.count.toLocaleString() : '0';
+                    const res = await fetch(`https://api.counterapi.dev/v1/${namespace}/page-${pageId}?_=${cacheBuster}`);
+                    
+                    if (!res.ok) {
+                        el.innerText = "0"; // 伺服器回傳 404 代表尚未有人造訪，顯示 0
+                        continue;
+                    }
+                    
+                    const text = await res.text();
+                    try {
+                        const data = JSON.parse(text);
+                        el.innerText = data.count ? data.count.toLocaleString() : '0';
+                    } catch(err) {
+                        el.innerText = "0"; // 非 JSON 格式時顯示 0
+                    }
                 } catch(e) {
-                    el.innerText = "N/A";
+                    el.innerText = "0"; // 網路連線錯誤時顯示 0
                 }
-            });
+            }
         }
 
         function initAdSense() {
