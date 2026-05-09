@@ -6,6 +6,8 @@
     <title>無伺服器 P2P 鏡頭連線白板</title>
     <!-- 瀏覽器快取：斷網前加載，斷網後可繼續使用 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- jsQR：純 JS QR 解碼引擎，支援 iOS Safari/Chrome (BarcodeDetector 的跨平台替代) -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     <style>
         /* ================= 基礎重置與防禦 ================= */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
@@ -260,13 +262,25 @@
         async function startCamera() {
             if (videoStream) videoStream.getTracks().forEach(t => t.stop());
             try {
-                videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacing, width: { ideal: 640 } } });
+                // iOS 需要明確指定 exact 以避免降級到後鏡頭
+                const constraints = {
+                    video: {
+                        facingMode: currentFacing === 'user' ? { ideal: 'user' } : { ideal: 'environment' },
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    },
+                    audio: false
+                };
+                videoStream = await navigator.mediaDevices.getUserMedia(constraints);
                 videoEl.srcObject = videoStream;
-                // 為了讓使用者體驗像「鏡子」，前鏡頭必須翻轉預覽畫面
-                // 但注意：底層影像掃描 (BarcodeDetector) 不受 CSS 翻轉影響，所以 QR Code 依然可讀！
+                videoEl.muted = true; // iOS 自動播放必要條件
+                // 前鏡頭翻轉預覽（CSS 翻轉不影響 canvas 擷取的原始像素）
                 videoEl.style.transform = currentFacing === 'user' ? 'scaleX(-1)' : 'none';
+                // iOS 需要手動呼叫 play()
+                await videoEl.play().catch(() => {});
             } catch (err) {
-                showToast("相機權限被拒絕或無法啟動");
+                showToast("相機權限被拒絕或無法啟動：" + err.message);
+                console.error("Camera error:", err);
             }
         }
 
@@ -303,36 +317,83 @@
             
             qrCodeInstance.clear();
             qrCodeInstance.makeCode(payload);
+            // 同步寫入降級文字框（供引擎 C 保底用）
+            document.getElementById('fallback-out').value = payload;
 
             hintEl.innerHTML = "請將兩台設備切至<span style='color:#007AFF;'>前鏡頭</span><br>螢幕互相對準彼此的 QR Code";
             
-            // 如果瀏覽器不支援原生掃描 (如部分 iOS 版本)，降級顯示文字框
-            if (!('BarcodeDetector' in window)) {
-                hintEl.innerHTML = "⚠️ 您的瀏覽器不支援相機掃描<br>請複製下方代碼並傳給對方";
-                document.getElementById('fallback-ui').style.display = 'block';
-                document.getElementById('fallback-out').value = payload;
-            } else {
-                startOpticalScanner(); // 啟動自動掃描
-            }
+            // 所有平台（含 iOS）都啟動掃描，jsQR 作為萬用後備
+            startOpticalScanner();
         }
 
-        // 光學掃描迴圈
+        // 光學掃描迴圈 — 雙引擎設計：BarcodeDetector (Chrome/Android) + jsQR (iOS Safari/Chrome)
+        let scanCanvas = null;
+        let scanCtx = null;
+
         async function startOpticalScanner() {
             isScanning = true;
-            const detector = new BarcodeDetector({ formats: ['qr_code'] });
-            
-            const scanLoop = async () => {
-                if (!isScanning) return;
-                try {
-                    const barcodes = await detector.detect(videoEl);
-                    if (barcodes.length > 0) {
-                        await processOpticalSignal(barcodes[0].rawValue);
+
+            // 確保 video 已有畫面才開始掃描（iOS 上 loadeddata 可能較慢）
+            if (videoEl.readyState < videoEl.HAVE_ENOUGH_DATA) {
+                await new Promise(resolve => {
+                    const onReady = () => { videoEl.removeEventListener('canplay', onReady); resolve(); };
+                    videoEl.addEventListener('canplay', onReady);
+                });
+            }
+
+            if ('BarcodeDetector' in window) {
+                // ── 引擎 A：原生 BarcodeDetector（Chrome Android / macOS）──
+                const detector = new BarcodeDetector({ formats: ['qr_code'] });
+                const scanLoop = async () => {
+                    if (!isScanning) return;
+                    try {
+                        const barcodes = await detector.detect(videoEl);
+                        if (barcodes.length > 0) {
+                            await processOpticalSignal(barcodes[0].rawValue);
+                        }
+                    } catch (e) {}
+                    setTimeout(() => requestAnimationFrame(scanLoop), 100);
+                };
+                scanLoop();
+            } else if (typeof jsQR === 'function') {
+                // ── 引擎 B：jsQR canvas 幀掃描（iOS Safari / Chrome on iOS）──
+                if (!scanCanvas) {
+                    scanCanvas = document.createElement('canvas');
+                    scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
+                }
+
+                const scanLoop = () => {
+                    if (!isScanning) return;
+
+                    const vw = videoEl.videoWidth;
+                    const vh = videoEl.videoHeight;
+
+                    if (vw > 0 && vh > 0) {
+                        scanCanvas.width = vw;
+                        scanCanvas.height = vh;
+
+                        // 注意：drawImage 擷取的是原始影像像素，不受 CSS scaleX(-1) 影響
+                        // QR Code 本身是對稱可辨識的，鏡像方向不影響解碼
+                        scanCtx.drawImage(videoEl, 0, 0, vw, vh);
+
+                        const imageData = scanCtx.getImageData(0, 0, vw, vh);
+                        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                            inversionAttempts: 'dontInvert' // 加速解碼
+                        });
+
+                        if (code && code.data) {
+                            processOpticalSignal(code.data);
+                        }
                     }
-                } catch (e) {}
-                // 維持每秒 10~15 次掃描即可，避免手機發燙
-                setTimeout(() => requestAnimationFrame(scanLoop), 100); 
-            };
-            scanLoop();
+                    setTimeout(() => requestAnimationFrame(scanLoop), 100);
+                };
+                scanLoop();
+            } else {
+                // ── 引擎 C：最終降級 — 手動貼上（極舊裝置保底）──
+                hintEl.innerHTML = "⚠️ 掃描引擎載入失敗<br>請複製下方代碼並傳給對方";
+                document.getElementById('fallback-ui').style.display = 'block';
+                // payload 已在 initOpticalConnect 中設定好
+            }
         }
 
         // 核心對稱決策演算法 (解決兩個人同時開房的衝突)
