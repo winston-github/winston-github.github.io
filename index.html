@@ -291,15 +291,20 @@
             });
         }
 
-        // 統計資料讀取 (已加入破除快取與防阻擋機制)
+// 統計資料讀取 (已加入防盜網域機制與破快取)
         async function initStats() {
             const namespace = 'winston-github-io';
-            const cacheBuster = new Date().getTime(); // 強制破解 API 快取
+            const cacheBuster = new Date().getTime(); 
+            
+            // 判斷是否為官方正版網域
+            const isOfficialSite = (window.location.hostname === 'winston-github.github.io');
 
             // 1. 首頁自身的計數
             if (!indexCounted) {
                 try {
-                    const res = await fetch(`https://api.counterapi.dev/v1/${namespace}/page-index/up`);
+                    // 只有在官方網域，才發送帶有 /up 的 +1 請求
+                    const endpoint = isOfficialSite ? '/page-index/up' : '/page-index';
+                    const res = await fetch(`https://api.counterapi.dev/v1/${namespace}${endpoint}?_=${cacheBuster}`);
                     const data = await res.json();
                     document.getElementById('home-view-count').innerText = data.count ? data.count.toLocaleString() : '0';
                 } catch(e) {}
@@ -312,17 +317,16 @@
                 } catch(e) {}
             }
 
-            // 2. 抓取所有卡片內的計數
+            // 2. 抓取所有卡片內的計數 (單純讀取，不涉及 /up)
             const statElements = document.querySelectorAll('.card-view-count');
             
-            // 改用 for...of 循序讀取，避免瞬間 4 個請求併發觸發免費 API 的 Rate Limit
             for (const el of statElements) {
                 const pageId = el.getAttribute('data-page-id');
                 try {
                     const res = await fetch(`https://api.counterapi.dev/v1/${namespace}/page-${pageId}?_=${cacheBuster}`);
                     
                     if (!res.ok) {
-                        el.innerText = "0"; // 伺服器回傳 404 代表尚未有人造訪，顯示 0
+                        el.innerText = "0"; 
                         continue;
                     }
                     
@@ -331,10 +335,10 @@
                         const data = JSON.parse(text);
                         el.innerText = data.count ? data.count.toLocaleString() : '0';
                     } catch(err) {
-                        el.innerText = "0"; // 非 JSON 格式時顯示 0
+                        el.innerText = "0"; 
                     }
                 } catch(e) {
-                    el.innerText = "0"; // 網路連線錯誤時顯示 0
+                    el.innerText = "0"; 
                 }
             }
         }
