@@ -8,38 +8,50 @@
 <style>
 :root{
   --ink:#1a1a2e;--paper:#fafaf7;--accent:#e84855;--blue:#3a86ff;--muted:#9a9a8a;
-  --panel:#ffffffee;--shadow:0 4px 24px rgba(0,0,0,.12);--r:12px;
+  --panel:#ffffffee;--shadow:0 4px 24px rgba(0,0,0,.12);--r:12px;--green:#2ecc71;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
 html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
   font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;touch-action:none;user-select:none}
 
 /* ── Canvas layer ─────────────────────────────── */
-#viewport{position:fixed;inset:0;overflow:hidden;cursor:crosshair}
-#canvas{position:absolute;top:0;left:0;transform-origin:0 0}
-#gridSvg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+#viewport{position:fixed;inset:0;overflow:hidden}
+#canvas{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}
+#gridCanvas{position:fixed;top:0;left:0;pointer-events:none;z-index:0}
 #drawCanvas{position:absolute;top:0;left:0;pointer-events:none}
-#uiLayer{position:absolute;top:0;left:0;pointer-events:none}
+#textLayer{position:absolute;top:0;left:0;pointer-events:none}
 
 /* Text editing overlay */
 #textEditor{
   position:fixed;display:none;
-  border:2px dashed var(--blue);border-radius:4px;
-  background:transparent;min-width:120px;min-height:40px;
+  border:2px dashed var(--blue);border-radius:6px;
+  background:rgba(255,255,255,.95);min-width:120px;min-height:40px;
   font-size:18px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;
-  color:var(--ink);outline:none;resize:none;padding:4px 6px;
+  color:var(--ink);outline:none;resize:none;padding:6px 8px;
   white-space:pre-wrap;word-break:break-word;overflow:hidden;
-  line-height:1.4;cursor:text;z-index:50;
+  line-height:1.5;cursor:text;z-index:50;box-shadow:0 4px 20px rgba(0,0,0,.15);
 }
+
+/* Text confirm button */
+#textConfirm{
+  position:fixed;display:none;z-index:51;
+  width:32px;height:32px;border-radius:50%;border:none;
+  background:var(--green);color:#fff;font-size:16px;cursor:pointer;
+  box-shadow:0 2px 10px rgba(46,204,113,.5);align-items:center;justify-content:center;
+  transition:transform .1s;
+}
+#textConfirm:active{transform:scale(.9)}
 
 /* ── Toolbar ──────────────────────────────────── */
 #tb{
   position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
-  display:flex;align-items:center;gap:4px;
+  display:flex;align-items:center;gap:3px;
   background:var(--panel);border:1px solid rgba(0,0,0,.1);
   border-radius:999px;padding:7px 10px;box-shadow:var(--shadow);
-  backdrop-filter:blur(16px);z-index:30;flex-wrap:nowrap;
+  backdrop-filter:blur(16px);z-index:30;flex-wrap:nowrap;max-width:calc(100vw - 20px);
+  overflow-x:auto;overflow-y:visible;scrollbar-width:none;
 }
+#tb::-webkit-scrollbar{display:none}
 .tbtn{
   border:none;background:none;border-radius:999px;
   width:38px;height:38px;cursor:pointer;font-size:17px;
@@ -50,23 +62,42 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
 .tbtn:hover{background:rgba(0,0,0,.06)}
 .tbtn:active{transform:scale(.88)}
 .tbtn.sel{background:var(--ink);color:#fff}
-.tbtn.sel2{background:var(--blue);color:#fff}
+.tbtn.sel2{background:var(--accent);color:#fff}
 .sep{width:1px;height:26px;background:rgba(0,0,0,.1);margin:0 2px;flex-shrink:0}
 
-/* Color + size row */
-#colorpick{width:32px;height:32px;border:none;background:transparent;cursor:pointer;
-  border-radius:999px;padding:2px;flex-shrink:0}
-#sizeWrap{position:relative;flex-shrink:0}
-#sizeBtn{font-size:13px;font-weight:700;width:auto;padding:0 10px;min-width:38px}
+/* Color swatch */
+#colorSwatch{
+  width:28px;height:28px;border-radius:50%;border:3px solid rgba(0,0,0,.15);
+  cursor:pointer;flex-shrink:0;position:relative;overflow:hidden;
+  background:#1a1a2e;transition:transform .1s;
+}
+#colorSwatch:hover{transform:scale(1.1)}
+#colorpick{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+
+/* Size display inline */
+#sizeDisplay{
+  display:flex;align-items:center;gap:3px;cursor:pointer;flex-shrink:0;
+  padding:0 8px;height:38px;border-radius:999px;font-size:12px;font-weight:700;
+  color:var(--ink);transition:background .12s;position:relative;
+}
+#sizeDisplay:hover{background:rgba(0,0,0,.06)}
+#sizeDot{border-radius:50%;background:currentColor;transition:width .15s,height .15s;flex-shrink:0}
+#sizeVal{font-size:11px;font-weight:700;color:var(--muted)}
 #sizePopup{
   position:absolute;bottom:52px;left:50%;transform:translateX(-50%);
   background:var(--panel);border:1px solid rgba(0,0,0,.1);
-  border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow);
-  display:none;width:200px;backdrop-filter:blur(16px);
+  border-radius:var(--r);padding:16px;box-shadow:var(--shadow);
+  display:none;width:220px;backdrop-filter:blur(16px);z-index:31;
 }
 #sizePopup.open{display:block}
 #sizePopup label{font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
-#sizeSlider{width:100%;margin-top:8px;accent-color:var(--ink)}
+#sizeSlider{width:100%;margin-top:10px;accent-color:var(--ink)}
+.szpreview{display:flex;align-items:center;justify-content:center;margin-top:12px;height:30px}
+.szpreview-dot{border-radius:50%;background:var(--ink)}
+
+/* ── Undo/Redo ────────────────────────────────── */
+#undoBtn,#redoBtn{font-size:16px}
+#undoBtn:disabled,#redoBtn:disabled{opacity:.3;cursor:default;pointer-events:none}
 
 /* ── Status pill ──────────────────────────────── */
 #pill{
@@ -81,7 +112,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
 #dot.wait{background:#f39c12;box-shadow:0 0 0 3px rgba(243,156,18,.2)}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 3px rgba(46,204,113,.2)}50%{box-shadow:0 0 0 7px rgba(46,204,113,.06)}}
 
-/* ── Connect button (top right) ───────────────── */
+/* ── Connect button ───────────────────────────── */
 #connbtn{
   position:fixed;top:14px;right:16px;z-index:30;
   border:none;border-radius:999px;padding:8px 16px;
@@ -91,6 +122,16 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
 }
 #connbtn:hover{opacity:.85}
 #connbtn.on{background:#2ecc71}
+
+/* ── Shape snap indicator ─────────────────────── */
+#snapIndicator{
+  position:fixed;bottom:88px;left:50%;transform:translateX(-50%);
+  background:rgba(58,134,255,.9);color:#fff;
+  border-radius:999px;padding:5px 14px;font-size:12px;font-weight:700;
+  opacity:0;transition:opacity .25s;pointer-events:none;z-index:29;
+  backdrop-filter:blur(8px);
+}
+#snapIndicator.show{opacity:1}
 
 /* ── Modal ────────────────────────────────────── */
 #modal{
@@ -155,28 +196,37 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
 }
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
-/* ── Selection handles ────────────────────────── */
-.handle{position:absolute;width:10px;height:10px;background:#fff;
-  border:2px solid var(--blue);border-radius:2px;cursor:pointer;pointer-events:all}
+/* UI layer for selection */
+#uiLayer{position:fixed;top:0;left:0;pointer-events:none;z-index:10}
+
+/* Text object divs */
+.textObj{
+  position:absolute;cursor:move;white-space:pre-wrap;word-break:break-word;
+  line-height:1.5;pointer-events:all;border-radius:4px;
+  transition:outline-color .15s;
+}
+.textObj.selected{outline:2px dashed #3a86ff;outline-offset:4px}
 </style>
 </head>
 <body>
 
-<!-- Canvas viewport -->
+<!-- Grid (fixed, behind everything) -->
+<canvas id="gridCanvas"></canvas>
+
+<!-- Viewport -->
 <div id="viewport">
   <div id="canvas">
-    <svg id="gridSvg"></svg>
     <canvas id="drawCanvas"></canvas>
-    <!-- Text objects rendered as divs -->
     <div id="textLayer"></div>
   </div>
 </div>
 
-<!-- UI overlay (selection box etc) -->
-<canvas id="uiLayer" style="position:fixed;top:0;left:0;pointer-events:none;z-index:10"></canvas>
+<!-- UI overlay -->
+<canvas id="uiLayer"></canvas>
 
 <!-- Text editor -->
 <textarea id="textEditor" spellcheck="false"></textarea>
+<button id="textConfirm">✓</button>
 
 <!-- Status pill -->
 <div id="pill"><div id="dot"></div><span id="statustext">未連線</span></div>
@@ -184,9 +234,17 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
 <!-- Connect button -->
 <button id="connbtn">🔗 連線</button>
 
+<!-- Shape snap indicator -->
+<div id="snapIndicator"></div>
+
 <!-- Toolbar -->
 <div id="tb">
-  <input id="colorpick" type="color" value="#1a1a2e" title="顏色">
+  <button class="tbtn" id="undoBtn" title="復原 (Ctrl+Z)">↩</button>
+  <button class="tbtn" id="redoBtn" title="重做 (Ctrl+Y)">↪</button>
+  <div class="sep"></div>
+  <div id="colorSwatch" title="顏色">
+    <input id="colorpick" type="color" value="#1a1a2e">
+  </div>
   <div class="sep"></div>
   <button class="tbtn sel" id="tpen" title="畫筆">✏️</button>
   <button class="tbtn" id="tline" title="直線">╱</button>
@@ -195,11 +253,13 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
   <button class="tbtn" id="ttext" title="文字">T</button>
   <button class="tbtn" id="teraser" title="橡皮擦">🧹</button>
   <div class="sep"></div>
-  <div id="sizeWrap">
-    <button class="tbtn" id="sizeBtn" title="筆刷大小">4px</button>
+  <div id="sizeDisplay" title="筆刷大小">
+    <div id="sizeDot" style="width:8px;height:8px"></div>
+    <span id="sizeVal">4px</span>
     <div id="sizePopup">
       <label>筆刷大小</label>
       <input type="range" id="sizeSlider" min="1" max="40" value="4">
+      <div class="szpreview"><div class="szpreview-dot" id="szDot" style="width:8px;height:8px"></div></div>
     </div>
   </div>
   <div class="sep"></div>
@@ -212,7 +272,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
   <div id="card">
     <button id="xbtn">✕</button>
     <h2>建立連線</h2>
-    <p class="sub">同一 WiFi 下，Host 產生房間碼，Visitor 輸入後即可共用白板。</p>
+    <p class="sub">Host 產生房間碼，Visitor 輸入後即可共用白板。</p>
     <div id="tabs">
       <button class="tab active" id="tabH">🖥 Host</button>
       <button class="tab" id="tabV">📱 Visitor</button>
@@ -242,19 +302,18 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
    UTILITIES
 ═══════════════════════════════════════════════════════ */
 const $=id=>document.getElementById(id);
-let _tt; const toast=m=>{$('toast').textContent=m;$('toast').classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>$('toast').classList.remove('show'),3000)};
+let _tt;
+const toast=m=>{$('toast').textContent=m;$('toast').classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>$('toast').classList.remove('show'),3000)};
 const setStatus=(t,s)=>{$('statustext').textContent=t;$('dot').className=s==='live'?'live':s==='wait'?'wait':''};
 const setMS=(t,c)=>{$('mstatus').textContent=t;$('mstatus').className=c||''};
 const uid=()=>crypto.randomUUID();
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
 /* ═══════════════════════════════════════════════════════
-   VIEWPORT / CAMERA
+   CAMERA (infinite canvas)
 ═══════════════════════════════════════════════════════ */
-// Camera: the world is infinite; we pan & zoom the #canvas div
-const cam={x:0,y:0,z:1}; // x,y = translation, z = scale
+const cam={x:0,y:0,z:1};
 
-// Center camera so (0,0) world = screen center on load
 function initCam(){
   cam.x=window.innerWidth/2;
   cam.y=window.innerHeight/2;
@@ -265,130 +324,188 @@ function initCam(){
 function applyCam(){
   $('canvas').style.transform=`translate(${cam.x}px,${cam.y}px) scale(${cam.z})`;
   redrawGrid();
-  redrawCanvas();
   redrawUI();
 }
 
-// Convert screen → world coords
 function s2w(sx,sy){return{x:(sx-cam.x)/cam.z,y:(sy-cam.y)/cam.z}}
-// Convert world → screen coords
 function w2s(wx,wy){return{x:wx*cam.z+cam.x,y:wy*cam.z+cam.y}}
 
 /* ═══════════════════════════════════════════════════════
-   GRID
+   INFINITE GRID (fixed canvas, world-aligned)
 ═══════════════════════════════════════════════════════ */
+const gc=$('gridCanvas');
+const gctx=gc.getContext('2d');
+
+function resizeGrid(){gc.width=window.innerWidth;gc.height=window.innerHeight}
+
 function redrawGrid(){
-  const svg=$('gridSvg');
-  const W=window.innerWidth,H=window.innerHeight;
-  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
-  // world origin in screen space
-  const ox=cam.x, oy=cam.y;
+  const W=gc.width,H=gc.height;
+  gctx.clearRect(0,0,W,H);
   const spacing=24*cam.z;
-  // find first grid line offsets
-  const startX=((ox%spacing)+spacing)%spacing;
-  const startY=((oy%spacing)+spacing)%spacing;
-  let lines='';
-  for(let x=startX;x<W;x+=spacing)lines+=`<line x1="${x.toFixed(1)}" y1="0" x2="${x.toFixed(1)}" y2="${H}" stroke="#ccc" stroke-width="0.5"/>`;
-  for(let y=startY;y<H;y+=spacing)lines+=`<line x1="0" y1="${y.toFixed(1)}" x2="${W}" y2="${y.toFixed(1)}" stroke="#ccc" stroke-width="0.5"/>`;
-  // origin axes
-  lines+=`<line x1="${ox.toFixed(1)}" y1="0" x2="${ox.toFixed(1)}" y2="${H}" stroke="#bbb" stroke-width="1.5"/>`;
-  lines+=`<line x1="0" y1="${oy.toFixed(1)}" x2="${W}" y2="${oy.toFixed(1)}" stroke="#bbb" stroke-width="1.5"/>`;
-  svg.innerHTML=lines;
+  const ox=((cam.x%spacing)+spacing)%spacing;
+  const oy=((cam.y%spacing)+spacing)%spacing;
+
+  gctx.strokeStyle='rgba(0,0,0,.08)';
+  gctx.lineWidth=0.5;
+  gctx.beginPath();
+  for(let x=ox;x<W;x+=spacing){gctx.moveTo(x,0);gctx.lineTo(x,H)}
+  for(let y=oy;y<H;y+=spacing){gctx.moveTo(0,y);gctx.lineTo(W,y)}
+  gctx.stroke();
+
+  // Origin axes
+  gctx.strokeStyle='rgba(0,0,0,.18)';gctx.lineWidth=1;
+  gctx.beginPath();
+  const ax=cam.x,ay=cam.y;
+  if(ax>=0&&ax<=W){gctx.moveTo(ax,0);gctx.lineTo(ax,H)}
+  if(ay>=0&&ay<=H){gctx.moveTo(0,ay);gctx.lineTo(W,ay)}
+  gctx.stroke();
 }
 
 /* ═══════════════════════════════════════════════════════
-   OBJECTS (the whiteboard data model)
-═══════════════════════════════════════════════════════ */
-// Object types: stroke | line | rect | ellipse | text
-let objects=[]; // array of object defs in world coords
-let selectedId=null;
-
-function objById(id){return objects.find(o=>o.id===id)}
-
-/* ═══════════════════════════════════════════════════════
-   DRAW CANVAS  (renders all strokes/shapes)
+   DRAW CANVAS (large world-space canvas)
 ═══════════════════════════════════════════════════════ */
 const dc=$('drawCanvas');
 const dctx=dc.getContext('2d');
+const CANVAS_SIZE=16000; // large world canvas
 
 function resizeDrawCanvas(){
-  // Make the draw canvas big enough for the world we'll need
-  // We use a large fixed canvas centred at world origin
-  const SIZE=8000; // world units
-  dc.width=SIZE; dc.height=SIZE;
-  dc.style.width=SIZE+'px'; dc.style.height=SIZE+'px';
-  dc.style.left=(-SIZE/2)+'px';
-  dc.style.top=(-SIZE/2)+'px';
+  dc.width=CANVAS_SIZE;dc.height=CANVAS_SIZE;
+  dc.style.width=CANVAS_SIZE+'px';dc.style.height=CANVAS_SIZE+'px';
+  dc.style.left=(-CANVAS_SIZE/2)+'px';dc.style.top=(-CANVAS_SIZE/2)+'px';
   dctx.lineCap='round';dctx.lineJoin='round';
   redrawCanvas();
 }
 
+const HALF=CANVAS_SIZE/2;
+
 function redrawCanvas(){
-  const S=dc.width, half=S/2;
-  dctx.clearRect(0,0,S,S);
+  dctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
   dctx.save();
-  dctx.translate(half,half); // world origin
-  for(const o of objects){
-    if(o.type==='stroke') drawStrokeObj(dctx,o);
-    else if(o.type==='line') drawLineObj(dctx,o);
-    else if(o.type==='rect') drawRectObj(dctx,o);
-    else if(o.type==='ellipse') drawEllipseObj(dctx,o);
-    // text objects rendered as DOM
-  }
+  dctx.translate(HALF,HALF);
+  for(const o of objects) renderObj(dctx,o);
+  // Live preview of in-progress draw
+  if(liveObj) renderObj(dctx,liveObj);
   dctx.restore();
 }
 
-function styleCtx(x,o){
-  x.strokeStyle=o.color||'#1a1a2e';
-  x.lineWidth=o.w||4;
-  x.fillStyle='transparent';
+function styleCtx(ctx,o){
+  ctx.strokeStyle=o.color||'#1a1a2e';
+  ctx.lineWidth=o.w||4;
+  ctx.fillStyle='transparent';
 }
 
-function drawStrokeObj(x,o){
+function renderObj(ctx,o){
+  if(o.type==='stroke') drawStroke(ctx,o);
+  else if(o.type==='line') drawLine(ctx,o);
+  else if(o.type==='rect') drawRect(ctx,o);
+  else if(o.type==='ellipse') drawEllipse(ctx,o);
+  // text = DOM
+}
+
+function drawStroke(ctx,o){
   if(!o.pts?.length)return;
-  styleCtx(x,o);
-  x.beginPath();
-  x.moveTo(o.pts[0].x,o.pts[0].y);
+  styleCtx(ctx,o);
+  ctx.beginPath();
+  ctx.moveTo(o.pts[0].x,o.pts[0].y);
   for(let i=1;i<o.pts.length-1;i++){
-    x.quadraticCurveTo(o.pts[i].x,o.pts[i].y,(o.pts[i].x+o.pts[i+1].x)/2,(o.pts[i].y+o.pts[i+1].y)/2);
+    const mx=(o.pts[i].x+o.pts[i+1].x)/2,my=(o.pts[i].y+o.pts[i+1].y)/2;
+    ctx.quadraticCurveTo(o.pts[i].x,o.pts[i].y,mx,my);
   }
-  if(o.pts.length>1)x.lineTo(o.pts.at(-1).x,o.pts.at(-1).y);
-  x.stroke();
+  if(o.pts.length>1)ctx.lineTo(o.pts.at(-1).x,o.pts.at(-1).y);
+  ctx.stroke();
 }
 
-function drawLineObj(x,o){
-  styleCtx(x,o);
-  x.beginPath();x.moveTo(o.x1,o.y1);x.lineTo(o.x2,o.y2);x.stroke();
+function drawLine(ctx,o){
+  styleCtx(ctx,o);
+  ctx.beginPath();ctx.moveTo(o.x1,o.y1);ctx.lineTo(o.x2,o.y2);ctx.stroke();
 }
 
-function drawRectObj(x,o){
-  styleCtx(x,o);
-  x.strokeRect(o.x,o.y,o.w2,o.h2);
+function drawRect(ctx,o){
+  styleCtx(ctx,o);
+  ctx.strokeRect(o.x,o.y,o.w2,o.h2);
 }
 
-function drawEllipseObj(x,o){
-  styleCtx(x,o);
-  x.beginPath();
-  x.ellipse(o.cx,o.cy,Math.abs(o.rx),Math.abs(o.ry),0,0,Math.PI*2);
-  x.stroke();
+function drawEllipse(ctx,o){
+  styleCtx(ctx,o);
+  ctx.beginPath();
+  ctx.ellipse(o.cx,o.cy,Math.max(0.01,Math.abs(o.rx)),Math.max(0.01,Math.abs(o.ry)),0,0,Math.PI*2);
+  ctx.stroke();
 }
 
 /* ═══════════════════════════════════════════════════════
-   TEXT OBJECTS (DOM divs inside #textLayer)
+   OBJECTS (data model)
+═══════════════════════════════════════════════════════ */
+let objects=[];
+let selectedId=null;
+let liveObj=null; // current in-progress shape
+
+function objById(id){return objects.find(o=>o.id===id)}
+
+/* ═══════════════════════════════════════════════════════
+   UNDO / REDO (10 steps)
+═══════════════════════════════════════════════════════ */
+const MAX_HISTORY=10;
+let undoStack=[]; // each entry is snapshot array of objects
+let redoStack=[];
+
+function snapshot(){
+  undoStack.push(JSON.stringify(objects));
+  if(undoStack.length>MAX_HISTORY)undoStack.shift();
+  redoStack=[];
+  updateUndoRedo();
+}
+
+function undo(){
+  if(!undoStack.length)return;
+  redoStack.push(JSON.stringify(objects));
+  if(redoStack.length>MAX_HISTORY)redoStack.shift();
+  objects=JSON.parse(undoStack.pop());
+  redrawCanvas();renderTextObjects();updateUndoRedo();
+  send({type:'SYNC_ALL',objs:objects});
+}
+
+function redo(){
+  if(!redoStack.length)return;
+  undoStack.push(JSON.stringify(objects));
+  objects=JSON.parse(redoStack.pop());
+  redrawCanvas();renderTextObjects();updateUndoRedo();
+  send({type:'SYNC_ALL',objs:objects});
+}
+
+function updateUndoRedo(){
+  $('undoBtn').disabled=!undoStack.length;
+  $('redoBtn').disabled=!redoStack.length;
+}
+
+$('undoBtn').addEventListener('click',undo);
+$('redoBtn').addEventListener('click',redo);
+document.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!e.shiftKey){e.preventDefault();undo()}
+  if((e.ctrlKey||e.metaKey)&&(e.key==='y'||(e.key==='z'&&e.shiftKey))){e.preventDefault();redo()}
+});
+updateUndoRedo();
+
+/* ═══════════════════════════════════════════════════════
+   TEXT OBJECTS (DOM)
 ═══════════════════════════════════════════════════════ */
 const textLayer=$('textLayer');
 
 function renderTextObjects(){
-  // Remove divs for deleted text objects
-  const existing=new Set([...textLayer.children].map(d=>d.dataset.id));
+  const existing=new Map([...textLayer.children].map(d=>[d.dataset.id,d]));
   const current=new Set(objects.filter(o=>o.type==='text').map(o=>o.id));
-  for(const id of existing){if(!current.has(id))textLayer.querySelector(`[data-id="${id}"]`)?.remove()}
-  // Add/update
+  for(const [id,div] of existing)if(!current.has(id))div.remove();
+
   for(const o of objects){
     if(o.type!=='text')continue;
     let div=textLayer.querySelector(`[data-id="${o.id}"]`);
-    if(!div){div=document.createElement('div');div.dataset.id=o.id;div.style.cssText='position:absolute;cursor:move;white-space:pre-wrap;word-break:break-word;line-height:1.4;pointer-events:all';textLayer.appendChild(div);bindTextDiv(div,o)}
-    div.textContent=o.text;
+    if(!div){
+      div=document.createElement('div');
+      div.dataset.id=o.id;
+      div.className='textObj';
+      textLayer.appendChild(div);
+      bindTextDiv(div,o);
+    }
+    div.textContent=o.text||'';
     div.style.left=o.x+'px';
     div.style.top=o.y+'px';
     div.style.fontSize=(o.fontSize||18)+'px';
@@ -396,45 +513,61 @@ function renderTextObjects(){
     div.style.fontFamily="'Helvetica Neue',Helvetica,Arial,sans-serif";
     div.style.fontWeight=o.bold?'700':'400';
     div.style.minWidth='40px';
-    div.style.outline=o.id===selectedId?'2px dashed #3a86ff':'none';
-    div.style.outlineOffset='4px';
+    div.classList.toggle('selected',o.id===selectedId);
   }
 }
+
+let longPressTimer=null;
 
 function bindTextDiv(div,o){
-  // Single click = select
-  div.addEventListener('pointerdown',e=>{
-    if(activeTool!=='select'&&activeTool!=='ttext')return;
-    e.stopPropagation();
-    if(activeTool==='select'){selectObj(o.id);startDragObj(e,o)}
-  });
-  // Double click = edit
-  div.addEventListener('dblclick',e=>{
-    e.stopPropagation();
-    openTextEditor(o,div);
-  });
-}
+  let pointerDownTime=0;
+  let didMove=false;
+  let startX,startY;
 
-function startDragObj(e,o){
-  const startX=e.clientX, startY=e.clientY;
-  const ox=o.x, oy=o.y;
-  function mv(e2){
-    const dx=(e2.clientX-startX)/cam.z, dy=(e2.clientY-startY)/cam.z;
-    o.x=ox+dx; o.y=oy+dy;
-    renderTextObjects();
-    redrawUI();
-  }
-  function up(){removeEventListener('pointermove',mv);removeEventListener('pointerup',up);send({type:'UPD',o})}
-  addEventListener('pointermove',mv);addEventListener('pointerup',up);
+  div.addEventListener('pointerdown',e=>{
+    e.stopPropagation();
+    pointerDownTime=Date.now();
+    didMove=false;
+    startX=e.clientX;startY=e.clientY;
+
+    if(activeTool==='select'||activeTool==='text'){
+      // Long press = edit
+      longPressTimer=setTimeout(()=>{
+        if(!didMove)openTextEditor(o,div);
+      },500);
+
+      // Start drag after short hold
+      selectObj(o.id);
+      const ox=o.x,oy=o.y;
+      const sx=e.clientX,sy=e.clientY;
+      function mv(e2){
+        const dx=e2.clientX-sx,dy=e2.clientY-sy;
+        if(Math.hypot(dx,dy)>4)didMove=true;
+        if(didMove){
+          clearTimeout(longPressTimer);
+          o.x=ox+dx/cam.z;o.y=oy+dy/cam.z;
+          renderTextObjects();redrawUI();
+        }
+      }
+      function up(){
+        removeEventListener('pointermove',mv);
+        removeEventListener('pointerup',up);
+        clearTimeout(longPressTimer);
+        if(didMove){snapshot();send({type:'UPD',o})}
+      }
+      addEventListener('pointermove',mv);
+      addEventListener('pointerup',up);
+    }
+  });
 }
 
 /* ─── Text editor ─────────────────────────────── */
 const te=$('textEditor');
+const tc=$('textConfirm');
 let editingObj=null;
 
 function openTextEditor(o,div){
   editingObj=o;
-  // Position editor over div
   const sp=w2s(o.x,o.y);
   te.style.display='block';
   te.style.left=sp.x+'px';
@@ -443,31 +576,50 @@ function openTextEditor(o,div){
   te.style.color=o.color||'#1a1a2e';
   te.style.minWidth='120px';
   te.value=o.text||'';
-  te.focus();
-  // Hide the div while editing
+
+  // Position confirm button bottom-right of editor
+  const fontSize=(o.fontSize||18)*cam.z;
+  const approxH=Math.max(40,te.scrollHeight);
+  tc.style.display='flex';
+  tc.style.left=(sp.x+Math.max(120,te.offsetWidth||120)+6)+'px';
+  tc.style.top=(sp.y+approxH-16)+'px';
+
   if(div)div.style.visibility='hidden';
+  te.focus();
+  setTimeout(()=>{
+    tc.style.left=(sp.x+(te.offsetWidth||120)+6)+'px';
+    tc.style.top=(sp.y+te.offsetHeight-16)+'px';
+  },50);
 }
 
-function closeTextEditor(){
+function closeTextEditor(commit=true){
   if(!editingObj)return;
-  editingObj.text=te.value||'';
+  if(commit){
+    snapshot();
+    editingObj.text=te.value||'';
+    send({type:'UPD',o:editingObj});
+  }
   te.style.display='none';
-  send({type:'UPD',o:editingObj});
+  tc.style.display='none';
   editingObj=null;
   renderTextObjects();
 }
 
-te.addEventListener('blur',closeTextEditor);
-te.addEventListener('keydown',e=>{if(e.key==='Escape'){te.blur()}});
-// Allow shift+enter for newline; Enter alone also just adds newline (textarea default)
+tc.addEventListener('click',()=>closeTextEditor(true));
+te.addEventListener('keydown',e=>{if(e.key==='Escape')closeTextEditor(false)});
+// Don't close on blur unless confirm button wasn't clicked
+te.addEventListener('blur',e=>{
+  setTimeout(()=>{if(document.activeElement!==tc)closeTextEditor(true)},150);
+});
 
 function createTextObj(wx,wy){
+  snapshot();
   const o={id:uid(),type:'text',x:wx,y:wy,text:'',color:S.color,fontSize:S.textSize||18};
   objects.push(o);
   renderTextObjects();
-  // open editor immediately
   const div=textLayer.querySelector(`[data-id="${o.id}"]`);
   openTextEditor(o,div);
+  send({type:'ADD',o});
   return o;
 }
 
@@ -505,7 +657,7 @@ function getBBox(o){
   if(o.type==='line')return{x:Math.min(o.x1,o.x2),y:Math.min(o.y1,o.y2),w:Math.abs(o.x2-o.x1),h:Math.abs(o.y2-o.y1)};
   if(o.type==='rect')return{x:o.x,y:o.y,w:o.w2,h:o.h2};
   if(o.type==='ellipse')return{x:o.cx-Math.abs(o.rx),y:o.cy-Math.abs(o.ry),w:Math.abs(o.rx)*2,h:Math.abs(o.ry)*2};
-  if(o.type==='text')return{x:o.x,y:o.y,w:120,h:30}; // approximate
+  if(o.type==='text')return{x:o.x,y:o.y,w:120,h:30};
   return null;
 }
 
@@ -513,49 +665,147 @@ function selectObj(id){selectedId=id;redrawUI()}
 function deselect(){selectedId=null;redrawUI()}
 
 /* ═══════════════════════════════════════════════════════
+   AI SHAPE RECOGNITION
+═══════════════════════════════════════════════════════ */
+function recognizeShape(pts){
+  if(!pts||pts.length<4)return null;
+
+  // Compute bounding box
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for(const p of pts){minX=Math.min(minX,p.x);minY=Math.min(minY,p.y);maxX=Math.max(maxX,p.x);maxY=Math.max(maxY,p.y)}
+  const bw=maxX-minX,bh=maxY-minY;
+  if(bw<5&&bh<5)return null;
+
+  // Check if closed (start near end)
+  const first=pts[0],last=pts.at(-1);
+  const closeThreshold=Math.max(bw,bh)*0.25;
+  const isClosed=Math.hypot(last.x-first.x,last.y-first.y)<closeThreshold;
+
+  if(!isClosed){
+    // Check for line: are points roughly collinear?
+    const dx=last.x-first.x,dy=last.y-first.y;
+    const len=Math.hypot(dx,dy);
+    if(len<5)return null;
+    let maxDist=0;
+    for(const p of pts){
+      const d=Math.abs((last.y-first.y)*p.x-(last.x-first.x)*p.y+last.x*first.y-last.y*first.x)/len;
+      maxDist=Math.max(maxDist,d);
+    }
+    if(maxDist<len*0.12&&len>20){
+      return{shape:'line',x1:first.x,y1:first.y,x2:last.x,y2:last.y};
+    }
+    return null;
+  }
+
+  // Closed shape: check ellipse vs rect
+  const cx=(minX+maxX)/2,cy=(minY+maxY)/2;
+  const rx=bw/2,ry=bh/2;
+
+  // Ellipse score: how well do points lie on ellipse
+  let ellipseScore=0;
+  for(const p of pts){
+    const dx=(p.x-cx)/rx,dy=(p.y-cy)/ry;
+    const dist=Math.abs(Math.hypot(dx,dy)-1);
+    ellipseScore+=dist;
+  }
+  ellipseScore/=pts.length;
+
+  // Rect score: compute corners, check if points cluster near 4 sides
+  // Simple heuristic: check if most points are near the bounding box edges
+  let rectScore=0;
+  for(const p of pts){
+    const dl=Math.abs(p.x-minX),dr=Math.abs(p.x-maxX);
+    const dt=Math.abs(p.y-minY),db=Math.abs(p.y-maxY);
+    const nearest=Math.min(dl,dr,dt,db);
+    const maxDim=Math.max(bw,bh);
+    rectScore+=nearest/maxDim;
+  }
+  rectScore/=pts.length;
+
+  if(ellipseScore<rectScore&&ellipseScore<0.3){
+    // Is it a circle?
+    const aspectRatio=Math.min(bw,bh)/Math.max(bw,bh);
+    if(aspectRatio>0.85){
+      const r=(rx+ry)/2;
+      return{shape:'circle',cx,cy,r};
+    }
+    return{shape:'ellipse',cx,cy,rx,ry};
+  }
+  if(rectScore<0.25){
+    // Is it a square?
+    const aspectRatio=Math.min(bw,bh)/Math.max(bw,bh);
+    if(aspectRatio>0.85){
+      const s=Math.max(bw,bh)/2;
+      return{shape:'square',x:cx-s,y:cy-s,size:s*2};
+    }
+    return{shape:'rect',x:minX,y:minY,w:bw,h:bh};
+  }
+  return null;
+}
+
+/* ═══════════════════════════════════════════════════════
    TOOL STATE
 ═══════════════════════════════════════════════════════ */
-const S={color:'#1a1a2e',w:4,textSize:18,id:uid(),peer:null,conn:null};
-let activeTool='pen'; // pen|line|rect|ellipse|text|eraser|select
+const S={color:'#1a1a2e',w:4,textSize:18,conn:null};
+let activeTool='pen';
 
 const toolBtns={pen:'tpen',line:'tline',rect:'trect',ellipse:'tellipse',text:'ttext',eraser:'teraser',select:'tselect'};
 
 function setTool(t){
   activeTool=t;
-  Object.entries(toolBtns).forEach(([k,id])=>{$('tpen');$(`t${k}`)?.classList.remove('sel','sel2')});
-  // clear all
   Object.values(toolBtns).forEach(id=>$(id)?.classList.remove('sel','sel2'));
   $(toolBtns[t])?.classList.add(t==='eraser'?'sel2':'sel');
   deselect();
+  const vp=$('viewport');
+  vp.style.cursor=t==='pen'?'crosshair':t==='eraser'?'cell':t==='select'?'default':'crosshair';
 }
 
 Object.entries(toolBtns).forEach(([k,id])=>$(id)?.addEventListener('click',()=>setTool(k)));
 setTool('pen');
 
-/* ─── Color & size ────────────────────────────── */
-$('colorpick').oninput=e=>S.color=e.target.value;
+/* ─── Color ───────────────────────────────────── */
+$('colorpick').oninput=e=>{
+  S.color=e.target.value;
+  $('colorSwatch').style.background=e.target.value;
+};
+$('colorSwatch').style.background=S.color;
 
+/* ─── Size display ────────────────────────────── */
 let sizeOpen=false;
-$('sizeBtn').addEventListener('click',e=>{e.stopPropagation();sizeOpen=!sizeOpen;$('sizePopup').classList.toggle('open',sizeOpen)});
+function updateSizeDisplay(){
+  const s=S.w;
+  const dot=$('sizeDot');
+  const sz=clamp(s,4,24);
+  dot.style.width=sz+'px';dot.style.height=sz+'px';
+  $('sizeVal').textContent=s+'px';
+  $('szDot').style.width=clamp(s,4,40)+'px';$('szDot').style.height=clamp(s,4,40)+'px';
+}
+
+$('sizeDisplay').addEventListener('click',e=>{
+  e.stopPropagation();
+  sizeOpen=!sizeOpen;
+  $('sizePopup').classList.toggle('open',sizeOpen);
+});
 document.addEventListener('click',()=>{sizeOpen=false;$('sizePopup').classList.remove('open')});
-$('sizeSlider').addEventListener('input',e=>{S.w=+e.target.value;$('sizeBtn').textContent=S.w+'px'});
+$('sizeSlider').addEventListener('input',e=>{S.w=+e.target.value;updateSizeDisplay()});
+updateSizeDisplay();
 
 /* ═══════════════════════════════════════════════════════
    POINTER HANDLING
 ═══════════════════════════════════════════════════════ */
 const vp=$('viewport');
-let ptrs={}; // active pointers
+let ptrs={};
 let panning=false,panStart={};
-let pinchDist0=0,pinchCam0={};
-let drawing=false,drawObj=null;
+let pinchState={active:false,dist0:0,cam0:{}};
+let drawing=false;
+let holdTimer=null;
+let snapApplied=false;
 
 function getPinchDist(){
   const pts=Object.values(ptrs);
-  if(pts.length<2)return 0;
-  const dx=pts[0].x-pts[1].x,dy=pts[0].y-pts[1].y;
-  return Math.hypot(dx,dy);
+  return Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y);
 }
-function getPinchCenter(){
+function getPinchMid(){
   const pts=Object.values(ptrs);
   return{x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2};
 }
@@ -564,22 +814,24 @@ vp.addEventListener('pointerdown',e=>{
   ptrs[e.pointerId]={x:e.clientX,y:e.clientY};
   vp.setPointerCapture(e.pointerId);
 
-  const nptrs=Object.keys(ptrs).length;
-
-  if(nptrs===2){
-    // Start pinch-zoom
-    if(drawing){cancelDraw();}
+  if(Object.keys(ptrs).length===2){
+    // Start pinch – cancel any drawing
+    if(drawing){cancelDraw()}
     panning=false;
-    pinchDist0=getPinchDist();
-    pinchCam0={...cam};
+    clearTimeout(holdTimer);
+    pinchState={
+      active:true,
+      dist0:getPinchDist(),
+      mid0:getPinchMid(),
+      cam0:{...cam}
+    };
     return;
   }
 
-  if(nptrs===1){
+  if(Object.keys(ptrs).length===1){
     const w=s2w(e.clientX,e.clientY);
 
     if(activeTool==='select'){
-      // hit test
       panning=true;
       panStart={px:e.clientX,py:e.clientY,cx:cam.x,cy:cam.y};
       return;
@@ -590,18 +842,45 @@ vp.addEventListener('pointerdown',e=>{
       return;
     }
 
-    // start drawing
+    // Start draw
     drawing=true;
+    snapApplied=false;
+
     if(activeTool==='pen'||activeTool==='eraser'){
-      drawObj={id:uid(),type:'stroke',pts:[w],color:activeTool==='eraser'?'#fafaf7':S.color,w:activeTool==='eraser'?S.w*5:S.w};
+      liveObj={id:uid(),type:'stroke',pts:[{...w}],
+        color:activeTool==='eraser'?'#fafaf7':S.color,
+        w:activeTool==='eraser'?S.w*5:S.w,
+        _eraser:activeTool==='eraser'};
     } else if(activeTool==='line'){
-      drawObj={id:uid(),type:'line',x1:w.x,y1:w.y,x2:w.x,y2:w.y,color:S.color,w:S.w};
+      liveObj={id:uid(),type:'line',x1:w.x,y1:w.y,x2:w.x,y2:w.y,color:S.color,w:S.w};
     } else if(activeTool==='rect'){
-      drawObj={id:uid(),type:'rect',x:w.x,y:w.y,w2:0,h2:0,color:S.color,w:S.w};
+      liveObj={id:uid(),type:'rect',x:w.x,y:w.y,w2:0,h2:0,color:S.color,w:S.w,_ox:w.x,_oy:w.y};
     } else if(activeTool==='ellipse'){
-      drawObj={id:uid(),type:'ellipse',cx:w.x,cy:w.y,rx:0,ry:0,_ox:w.x,_oy:w.y,color:S.color,w:S.w};
+      liveObj={id:uid(),type:'ellipse',cx:w.x,cy:w.y,rx:0,ry:0,_ox:w.x,_oy:w.y,color:S.color,w:S.w};
     }
-    panStart={px:e.clientX,py:e.clientY,cx:cam.x,cy:cam.y};
+
+    panStart={px:e.clientX,py:e.clientY};
+
+    // For pen tool: auto shape recognition after 0.5s hold without moving much
+    if(activeTool==='pen'){
+      holdTimer=setTimeout(()=>{
+        if(drawing&&liveObj?.pts?.length>3&&!snapApplied){
+          const recognized=recognizeShape(liveObj.pts);
+          if(recognized){
+            applyRecognizedShape(recognized);
+          }
+        }
+      },500);
+    }
+
+    // For line/rect/ellipse tools: auto-snap after 0.5s
+    if(activeTool==='line'||activeTool==='rect'||activeTool==='ellipse'){
+      holdTimer=setTimeout(()=>{
+        if(drawing&&liveObj&&!snapApplied){
+          snapCurrentShape();
+        }
+      },500);
+    }
   }
 });
 
@@ -611,163 +890,297 @@ vp.addEventListener('pointermove',e=>{
 
   const nptrs=Object.keys(ptrs).length;
 
-  if(nptrs>=2){
-    // Pinch zoom
+  if(nptrs>=2&&pinchState.active){
     const dist=getPinchDist();
-    const center=getPinchCenter();
-    const ratio=dist/pinchDist0;
-    const newZ=clamp(pinchCam0.z*ratio,.1,8);
-    // zoom around center
-    const wx=(center.x-pinchCam0.x)/pinchCam0.z;
-    const wy=(center.y-pinchCam0.y)/pinchCam0.z;
+    const mid=getPinchMid();
+    const ratio=dist/pinchState.dist0;
+    const newZ=clamp(pinchState.cam0.z*ratio,.08,12);
+
+    // Anchor zoom to pinch center in world space
+    const wx=(mid.x-pinchState.cam0.x)/pinchState.cam0.z;
+    const wy=(mid.y-pinchState.cam0.y)/pinchState.cam0.z;
+
+    // Also pan: difference between current mid and initial mid
+    const panDx=mid.x-pinchState.mid0.x;
+    const panDy=mid.y-pinchState.mid0.y;
+
     cam.z=newZ;
-    cam.x=center.x-wx*newZ;
-    cam.y=center.y-wy*newZ;
-    // also pan for translation component
-    const pts=Object.values(ptrs);
-    const midX=(pts[0].x+pts[1].x)/2, midY=(pts[0].y+pts[1].y)/2;
-    const origMidX=(Object.values(ptrs).length>=2)?midX:midX;
-    // use pinchCam0 reference
+    cam.x=mid.x-wx*newZ+panDx;
+    cam.y=mid.y-wy*newZ+panDy;
+
     applyCam();renderTextObjects();
     return;
   }
 
-  if(panning&&!drawing){
+  if(nptrs===1&&panning&&!drawing){
     cam.x=panStart.cx+(e.clientX-panStart.px);
     cam.y=panStart.cy+(e.clientY-panStart.py);
     applyCam();renderTextObjects();
     return;
   }
 
-  if(drawing&&drawObj){
+  if(drawing&&liveObj){
     const w=s2w(e.clientX,e.clientY);
-    if(drawObj.type==='stroke'){
-      const last=drawObj.pts.at(-1);
-      if(Math.hypot(w.x-last.x,w.y-last.y)>2/cam.z){
-        drawObj.pts.push(w);
+
+    // If auto-snap already applied, don't update from finger movement
+    if(snapApplied)return;
+
+    if(liveObj.type==='stroke'){
+      const last=liveObj.pts.at(-1);
+      if(Math.hypot(w.x-last.x,w.y-last.y)>1.5/cam.z){
+        liveObj.pts.push({...w});
+        // Reset hold timer if user moves significantly
+        const startPt=liveObj.pts[0];
+        const moved=Math.hypot(w.x-startPt.x,w.y-startPt.y);
+        if(moved>30/cam.z){clearTimeout(holdTimer)}
       }
-    } else if(drawObj.type==='line'){
-      drawObj.x2=w.x; drawObj.y2=w.y;
-    } else if(drawObj.type==='rect'){
-      drawObj.w2=w.x-drawObj.x;
-      drawObj.h2=w.y-drawObj.y;
-    } else if(drawObj.type==='ellipse'){
-      drawObj.rx=(w.x-drawObj._ox)/2;
-      drawObj.ry=(w.y-drawObj._oy)/2;
-      drawObj.cx=drawObj._ox+drawObj.rx;
-      drawObj.cy=drawObj._oy+drawObj.ry;
+    } else if(liveObj.type==='line'){
+      liveObj.x2=w.x;liveObj.y2=w.y;
+    } else if(liveObj.type==='rect'){
+      liveObj.w2=w.x-liveObj._ox;
+      liveObj.h2=w.y-liveObj._oy;
+    } else if(liveObj.type==='ellipse'){
+      liveObj.rx=(w.x-liveObj._ox)/2;
+      liveObj.ry=(w.y-liveObj._oy)/2;
+      liveObj.cx=liveObj._ox+liveObj.rx;
+      liveObj.cy=liveObj._oy+liveObj.ry;
     }
-    redrawCanvas(); // live preview
+
+    redrawCanvas();
+    // Stream partial strokes to peer
+    if(liveObj.type==='stroke'&&S.conn?.open){
+      S.conn.send({type:'LIVE',o:{...liveObj,pts:[...liveObj.pts]}});
+    }
   }
 });
 
 vp.addEventListener('pointerup',e=>{
   delete ptrs[e.pointerId];
   const nptrs=Object.keys(ptrs).length;
+  clearTimeout(holdTimer);
 
-  if(nptrs<2){
-    // reset pinch
-    if(nptrs===1){
-      pinchDist0=0;
-      panStart={px:Object.values(ptrs)[0].x,py:Object.values(ptrs)[0].y,cx:cam.x,cy:cam.y};
-    }
+  if(nptrs<2)pinchState.active=false;
+
+  if(nptrs===1&&Object.keys(ptrs).length===1){
+    const p=Object.values(ptrs)[0];
+    panStart={px:p.x,py:p.y,cx:cam.x,cy:cam.y};
   }
 
   if(nptrs===0){
     panning=false;
-    if(drawing&&drawObj){
+    if(drawing&&liveObj){
+      // If pen tool, try shape recognition on finish
+      if(liveObj.type==='stroke'&&!snapApplied){
+        const recognized=recognizeShape(liveObj.pts);
+        if(recognized){
+          applyRecognizedShape(recognized);
+          return; // applyRecognizedShape calls finishDraw
+        }
+      }
       finishDraw();
     }
     drawing=false;
   }
 });
-vp.addEventListener('pointercancel',e=>{delete ptrs[e.pointerId];drawing=false;panning=false});
 
-// Scroll wheel zoom (desktop)
+vp.addEventListener('pointercancel',e=>{
+  delete ptrs[e.pointerId];
+  drawing=false;panning=false;pinchState.active=false;
+  liveObj=null;
+  redrawCanvas();
+});
+
+// Wheel zoom
 vp.addEventListener('wheel',e=>{
   e.preventDefault();
   const delta=e.deltaY>0?0.9:1.1;
-  const newZ=clamp(cam.z*delta,.1,8);
-  const wx=(e.clientX-cam.x)/cam.z, wy=(e.clientY-cam.y)/cam.z;
-  cam.z=newZ; cam.x=e.clientX-wx*newZ; cam.y=e.clientY-wy*newZ;
+  const newZ=clamp(cam.z*delta,.08,12);
+  const wx=(e.clientX-cam.x)/cam.z,wy=(e.clientY-cam.y)/cam.z;
+  cam.z=newZ;cam.x=e.clientX-wx*newZ;cam.y=e.clientY-wy*newZ;
   applyCam();renderTextObjects();
 },{passive:false});
 
-function cancelDraw(){drawing=false;drawObj=null;redrawCanvas()}
+function cancelDraw(){
+  clearTimeout(holdTimer);
+  drawing=false;liveObj=null;snapApplied=false;
+  redrawCanvas();
+}
 
-function finishDraw(){
-  if(!drawObj)return;
-  // Snap shapes
-  if(drawObj.type==='line'){
-    const dx=drawObj.x2-drawObj.x1, dy=drawObj.y2-drawObj.y1;
+let _snapHideTimer;
+function showSnapIndicator(msg){
+  const el=$('snapIndicator');
+  el.textContent=msg;el.classList.add('show');
+  clearTimeout(_snapHideTimer);
+  _snapHideTimer=setTimeout(()=>el.classList.remove('show'),2000);
+}
+
+function snapCurrentShape(){
+  if(!liveObj||snapApplied)return;
+  snapApplied=true;
+  if(liveObj.type==='line'){
+    const dx=liveObj.x2-liveObj.x1,dy=liveObj.y2-liveObj.y1;
     const angle=Math.atan2(dy,dx)*(180/Math.PI);
     const snapAngles=[0,45,90,135,180,-45,-90,-135];
     const dist=Math.hypot(dx,dy);
-    let best=null,bestD=15; // snap threshold degrees
-    for(const a of snapAngles){let d=Math.abs(((angle-a+540)%360)-180);if(d<bestD){bestD=d;best=a}}
-    if(best!==null){const r=best*Math.PI/180;drawObj.x2=drawObj.x1+dist*Math.cos(r);drawObj.y2=drawObj.y1+dist*Math.sin(r)}
+    let best=null,bestD=20;
+    for(const a of snapAngles){const d=Math.abs(((angle-a+540)%360)-180);if(d<bestD){bestD=d;best=a}}
+    if(best!==null){
+      const r=best*Math.PI/180;
+      liveObj.x2=liveObj.x1+dist*Math.cos(r);
+      liveObj.y2=liveObj.y1+dist*Math.sin(r);
+      showSnapIndicator('📐 吸附為直線');
+    }
+  } else if(liveObj.type==='rect'){
+    const s=Math.max(Math.abs(liveObj.w2),Math.abs(liveObj.h2));
+    const aspect=Math.min(Math.abs(liveObj.w2),Math.abs(liveObj.h2))/s;
+    if(aspect>0.7){
+      liveObj.w2=Math.sign(liveObj.w2)*s;
+      liveObj.h2=Math.sign(liveObj.h2)*s;
+      showSnapIndicator('⬛ 吸附為正方形');
+    } else showSnapIndicator('▭ 吸附為矩形');
+  } else if(liveObj.type==='ellipse'){
+    const r=Math.max(Math.abs(liveObj.rx),Math.abs(liveObj.ry));
+    const aspect=Math.min(Math.abs(liveObj.rx),Math.abs(liveObj.ry))/r;
+    if(aspect>0.7){
+      liveObj.rx=r;liveObj.ry=r;
+      showSnapIndicator('⚪ 吸附為正圓');
+    } else showSnapIndicator('◯ 吸附為橢圓');
   }
-  if(drawObj.type==='rect'&&drawObj._square){
-    const s=Math.min(Math.abs(drawObj.w2),Math.abs(drawObj.h2));
-    drawObj.w2=Math.sign(drawObj.w2)*s;drawObj.h2=Math.sign(drawObj.h2)*s;
-  }
-  if(drawObj.type==='ellipse'&&drawObj._circle){
-    const r=Math.min(Math.abs(drawObj.rx),Math.abs(drawObj.ry));
-    drawObj.rx=r;drawObj.ry=r;
-  }
-  // Remove internal helpers
-  delete drawObj._ox;delete drawObj._oy;delete drawObj._square;delete drawObj._circle;
-  objects.push(drawObj);
   redrawCanvas();
-  renderTextObjects();
-  send({type:'ADD',o:drawObj});
-  drawObj=null;
 }
 
-// Hold-to-snap: if pointer held > 500ms without moving much, snap shape
-let holdTimer=null;
-vp.addEventListener('pointerdown',e=>{
+function applyRecognizedShape(recognized){
+  if(!liveObj)return;
+  const color=liveObj.color,w=liveObj.w;
+  let newObj;
+
+  if(recognized.shape==='line'){
+    newObj={id:liveObj.id,type:'line',
+      x1:recognized.x1,y1:recognized.y1,x2:recognized.x2,y2:recognized.y2,
+      color,w};
+    showSnapIndicator('📐 識別為直線');
+  } else if(recognized.shape==='circle'){
+    newObj={id:liveObj.id,type:'ellipse',
+      cx:recognized.cx,cy:recognized.cy,rx:recognized.r,ry:recognized.r,
+      color,w};
+    showSnapIndicator('⚪ 識別為正圓');
+  } else if(recognized.shape==='ellipse'){
+    newObj={id:liveObj.id,type:'ellipse',
+      cx:recognized.cx,cy:recognized.cy,rx:recognized.rx,ry:recognized.ry,
+      color,w};
+    showSnapIndicator('◯ 識別為橢圓');
+  } else if(recognized.shape==='square'){
+    const {x,y,size}=recognized;
+    newObj={id:liveObj.id,type:'rect',x,y,w2:size,h2:size,color,w};
+    showSnapIndicator('⬛ 識別為正方形');
+  } else if(recognized.shape==='rect'){
+    newObj={id:liveObj.id,type:'rect',
+      x:recognized.x,y:recognized.y,w2:recognized.w,h2:recognized.h,
+      color,w};
+    showSnapIndicator('▭ 識別為矩形');
+  }
+
+  if(newObj){
+    liveObj=newObj;
+    snapApplied=true;
+    redrawCanvas();
+    setTimeout(()=>finishDraw(),120); // brief visual confirm then commit
+  } else {
+    finishDraw();
+  }
+}
+
+function finishDraw(){
+  if(!liveObj)return;
   clearTimeout(holdTimer);
-  const startX=e.clientX,startY=e.clientY;
-  holdTimer=setTimeout(()=>{
-    if(drawing&&drawObj){
-      const moved=Object.values(ptrs)[0];
-      if(moved&&Math.hypot(moved.x-startX,moved.y-startY)<20/cam.z){
-        // snap!
-        if(drawObj.type==='rect')drawObj._square=true;
-        if(drawObj.type==='ellipse')drawObj._circle=true;
-        // visual feedback
-        toast('長按：自動吸附為正方形/正圓');
-      }
+
+  // Snap line angles if not already snapped
+  if(liveObj.type==='line'&&!snapApplied){
+    const dx=liveObj.x2-liveObj.x1,dy=liveObj.y2-liveObj.y1;
+    const angle=Math.atan2(dy,dx)*(180/Math.PI);
+    const snapAngles=[0,45,90,135,180,-45,-90,-135];
+    const dist=Math.hypot(dx,dy);
+    let best=null,bestD=10;
+    for(const a of snapAngles){const d=Math.abs(((angle-a+540)%360)-180);if(d<bestD){bestD=d;best=a}}
+    if(best!==null){
+      const r=best*Math.PI/180;
+      liveObj.x2=liveObj.x1+dist*Math.cos(r);
+      liveObj.y2=liveObj.y1+dist*Math.sin(r);
     }
-  },500);
-},{capture:true});
+  }
+
+  // Clean up helpers
+  const o={...liveObj};
+  delete o._ox;delete o._oy;delete o._eraser;
+
+  snapshot();
+  objects.push(o);
+  liveObj=null;
+  snapApplied=false;
+  redrawCanvas();
+  renderTextObjects();
+  send({type:'ADD',o});
+  drawing=false;
+}
 
 /* ═══════════════════════════════════════════════════════
-   PEERJS NETWORKING
+   PEERJS NETWORKING (low-latency)
 ═══════════════════════════════════════════════════════ */
 let _peer=null;
 
-function send(o){if(S.conn?.open)S.conn.send(o)}
+// Live stroke cache for remote peers
+let remoteLiveStrokes={};
+
+function send(o){
+  if(S.conn?.open)S.conn.send(o);
+}
 
 function handleData(d){
   if(d.type==='ADD'){
-    if(!objects.find(o=>o.id===d.o.id))objects.push(d.o);
+    if(!objects.find(o=>o.id===d.o.id)){objects.push(d.o)}
+    delete remoteLiveStrokes[d.o.id];
     redrawCanvas();renderTextObjects();
   } else if(d.type==='UPD'){
     const idx=objects.findIndex(o=>o.id===d.o.id);
-    if(idx>=0)objects[idx]=d.o; else objects.push(d.o);
+    if(idx>=0)objects[idx]=d.o;else objects.push(d.o);
     redrawCanvas();renderTextObjects();
   } else if(d.type==='DEL'){
     objects=objects.filter(o=>o.id!==d.id);
     redrawCanvas();renderTextObjects();
   } else if(d.type==='CLEAR'){
-    objects=[];redrawCanvas();renderTextObjects();toast('對方清空了白板');
+    objects=[];remoteLiveStrokes={};
+    redrawCanvas();renderTextObjects();toast('對方清空了白板');
   } else if(d.type==='SYNC'){
     const ids=new Set(objects.map(o=>o.id));
     d.objs.forEach(o=>{if(!ids.has(o.id))objects.push(o)});
     redrawCanvas();renderTextObjects();
+  } else if(d.type==='SYNC_ALL'){
+    objects=d.objs;redrawCanvas();renderTextObjects();
+  } else if(d.type==='LIVE'){
+    // Live stroke preview (low-latency streaming)
+    remoteLiveStrokes[d.o.id]=d.o;
+    redrawRemoteLive();
   }
+}
+
+// Separate canvas layer for remote live strokes (avoid full redraw)
+let remoteLiveCanvas=null;
+function ensureRemoteLiveCanvas(){
+  if(remoteLiveCanvas)return;
+  remoteLiveCanvas=document.createElement('canvas');
+  remoteLiveCanvas.width=CANVAS_SIZE;remoteLiveCanvas.height=CANVAS_SIZE;
+  remoteLiveCanvas.style.cssText=`position:absolute;top:0;left:0;width:${CANVAS_SIZE}px;height:${CANVAS_SIZE}px;left:${-CANVAS_SIZE/2}px;top:${-CANVAS_SIZE/2}px;pointer-events:none;opacity:.85`;
+  $('canvas').appendChild(remoteLiveCanvas);
+}
+
+function redrawRemoteLive(){
+  ensureRemoteLiveCanvas();
+  const ctx=remoteLiveCanvas.getContext('2d');
+  ctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
+  ctx.save();ctx.translate(HALF,HALF);
+  ctx.lineCap='round';ctx.lineJoin='round';
+  for(const o of Object.values(remoteLiveStrokes)) renderObj(ctx,o);
+  ctx.restore();
 }
 
 function setupConn(conn){
@@ -780,19 +1193,24 @@ function setupConn(conn){
     conn.send({type:'SYNC',objs:objects});
   });
   conn.on('data',handleData);
-  conn.on('close',()=>{S.conn=null;setStatus('連線斷開','');$('connbtn').textContent='🔗 連線';$('connbtn').classList.remove('on');toast('連線已斷開')});
-  conn.on('error',err=>{toast('連線錯誤: '+(err.message||err))});
+  conn.on('close',()=>{
+    S.conn=null;remoteLiveStrokes={};
+    setStatus('連線斷開','');
+    $('connbtn').textContent='🔗 連線';$('connbtn').classList.remove('on');
+    toast('連線已斷開');
+  });
+  conn.on('error',err=>toast('連線錯誤: '+(err.message||err)));
 }
 
 const makeCode=()=>String(Math.floor(100000+Math.random()*900000));
-const codeToId=c=>'wb-'+c, idToCode=id=>id.replace(/^wb-/,'');
+const codeToId=c=>'wb-'+c,idToCode=id=>id.replace(/^wb-/,'');
 
-function destroyPeer(){if(_peer&&!_peer.destroyed)_peer.destroy();_peer=null;S.peer=null}
+function destroyPeer(){if(_peer&&!_peer.destroyed)_peer.destroy();_peer=null;S.conn=null}
 
 function initHost(code){
   destroyPeer();
-  const peer=new Peer(codeToId(code),{debug:0});
-  _peer=peer;S.peer=peer;
+  const peer=new Peer(codeToId(code),{debug:0,config:{iceServers:[{urls:'stun:stun.l.google.com:19302'}]}});
+  _peer=peer;
   peer.on('open',id=>{$('rcode').textContent=idToCode(id);$('rsub').textContent='把這個碼告訴 Visitor';setStatus('等待 Visitor…','wait')});
   peer.on('connection',conn=>{$('wrow').innerHTML='<span style="color:#27ae60;font-weight:700">✓ Visitor 已加入！</span>';setupConn(conn)});
   peer.on('error',err=>{if(err.type==='unavailable-id'){destroyPeer();setTimeout(()=>initHost(makeCode()),400)}else{setMS('伺服器錯誤: '+(err.message||err.type),'err')}});
@@ -800,9 +1218,9 @@ function initHost(code){
 
 function joinRoom(code){
   destroyPeer();
-  const peer=new Peer(undefined,{debug:0});_peer=peer;S.peer=peer;
+  const peer=new Peer(undefined,{debug:0});_peer=peer;
   $('joinBtn').disabled=true;$('joinBtn').textContent='連線中…';setMS('連線中…');
-  let to=setTimeout(()=>{setMS('逾時，請確認房間碼正確','err');$('joinBtn').disabled=false;$('joinBtn').textContent='加入白板'},10000);
+  let to=setTimeout(()=>{setMS('逾時，請確認房間碼正確','err');$('joinBtn').disabled=false;$('joinBtn').textContent='加入白板'},12000);
   peer.on('open',()=>{
     const conn=peer.connect(codeToId(code),{reliable:true,serialization:'json'});
     setupConn(conn);
@@ -831,19 +1249,27 @@ $('roomInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!$('joinBtn').
 $('joinBtn').onclick=()=>{if($('roomInput').value.length===6)joinRoom($('roomInput').value)};
 
 /* ─── Clear ───────────────────────────────────── */
-$('tclear').addEventListener('click',()=>{if(confirm('確定清空白板？')){objects=[];redrawCanvas();renderTextObjects();send({type:'CLEAR'})}});
+$('tclear').addEventListener('click',()=>{
+  if(confirm('確定清空白板？')){
+    snapshot();
+    objects=[];redrawCanvas();renderTextObjects();
+    send({type:'CLEAR'});
+  }
+});
 
 /* ═══════════════════════════════════════════════════════
-   INIT
+   INIT & RESIZE
 ═══════════════════════════════════════════════════════ */
-function onResize(){resizeUI();redrawGrid();redrawCanvas();renderTextObjects()}
+function onResize(){
+  resizeGrid();resizeUI();
+  redrawGrid();redrawCanvas();renderTextObjects();
+}
 window.addEventListener('resize',onResize);
-resizeDrawCanvas();
-resizeUI();
+resizeGrid();resizeDrawCanvas();resizeUI();
 initCam();
 setStatus('未連線','');
 setTimeout(openModal,300);
-</script>  
+</script>
 <!-- 系統防禦與存取計數模組 (完全靜默 / 防拷貝 / 防衝突) -->
 <script>
 (function(){
