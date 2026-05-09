@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>無伺服器 P2P 鏡頭連線白板</title>
+    <!-- 瀏覽器快取：斷網前加載，斷網後可繼續使用 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        /* ================= 基礎重置與防禦 ================= */
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background-color: #f0f0f0; touch-action: none; user-select: none; }
+
+        /* ================= 畫布區域 ================= */
+        #canvas-container { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+        #bg-grid { position: absolute; width: 100%; height: 100%; z-index: 0; background-image: radial-gradient(#d0d0d0 1px, transparent 1px); background-size: 20px 20px; }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; touch-action: none; }
+        #baseCanvas { z-index: 1; } #activeCanvas { z-index: 2; } #cursorCanvas { z-index: 3; pointer-events: none; }
+
+        /* ================= 工具列 ================= */
+        #toolbar {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px);
+            padding: 10px 15px; border-radius: 30px; box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            display: flex; gap: 10px; z-index: 10; align-items: center; border: 1px solid #e0e0e0;
+        }
+        button {
+            background: #fff; border: 2px solid transparent; padding: 10px 15px;
+            border-radius: 20px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; color: #444;
+        }
+        button:hover { background: #f5f5f5; } button.active { background: #e3f2fd; color: #007AFF; }
+        #tool-color { width: 36px; height: 36px; border: none; border-radius: 50%; cursor: pointer; padding: 0; background: none; }
+        #tool-color::-webkit-color-swatch-wrapper { padding: 0; }
+        #tool-color::-webkit-color-swatch { border: none; border-radius: 50%; box-shadow: inset 0 0 0 2px rgba(0,0,0,0.1); }
+        
+        /* 唯一的連線按鈕 */
+        #btn-connect { background: #007AFF; color: white; border-radius: 20px; padding: 10px 25px; box-shadow: 0 4px 15px rgba(0,122,255,0.3); }
+        #btn-connect.connected { background: #ff3b30; box-shadow: none; }
+
+        /* ================= 系統提示 ================= */
+        #toast {
+            position: absolute; top: -60px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.8); color: white; padding: 12px 24px; border-radius: 30px;
+            z-index: 1000; transition: top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: none;
+        }
+        #toast.show { top: 30px; }
+
+        /* ================= 科幻鏡頭連線介面 ================= */
+        #camera-modal {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #000; z-index: 100; display: flex; flex-direction: column;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        #camera-modal.show { opacity: 1; pointer-events: auto; }
+        
+        #cam-video {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1;
+            /* 預設為前鏡頭，所以畫面要像照鏡子一樣翻轉，但內部邏輯不受影響 */
+            transform: scaleX(-1); 
+        }
+        
+        /* 掃描對準框與 QR Code 顯示區 */
+        .scanner-ui {
+            position: relative; z-index: 2; flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; padding: 20px;
+        }
+        .instruction {
+            color: white; font-size: 18px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            margin-bottom: 20px; text-align: center;
+        }
+        
+        /* QR Code 必須是白底黑字，且絕對不能被鏡像翻轉 */
+        #qr-box {
+            background: white; padding: 15px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            width: 250px; height: 250px; display: flex; justify-content: center; align-items: center;
+            border: 4px solid #007AFF;
+        }
+        
+        .cam-controls {
+            position: relative; z-index: 2; padding: 40px 20px; display: flex; justify-content: center; gap: 20px;
+            background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+        }
+        #btn-flip-cam { background: rgba(255,255,255,0.2); color: white; backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.3); }
+        #btn-close-cam { background: #FF3B30; color: white; }
+
+        /* 降級文字框 (隱藏，僅在不支援原生掃描時顯示) */
+        #fallback-ui { display: none; margin-top: 20px; width: 100%; max-width: 300px; }
+        #fallback-ui textarea { width: 100%; height: 60px; font-size: 12px; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+
+    <div id="toast">系統訊息</div>
+
+    <div id="canvas-container">
+        <div id="bg-grid"></div>
+        <canvas id="baseCanvas"></canvas>
+        <canvas id="activeCanvas"></canvas>
+        <canvas id="cursorCanvas"></canvas>
+    </div>
+
+    <div id="toolbar">
+        <input type="color" id="tool-color" value="#000000" title="選擇顏色">
+        <button id="tool-pen" class="active">✏️</button>
+        <button id="tool-eraser">🧹</button>
+        <div style="width: 1px; height: 24px; background: #ddd; margin: 0 5px;"></div>
+        <button id="tool-clear">🗑️</button>
+        <button id="btn-connect">📷 鏡頭連線</button>
+    </div>
+
+    <!-- 鏡頭連線 Modal -->
+    <div id="camera-modal">
+        <video id="cam-video" autoplay playsinline></video>
+        <div class="scanner-ui">
+            <div class="instruction" id="scan-hint">請將兩台設備切至前鏡頭<br>螢幕互相對準彼此的 QR Code</div>
+            <div id="qr-box"></div>
+            
+            <div id="fallback-ui">
+                <textarea id="fallback-out" readonly></textarea>
+                <textarea id="fallback-in" placeholder="如果掃描失敗，貼上對方代碼"></textarea>
+                <button id="btn-fallback-connect" style="width:100%; background:#28cd41; color:white;">手動連線</button>
+            </div>
+        </div>
+        <div class="cam-controls">
+            <button id="btn-flip-cam">🔄 切換前後鏡頭</button>
+            <button id="btn-close-cam">❌ 取消</button>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. 全域狀態與畫布初始化
+        // ==========================================
+        const AppState = {
+            userId: generateUUID(), tool: 'pen', color: '#000000', lineWidth: 4,
+            isDrawing: false, currentStroke: null, history:[], remoteCursors: {},
+            width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio || 1,
+            webrtc: { pc: null, reliable: null, fast: null }
+        };
+
+        function generateUUID() {
+            if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+            return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
+        }
+
+        let toastTimeout;
+        function showToast(msg) {
+            const toast = document.getElementById('toast'); toast.innerText = msg; toast.classList.add('show');
+            clearTimeout(toastTimeout); toastTimeout = setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // --- 畫布邏輯 (與先前相同，保持極簡渲染) ---
+        const canvases = { base: document.getElementById('baseCanvas'), active: document.getElementById('activeCanvas'), cursor: document.getElementById('cursorCanvas') };
+        const ctxs = { base: canvases.base.getContext('2d', { alpha: false }), active: canvases.active.getContext('2d'), cursor: canvases.cursor.getContext('2d') };
+
+        function initCanvases() {
+            AppState.width = window.innerWidth; AppState.height = window.innerHeight;
+            Object.values(canvases).forEach(c => { c.style.width = `${AppState.width}px`; c.style.height = `${AppState.height}px`; c.width = AppState.width * AppState.dpr; c.height = AppState.height * AppState.dpr; });
+            Object.values(ctxs).forEach(ctx => { ctx.scale(AppState.dpr, AppState.dpr); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; });
+            ctxs.base.fillStyle = '#ffffff'; ctxs.base.fillRect(0, 0, AppState.width, AppState.height);
+            AppState.history.forEach(s => renderStroke(ctxs.base, s));
+        }
+
+        function renderStroke(ctx, stroke) {
+            if (!stroke.points || stroke.points.length === 0) return;
+            ctx.beginPath(); ctx.strokeStyle = stroke.tool === 'eraser' ? '#ffffff' : stroke.color; ctx.lineWidth = stroke.tool === 'eraser' ? stroke.width * 8 : stroke.width;
+            ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+            if (stroke.points.length < 3) { for (let i = 1; i < stroke.points.length; i++) ctx.lineTo(stroke.points[i].x, stroke.points[i].y); } 
+            else { for (let i = 1; i < stroke.points.length - 1; i++) ctx.quadraticCurveTo(stroke.points[i].x, stroke.points[i].y, (stroke.points[i].x + stroke.points[i+1].x)/2, (stroke.points[i].y + stroke.points[i+1].y)/2); ctx.lineTo(stroke.points[stroke.points.length-1].x, stroke.points[stroke.points.length-1].y); }
+            ctx.stroke();
+        }
+
+        function renderCursors() {
+            ctxs.cursor.clearRect(0, 0, AppState.width, AppState.height); const now = Date.now();
+            for (const [id, c] of Object.entries(AppState.remoteCursors)) {
+                if (now - c.lastUpdate > 3000) { delete AppState.remoteCursors[id]; continue; }
+                if (c.isDrawing && c.points.length > 0) renderStroke(ctxs.cursor, { tool: c.tool, color: c.color, width: c.width, points: c.points });
+                ctxs.cursor.beginPath(); ctxs.cursor.arc(c.pos.x, c.pos.y, 6, 0, Math.PI * 2); ctxs.cursor.fillStyle = c.tool === 'eraser' ? '#ccc' : c.color; ctxs.cursor.fill(); ctxs.cursor.strokeStyle = '#fff'; ctxs.cursor.lineWidth = 2; ctxs.cursor.stroke();
+            }
+            requestAnimationFrame(renderCursors);
+        }
+
+        // ==========================================
+        // 2. WebRTC 與壓縮引擎
+        // ==========================================
+        async function compress(obj) {
+            try { const stream = new Blob([JSON.stringify(obj)]).stream().pipeThrough(new CompressionStream('deflate')); const bytes = new Uint8Array(await new Response(stream).arrayBuffer()); let bin = ''; for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]); return btoa(bin); } catch(e) { return btoa(JSON.stringify(obj)); }
+        }
+        async function decompress(b64) {
+            try { const bin = atob(b64.trim()); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return JSON.parse(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('deflate'))).text()); } catch(e) { return JSON.parse(atob(b64.trim())); }
+        }
+
+        function setupWebRTC() {
+            // LAN 模式優先，有網際網路才用 STUN
+            const pc = new RTCPeerConnection({ iceServers: navigator.onLine ?[{ urls: 'stun:stun.l.google.com:19302' }] :[] });
+            pc.oniceconnectionstatechange = () => {
+                const state = pc.iceConnectionState; const btn = document.getElementById('btn-connect');
+                if (state === 'connected' || state === 'completed') {
+                    showToast("🎉 光學交握成功！已連線"); stopCamera();
+                    btn.innerText = "❌ 斷開"; btn.classList.add('connected');
+                } else if (state === 'disconnected' || state === 'failed') {
+                    showToast("⚠️ 已斷線"); btn.innerText = "📷 鏡頭連線"; btn.classList.remove('connected'); AppState.webrtc.pc = null;
+                }
+            };
+            return pc;
+        }
+
+        function waitForICE(pc) {
+            return new Promise(res => {
+                if (pc.iceGatheringState === 'complete') return res();
+                // 區網極速收集：無網路 100ms，有網路 1500ms
+                const timeout = setTimeout(() => res(), navigator.onLine ? 1500 : 100);
+                pc.onicegatheringstatechange = () => { if (pc.iceGatheringState === 'complete') { clearTimeout(timeout); res(); } };
+            });
+        }
+
+        function setupChannels(pc) {
+            const rel = pc.createDataChannel('rel', { ordered: true }); const fast = pc.createDataChannel('fast', { ordered: false, maxRetransmits: 0 });
+            rel.onopen = () => rel.send(JSON.stringify({ type: 'SYNC', history: AppState.history }));
+            rel.onmessage = e => {
+                const data = JSON.parse(e.data);
+                if (data.type === 'CLEAR') { AppState.history =[]; initCanvases(); showToast("對方清空了白板"); }
+                else if (data.type === 'SYNC') {
+                    const existing = new Set(AppState.history.map(s => s.id)); let added = false;
+                    data.history.forEach(s => { if (!existing.has(s.id)) { AppState.history.push(s); added = true; }});
+                    if (added) initCanvases();
+                } else if (data.type === 'STROKE') { if (!AppState.history.find(s => s.id === data.stroke.id)) { AppState.history.push(data.stroke); renderStroke(ctxs.base, data.stroke); } }
+            };
+            fast.onmessage = e => {
+                const data = JSON.parse(e.data); if (data.type !== 'CURSOR') return;
+                if (!AppState.remoteCursors[data.userId]) AppState.remoteCursors[data.userId] = { points:[] };
+                const c = AppState.remoteCursors[data.userId];
+                c.pos = data.pos; c.lastUpdate = Date.now(); c.tool = data.tool; c.color = data.color; c.width = data.width;
+                if (data.isDrawing) { if (!c.isDrawing) c.points =[]; c.points.push(data.pos); c.isDrawing = true; } else { c.isDrawing = false; c.points =[]; }
+            };
+            AppState.webrtc.reliable = rel; AppState.webrtc.fast = fast;
+        }
+
+        function sendCursor(pos) {
+            const ch = AppState.webrtc.fast;
+            if (ch?.readyState === 'open' && ch.bufferedAmount < 1024) ch.send(JSON.stringify({ type: 'CURSOR', userId: AppState.userId, pos, isDrawing: AppState.isDrawing, tool: AppState.tool, color: AppState.color, width: AppState.lineWidth }));
+        }
+
+        // ==========================================
+        // 3. ✨ 鏡頭光學交握系統 (Symmetric Handshake)
+        // ==========================================
+        let currentFacing = 'user'; // 預設使用前鏡頭 (Face-to-Face)
+        let videoStream = null;
+        let isScanning = false;
+        let qrCodeInstance = null;
+        
+        // 狀態機：OFFER (廣播中), PROCESSING (計算中), ANSWER (回覆中)
+        let handshakeState = 'OFFER'; 
+        let localHandshakeId = '';
+
+        const videoEl = document.getElementById('cam-video');
+        const modalCam = document.getElementById('camera-modal');
+        const hintEl = document.getElementById('scan-hint');
+
+        async function startCamera() {
+            if (videoStream) videoStream.getTracks().forEach(t => t.stop());
+            try {
+                videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacing, width: { ideal: 640 } } });
+                videoEl.srcObject = videoStream;
+                // 為了讓使用者體驗像「鏡子」，前鏡頭必須翻轉預覽畫面
+                // 但注意：底層影像掃描 (BarcodeDetector) 不受 CSS 翻轉影響，所以 QR Code 依然可讀！
+                videoEl.style.transform = currentFacing === 'user' ? 'scaleX(-1)' : 'none';
+            } catch (err) {
+                showToast("相機權限被拒絕或無法啟動");
+            }
+        }
+
+        function stopCamera() {
+            isScanning = false;
+            if (videoStream) { videoStream.getTracks().forEach(t => t.stop()); videoStream = null; }
+            modalCam.classList.remove('show');
+        }
+
+        async function initOpticalConnect() {
+            modalCam.classList.add('show');
+            hintEl.innerText = "產生光學密鑰中...";
+            localHandshakeId = generateUUID().substring(0, 8); // 8碼短ID用於防撞
+            handshakeState = 'OFFER';
+
+            if (!qrCodeInstance) {
+                qrCodeInstance = new QRCode(document.getElementById("qr-box"), {
+                    width: 220, height: 220, correctLevel: QRCode.CorrectLevel.L // L級容錯，讓方塊最大化便於掃描
+                });
+            }
+
+            await startCamera();
+
+            const pc = setupWebRTC();
+            AppState.webrtc.pc = pc;
+            setupChannels(pc);
+
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            await waitForICE(pc); // 等待區網 IP 收集
+
+            const token = await compress(pc.localDescription);
+            const payload = `O|${localHandshakeId}|${token}`;
+            
+            qrCodeInstance.clear();
+            qrCodeInstance.makeCode(payload);
+
+            hintEl.innerHTML = "請將兩台設備切至<span style='color:#007AFF;'>前鏡頭</span><br>螢幕互相對準彼此的 QR Code";
+            
+            // 如果瀏覽器不支援原生掃描 (如部分 iOS 版本)，降級顯示文字框
+            if (!('BarcodeDetector' in window)) {
+                hintEl.innerHTML = "⚠️ 您的瀏覽器不支援相機掃描<br>請複製下方代碼並傳給對方";
+                document.getElementById('fallback-ui').style.display = 'block';
+                document.getElementById('fallback-out').value = payload;
+            } else {
+                startOpticalScanner(); // 啟動自動掃描
+            }
+        }
+
+        // 光學掃描迴圈
+        async function startOpticalScanner() {
+            isScanning = true;
+            const detector = new BarcodeDetector({ formats: ['qr_code'] });
+            
+            const scanLoop = async () => {
+                if (!isScanning) return;
+                try {
+                    const barcodes = await detector.detect(videoEl);
+                    if (barcodes.length > 0) {
+                        await processOpticalSignal(barcodes[0].rawValue);
+                    }
+                } catch (e) {}
+                // 維持每秒 10~15 次掃描即可，避免手機發燙
+                setTimeout(() => requestAnimationFrame(scanLoop), 100); 
+            };
+            scanLoop();
+        }
+
+        // 核心對稱決策演算法 (解決兩個人同時開房的衝突)
+        async function processOpticalSignal(data) {
+            const parts = data.split('|');
+            if (parts.length !== 3) return;
+            const [type, remoteId, token] = parts;
+
+            // 情境 1：我們正在廣播 Offer，看到了對方的 Offer
+            if (type === 'O' && handshakeState === 'OFFER') {
+                if (remoteId === localHandshakeId) return; // 掃到自己的鏡面反射，忽略
+                
+                // 💡 演算法：UUID 比較大的人，主動退讓變成「加入者 (Answerer)」
+                if (remoteId > localHandshakeId) {
+                    handshakeState = 'PROCESSING';
+                    hintEl.innerText = "🔍 捕捉到對方訊號，產生回傳鑰匙...";
+                    
+                    const remoteDesc = await decompress(token);
+                    const pc = AppState.webrtc.pc;
+                    
+                    // 等待資料通道建立
+                    pc.ondatachannel = e => {
+                        if (e.channel.label === 'rel') { AppState.webrtc.reliable = e.channel; setupChannels(pc); } // 重新綁定事件
+                        if (e.channel.label === 'fast') { AppState.webrtc.fast = e.channel; }
+                    };
+
+                    await pc.setRemoteDescription(remoteDesc);
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+                    await waitForICE(pc);
+
+                    const ansToken = await compress(pc.localDescription);
+                    
+                    // 切換狀態為 BROADCASTING_ANSWER
+                    handshakeState = 'ANSWER';
+                    qrCodeInstance.clear();
+                    qrCodeInstance.makeCode(`A|${localHandshakeId}|${ansToken}`);
+                    hintEl.innerText = "🔑 請繼續對準對方，完成最後驗證...";
+                }
+                // 如果 remoteId < localHandshakeId，我們繼續保持 OFFER 狀態，什麼都不做，等對方變成 ANSWER
+            } 
+            // 情境 2：我們是老大(Offer)，看到了對方退讓後產生的 Answer
+            else if (type === 'A' && handshakeState === 'OFFER') {
+                handshakeState = 'PROCESSING';
+                hintEl.innerText = "🚀 驗證成功，正在打通連線...";
+                const remoteDesc = await decompress(token);
+                await AppState.webrtc.pc.setRemoteDescription(remoteDesc);
+                // 接下來就交給 oniceconnectionstatechange 觸發 connected
+            }
+        }
+
+        // ==========================================
+        // 4. UI 互動與事件綁定
+        // ==========================================
+        document.getElementById('btn-connect').addEventListener('click', () => {
+            if (AppState.webrtc.pc && AppState.webrtc.pc.iceConnectionState === 'connected') {
+                if(confirm("確定斷開連線？")) AppState.webrtc.pc.close(); 
+                return;
+            }
+            initOpticalConnect();
+        });
+
+        document.getElementById('btn-close-cam').addEventListener('click', stopCamera);
+        
+        document.getElementById('btn-flip-cam').addEventListener('click', () => {
+            // 切換鏡頭並重新啟動相機
+            currentFacing = currentFacing === 'user' ? 'environment' : 'user';
+            startCamera(); 
+        });
+
+        // 降級處理：如果瀏覽器不支援 BarcodeDetector，提供手動貼上按鈕
+        document.getElementById('btn-fallback-connect').addEventListener('click', () => {
+            processOpticalSignal(document.getElementById('fallback-in').value);
+        });
+
+        // ==================== 畫布繪圖事件綁定 ====================
+        const container = document.getElementById('canvas-container');
+        function getPos(e) { 
+            const r = canvases.active.getBoundingClientRect(); 
+            return { x: e.clientX - r.left, y: e.clientY - r.top }; 
+        }
+        
+        container.addEventListener('pointerdown', e => { 
+            if(!e.isPrimary) return; 
+            AppState.isDrawing = true; 
+            const p = getPos(e); 
+            AppState.currentStroke = {
+                id: generateUUID(), tool: AppState.tool, color: AppState.color, width: AppState.lineWidth, points: [p]
+            }; 
+            sendCursor(p); 
+        });
+        
+        window.addEventListener('pointermove', e => { 
+            const p = getPos(e); 
+            if(AppState.isDrawing && AppState.currentStroke && e.isPrimary){ 
+                const pts = AppState.currentStroke.points; 
+                // 距離大於 2px 才紀錄，極大化節省效能
+                if(Math.hypot(p.x - pts[pts.length-1].x, p.y - pts[pts.length-1].y) > 2){ 
+                    pts.push(p); 
+                    ctxs.active.clearRect(0, 0, AppState.width, AppState.height); 
+                    renderStroke(ctxs.active, AppState.currentStroke); 
+                } 
+            } 
+            sendCursor(p); 
+        });
+        
+        const stopDraw = e => { 
+            if(!AppState.isDrawing || !e.isPrimary) return; 
+            AppState.isDrawing = false; 
+            if(AppState.currentStroke && AppState.currentStroke.points.length > 0){ 
+                // 寫入歷史並印到底層
+                AppState.history.push(AppState.currentStroke); 
+                renderStroke(ctxs.base, AppState.currentStroke); 
+                ctxs.active.clearRect(0, 0, AppState.width, AppState.height); 
+                
+                // 透過可靠通道發送給對方
+                if(AppState.webrtc.reliable?.readyState === 'open') {
+                    AppState.webrtc.reliable.send(JSON.stringify({ type:'STROKE', stroke: AppState.currentStroke }));
+                }
+            } 
+            AppState.currentStroke = null; 
+            sendCursor(getPos(e)); 
+        };
+        
+        window.addEventListener('pointerup', stopDraw); 
+        window.addEventListener('pointercancel', stopDraw);
+        
+        // ==================== 工具列事件 ====================
+        document.getElementById('tool-color').addEventListener('input', e => { 
+            AppState.color = e.target.value; 
+            AppState.tool = 'pen'; 
+            document.getElementById('tool-pen').classList.add('active'); 
+            document.getElementById('tool-eraser').classList.remove('active'); 
+        });
+        
+        document.getElementById('tool-pen').onclick = () => { 
+            AppState.tool = 'pen'; 
+            document.getElementById('tool-pen').classList.add('active'); 
+            document.getElementById('tool-eraser').classList.remove('active'); 
+        };
+        
+        document.getElementById('tool-eraser').onclick = () => { 
+            AppState.tool = 'eraser'; 
+            document.getElementById('tool-eraser').classList.add('active'); 
+            document.getElementById('tool-pen').classList.remove('active'); 
+        };
+        
+        document.getElementById('tool-clear').onclick = () => { 
+            if(confirm("確定要清空整個白板嗎？")){ 
+                // 改用 length = 0 來清空陣列，完美避開系統截斷 Bug
+                AppState.history.length = 0; 
+                initCanvases(); 
+                
+                if(AppState.webrtc.reliable?.readyState === 'open') {
+                    AppState.webrtc.reliable.send(JSON.stringify({ type: 'CLEAR' }));
+                }
+            } 
+        };
+
+        // ==================== 系統啟動 ====================
+        initCanvases(); 
+        renderCursors();
+    </script>
+</body>
+</html>
