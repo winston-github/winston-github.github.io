@@ -57,6 +57,18 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
 #dot.wait{background:#f39c12;box-shadow:0 0 0 3px rgba(243,156,18,.2)}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 3px rgba(46,204,113,.2)}50%{box-shadow:0 0 0 7px rgba(46,204,113,.06)}}
 
+/* Monitor 角色在全螢幕時的劇院模式優化 */
+body.is-fs.is-monitor #btnExport,
+body.is-fs.is-monitor #btnClear,
+body.is-fs.is-monitor #tb,
+body.is-fs.is-monitor #topRight { display: none !important; }
+body.is-fs.is-monitor #btnFullscreen {
+  background: rgba(0,0,0,0.25); color: #fff; border: 1px solid transparent; 
+  backdrop-filter: blur(8px); opacity: 0.5; transition: opacity 0.3s, transform 0.15s;
+}
+body.is-fs.is-monitor #btnFullscreen:hover, 
+body.is-fs.is-monitor #btnFullscreen:active { opacity: 1; }
+
 /* Text Editor */
 .textObj, #textEditor, #textMeasure { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; line-height: 1.5; padding: 8px 10px; box-sizing: border-box; word-break: break-word; }
 .textObj { position: absolute; cursor: move; pointer-events: all; border-radius: 6px; overflow: hidden; transition: outline .1s; }
@@ -146,7 +158,19 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
 <div id="textMeasure"></div>
 
 <div id="topLeft">
-  <div id="btnExport" class="pill-btn" title="Save / Export">📥</div>
+  <!-- 全螢幕按鈕 -->
+  <div id="btnFullscreen" class="pill-btn" style="margin-bottom:8px; display:inline-flex; justify-content:center; align-items:center; width:auto; padding:8px 12px;" title="全螢幕切換">
+    <!-- 擴大圖示 -->
+    <svg id="icon-fs-enter" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line>
+    </svg>
+    <!-- 收合圖示 -->
+    <svg id="icon-fs-exit" style="display:none;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line>
+    </svg>
+  </div>
+  <br>
+  <div id="btnExport" class="pill-btn" style="display:inline-flex" title="Save / Export">📥</div>
   <div id="btnClear" class="pill-btn" style="margin-top:8px" title="Clear Canvas">🗑️</div>
 </div>
 
@@ -330,6 +354,37 @@ const $=id=>document.getElementById(id); let _tt; const toast=m=>{$('toast').tex
 const setMS=(txt,c)=>{$('mstatus').textContent=txt;$('mstatus').className=c||''};
 const uid=()=>crypto.randomUUID(); const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 function hex2rgba(hex, alpha) { let c = hex.substring(1).split(''); if(c.length===3) c=[c[0],c[0],c[1],c[1],c[2],c[2]]; c= '0x'+c.join(''); return 'rgba('+[(c>>16)&255, (c>>8)&255, c&255].join(',')+','+alpha+')'; }
+
+/* ═══════════════════════════════════════════════════════
+   FULLSCREEN API
+═══════════════════════════════════════════════════════ */
+$('btnFullscreen').onclick = () => {
+  const el = document.documentElement;
+  const isFs = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+  
+  if (!isFs) {
+    if (el.requestFullscreen) { el.requestFullscreen().catch(e => toast('不支援全螢幕')); }
+    else if (el.webkitRequestFullscreen) { el.webkitRequestFullscreen(); }
+    else if (el.mozRequestFullScreen) { el.mozRequestFullScreen(); }
+    else if (el.msRequestFullscreen) { el.msRequestFullscreen(); }
+    else { toast('此瀏覽器不支援全螢幕 (iPhone建議旋轉橫向或手動隱藏工具列)'); }
+  } else {
+    if (document.exitFullscreen) { document.exitFullscreen(); }
+    else if (document.webkitExitFullscreen) { document.webkitExitFullscreen(); }
+    else if (document.mozCancelFullScreen) { document.mozCancelFullScreen(); }
+    else if (document.msExitFullscreen) { document.msExitFullscreen(); }
+  }
+};
+
+function handleFsChange() {
+  const isFs = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+  document.body.classList.toggle('is-fs', !!isFs);
+  $('icon-fs-enter').style.display = isFs ? 'none' : 'block';
+  $('icon-fs-exit').style.display = isFs ? 'block' : 'none';
+  // 延遲更新以確保瀏覽器視窗已經變化
+  setTimeout(onResize, 100); 
+}
+['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(ev => document.addEventListener(ev, handleFsChange));
 
 /* ═══════════════════════════════════════════════════════
    CAMERA LOGIC (Transforms & Projections)
@@ -592,28 +647,22 @@ function createNewCamera() {
   openCameraEditor(camObj);
 }
 
-// 修改：發送「拍照指令」取代傳送龐大像素
 function takeCameraSnapshot() {
   if (!editingCam) return;
   const imgId = uid();
-  const camData = JSON.parse(JSON.stringify(editingCam)); // 複製一份狀態
+  const camData = JSON.parse(JSON.stringify(editingCam));
   const wasMyCam = (editingCam.ownerId === myPeerId);
 
-  // 1. 廣播拍照指令給所有人，讓大家各自在本地從串流抓圖
   send({ type: 'CMD_SNAPSHOT', camObj: camData, imgId: imgId });
-  
-  // 2. 本地也執行抓圖
   executeLocalSnapshot(camData, imgId);
   
-  // 3. 關閉編輯器並清除相機
   closeCameraEditor(false); 
   if (wasMyCam) stopCameraService();
 }
 
-// 新增：所有設備在本地端各自執行抓取自己的 <video> 畫面
 function executeLocalSnapshot(camObj, imgId) {
   const vid = document.querySelector(`video[data-id="${camObj.id}"]`);
-  if (!vid) return; // 防呆
+  if (!vid) return;
 
   const cvs = document.createElement('canvas');
   let cw = vid.videoWidth || 640;
@@ -635,8 +684,8 @@ function executeLocalSnapshot(camObj, imgId) {
 
   const imgObj = { id: imgId, type: 'image', imgData: dataUrl, x: camObj.x, y: camObj.y, w: camObj.w, h: camObj.h, opacity: camObj.opacity, isBack: camObj.isBack };
 
-  snapshot(); // 紀錄 Undo 狀態
-  objects = objects.filter(o => o.id !== camObj.id); // 刪除攝影機
+  snapshot(); 
+  objects = objects.filter(o => o.id !== camObj.id); 
   
   if (imgObj.isBack) { 
       let i = 0; while(i < objects.length && objects[i].isBack) i++; 
@@ -866,7 +915,6 @@ function handleData(d, sourceConn=null){
   else if(d.type==='SYNC_ALL'){ objects=d.objs;redrawBaseCanvas();renderTextObjects();renderCameraObjects(); }
   else if(d.type==='LIVE'){ remoteLiveStrokes[d.o.id]=d.o;redrawActiveCanvas(); }
   else if(d.type==='LASER'){ delete remoteLiveStrokes[d.o.id]; d.o.t0 = Date.now(); laserStrokes.push(d.o); redrawActiveCanvas(); }
-  // 新增：處理拍照指令
   else if(d.type==='CMD_SNAPSHOT'){ executeLocalSnapshot(d.camObj, d.imgId); }
   
   if(currentRole === 'host' && sourceConn) { S.hostConns.forEach(c => { if(c.conn.open && c.conn !== sourceConn) c.conn.send(d); }); }
@@ -888,7 +936,6 @@ function bindPeerCallHandlers(peer) {
           if(ownerId) {
              remoteStreams[ownerId] = stream;
              renderCameraObjects();
-             // Host Relay
              if (currentRole === 'host') {
                  S.hostConns.forEach(c => {
                      if (c.conn.peer !== call.peer) peer.call(c.conn.peer, stream, { metadata: { ownerId }});
@@ -901,6 +948,7 @@ function bindPeerCallHandlers(peer) {
 
 function initHost(code){
   destroyPeer(); currentRole='host'; currentRoomCode=code;
+  document.body.classList.remove('is-monitor'); // 清除Monitor狀態
   const peer=new Peer(codeToId(code),{debug:0,config:{iceServers:[{urls:'stun:stun.l.google.com:19302'}]}}); _peer=peer;
   peer.on('open',id=>{ myPeerId=id; $('rcode').textContent=idToCode(id); $('rsub').textContent=t('share_code'); updateHostUI(); localStorage.setItem('wb_session', JSON.stringify({role: 'host', code: currentRoomCode})); });
   bindPeerCallHandlers(peer);
@@ -921,6 +969,7 @@ function initHost(code){
 
 function joinRoom(code, role){
   destroyPeer(); currentRole=role; currentRoomCode=code;
+  document.body.classList.toggle('is-monitor', role === 'monitor'); // 設定Monitor狀態，供CSS使用
   const peer=new Peer(undefined,{debug:0});_peer=peer; $('joinVisBtn').disabled=true; $('joinMonBtn').disabled=true; setMS(t('connecting'));
   let to=setTimeout(()=>{setMS(t('timeout'),'err'); $('roomInput').dispatchEvent(new Event('input'));},12000);
   peer.on('open', id=>{
