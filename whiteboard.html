@@ -12,7 +12,8 @@
   --hl-yellow:#FFEB3B;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0;
-  -webkit-user-select:none;-moz-user-select:none;user-select:none;}
+  -webkit-user-select:none;-moz-user-select:none;user-select:none;
+  -webkit-touch-callout:none; /* 封殺 iOS 原生放大鏡與選取輔助 */}
 html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
   font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;touch-action:none;}
 
@@ -75,6 +76,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
   color: var(--ink); outline: none; resize: none; overflow: hidden;
   cursor: text; width: 100%; height: 100%; pointer-events: all;
   -webkit-user-select: text; user-select: text; white-space: pre;
+  -webkit-touch-callout: default; /* 文字框內恢復系統正常行為 */
 }
 
 /* 修正側邊拉桿位置避免遮擋文字 */
@@ -1191,8 +1193,17 @@ setTool('pen');
    POINTER HANDLING 
 ═══════════════════════════════════════════════════════ */
 const vp=$('viewport');
+
+// 🛡️ 系統級防禦：強行阻擋 iOS Safari 原生的長按放大鏡與 Live Text 辨識機制
+vp.addEventListener('touchstart', e => {
+  // 只要不是在點擊文字編輯器，一律沒收 iOS 的觸控預設行為！
+  if(!e.target.closest('#textEditorWrap')) {
+      e.preventDefault();
+  }
+}, { passive: false });
+
 const activePointers=new Map();
-let panPointerId=null; let panStart={};
+let panPointerId=null; let panStart={};  
 let pinchActive=false; let pinchDist0=0,pinchMid0=null,pinchCam0=null;
 let drawPointerId=null; let liveObjStarted=false; let holdTimer=null; let snapApplied=false;
 
