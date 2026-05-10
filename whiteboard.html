@@ -77,13 +77,14 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
   -webkit-user-select: text; user-select: text; white-space: pre;
 }
 
+/* 修正側邊拉桿位置避免遮擋文字 */
 .res-handle {
   position: absolute; width: 24px; height: calc(100% + 16px); top: -8px;
   background: transparent; z-index: 60; touch-action: none; pointer-events: all;
   display: flex; align-items: center; justify-content: center;
 }
-.res-handle[data-h="w"] { left: -12px; cursor: ew-resize; }
-.res-handle[data-h="e"] { right: -12px; cursor: ew-resize; }
+.res-handle[data-h="w"] { left: -24px; cursor: ew-resize; }
+.res-handle[data-h="e"] { right: -24px; cursor: ew-resize; }
 .rh-dot {
   width: 5px; height: 20px; background: var(--blue); border-radius: 4px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.2); pointer-events: none;
@@ -110,7 +111,44 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
 #btnTextDelete:active { transform: scale(0.85); }
 #textFontSize{ padding:0 4px; border:none; background:transparent; font-weight:700; font-size:14px; outline:none; color:var(--ink); cursor:pointer; }
 
-/* ── Toolbar (Floating Island) ──────────────────────────────────── */
+/* ── Contextual Tool Popup ──────────────────────────────── */
+#toolConfig {
+  position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 16px;
+  background: var(--panel); border: 1px solid rgba(0,0,0,.08);
+  border-radius: 999px; padding: 10px 20px; box-shadow: 0 12px 32px rgba(0,0,0,.15);
+  backdrop-filter: blur(24px); z-index: 29; transition: opacity 0.2s, transform 0.2s;
+  opacity: 1; pointer-events: all;
+}
+#toolConfig.hidden { opacity: 0; pointer-events: none; transform: translate(-50%, 16px); }
+.tc-preview-wrap {
+  position: relative; width: 36px; height: 36px; border-radius: 50%;
+  border: 2px solid #ddd; background: #fff; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,.1); flex-shrink: 0;
+}
+.tc-dot {
+  border-radius: 50%; background: var(--ink); pointer-events: none;
+  transition: width 0.1s, height 0.1s, background 0.1s;
+}
+.tc-preview-wrap.is-eraser .tc-dot { background: transparent !important; }
+.tc-preview-wrap.is-eraser::after {
+  content: ''; position: absolute; width: 100%; height: 2px; background: var(--accent);
+  transform: rotate(-45deg); pointer-events: none;
+}
+#tcColorPick { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+
+.tc-size-ctrl { display: flex; align-items: center; gap: 12px; background: rgba(0,0,0,.04); border-radius: 999px; padding: 4px 6px; }
+.tc-szBtn {
+  border:none; background:none; border-radius:50%; width:32px; height:32px;
+  cursor:pointer; font-size:20px; font-weight:700; display:flex; align-items:center; justify-content:center;
+  color:var(--ink); transition:background .1s; -webkit-user-select:none; touch-action:manipulation;
+}
+.tc-szBtn:hover { background: rgba(0,0,0,.08); }
+.tc-szBtn:active { background: rgba(0,0,0,.14); transform: scale(0.9); }
+#tcSize { font-size: 15px; font-weight: 800; color: var(--ink); min-width: 30px; text-align: center; }
+
+/* ── Main Toolbar ──────────────────────────────────── */
 #tb{
   position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
   display:flex;align-items:center;gap:4px;
@@ -136,49 +174,9 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
 
 .sep{width:1px;height:24px;background:rgba(0,0,0,.1);margin:0 4px;flex-shrink:0}
 
-/* Color swatch */
-#colorSwatch{
-  width:32px;height:32px;border-radius:50%;border:2px solid #fff;
-  cursor:pointer;flex-shrink:0;position:relative;overflow:hidden;
-  background:#1a1a2e;transition:transform .15s;touch-action:manipulation;
-  box-shadow: 0 2px 8px rgba(0,0,0,.15); margin: 0 4px;
-}
-#colorSwatch:hover{transform:scale(1.1)}
-#colorpick{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
-
-#sizeCtrl{
-  display:flex;align-items:center;gap:4px;flex-shrink:0;
-  background:rgba(0,0,0,.04);border-radius:16px;padding:4px 6px;
-}
-.szBtn{
-  border:none;background:none;border-radius:50%;
-  width:28px;height:28px;cursor:pointer;font-size:16px;font-weight:700;
-  display:flex;align-items:center;justify-content:center;
-  color:var(--ink);transition:background .1s;flex-shrink:0;touch-action:manipulation;
-}
-.szBtn:hover{background:rgba(0,0,0,.08)}
-.szBtn:active{background:rgba(0,0,0,.14);transform:scale(0.9)}
-#szLabel{font-size:13px;font-weight:800;color:var(--ink);min-width:24px;text-align:center;flex-shrink:0}
-
-/* Context Menu */
-#ctxMenu {
-  position:fixed; z-index:40; display:none; gap:6px;
-  background:var(--panel); border:1px solid rgba(0,0,0,.1);
-  border-radius:12px; padding:6px; box-shadow:0 8px 24px rgba(0,0,0,.15);
-  backdrop-filter:blur(16px); touch-action:none;
-}
-.ctx-btn {
-  border:none; background:transparent; border-radius:8px;
-  width:36px; height:36px; font-size:16px; cursor:pointer;
-  display:flex; align-items:center; justify-content:center; transition:.1s;
-}
-.ctx-btn:hover { background:rgba(0,0,0,.06); }
-.ctx-btn:active { transform:scale(0.9); }
-#ctxDelete { color: var(--accent); }
-
 /* Shape snap indicator */
 #snapIndicator{
-  position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
+  position:fixed;bottom:140px;left:50%;transform:translateX(-50%);
   background:rgba(26,26,46,.85);color:#fff;
   border-radius:999px;padding:6px 16px;font-size:13px;font-weight:700;
   opacity:0;transition:opacity .25s;pointer-events:none;z-index:29;
@@ -205,6 +203,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
 .tab{flex:1;border:none;border-radius:12px;padding:12px;font-size:14px;font-weight:700;
   cursor:pointer;background:rgba(0,0,0,.04);color:var(--muted);transition:all .2s;}
 .tab.active{background:var(--ink);color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.tab.disabled{opacity:0.5;cursor:not-allowed;pointer-events:none;}
 .panel{display:none}.panel.show{display:block}
 .rdisplay{background:var(--ink);border-radius:16px;padding:24px;text-align:center;margin-bottom:16px;box-shadow:inset 0 2px 8px rgba(0,0,0,.2)}
 .rlabel{font-size:11px;font-weight:800;letter-spacing:.15em;color:rgba(255,255,255,.5);margin-bottom:8px}
@@ -255,8 +254,9 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
 @media (max-width: 600px) {
   #tb { bottom: 16px; padding: 6px 8px; border-radius: 20px; }
   .tbtn { width: 36px; height: 36px; font-size: 16px; border-radius: 10px; }
-  #sizeCtrl { padding: 3px 4px; }
-  .szBtn { width: 24px; height: 24px; font-size: 14px; }
+  #toolConfig { bottom: 72px; padding: 6px 12px; gap: 12px; }
+  .tc-preview-wrap { width: 30px; height: 30px; }
+  .tc-szBtn { width: 28px; height: 28px; }
 }
 </style>
 </head>
@@ -283,8 +283,17 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
 </div>
 
 <!-- Context Menu for Selected Objects -->
-<div id="ctxMenu">
-  <button id="ctxDelete" class="ctx-btn" title="Delete">🗑️</button>
+<!-- Contextual Tool Configuration Panel -->
+<div id="toolConfig" class="hidden">
+  <div class="tc-preview-wrap" id="tcPreviewWrap" title="變更顏色">
+    <div class="tc-dot" id="tcDot"></div>
+    <input id="tcColorPick" type="color" value="#1a1a2e">
+  </div>
+  <div class="tc-size-ctrl">
+    <button class="tc-szBtn" id="tcMinus">−</button>
+    <span id="tcSize">4</span>
+    <button class="tc-szBtn" id="tcPlus">+</button>
+  </div>
 </div>
 
 <!-- Text editor -->
@@ -335,23 +344,17 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
   <button class="tbtn" id="redoBtn" title="Redo (Ctrl+Y)">↪</button>
   <div class="sep"></div>
   <button class="tbtn sel" id="tpen" title="標準筆">🖊️</button>
+  <button class="tbtn" id="tcalli" title="鋼筆/毛筆">✒️</button>
   <button class="tbtn" id="thighlight" title="螢光筆">🖍️</button>
   <button class="tbtn" id="tlaser" title="雷射筆">🪄</button>
   <button class="tbtn" id="ttext" title="文字">T</button>
-  <button class="tbtn" id="teraser" title="橡皮擦">🧹</button>
+  <button class="tbtn" id="teraser" title="橡皮擦">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7L3 16C2.5 15.5 2.5 14.5 3 14L13 4C13.5 3.5 14.5 3.5 15 4L20 9C20.5 9.5 20.5 10.5 20 11L11 20H20V20Z"/><line x1="18" y1="11" x2="11" y2="18"/></svg>
+  </button>
   <div class="sep"></div>
   <button class="tbtn" id="tline" title="直線">╱</button>
   <button class="tbtn" id="trect" title="矩形">▭</button>
   <button class="tbtn" id="tellipse" title="圓形">◯</button>
-  <div class="sep"></div>
-  <div id="colorSwatch" title="Color">
-    <input id="colorpick" type="color" value="#1a1a2e">
-  </div>
-  <div id="sizeCtrl">
-    <button class="szBtn" id="szMinus">−</button>
-    <span id="szLabel">4</span>
-    <button class="szBtn" id="szPlus">+</button>
-  </div>
   <div class="sep"></div>
   <button class="tbtn" id="tgrid" title="Toggle Grid">⊞</button>
   <button class="tbtn" id="tselect" title="選取工具">↖</button>
@@ -363,6 +366,13 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
     <button id="xbtn">✕</button>
     <h2 data-i="modal_title">建立連線</h2>
     <p class="sub" data-i="modal_sub">Host 產生房間碼，Visitor 輸入後即可共用白板。</p>
+    
+    <div id="restoreWrap" style="display:none; text-align:center; margin-bottom:16px;">
+      <button id="btnRestore" class="pill-btn" style="display:inline-flex; background:#f0f4ff; border-color:var(--blue); color:var(--blue); width:auto; margin:0 auto; padding:8px 24px;">
+        🔄 <span data-i="restore_conn">嘗試恢復上次連線</span>
+      </button>
+    </div>
+
     <div id="tabs">
       <button class="tab active" id="tabH" data-i="tab_host">🖥 Host</button>
       <button class="tab" id="tabV" data-i="tab_visitor">📱 Visitor</button>
@@ -401,7 +411,7 @@ const STRINGS={
     modal_title:'建立連線', modal_sub:'Host 產生房間碼，Visitor 輸入後即可即時共編。',
     tab_host:'🖥 Host', tab_visitor:'📱 Visitor', room_code:'房間碼', initializing:'初始化中…',
     waiting:'等待 Visitor 加入…', enter_code:'輸入 Host 的房間碼', join:'加入白板',
-    clear_confirm:'確定清空白板？',
+    clear_confirm:'確定清空白板？', restore_conn:'嘗試恢復上次連線',
     connected_toast:'🎉 連線成功！', disconnected_toast:'連線已斷開', cleared_toast:'白板已清空',
     visitor_joined:'✓ Visitor 已加入！', connecting:'連線中…', timeout:'逾時，請確認房間碼',
     already_connected:'✓ 已連線中', back:'點 ✕ 回到白板', share_code:'把這個碼告訴 Visitor',
@@ -413,7 +423,7 @@ const STRINGS={
     modal_title:'Connect', modal_sub:'Host generates a room code; Visitor enters it.',
     tab_host:'🖥 Host', tab_visitor:'📱 Visitor', room_code:'ROOM CODE', initializing:'Initializing…',
     waiting:'Waiting for Visitor…', enter_code:"Enter Host's Room Code", join:'Join',
-    clear_confirm:'Clear the whiteboard?',
+    clear_confirm:'Clear the whiteboard?', restore_conn:'Restore Connection',
     connected_toast:'🎉 Connected!', disconnected_toast:'Connection closed', cleared_toast:'Whiteboard cleared',
     visitor_joined:'✓ Visitor joined!', connecting:'Connecting…', timeout:'Timed out. Check code.',
     already_connected:'✓ Connected', back:'Tap ✕ to return', share_code:'Share this code',
@@ -434,7 +444,8 @@ const t=k=>STRINGS[lang][k]||STRINGS.en[k]||k;
 function applyLang(){
   document.querySelectorAll('[data-i]').forEach(el=>{
     const key=el.getAttribute('data-i');if(el.tagName==='INPUT')return;
-    el.textContent=t(key);
+    if(el.children.length===0) el.textContent=t(key);
+    else el.innerHTML = el.innerHTML.replace(el.textContent.trim(), t(key));
   });
   $('statustext').textContent=currentStatusKey?t(currentStatusKey):t('offline');
   $('langToggle').textContent=lang==='zh'?'Switch to EN':'切換中文';
@@ -466,7 +477,7 @@ const cam={x:0,y:0,z:1};
 function initCam(){cam.x=window.innerWidth/2;cam.y=window.innerHeight/2;cam.z=1;applyCam()}
 function applyCam(){
   $('canvas').style.transform=`translate(${cam.x}px,${cam.y}px) scale(${cam.z})`;
-  redrawGrid(); redrawBaseCanvas(); redrawActiveCanvas(); redrawUI(); updateCtxMenuPos();
+  redrawGrid(); redrawBaseCanvas(); redrawActiveCanvas();
   if(editingObj) applyEditorGeometry();
 }
 function s2w(sx,sy){return{x:(sx-cam.x)/cam.z,y:(sy-cam.y)/cam.z}}
@@ -556,30 +567,55 @@ function redrawActiveCanvas(){
 function styleCtx(ctx,o){
   ctx.shadowBlur = 0; // reset
   if(o.brush === 'eraser'){
-    ctx.globalCompositeOperation = 'destination-out'; ctx.strokeStyle = '#000'; ctx.lineWidth = o.w * 5;
+    ctx.globalCompositeOperation = 'destination-out'; ctx.strokeStyle = '#000'; ctx.lineWidth = o.w;
   } else if (o.brush === 'highlighter') {
     ctx.globalCompositeOperation = 'multiply'; 
     ctx.strokeStyle = hex2rgba(o.color || '#FFEB3B', 0.5); 
-    ctx.lineWidth = o.w * 4;
+    ctx.lineWidth = o.w;
   } else if (o.brush === 'laser') {
     ctx.globalCompositeOperation = 'source-over';
     ctx.strokeStyle = o.color || '#e84855';
-    ctx.lineWidth = o.w * 1.5;
+    ctx.lineWidth = o.w;
     ctx.shadowBlur = 12 * cam.z; ctx.shadowColor = o.color || '#e84855';
   } else {
-    // Standard Pen
+    // Standard Pen & Shapes
     ctx.globalCompositeOperation = 'source-over'; ctx.strokeStyle = o.color || '#1a1a2e'; ctx.lineWidth = o.w;
   }
   ctx.lineCap='round'; ctx.lineJoin='round'; ctx.fillStyle='transparent';
 }
 
 function renderObj(ctx,o){
-  if(o.type==='stroke') drawStroke(ctx,o);
+  if(o.type==='stroke' && o.brush==='calligraphy') drawCalligraphy(ctx, o);
+  else if(o.type==='stroke') drawStroke(ctx,o);
   else if(o.type==='line') drawLine(ctx,o);
   else if(o.type==='rect') drawRect(ctx,o);
   else if(o.type==='ellipse') drawEllipse(ctx,o);
   else if(o.type==='triangle') drawTriangle(ctx,o);
 }
+
+function drawCalligraphy(ctx, o) {
+  if(!o.pts?.length) return;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = o.color || '#1a1a2e';
+  ctx.beginPath(); ctx.arc(o.pts[0].x, o.pts[0].y, o.w/2, 0, Math.PI*2); ctx.fill();
+  let lastW = o.w * 0.3;
+  for(let i=1; i<o.pts.length; i++){
+      const p1 = o.pts[i-1], p2 = o.pts[i];
+      const dist = Math.hypot(p2.x-p1.x, p2.y-p1.y);
+      const speed = Math.min(dist, 25) / 25; // 0 to 1
+      const targetW = Math.max(o.w * 0.15, o.w * (1 - speed * 0.8));
+      lastW += (targetW - lastW) * 0.4;
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.strokeStyle = o.color || '#1a1a2e';
+      ctx.lineWidth = lastW;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+  }
+}
+
 function drawStroke(ctx,o){
   if(!o.pts?.length)return; styleCtx(ctx,o);
   ctx.beginPath();ctx.moveTo(o.pts[0].x,o.pts[0].y);
@@ -621,7 +657,7 @@ requestAnimationFrame(loop);
 /* ═══════════════════════════════════════════════════════
    OBJECTS & UNDO
 ═══════════════════════════════════════════════════════ */
-let objects=[]; let selectedId=null; let liveObj=null;
+let objects=[]; let liveObj=null;
 function objById(id){return objects.find(o=>o.id===id)}
 const MAX_HISTORY=30; let undoStack=[],redoStack=[];
 function snapshot(){
@@ -634,7 +670,7 @@ function undo(){
   if(!undoStack.length)return;
   redoStack.push(JSON.stringify(objects));
   objects=JSON.parse(undoStack.pop());
-  deselect(); redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();updateUndoRedo();
+  redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();updateUndoRedo();
   send({type:'SYNC_ALL',objs:objects});
 }
 function redo(){
@@ -642,26 +678,11 @@ function redo(){
   if(!redoStack.length)return;
   undoStack.push(JSON.stringify(objects));
   objects=JSON.parse(redoStack.pop());
-  deselect(); redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();updateUndoRedo();
+  redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();updateUndoRedo();
   send({type:'SYNC_ALL',objs:objects});
 }
 function updateUndoRedo(){$('undoBtn').disabled=!undoStack.length;$('redoBtn').disabled=!redoStack.length}
 $('undoBtn').addEventListener('click',undo); $('redoBtn').addEventListener('click',redo);
-document.addEventListener('keydown',e=>{
-  if(editingObj) return;
-  if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!e.shiftKey){e.preventDefault();undo()}
-  if((e.ctrlKey||e.metaKey)&&(e.key==='y'||(e.key==='z'&&e.shiftKey))){e.preventDefault();redo()}
-  if((e.key==='Backspace'||e.key==='Delete')&&selectedId) deleteSelected();
-});
-
-function deleteSelected() {
-  if(!selectedId) return;
-  snapshot();
-  objects = objects.filter(o => o.id !== selectedId);
-  send({type:'DEL', id: selectedId});
-  deselect(); redrawBaseCanvas(); renderTextObjects();
-}
-$('ctxDelete').addEventListener('click', deleteSelected);
 
 /* ═══════════════════════════════════════════════════════
    TEXT OBJECTS (Implicit Commit, Smart Bounds)
@@ -689,21 +710,14 @@ function renderTextObjects(){
     div.style.fontWeight=o.bold?'700':'400'; div.style.fontStyle=o.italic?'italic':'normal';
     div.style.textDecoration=o.underline?'underline':'none';
     div.style.textAlign=o.align||'left'; div.style.whiteSpace=o.autoW?'pre':'pre-wrap';
-    div.classList.toggle('selected',o.id===selectedId);
     div.style.visibility=(editingObj&&editingObj.id===o.id)?'hidden':'visible';
   }
 }
 
 function bindTextDiv(div,o){
   div.addEventListener('pointerdown',e=>{
-    if(activeTool!=='select'&&activeTool!=='text')return;
-    e.stopPropagation(); e.preventDefault(); // 防止干擾焦點
+    e.stopPropagation(); e.preventDefault(); // Bypass viewport pointerdown
     if(editingObj && editingObj.id !== o.id) closeTextEditor(true);
-    selectObj(o.id);
-  });
-  div.addEventListener('pointerup',e=>{
-    if(activeTool!=='select'&&activeTool!=='text')return;
-    e.stopPropagation(); 
     if(activeTool !== 'text') setTool('text');
     openTextEditor(o);
   });
@@ -728,7 +742,7 @@ function applyEditorGeometry(){
   if (editingObj.autoW) {
     measure.style.whiteSpace = 'pre'; measure.style.width = 'auto';
     let rawW = measure.clientWidth;
-    if (rawW > maxLogicalWidth) { // Hit screen edge
+    if (rawW > maxLogicalWidth) { 
       editingObj.autoW = false; editingObj.manualW = maxLogicalWidth;
     } else {
       editingObj.boxW = Math.max(20, rawW);
@@ -752,7 +766,6 @@ function applyEditorGeometry(){
   const textDiv = textLayer.querySelector(`[data-id="${editingObj.id}"]`);
   if (textDiv) textDiv.style.whiteSpace = editingObj.autoW ? 'pre' : 'pre-wrap';
   
-  // Smart camera follow if caret goes too low
   if (sp.y + teBox.offsetHeight > window.innerHeight - 80) {
     cam.y -= (sp.y + teBox.offsetHeight - (window.innerHeight - 80));
     applyCam();
@@ -774,11 +787,12 @@ function updateTextToolsUI(){
   $('textColorSwatch').style.background = editingObj.color || '#1a1a2e';
 }
 
+let _edOrig = null; // Store original state to detect changes
 function openTextEditor(o){
   if(editingObj && editingObj.id !== o.id) closeTextEditor(true); 
-  deselect(); 
   
-  editingObj=o;
+  editingObj = o;
+  _edOrig = { x: o.x, y: o.y, text: o.text, boxW: o.boxW };
   teWrap.style.display='block';
   te.style.color=o.color||'#1a1a2e';
   te.style.fontWeight=o.bold?'700':'400';
@@ -788,8 +802,8 @@ function openTextEditor(o){
   
   updateTextToolsUI(); applyEditorGeometry(); renderTextObjects();
   
-  // 加入微小延遲保證在 display:block 渲染後能順利鎖定輸入焦點 (修復電腦版需手動點擊的問題)
-  setTimeout(() => { te.focus({ preventScroll: true }); }, 10);
+  // Mobile Safari trusted focus
+  te.focus({ preventScroll: true }); 
 }
 
 function closeTextEditor(commit, forceDelete = false){
@@ -800,14 +814,19 @@ function closeTextEditor(commit, forceDelete = false){
     objects = objects.filter(o => o.id !== editingObj.id);
     send({type:'DEL', id: editingObj.id});
   } else if (commit && txt !== '') {
-    if(editingObj.text !== txt || !objById(editingObj.id)) snapshot();
     editingObj.text = te.value;
     editingObj.fontSize = parseInt(tfs.value) || 20;
+    
+    // Check if visual or structural changes occurred
+    if (editingObj.text !== _edOrig.text || editingObj.x !== _edOrig.x || editingObj.y !== _edOrig.y || editingObj.boxW !== _edOrig.boxW || !objById(editingObj.id)) {
+        snapshot();
+    }
+    
     if(!objById(editingObj.id)) objects.push(editingObj);
     send({type:'UPD', o: editingObj});
   }
   
-  editingObj = null; teWrap.style.display = 'none'; renderTextObjects();
+  editingObj = null; _edOrig = null; teWrap.style.display = 'none'; renderTextObjects();
 }
 
 te.addEventListener('input', applyEditorGeometry);
@@ -835,8 +854,12 @@ textMoveBtn.addEventListener('pointermove', e => {
   applyEditorGeometry();
 });
 
-textMoveBtn.addEventListener('pointerup', e => { if(e.pointerId === textDragPid) textDragging = false; });
-textMoveBtn.addEventListener('pointercancel', e => { if(e.pointerId === textDragPid) textDragging = false; });
+textMoveBtn.addEventListener('pointerup', e => { 
+  if(e.pointerId === textDragPid) { textDragging = false; renderTextObjects(); } 
+});
+textMoveBtn.addEventListener('pointercancel', e => { 
+  if(e.pointerId === textDragPid) { textDragging = false; renderTextObjects(); } 
+});
 
 teBox.querySelectorAll('.res-handle').forEach(handle=>{
   const dir=handle.dataset.h;
@@ -858,8 +881,8 @@ teBox.querySelectorAll('.res-handle').forEach(handle=>{
     editingObj.x=nx; editingObj.autoW = false; editingObj.manualW = nw;
     applyEditorGeometry();
   });
-  handle.addEventListener('pointerup',e=>{ if(e.pointerId===rpid) resizing=false; });
-  handle.addEventListener('pointercancel',e=>{ if(e.pointerId===rpid) resizing=false; });
+  handle.addEventListener('pointerup',e=>{ if(e.pointerId===rpid) { resizing=false; renderTextObjects(); }});
+  handle.addEventListener('pointercancel',e=>{ if(e.pointerId===rpid) { resizing=false; renderTextObjects(); }});
 });
 
 function toggleFormat(fmt){
@@ -881,16 +904,14 @@ $('textColorPick').addEventListener('input', e => {
   te.style.color = hex;
   toolsState.text.color = hex;
   saveTools();
-  // 保持主色選取器同步更新
-  if (activeTool === 'text') { S.color = hex; $('colorpick').value = hex; $('colorSwatch').style.background = hex; }
   renderTextObjects();
   te.focus({ preventScroll: true });
 });
 
-btnB.onclick=e=>{e.preventDefault(); toggleFormat('bold');};
-btnI.onclick=e=>{e.preventDefault(); toggleFormat('italic');};
-btnU.onclick=e=>{e.preventDefault(); toggleFormat('underline');};
-btnAlign.onclick=e=>{
+btnB.onpointerdown=e=>{e.preventDefault(); toggleFormat('bold');};
+btnI.onpointerdown=e=>{e.preventDefault(); toggleFormat('italic');};
+btnU.onpointerdown=e=>{e.preventDefault(); toggleFormat('underline');};
+btnAlign.onpointerdown=e=>{
   e.preventDefault(); if(!editingObj) return;
   const current = editingObj.align || 'left';
   editingObj.align = current === 'left' ? 'center' : current === 'center' ? 'right' : 'left';
@@ -912,11 +933,9 @@ tfs.onchange=e=>{
   }
 };
 
-// Text Delete (Trash icon)
 $('btnTextDelete').onpointerdown=e=>{
   e.preventDefault(); e.stopPropagation();
-  closeTextEditor(false, true); // force delete
-  setTool('select');
+  closeTextEditor(false, true); setTool('select');
 };
 
 te.addEventListener('keydown',e=>{
@@ -937,64 +956,7 @@ function createTextObj(wx,wy){
 }
 
 /* ═══════════════════════════════════════════════════════
-   SELECTION & UI LAYER (Context Menu)
-═══════════════════════════════════════════════════════ */
-const uiCanvas=$('uiLayer'), uictx=uiCanvas.getContext('2d');
-function resizeUI(){
-  const dpr=window.devicePixelRatio||1;
-  uiCanvas.width=window.innerWidth*dpr;uiCanvas.height=window.innerHeight*dpr;
-  uiCanvas.style.width=window.innerWidth+'px';uiCanvas.style.height=window.innerHeight+'px';
-  uictx.scale(dpr,dpr);
-}
-function redrawUI(){
-  uictx.clearRect(0,0,window.innerWidth,window.innerHeight);
-  if(!selectedId)return;
-  const o=objById(selectedId);if(!o)return;
-  const bbox=getBBox(o);if(!bbox)return;
-  const p1=w2s(bbox.x,bbox.y),p2=w2s(bbox.x+bbox.w,bbox.y+bbox.h);
-  uictx.save(); uictx.strokeStyle='#3a86ff';uictx.lineWidth=2;
-  uictx.strokeRect(p1.x-8,p1.y-8,p2.x-p1.x+16,p2.y-p1.y+16);
-  // corner handles
-  uictx.fillStyle='#fff';
-  [[p1.x-8,p1.y-8],[p2.x+8,p1.y-8],[p1.x-8,p2.y+8],[p2.x+8,p2.y+8] ].forEach(pt=>{
-    uictx.fillRect(pt[0]-4,pt[1]-4,8,8); uictx.strokeRect(pt[0]-4,pt[1]-4,8,8);
-  });
-  uictx.restore();
-}
-function updateCtxMenuPos() {
-  const cm = $('ctxMenu');
-  if(!selectedId) { cm.style.display='none'; return; }
-  const o=objById(selectedId);if(!o)return;
-  const bbox=getBBox(o);if(!bbox)return;
-  const p2=w2s(bbox.x+bbox.w, bbox.y+bbox.h);
-  cm.style.display='flex';
-  cm.style.left = Math.min(window.innerWidth - cm.offsetWidth - 16, Math.max(16, p2.x - cm.offsetWidth/2 + 8)) + 'px';
-  cm.style.top = Math.min(window.innerHeight - 80, p2.y + 16) + 'px';
-}
-
-function getBBox(o){
-  if(o.type==='stroke'){
-    if(!o.pts?.length)return null;
-    let mx=Infinity,my=Infinity,xx=-Infinity,xy=-Infinity;
-    for(const p of o.pts){mx=Math.min(mx,p.x);my=Math.min(my,p.y);xx=Math.max(xx,p.x);xy=Math.max(xy,p.y)}
-    return{x:mx,y:my,w:xx-mx,h:xy-my};
-  }
-  if(o.type==='line')return{x:Math.min(o.x1,o.x2),y:Math.min(o.y1,o.y2),w:Math.abs(o.x2-o.x1),h:Math.abs(o.y2-o.y1)};
-  if(o.type==='rect')return{x:o.x,y:o.y,w:o.w2,h:o.h2};
-  if(o.type==='ellipse')return{x:o.cx-Math.abs(o.rx),y:o.cy-Math.abs(o.ry),w:Math.abs(o.rx)*2,h:Math.abs(o.ry)*2};
-  if(o.type==='triangle') {
-    let mx=Math.min(o.pts[0].x,o.pts[1].x,o.pts[2].x), xx=Math.max(o.pts[0].x,o.pts[1].x,o.pts[2].x);
-    let my=Math.min(o.pts[0].y,o.pts[1].y,o.pts[2].y), xy=Math.max(o.pts[0].y,o.pts[1].y,o.pts[2].y);
-    return {x:mx, y:my, w:xx-mx, h:xy-my};
-  }
-  if(o.type==='text')return{x:o.x,y:o.y,w:o.boxW||120,h:o.boxH||30};
-  return null;
-}
-function selectObj(id){selectedId=id;redrawUI();updateCtxMenuPos();renderTextObjects();}
-function deselect(){selectedId=null;redrawUI();updateCtxMenuPos();renderTextObjects();}
-
-/* ═══════════════════════════════════════════════════════
-   SHAPE RECOGNITION (Upgraded Circle/Triangle)
+   SHAPE RECOGNITION 
 ═══════════════════════════════════════════════════════ */
 function recognizeShape(pts){
   if(!pts||pts.length<5)return null;
@@ -1019,19 +981,17 @@ function recognizeShape(pts){
   
   const cx=(minX+maxX)/2,cy=(minY+maxY)/2,rx=bw/2,ry=bh/2;
   
-  // Circle/Ellipse relaxation
   let rVar=0, meanR=0;
   for(const p of pts) meanR+=Math.hypot(p.x-cx,p.y-cy);
   meanR/=pts.length;
   for(const p of pts) rVar+=Math.abs(Math.hypot(p.x-cx,p.y-cy)-meanR);
-  rVar/=(pts.length*meanR); // Radial variance score
+  rVar/=(pts.length*meanR); 
   
-  if(rVar < 0.25) { // Very forgiving for circles
+  if(rVar < 0.25) { 
     if(Math.min(bw,bh)/Math.max(bw,bh)>0.8){const r=(rx+ry)/2;return{shape:'circle',cx,cy,r}}
     return{shape:'ellipse',cx,cy,rx,ry};
   }
 
-  // Rect score
   let rectScore=0;
   for(const p of pts){
     const dl=Math.abs(p.x-minX),dr=Math.abs(p.x-maxX),dt=Math.abs(p.y-minY),db=Math.abs(p.y-maxY);
@@ -1044,57 +1004,60 @@ function recognizeShape(pts){
     return{shape:'rect',x:minX,y:minY,w:bw,h:bh};
   }
   
-  // Triangle Score: 3 clear peaks in distance from center
   let dists = pts.map(p => Math.hypot(p.x-cx, p.y-cy));
   let smoothDists =[];
-  for(let i=0;i<dists.length;i++){
-    smoothDists.push((dists[(i-1+dists.length)%dists.length]+dists[i]+dists[(i+1)%dists.length])/3);
-  }
+  for(let i=0;i<dists.length;i++) smoothDists.push((dists[(i-1+dists.length)%dists.length]+dists[i]+dists[(i+1)%dists.length])/3);
+  
   let peaks=[];
   for(let i=1;i<smoothDists.length-1;i++){
     if(smoothDists[i]>smoothDists[i-1] && smoothDists[i]>smoothDists[i+1]) {
-      // Must be significantly far from center
       if (smoothDists[i] > meanR * 1.1) peaks.push(pts[i]);
     }
   }
-  if(peaks.length === 3 || peaks.length === 4) { // sometimes start/end creates 2 peaks
-    // Merge close peaks
+  if(peaks.length === 3 || peaks.length === 4) {
     let merged =[];
     for(const pk of peaks) {
       if(merged.length===0 || Math.hypot(pk.x-merged.at(-1).x, pk.y-merged.at(-1).y) > meanR) merged.push(pk);
     }
     if(merged.length === 3) return {shape:'triangle', pts: merged};
   }
-  
   return null;
 }
 
 /* ═══════════════════════════════════════════════════════
-   TOOL STATE (With Persistent Memory for All Tools)
+   TOOL STATE & CONTEXTUAL POPUP
 ═══════════════════════════════════════════════════════ */
-const S={color:'#1a1a2e',w:4,conn:null};
+const S={color:'#1a1a2e', w:4, conn:null};
 let activeTool='pen';
-const toolBtns={pen:'tpen',highlighter:'thighlight',laser:'tlaser',line:'tline',rect:'trect',ellipse:'tellipse',text:'ttext',eraser:'teraser',select:'tselect'};
-
-const SIZE_STEPS=[1,2,3,4,6,8,12,16,24,32,48];
-let szIdx=SIZE_STEPS.indexOf(4);
+const toolBtns={pen:'tpen', calligraphy:'tcalli', highlighter:'thighlight', laser:'tlaser', line:'tline', rect:'trect', ellipse:'tellipse', text:'ttext', eraser:'teraser', select:'tselect'};
 
 const defaultStates = {
-  pen: {color:'#1a1a2e', sz: SIZE_STEPS.indexOf(4)},
-  highlighter: {color:'#FFEB3B', sz: SIZE_STEPS.indexOf(24)},
-  laser: {color:'#e84855', sz: SIZE_STEPS.indexOf(6)},
-  line: {color:'#1a1a2e', sz: SIZE_STEPS.indexOf(4)},
-  rect: {color:'#1a1a2e', sz: SIZE_STEPS.indexOf(4)},
-  ellipse: {color:'#1a1a2e', sz: SIZE_STEPS.indexOf(4)},
-  eraser: {sz: SIZE_STEPS.indexOf(24)},
+  pen: {color:'#1a1a2e', sz: 4}, calligraphy: {color:'#1a1a2e', sz: 8}, highlighter: {color:'#FFEB3B', sz: 24},
+  laser: {color:'#e84855', sz: 6}, line: {color:'#1a1a2e', sz: 4}, rect: {color:'#1a1a2e', sz: 4},
+  ellipse: {color:'#1a1a2e', sz: 4}, eraser: {sz: 32},
   text: {color:'#1a1a2e', sz: 20, bold: false, italic: false, underline: false, align: 'left'}
 };
 let toolsState = JSON.parse(localStorage.getItem('wb_tools')) || defaultStates;
 function saveTools() { localStorage.setItem('wb_tools', JSON.stringify(toolsState)); }
 
+function updatePopupUI() {
+  if (activeTool === 'eraser') {
+    $('tcPreviewWrap').classList.add('is-eraser');
+  } else {
+    $('tcPreviewWrap').classList.remove('is-eraser');
+    $('tcDot').style.background = S.color;
+    $('tcColorPick').value = S.color;
+  }
+  $('tcSize').textContent = S.w;
+  // Visual limit for preview dot
+  const dotSz = Math.min(S.w, 32);
+  $('tcDot').style.width = dotSz + 'px';
+  $('tcDot').style.height = dotSz + 'px';
+}
+
 function setTool(tool){
   if(editingObj) closeTextEditor(true);
-  activeTool=tool;
+  activeTool = tool;
   Object.values(toolBtns).forEach(id=>$(id)?.classList.remove('sel','sel-hl','sel-ls','sel-er'));
   
   if(tool==='highlighter') $(toolBtns[tool]).classList.add('sel-hl');
@@ -1102,56 +1065,56 @@ function setTool(tool){
   else if(tool==='eraser') $(toolBtns[tool]).classList.add('sel-er');
   else $(toolBtns[tool])?.classList.add('sel');
   
+  // Apply Memory
   if (toolsState[tool]) {
-    if (toolsState[tool].color) {
-      S.color = toolsState[tool].color;
-      $('colorpick').value = S.color; 
-      $('colorSwatch').style.background = S.color;
-    }
+    if (toolsState[tool].color) S.color = toolsState[tool].color;
     if (typeof toolsState[tool].sz === 'number') {
-      if (tool === 'text') {
-         $('textFontSize').value = toolsState[tool].sz;
-      } else {
-         szIdx = toolsState[tool].sz;
-         updateSizeDisplay();
-      }
+      if (tool === 'text') $('textFontSize').value = toolsState[tool].sz;
+      else S.w = toolsState[tool].sz;
     }
   }
-  
-  if(tool !== 'select') deselect();
-  $('viewport').style.cursor=tool==='pen'?'crosshair':tool==='highlighter'?'crosshair':tool==='laser'?'crosshair':tool==='eraser'?'cell':tool==='select'?'default':'crosshair';
+
+  // Handle Context Popup Visibility
+  if (['pen', 'calligraphy', 'highlighter', 'laser', 'line', 'rect', 'ellipse', 'eraser'].includes(tool)) {
+      $('toolConfig').classList.remove('hidden');
+      updatePopupUI();
+  } else {
+      $('toolConfig').classList.add('hidden');
+  }
+
+  $('viewport').style.cursor=tool==='pen'?'crosshair':tool==='calligraphy'?'crosshair':tool==='highlighter'?'crosshair':tool==='laser'?'crosshair':tool==='eraser'?'cell':tool==='select'?'default':'crosshair';
 }
 Object.entries(toolBtns).forEach(([k,id])=>$(id)?.addEventListener('click',()=>setTool(k)));
 
-function setBrushColor(hex) {
-  S.color = hex; $('colorpick').value = hex; $('colorSwatch').style.background = hex;
-  if(toolsState[activeTool]) { toolsState[activeTool].color = hex; saveTools(); }
-  if(editingObj){ 
-    editingObj.color=S.color; 
-    te.style.color=S.color; 
-    $('textColorPick').value = S.color;
-    $('textColorSwatch').style.background = S.color;
-    renderTextObjects(); 
-  }
-}
+$('tcColorPick').oninput = e => {
+  if (activeTool === 'eraser') return;
+  S.color = e.target.value;
+  updatePopupUI();
+  if(toolsState[activeTool]) { toolsState[activeTool].color = S.color; saveTools(); }
+};
 
-$('colorpick').oninput=e=> setBrushColor(e.target.value);
+// Continuous +/- size logic
+let tcInterval, tcTimeout;
+const changeSize = (delta) => {
+  S.w = clamp(S.w + delta, 1, 100);
+  updatePopupUI();
+  if(toolsState[activeTool]) { toolsState[activeTool].sz = S.w; saveTools(); }
+};
+const startChange = (delta) => {
+  changeSize(delta);
+  tcTimeout = setTimeout(() => { tcInterval = setInterval(() => changeSize(delta), 30); }, 300);
+};
+const stopChange = () => { clearTimeout(tcTimeout); clearInterval(tcInterval); };
 
-function updateSizeDisplay(){
-  S.w=SIZE_STEPS[szIdx];$('szLabel').textContent=S.w;
-}
-function changeSize(delta) {
-  szIdx = clamp(szIdx + delta, 0, SIZE_STEPS.length - 1);
-  updateSizeDisplay();
-  if(toolsState[activeTool]) { toolsState[activeTool].sz = szIdx; saveTools(); }
-}
-$('szMinus').addEventListener('click',e=>{e.stopPropagation(); changeSize(-1);});
-$('szPlus').addEventListener('click',e=>{e.stopPropagation(); changeSize(1);});
+$('tcMinus').addEventListener('pointerdown', e => { e.preventDefault(); startChange(-1); });
+$('tcPlus').addEventListener('pointerdown', e => { e.preventDefault(); startChange(1); });
+window.addEventListener('pointerup', stopChange);
+window.addEventListener('pointercancel', stopChange);
 
 setTool('pen');
 
 /* ═══════════════════════════════════════════════════════
-   POINTER HANDLING (Hidden Shape Rec Toggle & UX Fixes)
+   POINTER HANDLING 
 ═══════════════════════════════════════════════════════ */
 const vp=$('viewport');
 const activePointers=new Map();
@@ -1166,28 +1129,23 @@ vp.addEventListener('dblclick', e => {
   toast(shapeSnapEnabled ? '🪄 智慧形狀辨識：已開啟' : '🪄 智慧形狀辨識：已關閉');
 });
 
-function isUITarget(el){ return el.closest('#tb')||el.closest('#topRight')||el.closest('#topLeft')||el.closest('#textEditorWrap')||el.closest('#modal')||el.closest('#ctxMenu'); }
+function isUITarget(el){ return el.closest('#tb')||el.closest('#topRight')||el.closest('#topLeft')||el.closest('#textEditorWrap')||el.closest('#modal')||el.closest('#toolConfig'); }
 function getPinchDist(){ const pts=[...activePointers.values()]; if(pts.length<2)return 0; return Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y); }
 function getPinchMid(){ const pts=[...activePointers.values()]; if(pts.length<2)return{x:0,y:0}; return{x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2}; }
 
 vp.addEventListener('pointerdown', e => {
   if(isUITarget(e.target)) return;
   
-  if (editingObj) {
-    closeTextEditor(true); 
-    setTool('select');
-  }
+  if (editingObj) { closeTextEditor(true); setTool('select'); }
+  
+  // Auto-hide popup when drawing
+  if (!isUITarget(e.target)) $('toolConfig').classList.add('hidden');
   
   activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
   
-  // Middle Mouse Button override for panning
   if (e.button === 1) {
-    panPointerId = e.pointerId;
-    panStart = { px: e.clientX, py: e.clientY, cx: cam.x, cy: cam.y };
-    e.preventDefault();
-    return;
+    panPointerId = e.pointerId; panStart = { px: e.clientX, py: e.clientY, cx: cam.x, cy: cam.y }; e.preventDefault(); return;
   }
-  // Prevent context menu/right-click from drawing
   if (e.button === 2) return;
   
   if(activePointers.size>=2){
@@ -1198,19 +1156,18 @@ vp.addEventListener('pointerdown', e => {
   if(pinchActive) return;
 
   const w=s2w(e.clientX,e.clientY);
-  // Tool handling
-  if(activeTool==='select'){ panPointerId=e.pointerId; panStart={px:e.clientX,py:e.clientY,cx:cam.x,cy:cam.y}; deselect(); return; }
+  
+  if(activeTool==='select'){ panPointerId=e.pointerId; panStart={px:e.clientX,py:e.clientY,cx:cam.x,cy:cam.y}; return; }
   
   if(activeTool==='text'){ 
-    e.preventDefault(); // 阻擋電腦版原生 mousedown 搶走輸入框焦點
-    createTextObj(w.x,w.y); 
+    e.preventDefault(); // Trusted event focus preparation
     return; 
   }
 
   // Draw Mode
   drawPointerId=e.pointerId; liveObjStarted=true; snapApplied=false;
 
-  if(activeTool==='pen'||activeTool==='highlighter'||activeTool==='laser') liveObj={id:uid(),type:'stroke',brush:activeTool,pts:[{...w}],color:S.color,w:S.w};
+  if(activeTool==='pen'||activeTool==='calligraphy'||activeTool==='highlighter'||activeTool==='laser') liveObj={id:uid(),type:'stroke',brush:activeTool,pts:[{...w}],color:S.color,w:S.w};
   else if(activeTool==='eraser') liveObj={id:uid(),type:'stroke',brush:'eraser',pts:[{...w}],color:'eraser',w:S.w};
   else if(activeTool==='line') liveObj={id:uid(),type:'line',brush:'pen',x1:w.x,y1:w.y,x2:w.x,y2:w.y,color:S.color,w:S.w};
   else if(activeTool==='rect') liveObj={id:uid(),type:'rect',brush:'pen',x:w.x,y:w.y,w2:0,h2:0,color:S.color,w:S.w,_ox:w.x,_oy:w.y};
@@ -1219,24 +1176,21 @@ vp.addEventListener('pointerdown', e => {
   if(activeTool==='pen'||activeTool==='highlighter'){
     holdTimer=setTimeout(()=>{
       if(shapeSnapEnabled&&liveObjStarted&&liveObj?.pts?.length>4&&!snapApplied){ const r=recognizeShape(liveObj.pts);if(r)applyRecognizedShape(r); }
-    },600); // Draw and hold
+    },600); 
   }
   if(activeTool==='line'||activeTool==='rect'||activeTool==='ellipse'){ 
-    if(shapeSnapEnabled){
-      holdTimer=setTimeout(()=>{if(liveObjStarted&&liveObj&&!snapApplied)snapCurrentShape()},500); 
-    }
+    if(shapeSnapEnabled){ holdTimer=setTimeout(()=>{if(liveObjStarted&&liveObj&&!snapApplied)snapCurrentShape()},500); }
   }
 
-  // Long press toggle for touch
   if(activePointers.size === 1) {
     lpStart = {x: e.clientX, y: e.clientY};
     lpTimer = setTimeout(() => {
       if(drawPointerId === e.pointerId && liveObjStarted && liveObj?.pts?.length < 5) {
          shapeSnapEnabled = !shapeSnapEnabled;
          toast(shapeSnapEnabled ? '🪄 智慧形狀辨識：已開啟' : '🪄 智慧形狀辨識：已關閉');
-         cancelDraw(); // 中斷繪圖以免殘留一個點
+         cancelDraw(); 
       }
-    }, 1000); // 1 sec long press
+    }, 1000); 
   }
 });
 
@@ -1253,7 +1207,6 @@ window.addEventListener('pointermove', e => {
     applyCam(); renderTextObjects(); return;
   }
 
-  // Pan (Middle click or Select tool)
   if(panPointerId!==null&&e.pointerId===panPointerId){
     cam.x=panStart.cx+(e.clientX-panStart.px); cam.y=panStart.cy+(e.clientY-panStart.py);
     applyCam(); renderTextObjects(); return;
@@ -1284,6 +1237,13 @@ window.addEventListener('pointerup', e => {
   clearTimeout(lpTimer); lpStart=null;
 
   if(e.pointerId===panPointerId){ panPointerId=null; return; }
+  
+  if(activeTool === 'text' && !isUITarget(e.target) && !editingObj) {
+    const w = s2w(e.clientX, e.clientY);
+    createTextObj(w.x, w.y);
+    return;
+  }
+  
   if(e.pointerId===drawPointerId){
     clearTimeout(holdTimer); const wasDrawing=liveObjStarted&&liveObj!==null;
     drawPointerId=null; liveObjStarted=false;
@@ -1401,9 +1361,14 @@ $('btnExport').onclick = () => {
   
   let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
   objects.forEach(o => {
-    const b = getBBox(o);
-    if(b) { minX=Math.min(minX,b.x); minY=Math.min(minY,b.y); maxX=Math.max(maxX,b.x+b.w); maxY=Math.max(maxY,b.y+b.h); }
+    if(o.type==='stroke'){
+      if(o.pts){ o.pts.forEach(p=>{minX=Math.min(minX,p.x); minY=Math.min(minY,p.y); maxX=Math.max(maxX,p.x); maxY=Math.max(maxY,p.y);}) }
+    } else {
+      const b = getBBox(o);
+      if(b) { minX=Math.min(minX,b.x); minY=Math.min(minY,b.y); maxX=Math.max(maxX,b.x+b.w); maxY=Math.max(maxY,b.y+b.h); }
+    }
   });
+  if(minX===Infinity) return;
   minX -= 60; minY -= 60; maxX += 60; maxY += 60;
   const w = maxX - minX, h = maxY - minY;
 
@@ -1412,7 +1377,6 @@ $('btnExport').onclick = () => {
   cx.fillStyle = '#fafaf7'; cx.fillRect(0,0,w,h);
   
   cx.save(); cx.translate(-minX, -minY);
-  // Re-draw grid if requested, skipped here for cleaner export
   for(const o of objects) {
     if (o.type !== 'text') { renderObj(cx, o); }
     else {
@@ -1446,7 +1410,7 @@ $('btnExport').onclick = () => {
 
   cvs.toBlob(blob => {
     const file = new File([blob], 'whiteboard.png', { type: 'image/png' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    if (navigator.canShare && navigator.canShare({ files:[file] })) {
       navigator.share({ title: 'Shared Whiteboard', files:[file] }).catch(() => saveBlob(blob));
     } else saveBlob(blob);
   });
@@ -1462,9 +1426,11 @@ $('btnClear').onclick = () => {
 };
 
 /* ═══════════════════════════════════════════════════════
-   NETWORKING
+   NETWORKING & SESSION RESTORE
 ═══════════════════════════════════════════════════════ */
 let _peer=null; let remoteLiveStrokes={};
+let currentRole=null, currentRoomCode=null;
+
 function send(o){if(S.conn?.open)S.conn.send(o)}
 
 function handleData(d){
@@ -1476,10 +1442,8 @@ function handleData(d){
     redrawBaseCanvas();renderTextObjects();
   } else if(d.type==='DEL'){
     objects=objects.filter(o=>o.id!==d.id); redrawBaseCanvas();renderTextObjects();
-    if(selectedId === d.id) deselect();
   } else if(d.type==='CLEAR'){
     objects=[];remoteLiveStrokes={}; redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();toast(t('cleared_toast'));
-    deselect();
   } else if(d.type==='SYNC'){
     const ids=new Set(objects.map(o=>o.id)); d.objs.forEach(o=>{if(!ids.has(o.id))objects.push(o)});
     redrawBaseCanvas();renderTextObjects();
@@ -1494,8 +1458,9 @@ function handleData(d){
 function setupConn(conn){
   S.conn=conn;
   conn.on('open',()=>{
-    setStatus('connected','live'); $('pill').style.background=''; toast(t('connected_toast'));closeModal();
+    setStatus('connected','live'); $('pill').style.background=''; toast(t('connected_toast')); closeModal();
     conn.send({type:'SYNC',objs:objects});
+    localStorage.setItem('wb_session', JSON.stringify({role: currentRole, code: currentRoomCode}));
   });
   conn.on('data',handleData);
   conn.on('close',()=>{ S.conn=null;remoteLiveStrokes={}; setStatus('disconnected','');toast(t('disconnected_toast')); });
@@ -1504,10 +1469,10 @@ function setupConn(conn){
 
 const makeCode=()=>String(Math.floor(100000+Math.random()*900000));
 const codeToId=c=>'wb-'+c,idToCode=id=>id.replace(/^wb-/,'');
-function destroyPeer(){if(_peer&&!_peer.destroyed)_peer.destroy();_peer=null;S.conn=null}
+function destroyPeer(){if(_peer&&!_peer.destroyed)_peer.destroy();_peer=null;S.conn=null;}
 
 function initHost(code){
-  destroyPeer();
+  destroyPeer(); currentRole='host'; currentRoomCode=code;
   const peer=new Peer(codeToId(code),{debug:0,config:{iceServers:[{urls:'stun:stun.l.google.com:19302'}]}});
   _peer=peer;
   peer.on('open',id=>{ $('rcode').textContent=idToCode(id); $('rsub').textContent=t('share_code'); setStatus('waiting_visitor','wait'); });
@@ -1516,7 +1481,7 @@ function initHost(code){
 }
 
 function joinRoom(code){
-  destroyPeer();
+  destroyPeer(); currentRole='visitor'; currentRoomCode=code;
   const peer=new Peer(undefined,{debug:0});_peer=peer;
   $('joinBtn').disabled=true;$('joinBtn').textContent=t('connecting');setMS(t('connecting'));
   let to=setTimeout(()=>{setMS(t('timeout'),'err');$('joinBtn').disabled=false;$('joinBtn').textContent=t('join')},12000);
@@ -1533,15 +1498,33 @@ function joinRoom(code){
 ═══════════════════════════════════════════════════════ */
 let _tab='h';
 function switchTab(tab){
+  if(S.conn?.open) return;
   _tab=tab; $('tabH').className='tab'+(tab==='h'?' active':''); $('tabV').className='tab'+(tab==='v'?' active':'');
   $('hpanel').className='panel'+(tab==='h'?' show':''); $('vpanel').className='panel'+(tab==='v'?' show':''); setMS('');
 }
 function openModal(){
+  $('modal').classList.add('show');
   if(S.conn?.open){
     const cc=`<div class="concard"><strong>${t('already_connected')}</strong><span>${t('back')}</span></div>`;
-    $('hpanel').innerHTML=cc;$('vpanel').innerHTML=cc;
+    $('hpanel').innerHTML=cc; $('vpanel').innerHTML=cc;
+    $('tabH').classList.add('disabled'); $('tabV').classList.add('disabled');
+    $('restoreWrap').style.display = 'none';
+    return;
   }
-  $('modal').classList.add('show');
+  $('tabH').classList.remove('disabled'); $('tabV').classList.remove('disabled');
+  
+  const session = JSON.parse(localStorage.getItem('wb_session'));
+  if(session && !S.conn?.open) {
+    $('restoreWrap').style.display = 'block';
+    $('btnRestore').onclick = () => {
+      $('restoreWrap').style.display = 'none';
+      if(session.role === 'host') { switchTab('h'); initHost(session.code); }
+      else { switchTab('v'); $('roomInput').value = session.code; $('joinBtn').disabled=false; joinRoom(session.code); }
+    };
+  } else {
+    $('restoreWrap').style.display = 'none';
+  }
+
   if(!_peer||_peer.destroyed){
     $('rcode').textContent='……';$('rsub').textContent=t('initializing');
     $('wrow').innerHTML=`<div class="spin"></div><span>${t('waiting')}</span>`; initHost(makeCode());
@@ -1565,22 +1548,10 @@ $('langToggle').addEventListener('click',()=>{
 function onResize(){
   resizeGrid();resizeDrawCanvas();resizeUI(); redrawGrid();redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();
   if(editingObj&&teWrap.style.display!=='none') applyEditorGeometry();
-  updateCtxMenuPos();
 }
 window.addEventListener('resize',onResize);
 resizeGrid();resizeDrawCanvas();resizeUI(); initCam(); applyLang(); setTimeout(openModal,300);
 </script>
-<!-- 系統防禦與存取計數模組 (完全靜默 / 防拷貝 / 防衝突) -->
-<script>
-(function(){
-    if (window.location.hostname !== 'winston-github.github.io') return;
-    var file = window.location.pathname.split('/').pop();
-    var pageId = file ? file.split('.')[0] : 'index';
-    if (!pageId) return;
-    var url = 'https://api.counterapi.dev/v1/winston-github-io/page-' + pageId + '/up?_=' + new Date().getTime();
-    fetch(url).catch(function(){});
-})();
-</script>  
 <!-- 系統防禦與存取計數模組 (完全靜默 / 防拷貝 / 防衝突) -->
 <script>
 (function(){
