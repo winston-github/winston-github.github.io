@@ -41,47 +41,52 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
 #dot.wait{background:#f39c12;box-shadow:0 0 0 3px rgba(243,156,18,.2)}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 3px rgba(46,204,113,.2)}50%{box-shadow:0 0 0 7px rgba(46,204,113,.06)}}
 
-/* ── Text editing (Overhauled Auto-sizing) ──────────────────────────────── */
-#textEditorWrap{
-  position:fixed;display:none;z-index:50;
-  /* 增加 24px 隱形 padding 作為極好抓取的邊框拖拉區 */
-  padding:24px; transform:translate(-24px, -24px);
-  touch-action:none; cursor:move; pointer-events:all;
+/* ── Text Core Styles (Unified WYSIWYG) ──────────────────────────────── */
+.textObj, #textEditor, #textMeasure {
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  line-height: 1.5; padding: 8px 10px; box-sizing: border-box;
+  word-break: break-word;
 }
-#textEditorBox{
-  position:relative; width:100%; height:100%;
-  border:2px dashed var(--blue); border-radius:8px;
-  background:rgba(255,255,255,.92);
-  box-shadow:0 8px 32px rgba(0,0,0,.15);
-  pointer-events:none; /* 讓點擊穿透到 wrap 負責拖拉 */
+.textObj {
+  position: absolute; cursor: move; pointer-events: all; border-radius: 4px;
+  -webkit-user-select: none; user-select: none; overflow: hidden;
 }
-#textEditor{
-  display:block; border:none; border-radius:6px; background:transparent;
-  font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;
-  color:var(--ink);outline:none;resize:none;
-  padding:8px 10px; box-sizing:border-box;
-  white-space:pre; word-break:break-word; overflow:hidden;
-  line-height:1.5; cursor:text; width:100%; height:100%; pointer-events:all;
-  -webkit-user-select:text;user-select:text;
+.textObj.selected { outline: 2px dashed #3a86ff; outline-offset: 2px; background: rgba(58,134,255,0.05); }
+
+#textMeasure {
+  position: fixed; top: -9999px; left: -9999px; z-index: -1;
+  visibility: hidden; pointer-events: none; white-space: pre;
 }
-/* 放大觸控熱區的 8 個控制點 */
-.res-handle{
-  position:absolute; width:32px; height:32px; background:transparent; z-index:60;
-  touch-action:none; pointer-events:all; display:flex; align-items:center; justify-content:center;
+
+/* ── Text Editing UI ──────────────────────────────── */
+#textEditorWrap {
+  position: fixed; display: none; z-index: 50; touch-action: none; pointer-events: none;
 }
+#textEditorBox {
+  position: relative; width: 100%; height: 100%;
+  border: 1px solid var(--blue); border-radius: 4px;
+  background: rgba(255,255,255,0.95);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1); pointer-events: none;
+}
+#textEditor {
+  display: block; border: none; background: transparent;
+  color: var(--ink); outline: none; resize: none; overflow: hidden;
+  cursor: text; width: 100%; height: 100%; pointer-events: all;
+  -webkit-user-select: text; user-select: text; white-space: pre;
+}
+
+/* Figma-style edge handles (Left/Right only) */
+.res-handle {
+  position: absolute; width: 24px; height: calc(100% + 16px); top: -8px;
+  background: transparent; z-index: 60; touch-action: none; pointer-events: all;
+  display: flex; align-items: center; justify-content: center;
+}
+.res-handle[data-h="w"] { left: -12px; cursor: ew-resize; }
+.res-handle[data-h="e"] { right: -12px; cursor: ew-resize; }
 .rh-dot {
-  width:12px; height:12px; background:#3a86ff; border:2px solid #fff; border-radius:3px;
-  box-shadow:0 1px 4px rgba(0,0,0,.3); pointer-events:none;
+  width: 4px; height: 16px; background: var(--blue); border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3); pointer-events: none;
 }
-/* 對齊至邊緣與角落 */
-.res-handle[data-h="nw"]{left:-16px;top:-16px;cursor:nw-resize;}
-.res-handle[data-h="n"] {left:calc(50% - 16px);top:-16px;cursor:n-resize;}
-.res-handle[data-h="ne"]{right:-16px;top:-16px;cursor:ne-resize;}
-.res-handle[data-h="e"] {right:-16px;top:calc(50% - 16px);cursor:e-resize;}
-.res-handle[data-h="se"]{right:-16px;bottom:-16px;cursor:se-resize;}
-.res-handle[data-h="s"] {left:calc(50% - 16px);bottom:-16px;cursor:s-resize;}
-.res-handle[data-h="sw"]{left:-16px;bottom:-16px;cursor:sw-resize;}
-.res-handle[data-h="w"] {left:-16px;top:calc(50% - 16px);cursor:w-resize;}
 
 #textEditorTools{
   position:absolute; top:100%; left:0;
@@ -221,14 +226,6 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
 }
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
-/* Text object divs */
-.textObj{
-  position:absolute;cursor:move;word-break:break-word;
-  line-height:1.5;pointer-events:all;border-radius:4px;
-  -webkit-user-select:none;user-select:none;overflow:hidden;
-  padding:8px 10px; box-sizing:border-box; /* 與編輯器1:1對齊 */
-}
-.textObj.selected{outline:2px dashed #3a86ff;outline-offset:2px;background:rgba(58,134,255,0.05);}
 </style>
 </head>
 <body>
@@ -244,6 +241,9 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
 </div>
 <canvas id="uiLayer"></canvas>
 
+<!-- Hidden element for precise text measuring -->
+<div id="textMeasure"></div>
+
 <!-- Top Left (Save/Export) -->
 <div id="topLeft">
   <div id="btnExport" class="pill-btn">
@@ -251,18 +251,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
   </div>
 </div>
 
-<!-- Text editor with 8 resize handles -->
+<!-- Text editor with clean UX handles -->
 <div id="textEditorWrap">
   <div id="textEditorBox">
     <textarea id="textEditor" spellcheck="false"></textarea>
-    <div class="res-handle" data-h="nw"><div class="rh-dot"></div></div>
-    <div class="res-handle" data-h="n"><div class="rh-dot"></div></div>
-    <div class="res-handle" data-h="ne"><div class="rh-dot"></div></div>
-    <div class="res-handle" data-h="e"><div class="rh-dot"></div></div>
-    <div class="res-handle" data-h="se"><div class="rh-dot"></div></div>
-    <div class="res-handle" data-h="s"><div class="rh-dot"></div></div>
-    <div class="res-handle" data-h="sw"><div class="rh-dot"></div></div>
     <div class="res-handle" data-h="w"><div class="rh-dot"></div></div>
+    <div class="res-handle" data-h="e"><div class="rh-dot"></div></div>
     
     <div id="textEditorTools">
       <button class="tt-btn" id="btnBold">B</button>
@@ -569,7 +563,7 @@ document.addEventListener('keydown',e=>{
 updateUndoRedo();
 
 /* ═══════════════════════════════════════════════════════
-   TEXT OBJECTS (OVERHAULED Auto-Fit & Wrap)
+   TEXT OBJECTS (Overhauled WYSIWYG & Ghost Measurement)
 ═══════════════════════════════════════════════════════ */
 const textLayer=$('textLayer');
 const teWrap=$('textEditorWrap'), teBox=$('textEditorBox'), te=$('textEditor');
@@ -580,7 +574,7 @@ let textEditBackup=null;
 function renderTextObjects(){
   const existing=new Map([...textLayer.children].map(d=>[d.dataset.id,d]));
   const current=new Set(objects.filter(o=>o.type==='text').map(o=>o.id));
-  for(const [id,div] of existing)if(!current.has(id))div.remove();
+  for(const[id,div] of existing)if(!current.has(id))div.remove();
   for(const o of objects){
     if(o.type!=='text')continue;
     let div=textLayer.querySelector(`[data-id="${o.id}"]`);
@@ -603,7 +597,10 @@ function renderTextObjects(){
 function bindTextDiv(div,o){
   div.addEventListener('pointerdown',e=>{
     if(activeTool!=='select'&&activeTool!=='text')return;
-    e.stopPropagation(); selectObj(o.id);
+    e.stopPropagation(); 
+    // 點擊其他文字時，儲存當前的編輯
+    if(editingObj && editingObj.id !== o.id) closeTextEditor(true);
+    selectObj(o.id);
   });
   div.addEventListener('pointerup',e=>{
     if(activeTool!=='select'&&activeTool!=='text')return;
@@ -615,7 +612,7 @@ function bindTextDiv(div,o){
 function positionTools() {
   if(!editingObj) return;
   const tools = $('textEditorTools');
-  const boxRect = teBox.getBoundingClientRect(); // 精準計算虛線框
+  const boxRect = teBox.getBoundingClientRect(); 
   
   tools.style.top = '100%'; tools.style.bottom = 'auto';
   tools.style.left = '0px'; tools.style.right = 'auto';
@@ -623,12 +620,10 @@ function positionTools() {
   
   const tr = tools.getBoundingClientRect();
   
-  // 如果超出底端，顯示在文字框上方
   if (boxRect.bottom + tr.height + 16 > window.innerHeight) {
       tools.style.top = 'auto'; tools.style.bottom = '100%';
       tools.style.marginTop = '0px'; tools.style.marginBottom = '8px';
   }
-  // 如果超出右端，往左靠齊
   if (boxRect.left + tr.width + 16 > window.innerWidth) {
       tools.style.left = 'auto'; tools.style.right = '0px';
   }
@@ -636,32 +631,34 @@ function positionTools() {
 
 function applyEditorGeometry(){
   if(!editingObj) return;
-
   if (editingObj.autoW === undefined) editingObj.autoW = true;
 
-  // 自適應邏輯核心
+  // 使用精準測量幽靈元素 (Ghost Element)，消滅 Layout Thrashing 與排版跳動
+  const measure = $('textMeasure');
+  measure.style.fontSize = (editingObj.fontSize || 20) + 'px';
+  measure.style.fontWeight = editingObj.bold ? '700' : '400';
+  measure.style.fontStyle = editingObj.italic ? 'italic' : 'normal';
+  measure.style.textDecoration = editingObj.underline ? 'underline' : 'none';
+  // 處理 textarea 結尾換行的高度計算差異
+  measure.textContent = te.value + (te.value.endsWith('\n') ? '\u200b' : '') || '\u200b';
+
   if (editingObj.autoW) {
-    te.style.whiteSpace = 'pre';
-    te.style.width = '0px'; // 擠壓寬度取得實際行寬
-    const sw = te.scrollWidth / cam.z;
-    const sh = te.scrollHeight / cam.z;
-    editingObj.boxW = Math.max(10/cam.z, sw);
-    editingObj.boxH = Math.max(10/cam.z, sh);
-    te.style.width = '100%'; // 還原滿版
+    measure.style.whiteSpace = 'pre';
+    measure.style.width = 'auto';
+    editingObj.boxW = Math.max(20, measure.clientWidth);
+    editingObj.boxH = Math.max(20, measure.clientHeight);
   } else {
-    te.style.whiteSpace = 'pre-wrap';
-    teBox.style.width = (editingObj.manualW * cam.z) + 'px';
-    te.style.height = '0px'; // 擠壓高度取得多行折行後實際高
-    const sh = te.scrollHeight / cam.z;
-    editingObj.boxW = editingObj.manualW;
-    editingObj.boxH = Math.max(editingObj.manualH || 0, sh);
-    te.style.height = '100%';
+    measure.style.whiteSpace = 'pre-wrap';
+    measure.style.width = editingObj.manualW + 'px';
+    editingObj.boxW = Math.max(20, editingObj.manualW);
+    editingObj.boxH = Math.max(20, measure.clientHeight);
   }
 
   const sp = w2s(editingObj.x, editingObj.y);
   teWrap.style.left = sp.x + 'px'; teWrap.style.top = sp.y + 'px';
   teBox.style.width = (editingObj.boxW * cam.z) + 'px';
   teBox.style.height = (editingObj.boxH * cam.z) + 'px';
+  te.style.fontSize = (editingObj.fontSize || 20) * cam.z + 'px';
   
   te.style.textAlign = editingObj.align || 'left';
   
@@ -678,7 +675,6 @@ function updateTextToolsUI(){
   btnU.classList.toggle('active', !!editingObj.underline);
   tfs.value = editingObj.fontSize || 20;
 
-  // 永遠顯示 "下一個" 狀態的圖示：左->置中(≣)，中->右(⫸)，右->左(⫷)
   const align = editingObj.align || 'left';
   if (align === 'left') { btnAlign.innerHTML = '≣'; }
   else if (align === 'center') { btnAlign.innerHTML = '⫸'; }
@@ -686,12 +682,13 @@ function updateTextToolsUI(){
 }
 
 function openTextEditor(o){
-  if(editingObj) closeTextEditor(true); // 強制儲存上一個
-  textEditBackup = JSON.stringify(o); // 儲存備份供取消時還原
+  if(editingObj && editingObj.id !== o.id) closeTextEditor(true); 
+  deselect(); // ★ 取消藍色選取框，消滅雙重虛線框災難
+  
+  textEditBackup = JSON.stringify(o); 
   editingObj=o;
   teWrap.style.display='block';
 
-  te.style.fontSize=(o.fontSize||20)*cam.z+'px';
   te.style.color=o.color||'#1a1a2e';
   te.style.fontWeight=o.bold?'700':'400';
   te.style.fontStyle=o.italic?'italic':'normal';
@@ -699,12 +696,11 @@ function openTextEditor(o){
   te.value=o.text||'';
   
   updateTextToolsUI();
-  applyEditorGeometry(); // 設定對齊、自適應計算
+  applyEditorGeometry(); 
   renderTextObjects();
-  te.focus({ preventScroll: true }); // 防止平板懸浮鍵盤強制滾動視窗
+  te.focus({ preventScroll: true }); 
 }
 
-// commit = true (確認), commit = false (取消)
 function closeTextEditor(commit){
   if(!editingObj)return;
   if(commit){
@@ -719,12 +715,11 @@ function closeTextEditor(commit){
       send({type:'DEL',id:editingObj.id});
     }
   } else {
-    // 按下了 ✕ 取消：從備份還原
     if (textEditBackup) {
       const backup = JSON.parse(textEditBackup);
-      if (backup.text === '') { // 若原本是空白 (新建的)，直接刪除
+      if (backup.text === '') { 
         objects = objects.filter(o => o.id !== backup.id);
-      } else { // 若是原本存在的，還原狀態
+      } else { 
         const idx = objects.findIndex(obj => obj.id === backup.id);
         if(idx >= 0) objects[idx] = backup;
       }
@@ -738,58 +733,36 @@ function closeTextEditor(commit){
 // 實時輸入反應
 te.addEventListener('input', applyEditorGeometry);
 
-// 8把手調整大小邏輯 (修改為控制 manualW / manualH，觸發自動換行)
+// Figma 風格膠囊把手：僅調整寬度觸發自動折行
 teBox.querySelectorAll('.res-handle').forEach(handle=>{
   const dir=handle.dataset.h;
-  let startPX,startPY,startObjX,startObjY,startObjW,startObjH;
+  let startPX,startObjX,startObjW;
   let resizing=false,rpid=null;
 
   handle.addEventListener('pointerdown',e=>{
     e.stopPropagation();e.preventDefault();
     resizing=true;rpid=e.pointerId; handle.setPointerCapture(e.pointerId);
-    startPX=e.clientX; startPY=e.clientY;
-    startObjX=editingObj.x; startObjY=editingObj.y;
-    startObjW=editingObj.boxW; startObjH=editingObj.boxH;
+    startPX=e.clientX;
+    startObjX=editingObj.x; 
+    startObjW=editingObj.boxW;
   });
   handle.addEventListener('pointermove',e=>{
     if(!resizing||e.pointerId!==rpid)return;
     e.stopPropagation();e.preventDefault();
-    const dx=(e.clientX-startPX)/cam.z, dy=(e.clientY-startPY)/cam.z;
-    let nx=startObjX, ny=startObjY, nw=startObjW, nh=startObjH;
+    const dx=(e.clientX-startPX)/cam.z;
+    let nx=startObjX, nw=startObjW;
 
-    if(dir.includes('e')) nw=Math.max(40,startObjW+dx);
-    if(dir.includes('s')) nh=Math.max(20,startObjH+dy);
-    if(dir.includes('w')){ nw=Math.max(40,startObjW-dx); nx=startObjX+startObjW-nw; }
-    if(dir.includes('n')){ nh=Math.max(20,startObjH-dy); ny=startObjY+startObjH-nh; }
+    if(dir === 'e') nw=Math.max(40,startObjW+dx);
+    if(dir === 'w'){ nw=Math.max(40,startObjW-dx); nx=startObjX+startObjW-nw; }
 
-    editingObj.x=nx; editingObj.y=ny;
-    editingObj.autoW = false; // 一旦手動拉寬，取消自動寬度，啟動折行
+    editingObj.x=nx;
+    editingObj.autoW = false;
     editingObj.manualW = nw;
-    editingObj.manualH = nh;
     applyEditorGeometry();
   });
   handle.addEventListener('pointerup',e=>{ if(e.pointerId===rpid) resizing=false; });
   handle.addEventListener('pointercancel',e=>{ if(e.pointerId===rpid) resizing=false; });
 });
-
-// 拖拉文字框 (抓住外圍 24px 隱形 padding 區域即可移動)
-let edDragging=false,edDragPid=null,edDragStartX,edDragStartY,edDragX0,edDragY0;
-teWrap.addEventListener('pointerdown',e=>{
-  if(e.target===te||e.target.classList.contains('res-handle')||e.target.closest('#textEditorTools')) return;
-  e.stopPropagation();e.preventDefault();
-  edDragging=true; edDragPid=e.pointerId; teWrap.setPointerCapture(e.pointerId);
-  edDragStartX=e.clientX; edDragStartY=e.clientY;
-  edDragX0=editingObj.x; edDragY0=editingObj.y;
-});
-teWrap.addEventListener('pointermove',e=>{
-  if(!edDragging||e.pointerId!==edDragPid)return;
-  e.stopPropagation(); e.preventDefault();
-  const dx=(e.clientX-edDragStartX)/cam.z, dy=(e.clientY-edDragStartY)/cam.z;
-  editingObj.x=edDragX0+dx; editingObj.y=edDragY0+dy;
-  applyEditorGeometry();
-});
-teWrap.addEventListener('pointerup',e=>{if(e.pointerId===edDragPid)edDragging=false;});
-teWrap.addEventListener('pointercancel',e=>{if(e.pointerId===edDragPid)edDragging=false;});
 
 // 工具按鈕與快捷鍵
 function toggleFormat(fmt){
@@ -798,7 +771,7 @@ function toggleFormat(fmt){
   te.style.fontWeight = editingObj.bold ? '700' : '400';
   te.style.fontStyle = editingObj.italic ? 'italic' : 'normal';
   te.style.textDecoration = editingObj.underline ? 'underline' : 'none';
-  updateTextToolsUI(); te.focus({ preventScroll: true });
+  updateTextToolsUI(); te.focus({ preventScroll: true }); applyEditorGeometry();
 }
 btnB.onclick=e=>{e.preventDefault(); toggleFormat('bold');};
 btnI.onclick=e=>{e.preventDefault(); toggleFormat('italic');};
@@ -812,7 +785,7 @@ btnAlign.onclick=e=>{
   updateTextToolsUI(); applyEditorGeometry(); te.focus({ preventScroll: true });
 };
 tfs.onchange=e=>{
-  if(editingObj){ editingObj.fontSize=parseInt(tfs.value)||20; te.style.fontSize=(editingObj.fontSize*cam.z)+'px'; applyEditorGeometry(); te.focus({ preventScroll: true }); }
+  if(editingObj){ editingObj.fontSize=parseInt(tfs.value)||20; applyEditorGeometry(); te.focus({ preventScroll: true }); }
 };
 
 $('textConfirm').onclick=()=>closeTextEditor(true);
@@ -922,6 +895,7 @@ const S={color:'#1a1a2e',w:4,conn:null};
 let activeTool='pen';
 const toolBtns={pen:'tpen',line:'tline',rect:'trect',ellipse:'tellipse',text:'ttext',eraser:'teraser',select:'tselect'};
 function setTool(tool){
+  if(editingObj) closeTextEditor(true); // ★ 切換工具時自動確認文字
   activeTool=tool;
   Object.values(toolBtns).forEach(id=>$(id)?.classList.remove('sel','sel2'));
   $(toolBtns[tool])?.classList.add(tool==='eraser'?'sel2':'sel');
@@ -969,12 +943,8 @@ vp.addEventListener('pointerdown', e => {
   if(isUITarget(e.target)) return;
   
   if (editingObj) {
-    // 當編輯文字時，點擊空白處「不會有反應」，但允許雙指操作(平移縮放)
-    activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
-    if (activePointers.size >= 2) {
-      pinchActive=true; pinchDist0=getPinchDist(); pinchMid0=getPinchMid(); pinchCam0={...cam};
-    }
-    return; // 提早結束，不產生新文字或觸發關閉
+    // ★ 關鍵修復：點擊編輯區外部自動儲存並退出，而不是毫無反應！
+    closeTextEditor(true);
   }
   
   activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
@@ -1110,7 +1080,6 @@ function snapCurrentShape(){
 function applyRecognizedShape(recognized){
   if(!liveObj)return;
   const color=liveObj.color,w=liveObj.w;let newObj;
-  // 靜默識別
   if(recognized.shape==='line'){newObj={id:liveObj.id,type:'line',x1:recognized.x1,y1:recognized.y1,x2:recognized.x2,y2:recognized.y2,color,w}; }
   else if(recognized.shape==='circle'){newObj={id:liveObj.id,type:'ellipse',cx:recognized.cx,cy:recognized.cy,rx:recognized.r,ry:recognized.r,color,w}; }
   else if(recognized.shape==='ellipse'){newObj={id:liveObj.id,type:'ellipse',cx:recognized.cx,cy:recognized.cy,rx:recognized.rx,ry:recognized.ry,color,w}; }
