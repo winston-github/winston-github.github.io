@@ -933,7 +933,7 @@ updateSizeDisplay();
 
 
 /* ═══════════════════════════════════════════════════════
-   POINTER HANDLING (終極行動裝置觸控防禦版)
+   POINTER HANDLING (還原極簡穩定版：支援所有手機與雙指)
 ═══════════════════════════════════════════════════════ */
 const vp=$('viewport');
 
@@ -967,24 +967,11 @@ function getPinchMid(){
   return{x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2};
 }
 
-// 核心修正 1：在 document 層級徹底封殺瀏覽器原生手勢 (滑動上一頁、下拉更新)
-document.addEventListener('touchstart', e => {
-  if(!isUITarget(e.target)) e.preventDefault();
-}, { passive: false });
-
-document.addEventListener('touchmove', e => {
-  if(!isUITarget(e.target)) e.preventDefault();
-}, { passive: false });
-
-// 核心修正 2：pointerdown 綁定於畫布，且移除 e.preventDefault()
+// 核心修正 1：移除原本的 e.preventDefault() 與 setPointerCapture()，讓手機順利通過第一關
 vp.addEventListener('pointerdown', e => {
-  if(isUITarget(e.target))return;
-
-  activePointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
-
-  // 核心修正 3：改對真正的觸發目標 (e.target) 進行捕獲
-  try{ e.target.setPointerCapture(e.pointerId); }catch(_){}
-
+  if(isUITarget(e.target)) return;
+  
+  activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
   const nptrs=activePointers.size;
 
   if(nptrs>=2){
@@ -997,7 +984,7 @@ vp.addEventListener('pointerdown', e => {
     return;
   }
 
-  if(pinchActive)return;
+  if(pinchActive) return;
 
   const w=s2w(e.clientX,e.clientY);
 
@@ -1040,11 +1027,10 @@ vp.addEventListener('pointerdown', e => {
   }
 });
 
-// 核心修正 4：將 pointermove 提升至 window，確保手指滑出邊界也不會斷掉
+// 核心修正 2：如同早期版本，將 move 綁定在 window 上，確保手指不管滑到哪裡都不斷線
 window.addEventListener('pointermove', e => {
-  if(!activePointers.has(e.pointerId))return;
-  
-  activePointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(!activePointers.has(e.pointerId)) return;
+  activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
   const nptrs=activePointers.size;
 
   if(nptrs>=2&&pinchActive){
@@ -1096,13 +1082,13 @@ window.addEventListener('pointermove', e => {
   }
 });
 
-// 核心修正 5：將 pointerup 與 cancel 提升至 window
+// 核心修正 3：同樣將 up 與 cancel 綁定在 window 上
 window.addEventListener('pointerup', e => {
-  if(!activePointers.has(e.pointerId))return;
+  if(!activePointers.has(e.pointerId)) return;
   activePointers.delete(e.pointerId);
   const nptrs=activePointers.size;
 
-  if(nptrs<2)pinchActive=false;
+  if(nptrs<2) pinchActive=false;
 
   if(e.pointerId===panPointerId){
     panPointerId=null;
@@ -1142,10 +1128,10 @@ window.addEventListener('pointerup', e => {
 });
 
 window.addEventListener('pointercancel', e => {
-  if(!activePointers.has(e.pointerId))return;
+  if(!activePointers.has(e.pointerId)) return;
   activePointers.delete(e.pointerId);
   const nptrs=activePointers.size;
-  if(nptrs<2)pinchActive=false;
+  if(nptrs<2) pinchActive=false;
 
   if(e.pointerId===panPointerId){
     panPointerId=null;
@@ -1170,7 +1156,6 @@ vp.addEventListener('wheel', e => {
   cam.z=newZ;cam.x=e.clientX-wx*newZ;cam.y=e.clientY-wy*newZ;
   applyCam();renderTextObjects();
 },{passive:false});
-
   
 function cancelDraw(){
   clearTimeout(holdTimer);
