@@ -13,260 +13,142 @@
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0;
   -webkit-user-select:none;-moz-user-select:none;user-select:none;
-  -webkit-touch-callout:none; /* 封殺 iOS 原生放大鏡與選取輔助 */}
+  -webkit-touch-callout:none;}
 html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
   font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;touch-action:none;}
 
-/* ── Canvas & Viewport layers ─────────────────────────────── */
+/* ── Z-Index Hierarchy ── */
 #gridCanvas{position:fixed;top:0;left:0;pointer-events:none;z-index:0}
-.draw-layer{position:fixed;top:0;left:0;pointer-events:none;z-index:1;touch-action:none}
-#viewport{position:fixed;inset:0;overflow:hidden;touch-action:none;z-index:2}
+#camLayerBack{position:fixed;top:0;left:0;transform-origin:0 0;z-index:1;pointer-events:none;width:100%;height:100%;}
+.draw-layer{position:fixed;top:0;left:0;pointer-events:none;z-index:2;touch-action:none}
+#camLayerFront{position:fixed;top:0;left:0;transform-origin:0 0;z-index:4;pointer-events:none;width:100%;height:100%;}
+#viewport{position:fixed;inset:0;overflow:hidden;touch-action:none;z-index:5}
+
 #canvas{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}
 #textLayer{position:absolute;top:0;left:0;pointer-events:none}
 #uiLayer{position:fixed;top:0;left:0;pointer-events:none;z-index:10}
 
-/* ── Top Left (Export) & Top Right (Connect) ───────────────── */
-.pill-btn{
-  background:var(--panel);border:1px solid rgba(0,0,0,.1);
-  border-radius:999px;padding:8px 16px;box-shadow:var(--shadow);
-  backdrop-filter:blur(16px);font-size:13px;font-weight:700;color:var(--ink);
-  display:flex;align-items:center;gap:8px;white-space:nowrap;cursor:pointer;
-  transition:all .15s ease;pointer-events:all;
-}
-.pill-btn:hover{background:rgba(255,255,255,.95);transform:translateY(-1px);}
-.pill-btn:active{transform:scale(0.96)}
-#topLeft{position:fixed;top:16px;left:16px;z-index:30;}
-#topRight{position:fixed;top:16px;right:16px;z-index:30;display:flex;gap:8px;}
+/* Camera Video Elements */
+.cam-video { position:absolute; object-fit:fill; pointer-events:auto; outline: 1px solid transparent; transition: outline 0.1s, transform 0.2s ease; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.cam-video.selected { outline: 3px solid var(--blue); }
 
+/* Camera Editor UI */
+#cameraEditorWrap { position:fixed; display:none; z-index:50; pointer-events:none; }
+#cameraEditorBox { position:relative; width:100%; height:100%; border:2px dashed var(--blue); border-radius:4px; box-sizing:border-box; }
+.cam-res-handle { position:absolute; z-index:60; touch-action:none; display:flex; align-items:center; justify-content:center; pointer-events:all; }
+.cam-res-handle[data-h="t"] { top:-12px; left:0; width:100%; height:24px; cursor:ns-resize; }
+.cam-res-handle[data-h="b"] { bottom:-12px; left:0; width:100%; height:24px; cursor:ns-resize; }
+.cam-res-handle[data-h="l"] { top:0; left:-12px; width:24px; height:100%; cursor:ew-resize; }
+.cam-res-handle[data-h="r"] { top:0; right:-12px; width:24px; height:100%; cursor:ew-resize; }
+.crh-dot { width:8px; height:8px; background:var(--blue); border-radius:50%; box-shadow:0 2px 4px rgba(0,0,0,0.2); pointer-events:none; }
+
+#cameraEditorTools {
+  position:absolute; top:100%; left:0; display:flex; gap:6px; margin-top:8px; align-items:center; pointer-events:all; cursor:default;
+  background: var(--panel); padding: 6px; border-radius: 10px; box-shadow: var(--shadow);
+  backdrop-filter: blur(16px); border: 1px solid rgba(0,0,0,.08); min-width: max-content;
+}
+
+/* Common UI */
+.pill-btn{ background:var(--panel);border:1px solid rgba(0,0,0,.1); border-radius:999px;padding:8px 16px;box-shadow:var(--shadow); backdrop-filter:blur(16px);font-size:13px;font-weight:700;color:var(--ink); display:flex;align-items:center;gap:8px;white-space:nowrap;cursor:pointer; transition:all .15s ease;pointer-events:all; }
+.pill-btn:hover{background:rgba(255,255,255,.95);transform:translateY(-1px);} .pill-btn:active{transform:scale(0.96)}
+
+/* Unified Circular Buttons (Top Left) */
+.icon-btn{ width:44px;height:44px;background:var(--panel);border:1px solid rgba(0,0,0,.1);border-radius:50%;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;color:var(--ink);cursor:pointer;transition:all .15s ease;backdrop-filter:blur(16px);margin-bottom:10px;pointer-events:all; }
+.icon-btn:hover{background:rgba(255,255,255,.95);transform:translateY(-1px);} .icon-btn:active{transform:scale(0.92)}
+
+#topLeft{position:fixed;top:16px;left:16px;z-index:30;} 
+#topRight{position:fixed;top:16px;right:16px;z-index:30;display:flex;gap:8px;}
 #dot{width:8px;height:8px;border-radius:50%;background:var(--muted);transition:.3s;flex-shrink:0}
 #dot.live{background:#2ecc71;box-shadow:0 0 0 3px rgba(46,204,113,.2);animation:pulse 2s infinite}
 #dot.wait{background:#f39c12;box-shadow:0 0 0 3px rgba(243,156,18,.2)}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 3px rgba(46,204,113,.2)}50%{box-shadow:0 0 0 7px rgba(46,204,113,.06)}}
 
-/* ── Text Core Styles ──────────────────────────────── */
-.textObj, #textEditor, #textMeasure {
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  line-height: 1.5; padding: 8px 10px; box-sizing: border-box;
-  word-break: break-word;
-}
-.textObj {
-  position: absolute; cursor: move; pointer-events: all; border-radius: 6px;
-  -webkit-user-select: none; user-select: none; overflow: hidden;
-  transition: outline .1s;
-}
+/* Monitor Fullscreen Theater Mode */
+body.is-fs.is-monitor #btnExport,
+body.is-fs.is-monitor #btnClear,
+body.is-fs.is-monitor #tb,
+body.is-fs.is-monitor #topRight { display: none !important; }
+body.is-fs.is-monitor #btnFullscreen { background: rgba(0,0,0,0.25); color: #fff; border-color: transparent; opacity: 0.3; }
+body.is-fs.is-monitor #btnFullscreen:hover, body.is-fs.is-monitor #btnFullscreen:active { opacity: 1; }
+
+/* Text Editor */
+.textObj, #textEditor, #textMeasure { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; line-height: 1.5; padding: 8px 14px 8px 10px; box-sizing: border-box; word-break: break-word; }
+.textObj { position: absolute; cursor: move; pointer-events: all; border-radius: 6px; overflow: hidden; transition: outline .1s; }
 .textObj.selected { outline: 2px solid var(--blue); outline-offset: 2px; background: rgba(58,134,255,0.08); }
+#textMeasure { position: fixed; top: -9999px; left: -9999px; z-index: -1; visibility: hidden; pointer-events: none; white-space: pre; }
+#textEditorWrap { position: fixed; display: none; z-index: 50; touch-action: none; pointer-events: none; }
+#textEditorBox { position: relative; width: 100%; height: 100%; border: 2px solid var(--blue); border-radius: 8px; background: rgba(255,255,255,0.95); box-shadow: 0 8px 32px rgba(0,0,0,0.15); pointer-events: none; }
+#textEditor { display: block; border: none; background: transparent; color: var(--ink); outline: none; resize: none; overflow: hidden; cursor: text; width: 100%; height: 100%; pointer-events: all; -webkit-user-select: text; user-select: text; white-space: pre; -webkit-touch-callout: default; }
 
-#textMeasure {
-  position: fixed; top: -9999px; left: -9999px; z-index: -1;
-  visibility: hidden; pointer-events: none; white-space: pre;
-}
-
-/* ── Text Editing UI ──────────────────────────────── */
-#textEditorWrap {
-  position: fixed; display: none; z-index: 50; touch-action: none; pointer-events: none;
-}
-#textEditorBox {
-  position: relative; width: 100%; height: 100%;
-  border: 2px solid var(--blue); border-radius: 8px;
-  background: rgba(255,255,255,0.95);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.15); pointer-events: none;
-}
-#textEditor {
-  display: block; border: none; background: transparent;
-  color: var(--ink); outline: none; resize: none; overflow: hidden;
-  cursor: text; width: 100%; height: 100%; pointer-events: all;
-  -webkit-user-select: text; user-select: text; white-space: pre;
-  -webkit-touch-callout: default; /* 文字框內恢復系統正常行為 */
-}
-
-/* 修正側邊拉桿位置避免遮擋文字 */
-.res-handle {
-  position: absolute; width: 24px; height: calc(100% + 16px); top: -8px;
-  background: transparent; z-index: 60; touch-action: none; pointer-events: all;
-  display: flex; align-items: center; justify-content: center;
-}
-.res-handle[data-h="w"] { left: -24px; cursor: ew-resize; }
-.res-handle[data-h="e"] { right: -24px; cursor: ew-resize; }
-.rh-dot {
-  width: 5px; height: 20px; background: var(--blue); border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2); pointer-events: none;
-}
-
-#textEditorTools{
-  position:absolute; top:100%; left:0;
-  display:flex; gap:6px; margin-top:8px; align-items:center; pointer-events:all; cursor:default;
-  background: var(--panel); padding: 6px; border-radius: 10px; box-shadow: var(--shadow);
-  backdrop-filter: blur(16px); border: 1px solid rgba(0,0,0,.08); min-width: max-content;
-}
-.tt-btn {
-  border: none; background:transparent; border-radius:6px;
-  min-width:32px; height:32px; font-size:15px; font-weight:700; color:var(--ink);
-  cursor:pointer; display:flex; align-items:center; justify-content:center;
-  touch-action:manipulation; transition:.15s;
-}
-.tt-btn:hover { background: rgba(0,0,0,.05); }
-.tt-btn.active { background:var(--ink); color:#fff; }
-#btnItalic { font-style:italic; font-family:serif; }
-#btnUnderline { text-decoration:underline; }
-#btnAlign { font-size:18px; }
-#btnTextDelete { margin-left: 8px; color: var(--accent); padding: 0 8px; font-size: 17px; }
-#btnTextDelete:active { transform: scale(0.85); }
+.res-handle { position: absolute; width: 24px; height: calc(100% + 16px); top: -8px; background: transparent; z-index: 60; touch-action: none; pointer-events: all; display: flex; align-items: center; justify-content: center; }
+.res-handle[data-h="w"] { left: -24px; cursor: ew-resize; } .res-handle[data-h="e"] { right: -24px; cursor: ew-resize; }
+.rh-dot { width: 5px; height: 20px; background: var(--blue); border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); pointer-events: none; }
+#textEditorTools { position:absolute; top:100%; left:0; display:flex; gap:6px; margin-top:8px; align-items:center; pointer-events:all; cursor:default; background: var(--panel); padding: 6px; border-radius: 10px; box-shadow: var(--shadow); backdrop-filter: blur(16px); border: 1px solid rgba(0,0,0,.08); min-width: max-content; }
+.tt-btn { border: none; background:transparent; border-radius:6px; min-width:32px; height:32px; font-size:15px; font-weight:700; color:var(--ink); cursor:pointer; display:flex; align-items:center; justify-content:center; touch-action:manipulation; transition:.15s; }
+.tt-btn:hover { background: rgba(0,0,0,.05); } .tt-btn.active { background:var(--ink); color:#fff; }
+#btnTextDelete { margin-left: 8px; color: var(--accent); padding: 0 8px; font-size: 17px; } #btnTextDelete:active { transform: scale(0.85); }
 #textFontSize{ padding:0 4px; border:none; background:transparent; font-weight:700; font-size:14px; outline:none; color:var(--ink); cursor:pointer; }
 
-/* ── Contextual Tool Popup ──────────────────────────────── */
-#toolConfig {
-  position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%);
-  display: flex; align-items: center; gap: 16px;
-  background: var(--panel); border: 1px solid rgba(0,0,0,.08);
-  border-radius: 999px; padding: 10px 20px; box-shadow: 0 12px 32px rgba(0,0,0,.15);
-  backdrop-filter: blur(24px); z-index: 29; transition: opacity 0.2s, transform 0.2s;
-  opacity: 1; pointer-events: all;
-}
+/* Popups & Toolbar */
+#toolConfig { position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 16px; background: var(--panel); border: 1px solid rgba(0,0,0,.08); border-radius: 999px; padding: 10px 20px; box-shadow: 0 12px 32px rgba(0,0,0,.15); backdrop-filter: blur(24px); z-index: 29; transition: opacity 0.2s, transform 0.2s; opacity: 1; pointer-events: all; }
 #toolConfig.hidden { opacity: 0; pointer-events: none; transform: translate(-50%, 16px); }
-.tc-preview-wrap {
-  position: relative; width: 36px; height: 36px; border-radius: 50%;
-  border: 2px solid #ddd; background: #fff; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0,0,0,.1); flex-shrink: 0;
-}
-.tc-dot {
-  border-radius: 50%; background: var(--ink); pointer-events: none;
-  transition: width 0.1s, height 0.1s, background 0.1s;
-}
-.tc-preview-wrap.is-eraser .tc-dot { background: transparent !important; }
-.tc-preview-wrap.is-eraser::after {
-  content: ''; position: absolute; width: 100%; height: 2px; background: var(--accent);
-  transform: rotate(-45deg); pointer-events: none;
-}
+.tc-preview-wrap { position: relative; width: 36px; height: 36px; border-radius: 50%; border: 2px solid #ddd; background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.1); flex-shrink: 0; }
+.tc-dot { border-radius: 50%; background: var(--ink); pointer-events: none; transition: width 0.1s, height 0.1s, background 0.1s; }
+.tc-preview-wrap.is-eraser .tc-dot { background: transparent !important; } .tc-preview-wrap.is-eraser::after { content: ''; position: absolute; width: 100%; height: 2px; background: var(--accent); transform: rotate(-45deg); pointer-events: none; }
 #tcColorPick { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
-
 .tc-size-ctrl { display: flex; align-items: center; gap: 12px; background: rgba(0,0,0,.04); border-radius: 999px; padding: 4px 6px; }
-.tc-szBtn {
-  border:none; background:none; border-radius:50%; width:32px; height:32px;
-  cursor:pointer; font-size:20px; font-weight:700; display:flex; align-items:center; justify-content:center;
-  color:var(--ink); transition:background .1s; -webkit-user-select:none; touch-action:manipulation;
-}
-.tc-szBtn:hover { background: rgba(0,0,0,.08); }
-.tc-szBtn:active { background: rgba(0,0,0,.14); transform: scale(0.9); }
+.tc-szBtn { border:none; background:none; border-radius:50%; width:32px; height:32px; cursor:pointer; font-size:20px; font-weight:700; display:flex; align-items:center; justify-content:center; color:var(--ink); transition:background .1s; touch-action:manipulation; }
+.tc-szBtn:hover { background: rgba(0,0,0,.08); } .tc-szBtn:active { background: rgba(0,0,0,.14); transform: scale(0.9); }
 #tcSize { font-size: 15px; font-weight: 800; color: var(--ink); min-width: 30px; text-align: center; }
 
-/* ── Main Toolbar ──────────────────────────────────── */
-#tb{
-  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
-  display:flex;align-items:center;gap:4px;
-  background:var(--panel);border:1px solid rgba(0,0,0,.1);
-  border-radius:24px;padding:8px 12px;box-shadow:0 8px 32px rgba(0,0,0,.15);
-  backdrop-filter:blur(24px);z-index:30;flex-wrap:nowrap;max-width:calc(100vw - 32px);
-  overflow-x:auto;overflow-y:visible;scrollbar-width:none;touch-action:pan-x;
-}
+#tb{ position:fixed;bottom:24px;left:50%;transform:translateX(-50%); display:flex;align-items:center;gap:4px; background:var(--panel);border:1px solid rgba(0,0,0,.1); border-radius:24px;padding:8px 12px;box-shadow:0 8px 32px rgba(0,0,0,.15); backdrop-filter:blur(24px);z-index:30;flex-wrap:nowrap;max-width:calc(100vw - 32px); overflow-x:auto;overflow-y:visible;scrollbar-width:none;touch-action:pan-x; }
 #tb::-webkit-scrollbar{display:none}
-.tbtn{
-  border:none;background:none;border-radius:12px;
-  width:42px;height:42px;cursor:pointer;font-size:18px;
-  display:flex;align-items:center;justify-content:center;
-  transition:all .15s;color:var(--ink);flex-shrink:0;
-  -webkit-user-select:none;user-select:none;touch-action:manipulation;
-}
-.tbtn:hover{background:rgba(0,0,0,.06)}
-.tbtn:active{transform:scale(.88)}
+.tbtn{ border:none;background:none;border-radius:12px; width:42px;height:42px;cursor:pointer; display:flex;align-items:center;justify-content:center; transition:all .15s;color:var(--ink);flex-shrink:0; touch-action:manipulation; }
+.tbtn svg { width: 22px; height: 22px; }
+.tbtn:hover{background:rgba(0,0,0,.06)} .tbtn:active{transform:scale(.88)}
 .tbtn.sel{background:var(--ink);color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.2)}
 .tbtn.sel-hl{background:var(--hl-yellow);color:#000;box-shadow:0 4px 12px rgba(255,235,59,.4)}
 .tbtn.sel-ls{background:var(--accent);color:#fff;box-shadow:0 4px 12px rgba(232,72,85,.4)}
 .tbtn.sel-er{background:#4a9a6a;color:#fff;box-shadow:0 4px 12px rgba(74,154,106,.4)}
-
 .sep{width:1px;height:24px;background:rgba(0,0,0,.1);margin:0 4px;flex-shrink:0}
 
-/* Shape snap indicator */
-#snapIndicator{
-  position:fixed;bottom:140px;left:50%;transform:translateX(-50%);
-  background:rgba(26,26,46,.85);color:#fff;
-  border-radius:999px;padding:6px 16px;font-size:13px;font-weight:700;
-  opacity:0;transition:opacity .25s;pointer-events:none;z-index:29;
-  backdrop-filter:blur(8px);
-}
+#snapIndicator{ position:fixed;bottom:140px;left:50%;transform:translateX(-50%); background:rgba(26,26,46,.85);color:#fff; border-radius:999px;padding:6px 16px;font-size:13px;font-weight:700; opacity:0;transition:opacity .25s;pointer-events:none;z-index:29; backdrop-filter:blur(8px); }
 #snapIndicator.show{opacity:1}
 
 /* Modal */
-#modal{
-  position:fixed;inset:0;z-index:100;
-  display:none;align-items:center;justify-content:center;
-  background:rgba(26,26,46,.5);backdrop-filter:blur(12px);padding:20px;
-}
-#modal.show{display:flex; animation: fadeIn .2s;}
-@keyframes fadeIn { from{opacity:0} to{opacity:1} }
-#card{
-  background:var(--paper);border-radius:24px;
-  padding:32px 28px 28px;width:100%;max-width:400px;
-  box-shadow:0 32px 80px rgba(0,0,0,.25);position:relative;
-}
-#card h2{font-size:22px;font-weight:800;color:var(--ink);margin-bottom:6px}
-#card .sub{font-size:14px;color:var(--muted);margin-bottom:24px;line-height:1.5}
+#modal{ position:fixed;inset:0;z-index:100; display:none;align-items:center;justify-content:center; background:rgba(26,26,46,.5);backdrop-filter:blur(12px);padding:20px; }
+#modal.show{display:flex; animation: fadeIn .2s;} @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+#card{ background:var(--paper);border-radius:24px; padding:32px 28px 28px;width:100%;max-width:400px; box-shadow:0 32px 80px rgba(0,0,0,.25);position:relative; }
+#card h2{font-size:22px;font-weight:800;color:var(--ink);margin-bottom:6px} #card .sub{font-size:14px;color:var(--muted);margin-bottom:24px;line-height:1.5}
 #tabs{display:flex;gap:6px;margin-bottom:24px}
-.tab{flex:1;border:none;border-radius:12px;padding:12px;font-size:14px;font-weight:700;
-  cursor:pointer;background:rgba(0,0,0,.04);color:var(--muted);transition:all .2s;}
-.tab.active{background:var(--ink);color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.15)}
-.tab.disabled{opacity:0.5;cursor:not-allowed;pointer-events:none;}
+.tab{flex:1;border:none;border-radius:12px;padding:12px;font-size:14px;font-weight:700; cursor:pointer;background:rgba(0,0,0,.04);color:var(--muted);transition:all .2s;} .tab.active{background:var(--ink);color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.15)} .tab.disabled{opacity:0.5;cursor:not-allowed;pointer-events:none;}
 .panel{display:none}.panel.show{display:block}
 .rdisplay{background:var(--ink);border-radius:16px;padding:24px;text-align:center;margin-bottom:16px;box-shadow:inset 0 2px 8px rgba(0,0,0,.2)}
-.rlabel{font-size:11px;font-weight:800;letter-spacing:.15em;color:rgba(255,255,255,.5);margin-bottom:8px}
-.rcode{font-size:52px;font-weight:900;color:#fff;letter-spacing:.2em;line-height:1;}
-.rsub{font-size:12px;color:rgba(255,255,255,.4);margin-top:10px}
-.wrow{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;color:var(--muted);padding:8px 0}
-.spin{width:16px;height:16px;border:2.5px solid rgba(0,0,0,.1);border-top-color:var(--ink);
-  border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
-@keyframes spin{to{transform:rotate(360deg)}}
+.rlabel{font-size:11px;font-weight:800;letter-spacing:.15em;color:rgba(255,255,255,.5);margin-bottom:8px} .rcode{font-size:52px;font-weight:900;color:#fff;letter-spacing:.2em;line-height:1;} .rsub{font-size:12px;color:rgba(255,255,255,.4);margin-top:10px}
+.wrow{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;color:var(--muted);padding:8px 0;justify-content:center;}
+.spin{width:16px;height:16px;border:2.5px solid rgba(0,0,0,.1);border-top-color:var(--ink); border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0} @keyframes spin{to{transform:rotate(360deg)}}
 .ilabel{font-size:12px;font-weight:800;color:var(--muted);margin-bottom:8px}
-#roomInput{
-  width:100%;border:2px solid rgba(0,0,0,.1);border-radius:12px;
-  padding:16px;font-size:36px;font-weight:900;letter-spacing:.2em;
-  text-align:center;color:var(--ink);background:rgba(255,255,255,.5);outline:none;
-  transition:border .2s;
-}
-#roomInput:focus{border-color:var(--blue);background:#fff;}
-#joinBtn{
-  width:100%;border:none;border-radius:12px;padding:16px;
-  font-size:16px;font-weight:800;cursor:pointer;
-  background:var(--blue);color:#fff;margin-top:12px;transition:.2s;
-}
-#joinBtn:disabled{opacity:.4;cursor:not-allowed}
-#mstatus{font-size:13px;font-weight:600;color:var(--muted);text-align:center;margin-top:14px;min-height:18px}
-#mstatus.err{color:var(--accent)}#mstatus.ok{color:#2ecc71}
-#xbtn{position:absolute;top:16px;right:16px;border:none;background:rgba(0,0,0,.05);
-  border-radius:50%;width:32px;height:32px;font-size:14px;cursor:pointer;transition:.15s;}
-#xbtn:hover{background:rgba(0,0,0,.1)}
-.concard{background:rgba(46,204,113,.08);border:2px solid rgba(46,204,113,.2);
-  border-radius:16px;padding:24px;text-align:center}
-.concard strong{display:block;font-size:18px;font-weight:800;color:#27ae60;margin-bottom:6px}
-.concard span{font-size:13px;color:var(--muted);font-weight:600;}
-
+#roomInput{ width:100%;border:2px solid rgba(0,0,0,.1);border-radius:12px; padding:16px;font-size:36px;font-weight:900;letter-spacing:.2em; text-align:center;color:var(--ink);background:rgba(255,255,255,.5);outline:none; transition:border .2s; } #roomInput:focus{border-color:var(--blue);background:#fff;}
+.btn-row { display: flex; gap: 8px; margin-top: 12px; }
+.jbtn { flex:1; border:none; border-radius:12px; padding:16px 8px; font-size:15px; font-weight:800; cursor:pointer; transition:.2s; display:flex; flex-direction:column; align-items:center; gap:4px; } .jbtn:disabled { opacity:.4; cursor:not-allowed; }
+.btn-vis { background:var(--blue); color:#fff; } .btn-mon { background:var(--ink); color:#fff; } .jbtn span.st { font-size: 11px; font-weight: 600; opacity: 0.8; }
+#mstatus{font-size:13px;font-weight:600;color:var(--muted);text-align:center;margin-top:14px;min-height:18px} #mstatus.err{color:var(--accent)}#mstatus.ok{color:#2ecc71}
+#xbtn{position:absolute;top:16px;right:16px;border:none;background:rgba(0,0,0,.05); border-radius:50%;width:32px;height:32px;font-size:14px;cursor:pointer;transition:.15s; display:flex; align-items:center; justify-content:center;} #xbtn:hover{background:rgba(0,0,0,.1)}
 #modalFooter{display:flex;align-items:center;justify-content:center;margin-top:24px;padding-top:16px;border-top:1px solid rgba(0,0,0,.06);gap:12px;}
-#langToggle{border:none;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;background:rgba(0,0,0,.05);color:var(--ink);transition:.15s}
-#langToggle:hover{background:rgba(0,0,0,.08)}
+#langToggle{border:none;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;background:rgba(0,0,0,.05);color:var(--ink);transition:.15s} #langToggle:hover{background:rgba(0,0,0,.08)}
 
-#toast{
-  position:fixed;z-index:200;top:20px;left:50%;
-  transform:translateX(-50%) translateY(-10px);
-  background:rgba(26,26,46,.9);color:#fff;
-  border-radius:999px;padding:10px 24px;font-size:14px;font-weight:700;
-  opacity:0;transition:.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);pointer-events:none;white-space:nowrap;
-  box-shadow:0 8px 24px rgba(0,0,0,.2);
-}
-#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast{ position:fixed;z-index:200;top:20px;left:50%; transform:translateX(-50%) translateY(-10px); background:rgba(26,26,46,.9);color:#fff; border-radius:999px;padding:10px 24px;font-size:14px;font-weight:700; opacity:0;transition:.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);pointer-events:none;white-space:nowrap; box-shadow:0 8px 24px rgba(0,0,0,.2); } #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
-@media (max-width: 600px) {
-  #tb { bottom: 16px; padding: 6px 8px; border-radius: 20px; }
-  .tbtn { width: 36px; height: 36px; font-size: 16px; border-radius: 10px; }
-  #toolConfig { bottom: 72px; padding: 6px 12px; gap: 12px; }
-  .tc-preview-wrap { width: 30px; height: 30px; }
-  .tc-szBtn { width: 28px; height: 28px; }
-}
+@media (max-width: 600px) { #tb { bottom: 16px; padding: 6px 8px; border-radius: 20px; } .tbtn { width: 36px; height: 36px; border-radius: 10px; } .tbtn svg { width: 18px; height: 18px; } #toolConfig { bottom: 72px; padding: 6px 12px; gap: 12px; } .tc-preview-wrap { width: 30px; height: 30px; } .tc-szBtn { width: 28px; height: 28px; } }
 </style>
 </head>
 <body>
 
 <canvas id="gridCanvas"></canvas>
+<div id="camLayerBack"></div>
 <canvas id="baseCanvas" class="draw-layer"></canvas>
 <canvas id="activeCanvas" class="draw-layer"></canvas>
+<div id="camLayerFront"></div>
 
 <div id="viewport">
   <div id="canvas">
@@ -275,17 +157,21 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
 </div>
 <canvas id="uiLayer"></canvas>
 
-<!-- Hidden element for precise text measuring -->
 <div id="textMeasure"></div>
 
-<!-- Top Left (Save/Clear) -->
 <div id="topLeft">
-  <div id="btnExport" class="pill-btn" title="Save / Export">📥</div>
-  <div id="btnClear" class="pill-btn" style="margin-top:8px" title="Clear Canvas">🗑️</div>
+  <button id="btnFullscreen" class="icon-btn" data-i-title="title_fs">
+    <svg id="icon-fs-enter" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+    <svg id="icon-fs-exit" style="display:none;" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+  </button>
+  <button id="btnExport" class="icon-btn" data-i-title="title_export">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+  </button>
+  <button id="btnClear" class="icon-btn" data-i-title="title_clear" style="color: var(--accent);">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+  </button>
 </div>
 
-<!-- Context Menu for Selected Objects -->
-<!-- Contextual Tool Configuration Panel -->
 <div id="toolConfig" class="hidden">
   <div class="tc-preview-wrap" id="tcPreviewWrap" title="變更顏色">
     <div class="tc-dot" id="tcDot"></div>
@@ -298,76 +184,137 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
   </div>
 </div>
 
-<!-- Text editor -->
 <div id="textEditorWrap">
   <div id="textEditorBox">
     <textarea id="textEditor" spellcheck="false"></textarea>
     <div class="res-handle" data-h="w"><div class="rh-dot"></div></div>
     <div class="res-handle" data-h="e"><div class="rh-dot"></div></div>
-    
     <div id="textEditorTools">
-      <!-- 移動文字方塊按鈕 -->
-      <div class="tt-btn" id="textMoveBtn" style="cursor:move;" title="拖曳移動">
+      <div class="tt-btn" id="textMoveBtn" style="cursor:move;" data-i-title="tx_drag">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"></polyline><polyline points="9 5 12 2 15 5"></polyline><polyline points="19 9 22 12 19 15"></polyline><polyline points="9 19 12 22 15 19"></polyline><line x1="2" y1="12" x2="22" y2="12"></line><line x1="12" y1="2" x2="12" y2="22"></line></svg>
       </div>
-      <!-- 文字專屬顏色選取器 -->
-      <div id="textColorSwatch" class="tt-btn" style="padding:0; overflow:hidden; position:relative; width:22px; height:22px; min-width:22px; border-radius:50%; border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.2); margin:0 4px;" title="文字顏色">
+      <div id="textColorSwatch" class="tt-btn" style="padding:0; overflow:hidden; position:relative; width:22px; height:22px; min-width:22px; border-radius:50%; border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.2); margin:0 4px;" data-i-title="tx_color">
         <input id="textColorPick" type="color" value="#1a1a2e" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">
       </div>
-      
       <button class="tt-btn" id="btnBold">B</button>
       <button class="tt-btn" id="btnItalic">I</button>
       <button class="tt-btn" id="btnUnderline">U</button>
-      <button class="tt-btn" id="btnAlign" title="切換對齊">≣</button>
+      <button class="tt-btn" id="btnAlign" data-i-title="tx_align">
+         <svg id="icon-align" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <!-- MS Word Default Sizes -->
       <select class="tt-btn" id="textFontSize" style="appearance:none;-webkit-appearance:none;text-align:center;">
-        <option value="12">12</option><option value="16">16</option>
-        <option value="20" selected>20</option><option value="28">28</option>
-        <option value="36">36</option><option value="48">48</option><option value="72">72</option>
+        <option value="8">8</option><option value="9">9</option><option value="10">10</option>
+        <option value="11">11</option><option value="12">12</option><option value="14">14</option>
+        <option value="16">16</option><option value="18">18</option><option value="20" selected>20</option>
+        <option value="22">22</option><option value="24">24</option><option value="26">26</option>
+        <option value="28">28</option><option value="36">36</option><option value="48">48</option>
+        <option value="72">72</option>
       </select>
-      <button class="tt-btn" id="btnTextDelete" title="刪除文字">🗑️</button>
+      <button class="tt-btn" id="btnTextDelete" data-i-title="tx_del" style="color: var(--accent);">
+         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      </button>
     </div>
   </div>
 </div>
 
-<!-- Top-right: pill + connect -->
+<div id="cameraEditorWrap">
+  <div id="cameraEditorBox">
+    <div class="cam-res-handle" data-h="t"><div class="crh-dot"></div></div>
+    <div class="cam-res-handle" data-h="b"><div class="crh-dot"></div></div>
+    <div class="cam-res-handle" data-h="l"><div class="crh-dot"></div></div>
+    <div class="cam-res-handle" data-h="r"><div class="crh-dot"></div></div>
+  </div>
+  <div id="cameraEditorTools">
+    <div class="tt-btn" id="camMoveBtn" style="cursor:move;" data-i-title="c_drag">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"></polyline><polyline points="9 5 12 2 15 5"></polyline><polyline points="19 9 22 12 19 15"></polyline><polyline points="9 19 12 22 15 19"></polyline><line x1="2" y1="12" x2="22" y2="12"></line><line x1="12" y1="2" x2="12" y2="22"></line></svg>
+    </div>
+    <button class="tt-btn" id="camSwitchBtn" data-i-title="c_switch">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><polyline points="3 3 3 8 8 8"/></svg>
+    </button>
+    <button class="tt-btn" id="camFlipBtn" data-i-title="c_flip">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 9 21 13 17 17"/><polyline points="7 9 3 13 7 17"/><line x1="21" y1="13" x2="14" y2="13"/><line x1="3" y1="13" x2="10" y2="13"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+    </button>
+    <div style="display:flex; align-items:center; padding:0 8px;">
+        <input type="range" id="camOpacity" min="0" max="100" value="100" title="Opacity" style="width:60px;">
+    </div>
+    <button class="tt-btn" id="camLayerBtn" data-i-title="c_layer">
+       <svg id="icon-layer-up" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+    </button>
+    <button class="tt-btn" id="camSnapshotBtn" data-i-title="c_snap">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+    </button>
+    <button class="tt-btn" id="camDeleteBtn" data-i-title="c_del" style="color:var(--accent);">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+    </button>
+  </div>
+</div>
+
 <div id="topRight">
-  <div id="pill" class="pill-btn">
+  <div id="pill" class="pill-btn" data-i-title="title_pill">
     <div id="dot"></div>
     <span id="statustext" data-i="offline">未連線</span>
   </div>
 </div>
 
-<!-- Snap indicator -->
 <div id="snapIndicator"></div>
 
-<!-- Toolbar -->
 <div id="tb">
-  <button class="tbtn" id="undoBtn" title="Undo (Ctrl+Z)">↩</button>
-  <button class="tbtn" id="redoBtn" title="Redo (Ctrl+Y)">↪</button>
-  <div class="sep"></div>
-  <button class="tbtn sel" id="tpen" title="標準筆">🖊️</button>
-  <button class="tbtn" id="tcalli" title="鋼筆/毛筆">✒️</button>
-  <button class="tbtn" id="thighlight" title="螢光筆">🖍️</button>
-  <button class="tbtn" id="tlaser" title="雷射筆">🪄</button>
-  <button class="tbtn" id="ttext" title="文字">T</button>
-  <button class="tbtn" id="teraser" title="橡皮擦">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7L3 16C2.5 15.5 2.5 14.5 3 14L13 4C13.5 3.5 14.5 3.5 15 4L20 9C20.5 9.5 20.5 10.5 20 11L11 20H20V20Z"/><line x1="18" y1="11" x2="11" y2="18"/></svg>
+  <button class="tbtn" id="undoBtn" data-i-title="t_undo">
+     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+  </button>
+  <button class="tbtn" id="redoBtn" data-i-title="t_redo">
+     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>
   </button>
   <div class="sep"></div>
-  <button class="tbtn" id="tline" title="直線">╱</button>
-  <button class="tbtn" id="trect" title="矩形">▭</button>
-  <button class="tbtn" id="tellipse" title="圓形">◯</button>
+  <button class="tbtn sel" id="tpen" data-i-title="t_pen">
+     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+  </button>
+  <button class="tbtn" id="tcalli" data-i-title="t_calli">
+     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>
+  </button>
+  <button class="tbtn" id="thighlight" data-i-title="t_hl">
+     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2h8v4H8z"/><path d="M8 6l-2 4v12h12V10l-2-4"/><line x1="8" y1="10" x2="16" y2="10"/></svg>
+  </button>
+  <button class="tbtn" id="tlaser" data-i-title="t_laser">
+     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3" fill="currentColor"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.93" y1="4.93" x2="7.05" y2="7.05"/><line x1="16.95" y1="16.95" x2="19.07" y2="19.07"/><line x1="4.93" y1="19.07" x2="7.05" y2="16.95"/><line x1="16.95" y1="7.05" x2="19.07" y2="4.93"/></svg>
+  </button>
+  <button class="tbtn" id="ttext" data-i-title="t_text">
+     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+  </button>
+  <button class="tbtn" id="teraser" data-i-title="t_eraser">
+     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7L3 16C2.5 15.5 2.5 14.5 3 14L13 4C13.5 3.5 14.5 3.5 15 4L20 9C20.5 9.5 20.5 10.5 20 11L11 20H20V20Z"/><line x1="18" y1="11" x2="11" y2="18"/></svg>
+  </button>
   <div class="sep"></div>
-  <button class="tbtn" id="tgrid" title="Toggle Grid">⊞</button>
-  <button class="tbtn" id="tselect" title="選取工具">↖</button>
+  <button class="tbtn" id="tline" data-i-title="t_line">
+     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="19" x2="19" y2="5"/></svg>
+  </button>
+  <button class="tbtn" id="trect" data-i-title="t_rect">
+     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
+  </button>
+  <button class="tbtn" id="tellipse" data-i-title="t_ellipse">
+     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>
+  </button>
+  <div class="sep"></div>
+  <button class="tbtn" id="tcamera" data-i-title="t_cam">
+     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+  </button>
+  <button class="tbtn" id="tgrid" data-i-title="t_grid">
+     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+  </button>
+  <button class="tbtn" id="tselect" data-i-title="t_sel">
+     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 3 10 21 13 14 20 17 22 13 15 10 21 3 3 3"/></svg>
+  </button>
 </div>
 
 <!-- Connect modal -->
 <div id="modal">
   <div id="card">
-    <button id="xbtn">✕</button>
-    <h2 data-i="modal_title">建立連線</h2>
-    <p class="sub" data-i="modal_sub">Host 產生房間碼，Visitor 輸入後即可共用白板。</p>
+    <button id="xbtn">
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+    </button>
+    <h2 id="m_title" data-i="modal_title">建立連線</h2>
+    <p id="m_sub" class="sub" data-i="modal_sub">Host 產生房間碼，使用者輸入後可選擇 加入共編(Visitor) 或 投影觀看(Monitor)。</p>
     
     <div id="restoreWrap" style="display:none; text-align:center; margin-bottom:16px;">
       <button id="btnRestore" class="pill-btn" style="display:inline-flex; background:#f0f4ff; border-color:var(--blue); color:var(--blue); width:auto; margin:0 auto; padding:8px 24px;">
@@ -376,22 +323,62 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
     </div>
 
     <div id="tabs">
-      <button class="tab active" id="tabH" data-i="tab_host">🖥 Host</button>
-      <button class="tab" id="tabV" data-i="tab_visitor">📱 Visitor</button>
+      <button class="tab active" id="tabH" data-i="tab_host">🖥 Host (建立)</button>
+      <button class="tab" id="tabJ" data-i="tab_join">🤝 Join (加入)</button>
     </div>
+
+    <!-- H/J Panels -->
     <div id="hpanel" class="panel show">
       <div class="rdisplay">
         <div class="rlabel" data-i="room_code">房間碼</div>
         <div class="rcode" id="rcode">……</div>
         <div class="rsub" id="rsub" data-i="initializing">初始化中…</div>
       </div>
-      <div class="wrow" id="wrow"><div class="spin"></div><span data-i="waiting">等待 Visitor 加入…</span></div>
+      <div class="wrow" id="wrow">
+        <div class="spin" id="wspin"></div>
+        <span id="connCount" data-i="waiting">等待加入…</span>
+      </div>
     </div>
-    <div id="vpanel" class="panel">
+    
+    <div id="jpanel" class="panel">
       <div class="ilabel" data-i="enter_code">輸入 Host 的房間碼</div>
       <input id="roomInput" maxlength="6" placeholder="123456" autocomplete="off" inputmode="numeric">
-      <button id="joinBtn" disabled data-i="join">加入白板</button>
+      <div class="btn-row">
+         <button id="joinVisBtn" class="jbtn btn-vis" disabled>
+            <span data-i="join_visitor">✍️ 加入共編</span>
+            <span class="st">Visitor</span>
+         </button>
+         <button id="joinMonBtn" class="jbtn btn-mon" disabled>
+            <span data-i="join_monitor">📺 投影觀看</span>
+            <span class="st">Monitor</span>
+         </button>
+      </div>
     </div>
+
+    <!-- Connected Panel (Role Switching & Info) -->
+    <div id="cpanel" class="panel">
+      <div class="rdisplay">
+        <div class="rlabel" data-i="cur_room">目前房間碼</div>
+        <div class="rcode" id="c_rcode">……</div>
+      </div>
+      <div id="hostStats" style="display:none;">
+        <div class="wrow">
+          <div class="spin" id="c_wspin"></div>
+          <span id="c_connCount" data-i="waiting">等待加入…</span>
+        </div>
+      </div>
+      <div id="clientControls" style="display:none; text-align:center;">
+        <p style="font-size:14px; font-weight:700; color:var(--muted); margin-bottom:16px;">
+           <span data-i="cur_role">目前權限：</span><span id="currentRoleLabel" style="color:var(--ink);"></span>
+        </p>
+        <div class="btn-row">
+           <button id="swVisBtn" class="jbtn btn-vis"><span data-i="btn_sw_vis">✍️ 切換為 共編</span><span class="st">Visitor</span></button>
+           <button id="swMonBtn" class="jbtn btn-mon"><span data-i="btn_sw_mon">📺 切換為 投影</span><span class="st">Monitor</span></button>
+        </div>
+        <button id="btnDisconnect" class="pill-btn" data-i="btn_leave" style="margin:24px auto 0; background:rgba(232,72,85,.08); color:var(--accent); border:1px solid rgba(232,72,85,.2); width:100%; justify-content:center;">斷開連線退出</button>
+      </div>
+    </div>
+
     <div id="mstatus"></div>
     <div id="modalFooter">
       <button id="langToggle">切換至 EN</button>
@@ -405,189 +392,186 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
 'use strict';
 
 /* ═══════════════════════════════════════════════════════
-   LANGUAGE
+   LANGUAGE & UTILS
 ═══════════════════════════════════════════════════════ */
 const STRINGS={
   zh:{
-    offline:'未連線', waiting_visitor:'等待 Visitor…', connected:'已連線 ✓', disconnected:'連線斷開',
-    modal_title:'建立連線', modal_sub:'Host 產生房間碼，Visitor 輸入後即可即時共編。',
-    tab_host:'🖥 Host', tab_visitor:'📱 Visitor', room_code:'房間碼', initializing:'初始化中…',
-    waiting:'等待 Visitor 加入…', enter_code:'輸入 Host 的房間碼', join:'加入白板',
-    clear_confirm:'確定清空白板？', restore_conn:'嘗試恢復上次連線',
-    connected_toast:'🎉 連線成功！', disconnected_toast:'連線已斷開', cleared_toast:'白板已清空',
-    visitor_joined:'✓ Visitor 已加入！', connecting:'連線中…', timeout:'逾時，請確認房間碼',
-    already_connected:'✓ 已連線中', back:'點 ✕ 回到白板', share_code:'把這個碼告訴 Visitor',
-    grid_on:'網格已開啟', grid_off:'網格已關閉',
-    export_empty:'白板是空的', export_done:'已儲存圖片'
+    offline:'未連線', waiting:'等待加入…', connected:'已連線 ✓', disconnected:'連線斷開',
+    modal_title:'建立連線', modal_sub:'Host 產生房間碼，使用者輸入後可選擇 加入共編 或 投影觀看。',
+    tab_host:'🖥 Host (建立)', tab_join:'🤝 Join (加入)', room_code:'房間碼', initializing:'初始化中…',
+    enter_code:'輸入 Host 的房間碼', join_visitor:'✍️ 加入共編', join_monitor:'📺 投影觀看',
+    clear_confirm:'確定清空白板？', restore_conn:'嘗試恢復上次連線', connected_toast:'🎉 連線成功！',
+    disconnected_toast:'連線已斷開', cleared_toast:'白板已清空', visitor_joined:'✓ 共編者 已加入！',
+    monitor_joined:'📺 觀看者 已加入！', connecting:'連線中…', timeout:'逾時，請確認房間碼',
+    share_code:'把這個碼告訴其他人', grid_on:'網格已開啟', grid_off:'網格已關閉', export_empty:'白板是空的', export_done:'已儲存圖片',
+    fs_err:'此瀏覽器不支援全螢幕', cam_err:'無法存取攝影機: ', host_drop:'Host連線中斷，嘗試自動接手恢復連線...',
+    sw_vis:'已切換為 共編模式 ✍️', sw_mon:'已切換為 投影模式 📺', disconnected_msg:'已斷開連線退出',
+    snap_on:'🪄 智慧形狀辨識：已開啟', snap_off:'🪄 智慧形狀辨識：已關閉', role_vis:'共編 (Visitor)', role_mon:'投影 (Monitor)',
+    sw_user_vis:'某使用者切換為 ✍️ 共編', sw_user_mon:'某使用者切換為 📺 投影',
+    title_fs:'全螢幕切換', title_export:'儲存 / 匯出圖片', title_clear:'清空白板', title_pill:'查看連線資訊 / 切換身分',
+    t_pen:'標準筆', t_calli:'鋼筆/毛筆', t_hl:'螢光筆 (方頭)', t_laser:'雷射筆', t_text:'文字', t_eraser:'橡皮擦',
+    t_line:'直線', t_rect:'矩形', t_ellipse:'圓形', t_cam:'攝影機 (WebRTC即時串流)', t_grid:'顯示網格', t_sel:'選取工具',
+    t_undo:'復原 (Undo)', t_redo:'重做 (Redo)',
+    c_drag:'拖曳位置', c_switch:'切換鏡頭', c_flip:'左右翻轉', c_layer:'切換圖層', c_snap:'拍攝成圖片', c_del:'刪除',
+    tx_drag:'拖曳移動', tx_color:'文字顏色', tx_align:'切換對齊', tx_del:'刪除文字',
+    cur_room:'目前房間碼', cur_role:'目前權限：', btn_sw_vis:'✍️ 切換為 共編', btn_sw_mon:'📺 切換為 投影', btn_leave:'斷開連線退出'
   },
   en:{
-    offline:'Offline', waiting_visitor:'Waiting…', connected:'Connected ✓', disconnected:'Disconnected',
-    modal_title:'Connect', modal_sub:'Host generates a room code; Visitor enters it.',
-    tab_host:'🖥 Host', tab_visitor:'📱 Visitor', room_code:'ROOM CODE', initializing:'Initializing…',
-    waiting:'Waiting for Visitor…', enter_code:"Enter Host's Room Code", join:'Join',
-    clear_confirm:'Clear the whiteboard?', restore_conn:'Restore Connection',
-    connected_toast:'🎉 Connected!', disconnected_toast:'Connection closed', cleared_toast:'Whiteboard cleared',
-    visitor_joined:'✓ Visitor joined!', connecting:'Connecting…', timeout:'Timed out. Check code.',
-    already_connected:'✓ Connected', back:'Tap ✕ to return', share_code:'Share this code',
-    grid_on:'Grid on', grid_off:'Grid off',
-    export_empty:'Whiteboard empty', export_done:'Image saved'
+    offline:'Offline', waiting:'Waiting…', connected:'Connected ✓', disconnected:'Disconnected',
+    modal_title:'Connect', modal_sub:'Host generates a room code. Users can join as Editor or Spectator.',
+    tab_host:'🖥 Host', tab_join:'🤝 Join', room_code:'ROOM CODE', initializing:'Initializing…',
+    enter_code:"Enter Host's Room Code", join_visitor:'✍️ Join Editor', join_monitor:'📺 Join Monitor',
+    clear_confirm:'Clear the whiteboard?', restore_conn:'Restore Connection', connected_toast:'🎉 Connected!',
+    disconnected_toast:'Connection closed', cleared_toast:'Whiteboard cleared', visitor_joined:'✓ Editor joined!',
+    monitor_joined:'📺 Spectator joined!', connecting:'Connecting…', timeout:'Timed out.',
+    share_code:'Share this code', grid_on:'Grid on', grid_off:'Grid off', export_empty:'Whiteboard empty', export_done:'Image saved',
+    fs_err:'Fullscreen not supported', cam_err:'Cannot access camera: ', host_drop:'Host disconnected. Attempting auto-recovery...',
+    sw_vis:'Switched to Editor mode ✍️', sw_mon:'Switched to Spectator mode 📺', disconnected_msg:'Disconnected & Left',
+    snap_on:'🪄 Smart Shape: ON', snap_off:'🪄 Smart Shape: OFF', role_vis:'Editor (Visitor)', role_mon:'Spectator (Monitor)',
+    sw_user_vis:'A user switched to ✍️ Editor', sw_user_mon:'A user switched to 📺 Spectator',
+    title_fs:'Toggle Fullscreen', title_export:'Save / Export Image', title_clear:'Clear Whiteboard', title_pill:'Connection Info / Switch Role',
+    t_pen:'Pen', t_calli:'Calligraphy', t_hl:'Highlighter', t_laser:'Laser Pointer', t_text:'Text', t_eraser:'Eraser',
+    t_line:'Line', t_rect:'Rectangle', t_ellipse:'Circle/Ellipse', t_cam:'Camera Stream', t_grid:'Toggle Grid', t_sel:'Select Tool',
+    t_undo:'Undo', t_redo:'Redo',
+    c_drag:'Drag', c_switch:'Switch Camera', c_flip:'Flip Horizontally', c_layer:'Toggle Layer', c_snap:'Snapshot to Image', c_del:'Delete',
+    tx_drag:'Drag', tx_color:'Text Color', tx_align:'Toggle Alignment', tx_del:'Delete Text',
+    cur_room:'CURRENT ROOM', cur_role:'Current Role: ', btn_sw_vis:'✍️ Switch to Editor', btn_sw_mon:'📺 Switch to Spectator', btn_leave:'Disconnect & Leave'
   }
 };
 
-function detectLang(){
-  try{const s=localStorage.getItem('wb_lang');if(s==='zh'||s==='en')return s}catch(e){}
-  const langs=(navigator.languages||[navigator.language||'en']).map(l=>l.toLowerCase());
-  for(const l of langs){if(l.startsWith('zh'))return 'zh';if(l.startsWith('en'))return 'en'}
+function detectLang(){ 
+  try{const s=localStorage.getItem('wb_lang');if(s==='zh'||s==='en')return s;}catch(e){}
+  // 1. TimeZone Check (Taiwan, HK, Macau) without external API
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (['Asia/Taipei', 'Asia/Hong_Kong', 'Asia/Macau'].includes(tz)) return 'zh';
+  // 2. Strict Browser Preference Check
+  const langs = (navigator.languages || [navigator.language || 'en']).map(l => l.toLowerCase());
+  for (const l of langs) {
+      if (l === 'zh-tw' || l === 'zh-hk' || l === 'zh-mo' || l === 'zh-hant') return 'zh';
+  }
+  // Default fallback
   return 'en';
 }
-let lang=detectLang();
-const t=k=>STRINGS[lang][k]||STRINGS.en[k]||k;
 
-function applyLang(){
-  document.querySelectorAll('[data-i]').forEach(el=>{
-    const key=el.getAttribute('data-i');if(el.tagName==='INPUT')return;
-    if(el.children.length===0) el.textContent=t(key);
-    else el.innerHTML = el.innerHTML.replace(el.textContent.trim(), t(key));
+let lang=detectLang(); const t=k=>STRINGS[lang][k]||STRINGS.en[k]||k;
+
+function applyLang(){ 
+  document.querySelectorAll('[data-i]').forEach(el=>{ 
+      const key=el.getAttribute('data-i');
+      if(el.tagName==='INPUT') el.placeholder = t(key);
+      else if(el.children.length===0) el.textContent=t(key); 
+      else el.innerHTML = el.innerHTML.replace(el.textContent.trim(), t(key)); 
+  }); 
+  document.querySelectorAll('[data-i-title]').forEach(el=>{
+      el.title = t(el.getAttribute('data-i-title'));
   });
-  $('statustext').textContent=currentStatusKey?t(currentStatusKey):t('offline');
-  $('langToggle').textContent=lang==='zh'?'Switch to EN':'切換中文';
-  document.documentElement.lang=lang==='zh'?'zh-TW':'en';
+  
+  $('langToggle').textContent=lang==='zh'?'Switch to EN':'切換中文'; 
+  document.documentElement.lang=lang==='zh'?'zh-TW':'en'; 
+  updateStatusPill(); 
+  if(currentRole === 'host') updateHostUI();
+  if($('currentRoleLabel').textContent) {
+      $('currentRoleLabel').textContent = currentRole === 'visitor' ? t('role_vis') : t('role_mon');
+  }
 }
-let currentStatusKey='offline';
-function setStatus(key,cls){currentStatusKey=key;$('statustext').textContent=t(key);$('dot').className=cls||''}
 
-/* ═══════════════════════════════════════════════════════
-   UTILITIES
-═══════════════════════════════════════════════════════ */
-const $=id=>document.getElementById(id);
-let _tt;
-const toast=m=>{$('toast').textContent=m;$('toast').classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>$('toast').classList.remove('show'),3000)};
+const $=id=>document.getElementById(id); let _tt; const toast=m=>{$('toast').textContent=m;$('toast').classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>$('toast').classList.remove('show'),3500)};
 const setMS=(txt,c)=>{$('mstatus').textContent=txt;$('mstatus').className=c||''};
-const uid=()=>crypto.randomUUID();
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-function hex2rgba(hex, alpha) {
-  let c = hex.substring(1).split('');
-  if(c.length===3) c=[c[0],c[0],c[1],c[1],c[2],c[2]];
-  c= '0x'+c.join('');
-  return 'rgba('+[(c>>16)&255, (c>>8)&255, c&255].join(',')+','+alpha+')';
+const uid=()=>crypto.randomUUID(); const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function hex2rgba(hex, alpha) { let c = hex.substring(1).split(''); if(c.length===3) c=[c[0],c[0],c[1],c[1],c[2],c[2]]; c= '0x'+c.join(''); return 'rgba('+[(c>>16)&255, (c>>8)&255, c&255].join(',')+','+alpha+')'; }
+
+let currentRole=null, currentRoomCode=null;
+function updateStatusPill() {
+   const dot = $('dot'); const txt = $('statustext');
+   if (!currentRole || !currentRoomCode) { dot.className = ''; txt.textContent = t('offline'); return; }
+   dot.className = 'live';
+   let roleStr = currentRole === 'host' ? 'Host' : currentRole === 'visitor' ? 'Visitor' : 'Monitor';
+   txt.textContent = `${currentRoomCode} (${roleStr})`;
 }
 
 /* ═══════════════════════════════════════════════════════
-   CAMERA
+   FULLSCREEN API
+═══════════════════════════════════════════════════════ */
+$('btnFullscreen').onclick = () => {
+  const el = document.documentElement;
+  const isFs = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+  if (!isFs) {
+    if (el.requestFullscreen) { el.requestFullscreen().catch(e => toast(t('fs_err'))); }
+    else if (el.webkitRequestFullscreen) { el.webkitRequestFullscreen(); }
+    else if (el.mozRequestFullScreen) { el.mozRequestFullScreen(); }
+    else if (el.msRequestFullscreen) { el.msRequestFullscreen(); }
+    else { toast(t('fs_err')); }
+  } else {
+    if (document.exitFullscreen) { document.exitFullscreen(); }
+    else if (document.webkitExitFullscreen) { document.webkitExitFullscreen(); }
+    else if (document.mozCancelFullScreen) { document.mozCancelFullScreen(); }
+    else if (document.msExitFullscreen) { document.msExitFullscreen(); }
+  }
+};
+
+function handleFsChange() {
+  const isFs = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+  document.body.classList.toggle('is-fs', !!isFs);
+  $('icon-fs-enter').style.display = isFs ? 'none' : 'block';
+  $('icon-fs-exit').style.display = isFs ? 'block' : 'none';
+  setTimeout(onResize, 100); 
+}
+['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(ev => document.addEventListener(ev, handleFsChange));
+
+/* ═══════════════════════════════════════════════════════
+   CAMERA LOGIC (Transforms & Projections)
 ═══════════════════════════════════════════════════════ */
 const cam={x:0,y:0,z:1};
 function initCam(){cam.x=window.innerWidth/2;cam.y=window.innerHeight/2;cam.z=1;applyCam()}
 function applyCam(){
-  $('canvas').style.transform=`translate(${cam.x}px,${cam.y}px) scale(${cam.z})`;
+  const trans = `translate(${cam.x}px,${cam.y}px) scale(${cam.z})`;
+  $('canvas').style.transform = trans;
+  $('camLayerBack').style.transform = trans;
+  $('camLayerFront').style.transform = trans;
   redrawGrid(); redrawBaseCanvas(); redrawActiveCanvas();
   if(editingObj) applyEditorGeometry();
+  if(editingCam) applyCameraGeometry();
 }
 function s2w(sx,sy){return{x:(sx-cam.x)/cam.z,y:(sy-cam.y)/cam.z}}
 function w2s(wx,wy){return{x:wx*cam.z+cam.x,y:wy*cam.z+cam.y}}
 
 /* ═══════════════════════════════════════════════════════
-   GRID
+   GRID & DRAW CANVAS
 ═══════════════════════════════════════════════════════ */
-let gridVisible=false;
-const gc=$('gridCanvas'), gctx=gc.getContext('2d');
-function resizeGrid(){
-  const dpr=window.devicePixelRatio||1;
-  gc.width=window.innerWidth*dpr;gc.height=window.innerHeight*dpr;
-  gc.style.width=window.innerWidth+'px';gc.style.height=window.innerHeight+'px';
-  gctx.scale(dpr,dpr);
-}
-function redrawGrid(){
-  const W=window.innerWidth,H=window.innerHeight;
-  gctx.clearRect(0,0,W,H);
-  if(!gridVisible)return;
-  const spacing=30*cam.z;
-  const ox=((cam.x%spacing)+spacing)%spacing,oy=((cam.y%spacing)+spacing)%spacing;
-  gctx.strokeStyle='rgba(0,0,0,.06)';gctx.lineWidth=1;
-  gctx.beginPath();
-  for(let x=ox;x<W;x+=spacing){gctx.moveTo(x,0);gctx.lineTo(x,H)}
-  for(let y=oy;y<H;y+=spacing){gctx.moveTo(0,y);gctx.lineTo(W,y)}
-  gctx.stroke();
-  gctx.strokeStyle='rgba(0,0,0,.15)';
-  gctx.beginPath();
-  const ax=cam.x,ay=cam.y;
-  if(ax>=0&&ax<=W){gctx.moveTo(ax,0);gctx.lineTo(ax,H)}
-  if(ay>=0&&ay<=H){gctx.moveTo(0,ay);gctx.lineTo(W,ay)}
-  gctx.stroke();
-}
-$('tgrid').addEventListener('click',()=>{
-  gridVisible=!gridVisible; $('tgrid').classList.toggle('sel',gridVisible);
-  redrawGrid(); toast(t(gridVisible?'grid_on':'grid_off'));
-});
+let gridVisible=false; const gc=$('gridCanvas'), gctx=gc.getContext('2d');
+function resizeGrid(){ const dpr=window.devicePixelRatio||1; gc.width=window.innerWidth*dpr;gc.height=window.innerHeight*dpr; gc.style.width=window.innerWidth+'px';gc.style.height=window.innerHeight+'px'; gctx.scale(dpr,dpr); }
+function redrawGrid(){ const W=window.innerWidth,H=window.innerHeight; gctx.clearRect(0,0,W,H); if(!gridVisible)return; const spacing=30*cam.z; const ox=((cam.x%spacing)+spacing)%spacing,oy=((cam.y%spacing)+spacing)%spacing; gctx.strokeStyle='rgba(0,0,0,.06)';gctx.lineWidth=1; gctx.beginPath(); for(let x=ox;x<W;x+=spacing){gctx.moveTo(x,0);gctx.lineTo(x,H)} for(let y=oy;y<H;y+=spacing){gctx.moveTo(0,y);gctx.lineTo(W,y)} gctx.stroke(); gctx.strokeStyle='rgba(0,0,0,.15)'; gctx.beginPath(); const ax=cam.x,ay=cam.y; if(ax>=0&&ax<=W){gctx.moveTo(ax,0);gctx.lineTo(ax,H)} if(ay>=0&&ay<=H){gctx.moveTo(0,ay);gctx.lineTo(W,ay)} gctx.stroke(); }
+$('tgrid').addEventListener('click',()=>{ gridVisible=!gridVisible; $('tgrid').classList.toggle('sel',gridVisible); redrawGrid(); toast(t(gridVisible?'grid_on':'grid_off')); });
 
-/* ═══════════════════════════════════════════════════════
-   DRAW CANVAS & BRUSH STYLES
-═══════════════════════════════════════════════════════ */
-const bc=$('baseCanvas'), bctx=bc.getContext('2d');
-const ac=$('activeCanvas'), actx=ac.getContext('2d');
-
-function resizeDrawCanvas(){
-  const dpr=window.devicePixelRatio||1;
-  const W=window.innerWidth, H=window.innerHeight;
-  bc.width=W*dpr; bc.height=H*dpr; bc.style.width=W+'px'; bc.style.height=H+'px'; bctx.scale(dpr,dpr);
-  ac.width=W*dpr; ac.height=H*dpr; ac.style.width=W+'px'; ac.style.height=H+'px'; actx.scale(dpr,dpr);
-}
+const bc=$('baseCanvas'), bctx=bc.getContext('2d'); const ac=$('activeCanvas'), actx=ac.getContext('2d');
+function resizeDrawCanvas(){ const dpr=window.devicePixelRatio||1; const W=window.innerWidth, H=window.innerHeight; bc.width=W*dpr; bc.height=H*dpr; bc.style.width=W+'px'; bc.style.height=H+'px'; bctx.scale(dpr,dpr); ac.width=W*dpr; ac.height=H*dpr; ac.style.width=W+'px'; ac.style.height=H+'px'; actx.scale(dpr,dpr); }
 
 function redrawBaseCanvas(){
-  bctx.clearRect(0,0,window.innerWidth,window.innerHeight);
-  bctx.save(); bctx.translate(cam.x, cam.y); bctx.scale(cam.z, cam.z);
-  for(const o of objects) { if (o.type !== 'text') renderObj(bctx, o); }
+  bctx.clearRect(0,0,window.innerWidth,window.innerHeight); bctx.save(); bctx.translate(cam.x, cam.y); bctx.scale(cam.z, cam.z);
+  for(const o of objects) { if (o.type !== 'text' && o.type !== 'camera') renderObj(bctx, o); }
   bctx.restore();
 }
-
 function redrawActiveCanvas(){
-  actx.clearRect(0,0,window.innerWidth,window.innerHeight);
-  
-  actx.save(); actx.translate(cam.x, cam.y); actx.scale(cam.z, cam.z);
+  actx.clearRect(0,0,window.innerWidth,window.innerHeight); actx.save(); actx.translate(cam.x, cam.y); actx.scale(cam.z, cam.z);
   if(liveObj && liveObj.brush !== 'eraser') renderObj(actx, liveObj);
   for(const o of Object.values(remoteLiveStrokes)) { if (o.brush !== 'eraser') renderObj(actx, o); }
-  
-  // Render Laser Strokes with Fade
-  const now = Date.now();
-  for (const l of laserStrokes) {
-    const age = now - l.t0;
-    if (age < 2500) {
-      actx.save(); actx.globalAlpha = Math.max(0, 1 - (age / 2500));
-      renderObj(actx, l); actx.restore();
-    }
-  }
+  const now = Date.now(); for (const l of laserStrokes) { const age = now - l.t0; if (age < 2500) { actx.save(); actx.globalAlpha = Math.max(0, 1 - (age / 2500)); renderObj(actx, l); actx.restore(); } }
   actx.restore();
-
-  // Handle eraser live preview on base canvas (destination-out)
-  if ((liveObj && liveObj.brush === 'eraser') || Object.values(remoteLiveStrokes).some(o => o.brush === 'eraser')) {
-    bctx.save(); bctx.translate(cam.x, cam.y); bctx.scale(cam.z, cam.z);
-    if(liveObj && liveObj.brush === 'eraser') renderObj(bctx, liveObj);
-    for(const o of Object.values(remoteLiveStrokes)) { if (o.brush === 'eraser') renderObj(bctx, o); }
-    bctx.restore();
-  }
+  if ((liveObj && liveObj.brush === 'eraser') || Object.values(remoteLiveStrokes).some(o => o.brush === 'eraser')) { bctx.save(); bctx.translate(cam.x, cam.y); bctx.scale(cam.z, cam.z); if(liveObj && liveObj.brush === 'eraser') renderObj(bctx, liveObj); for(const o of Object.values(remoteLiveStrokes)) { if (o.brush === 'eraser') renderObj(bctx, o); } bctx.restore(); }
 }
 
 function styleCtx(ctx,o){
-  ctx.shadowBlur = 0; // reset
-  if(o.brush === 'eraser'){
-    ctx.globalCompositeOperation = 'destination-out'; ctx.strokeStyle = '#000'; ctx.lineWidth = o.w;
-  } else if (o.brush === 'highlighter') {
-    ctx.globalCompositeOperation = 'multiply'; 
-    ctx.strokeStyle = hex2rgba(o.color || '#FFEB3B', 0.5); 
-    ctx.lineWidth = o.w;
-  } else if (o.brush === 'laser') {
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.strokeStyle = o.color || '#e84855';
-    ctx.lineWidth = o.w;
-    ctx.shadowBlur = 12 * cam.z; ctx.shadowColor = o.color || '#e84855';
-  } else {
-    // Standard Pen & Shapes
-    ctx.globalCompositeOperation = 'source-over'; ctx.strokeStyle = o.color || '#1a1a2e'; ctx.lineWidth = o.w;
-  }
+  ctx.shadowBlur = 0; 
+  if(o.brush === 'eraser'){ ctx.globalCompositeOperation = 'destination-out'; ctx.strokeStyle = '#000'; ctx.lineWidth = o.w; } 
+  else if (o.brush === 'highlighter') { ctx.globalCompositeOperation = 'multiply'; ctx.strokeStyle = hex2rgba(o.color || '#FFEB3B', 0.5); ctx.lineWidth = o.w; } 
+  else if (o.brush === 'laser') { ctx.globalCompositeOperation = 'source-over'; ctx.strokeStyle = o.color || '#e84855'; ctx.lineWidth = o.w; ctx.shadowBlur = 12 * cam.z; ctx.shadowColor = o.color || '#e84855'; } 
+  else { ctx.globalCompositeOperation = 'source-over'; ctx.strokeStyle = o.color || '#1a1a2e'; ctx.lineWidth = o.w; }
   ctx.lineCap='round'; ctx.lineJoin='round'; ctx.fillStyle='transparent';
 }
 
 function renderObj(ctx,o){
-  if(o.type==='stroke' && o.brush==='calligraphy') drawCalligraphy(ctx, o);
+  if(o.type==='image') drawImageObj(ctx, o);
+  else if(o.type==='stroke' && o.brush==='calligraphy') drawCalligraphy(ctx, o);
   else if(o.type==='stroke') drawStroke(ctx,o);
   else if(o.type==='line') drawLine(ctx,o);
   else if(o.type==='rect') drawRect(ctx,o);
@@ -595,140 +579,35 @@ function renderObj(ctx,o){
   else if(o.type==='triangle') drawTriangle(ctx,o);
 }
 
+function drawImageObj(ctx, o) {
+  if (!o._img) { 
+      Object.defineProperty(o, '_img', { enumerable: false, writable: true, value: new Image() });
+      o._img.src = o.imgData; 
+      o._img.onload = () => { redrawBaseCanvas(); }; 
+  }
+  if (o._img.complete) { 
+      ctx.save(); 
+      ctx.globalAlpha = o.opacity / 100; 
+      ctx.globalCompositeOperation = 'source-over'; 
+      ctx.drawImage(o._img, o.x, o.y, o.w, o.h); 
+      ctx.restore(); 
+  }
+}
+
 function drawCalligraphy(ctx, o) {
-  if(!o.pts?.length) return;
-  ctx.globalCompositeOperation = 'source-over';
-  ctx.fillStyle = o.color || '#1a1a2e';
-
-  // 單點點擊：畫一個有自信的實心小點
-  if (o.pts.length === 1) {
-      ctx.beginPath(); ctx.arc(o.pts[0].x, o.pts[0].y, o.w * 0.25, 0, Math.PI*2); ctx.fill();
-      return;
-  }
-
-  ctx.strokeStyle = o.color || '#1a1a2e';
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-
-  let currentW = o.w * 0.2; 
-  const total = o.pts.length;
-  const taperLen = 6; 
-  
-  let lastX = o.pts[0].x;
-  let lastY = o.pts[0].y;
-
-  for(let i = 1; i < total; i++){
-      const p1 = o.pts[i-1], p2 = o.pts[i];
-      const dist = Math.hypot(p2.x-p1.x, p2.y-p1.y);
-      const speed = Math.min(dist, 25) / 25; 
-      
-      let targetW = Math.max(o.w * 0.2, o.w * (1 - speed * 0.75));
-      
-      // 計算錐度 (筆鋒)
-      let taper = 1;
-      if (i <= taperLen) {
-          taper = 0.3 + 0.7 * (i / taperLen);
-      } 
-      if (i >= total - taperLen) {
-          const tailTaper = 0.3 + 0.7 * ((total - i) / taperLen);
-          if (tailTaper < taper) taper = tailTaper; 
-      }
-      
-      targetW *= taper; 
-      let nextW = currentW + (targetW - currentW) * 0.4; 
-      nextW = Math.max(0.5, nextW);
-
-      if (i < total - 1) {
-          const midX = (p2.x + o.pts[i+1].x) / 2;
-          const midY = (p2.y + o.pts[i+1].y) / 2;
-          
-          // 【關鍵核心】微積分插值法：將一條貝茲曲線切碎成多段微小直線，平滑過渡寬度
-          // 距離越長切越細，保證每 2 像素至少過渡一次
-          const steps = Math.max(4, Math.ceil(dist / 2)); 
-          let prevSubX = lastX, prevSubY = lastY;
-          
-          for (let j = 1; j <= steps; j++) {
-              const t = j / steps;
-              // 二次貝茲曲線點位公式
-              const subX = (1-t)*(1-t)*lastX + 2*(1-t)*t*p2.x + t*t*midX;
-              const subY = (1-t)*(1-t)*lastY + 2*(1-t)*t*p2.y + t*t*midY;
-              // 寬度線性漸變
-              const subW = currentW + (nextW - currentW) * t;
-
-              ctx.beginPath();
-              ctx.moveTo(prevSubX, prevSubY);
-              ctx.lineTo(subX, subY);
-              ctx.lineWidth = subW;
-              ctx.stroke();
-              
-              prevSubX = subX;
-              prevSubY = subY;
-          }
-          
-          lastX = midX;
-          lastY = midY;
-      } else {
-          // 最後一個線段的漸變收尾
-          const steps = Math.max(4, Math.ceil(dist / 2));
-          let prevSubX = lastX, prevSubY = lastY;
-          
-          for (let j = 1; j <= steps; j++) {
-              const t = j / steps;
-              const subX = lastX + (p2.x - lastX) * t;
-              const subY = lastY + (p2.y - lastY) * t;
-              const subW = currentW + (nextW - currentW) * t;
-
-              ctx.beginPath();
-              ctx.moveTo(prevSubX, prevSubY);
-              ctx.lineTo(subX, subY);
-              ctx.lineWidth = subW;
-              ctx.stroke();
-              
-              prevSubX = subX;
-              prevSubY = subY;
-          }
-      }
-      currentW = nextW;
-  }
+  if(!o.pts?.length) return; ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = o.color || '#1a1a2e';
+  if (o.pts.length === 1) { ctx.beginPath(); ctx.arc(o.pts[0].x, o.pts[0].y, o.w * 0.25, 0, Math.PI*2); ctx.fill(); return; }
+  ctx.strokeStyle = o.color || '#1a1a2e'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  let currentW = o.w * 0.2; const total = o.pts.length; const taperLen = 6; let lastX = o.pts[0].x, lastY = o.pts[0].y;
+  for(let i = 1; i < total; i++){ const p1 = o.pts[i-1], p2 = o.pts[i]; const dist = Math.hypot(p2.x-p1.x, p2.y-p1.y); const speed = Math.min(dist, 25) / 25; let targetW = Math.max(o.w * 0.2, o.w * (1 - speed * 0.75)); let taper = 1; if (i <= taperLen) taper = 0.3 + 0.7 * (i / taperLen); if (i >= total - taperLen) { const tailTaper = 0.3 + 0.7 * ((total - i) / taperLen); if (tailTaper < taper) taper = tailTaper; } targetW *= taper; let nextW = currentW + (targetW - currentW) * 0.4; nextW = Math.max(0.5, nextW); if (i < total - 1) { const midX = (p2.x + o.pts[i+1].x) / 2; const midY = (p2.y + o.pts[i+1].y) / 2; const steps = Math.max(4, Math.ceil(dist / 2)); let prevSubX = lastX, prevSubY = lastY; for (let j = 1; j <= steps; j++) { const t = j / steps; const subX = (1-t)*(1-t)*lastX + 2*(1-t)*t*p2.x + t*t*midX; const subY = (1-t)*(1-t)*lastY + 2*(1-t)*t*p2.y + t*t*midY; const subW = currentW + (nextW - currentW) * t; ctx.beginPath(); ctx.moveTo(prevSubX, prevSubY); ctx.lineTo(subX, subY); ctx.lineWidth = subW; ctx.stroke(); prevSubX = subX; prevSubY = subY; } lastX = midX; lastY = midY; } else { const steps = Math.max(4, Math.ceil(dist / 2)); let prevSubX = lastX, prevSubY = lastY; for (let j = 1; j <= steps; j++) { const t = j / steps; const subX = lastX + (p2.x - lastX) * t; const subY = lastY + (p2.y - lastY) * t; const subW = currentW + (nextW - currentW) * t; ctx.beginPath(); ctx.moveTo(prevSubX, prevSubY); ctx.lineTo(subX, subY); ctx.lineWidth = subW; ctx.stroke(); prevSubX = subX; prevSubY = subY; } } currentW = nextW; }
 }
-
-function drawStroke(ctx,o){
-  if(!o.pts?.length)return; styleCtx(ctx,o);
-  ctx.beginPath();ctx.moveTo(o.pts[0].x,o.pts[0].y);
-  for(let i=1;i<o.pts.length-1;i++){
-    const mx=(o.pts[i].x+o.pts[i+1].x)/2,my=(o.pts[i].y+o.pts[i+1].y)/2;
-    ctx.quadraticCurveTo(o.pts[i].x,o.pts[i].y,mx,my);
-  }
-  if(o.pts.length>1)ctx.lineTo(o.pts.at(-1).x,o.pts.at(-1).y);
-  ctx.stroke();
-}
+function drawStroke(ctx,o){ if(!o.pts?.length)return; styleCtx(ctx,o); ctx.beginPath();ctx.moveTo(o.pts[0].x,o.pts[0].y); for(let i=1;i<o.pts.length-1;i++){ const mx=(o.pts[i].x+o.pts[i+1].x)/2,my=(o.pts[i].y+o.pts[i+1].y)/2; ctx.quadraticCurveTo(o.pts[i].x,o.pts[i].y,mx,my); } if(o.pts.length>1)ctx.lineTo(o.pts.at(-1).x,o.pts.at(-1).y); ctx.stroke(); }
 function drawLine(ctx,o){styleCtx(ctx,o);ctx.beginPath();ctx.moveTo(o.x1,o.y1);ctx.lineTo(o.x2,o.y2);ctx.stroke()}
 function drawRect(ctx,o){styleCtx(ctx,o);ctx.strokeRect(o.x,o.y,o.w2,o.h2)}
-function drawEllipse(ctx,o){
-  styleCtx(ctx,o);ctx.beginPath();
-  ctx.ellipse(o.cx,o.cy,Math.max(0.01,Math.abs(o.rx)),Math.max(0.01,Math.abs(o.ry)),0,0,Math.PI*2);
-  ctx.stroke();
-}
-function drawTriangle(ctx,o){
-  styleCtx(ctx,o);ctx.beginPath();
-  ctx.moveTo(o.pts[0].x, o.pts[0].y);
-  ctx.lineTo(o.pts[1].x, o.pts[1].y);
-  ctx.lineTo(o.pts[2].x, o.pts[2].y);
-  ctx.closePath(); ctx.stroke();
-}
+function drawEllipse(ctx,o){ styleCtx(ctx,o);ctx.beginPath(); ctx.ellipse(o.cx,o.cy,Math.max(0.01,Math.abs(o.rx)),Math.max(0.01,Math.abs(o.ry)),0,0,Math.PI*2); ctx.stroke(); }
+function drawTriangle(ctx,o){ styleCtx(ctx,o);ctx.beginPath(); ctx.moveTo(o.pts[0].x, o.pts[0].y); ctx.lineTo(o.pts[1].x, o.pts[1].y); ctx.lineTo(o.pts[2].x, o.pts[2].y); ctx.closePath(); ctx.stroke(); }
 
-// Laser Animation Loop
-let laserStrokes =[]; let _hadLasers = false;
-function loop() {
-  const now = Date.now();
-  laserStrokes = laserStrokes.filter(l => now - l.t0 < 2500);
-  if (laserStrokes.length > 0 || _hadLasers) {
-    redrawActiveCanvas();
-  }
-  _hadLasers = laserStrokes.length > 0;
-  requestAnimationFrame(loop);
-}
-requestAnimationFrame(loop);
+let laserStrokes =[]; let _hadLasers = false; function loop() { const now = Date.now(); laserStrokes = laserStrokes.filter(l => now - l.t0 < 2500); if (laserStrokes.length > 0 || _hadLasers) redrawActiveCanvas(); _hadLasers = laserStrokes.length > 0; requestAnimationFrame(loop); } requestAnimationFrame(loop);
 
 /* ═══════════════════════════════════════════════════════
    OBJECTS & UNDO
@@ -736,919 +615,729 @@ requestAnimationFrame(loop);
 let objects=[]; let liveObj=null;
 function objById(id){return objects.find(o=>o.id===id)}
 const MAX_HISTORY=30; let undoStack=[],redoStack=[];
-function snapshot(){
-  undoStack.push(JSON.stringify(objects));
-  if(undoStack.length>MAX_HISTORY)undoStack.shift();
-  redoStack=[];updateUndoRedo();
-}
-function undo(){
-  if(editingObj) { closeTextEditor(true); setTool('select'); }
-  if(!undoStack.length)return;
-  redoStack.push(JSON.stringify(objects));
-  objects=JSON.parse(undoStack.pop());
-  redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();updateUndoRedo();
-  send({type:'SYNC_ALL',objs:objects});
-}
-function redo(){
-  if(editingObj) { closeTextEditor(true); setTool('select'); }
-  if(!redoStack.length)return;
-  undoStack.push(JSON.stringify(objects));
-  objects=JSON.parse(redoStack.pop());
-  redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();updateUndoRedo();
-  send({type:'SYNC_ALL',objs:objects});
-}
-function updateUndoRedo(){$('undoBtn').disabled=!undoStack.length;$('redoBtn').disabled=!redoStack.length}
-$('undoBtn').addEventListener('click',undo); $('redoBtn').addEventListener('click',redo);
+function snapshot(){ undoStack.push(JSON.stringify(objects)); if(undoStack.length>MAX_HISTORY)undoStack.shift(); redoStack=[];updateUndoRedo(); }
+function undo(){ if(editingObj) { closeTextEditor(true); setTool('select'); } if(editingCam) { closeCameraEditor(true); setTool('select'); } if(!undoStack.length)return; redoStack.push(JSON.stringify(objects)); objects=JSON.parse(undoStack.pop()); redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();renderCameraObjects();updateUndoRedo(); send({type:'SYNC_ALL',objs:objects}); }
+function redo(){ if(editingObj) { closeTextEditor(true); setTool('select'); } if(editingCam) { closeCameraEditor(true); setTool('select'); } if(!redoStack.length)return; undoStack.push(JSON.stringify(objects)); objects=JSON.parse(redoStack.pop()); redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();renderCameraObjects();updateUndoRedo(); send({type:'SYNC_ALL',objs:objects}); }
+function updateUndoRedo(){$('undoBtn').disabled=!undoStack.length;$('redoBtn').disabled=!redoStack.length} $('undoBtn').addEventListener('click',undo); $('redoBtn').addEventListener('click',redo);
 
 /* ═══════════════════════════════════════════════════════
-   TEXT OBJECTS (Implicit Commit, Smart Bounds)
+   TEXT OBJECTS (Fixed Deep-Clone Logic)
 ═══════════════════════════════════════════════════════ */
-const textLayer=$('textLayer');
-const teWrap=$('textEditorWrap'), teBox=$('textEditorBox'), te=$('textEditor');
-const tfs=$('textFontSize'), btnB=$('btnBold'), btnI=$('btnItalic'), btnU=$('btnUnderline'), btnAlign=$('btnAlign');
-let editingObj=null;
+const textLayer=$('textLayer'); const teWrap=$('textEditorWrap'), teBox=$('textEditorBox'), te=$('textEditor'); const tfs=$('textFontSize'), btnB=$('btnBold'), btnI=$('btnItalic'), btnU=$('btnUnderline'), btnAlign=$('btnAlign'); let editingObj=null;
 
 function renderTextObjects(){
-  const existing=new Map([...textLayer.children].map(d=>[d.dataset.id,d]));
-  const current=new Set(objects.filter(o=>o.type==='text').map(o=>o.id));
+  const existing=new Map([...textLayer.children].map(d=>[d.dataset.id,d])); const current=new Set(objects.filter(o=>o.type==='text').map(o=>o.id));
   for(const[id,div] of existing)if(!current.has(id))div.remove();
   for(const o of objects){
-    if(o.type!=='text')continue;
-    let div=textLayer.querySelector(`[data-id="${o.id}"]`);
-    if(!div){
-      div=document.createElement('div'); div.dataset.id=o.id; div.className='textObj';
-      textLayer.appendChild(div); bindTextDiv(div,o);
-    }
-    div.textContent=o.text||'';
-    div.style.left=o.x+'px'; div.style.top=o.y+'px';
-    div.style.width=o.boxW?(o.boxW+'px'):'auto'; div.style.height=o.boxH?(o.boxH+'px'):'auto';
-    div.style.fontSize=(o.fontSize||20)+'px'; div.style.color=o.color||'#1a1a2e';
-    div.style.fontWeight=o.bold?'700':'400'; div.style.fontStyle=o.italic?'italic':'normal';
-    div.style.textDecoration=o.underline?'underline':'none';
-    div.style.textAlign=o.align||'left'; div.style.whiteSpace=o.autoW?'pre':'pre-wrap';
-    div.style.visibility=(editingObj&&editingObj.id===o.id)?'hidden':'visible';
+    if(o.type!=='text')continue; let div=textLayer.querySelector(`[data-id="${o.id}"]`);
+    if(!div){ div=document.createElement('div'); div.dataset.id=o.id; div.className='textObj'; textLayer.appendChild(div); bindTextDiv(div,o); }
+    div.textContent=o.text||''; div.style.left=o.x+'px'; div.style.top=o.y+'px'; div.style.width=o.boxW?(o.boxW+'px'):'auto'; div.style.height=o.boxH?(o.boxH+'px'):'auto'; div.style.fontSize=(o.fontSize||20)+'px'; div.style.color=o.color||'#1a1a2e'; div.style.fontWeight=o.bold?'700':'400'; div.style.fontStyle=o.italic?'italic':'normal'; div.style.textDecoration=o.underline?'underline':'none'; div.style.textAlign=o.align||'left'; div.style.whiteSpace=o.autoW?'pre':'pre-wrap'; div.style.visibility=(editingObj&&editingObj.id===o.id)?'hidden':'visible';
   }
 }
+function bindTextDiv(div,o){ div.addEventListener('pointerdown',e=>{ e.stopPropagation(); e.preventDefault(); if(currentRole === 'monitor') return; if(editingObj && editingObj.id !== o.id) closeTextEditor(true); if(editingCam) closeCameraEditor(); if(activeTool !== 'text') setTool('text'); openTextEditor(o); }); }
 
-function bindTextDiv(div,o){
-  div.addEventListener('pointerdown',e=>{
-    e.stopPropagation(); e.preventDefault(); // Bypass viewport pointerdown
-    if(editingObj && editingObj.id !== o.id) closeTextEditor(true);
-    if(activeTool !== 'text') setTool('text');
-    openTextEditor(o);
-  });
-}
-
-function applyEditorGeometry(){
-  if(!editingObj) return;
-  if (editingObj.autoW === undefined) editingObj.autoW = true;
-
-  const measure = $('textMeasure');
-  measure.style.fontSize = (editingObj.fontSize || 20) + 'px';
-  measure.style.fontWeight = editingObj.bold ? '700' : '400';
-  measure.style.fontStyle = editingObj.italic ? 'italic' : 'normal';
-  measure.style.textDecoration = editingObj.underline ? 'underline' : 'none';
-  measure.textContent = te.value + (te.value.endsWith('\n') ? '\u200b' : '') || '\u200b';
-
-  // Smart Bound Collision Check
-  const sp = w2s(editingObj.x, editingObj.y);
-  const maxVisualWidth = window.innerWidth - sp.x - 32;
-  const maxLogicalWidth = Math.max(100, maxVisualWidth / cam.z);
-
-  if (editingObj.autoW) {
-    measure.style.whiteSpace = 'pre'; measure.style.width = 'auto';
-    let rawW = measure.clientWidth;
-    if (rawW > maxLogicalWidth) { 
-      editingObj.autoW = false; editingObj.manualW = maxLogicalWidth;
-    } else {
-      editingObj.boxW = Math.max(20, rawW);
-      editingObj.boxH = Math.max(20, measure.clientHeight);
-    }
+function applyEditorGeometry(){ 
+  if(!editingObj) return; 
+  if (editingObj.autoW === undefined) editingObj.autoW = true; 
+  const measure = $('textMeasure'); 
+  measure.style.fontSize = (editingObj.fontSize || 20) + 'px'; 
+  measure.style.fontWeight = editingObj.bold ? '700' : '400'; 
+  measure.style.fontStyle = editingObj.italic ? 'italic' : 'normal'; 
+  measure.style.textDecoration = editingObj.underline ? 'underline' : 'none'; 
+  measure.textContent = te.value + (te.value.endsWith('\n') ? '\u200b' : '') || '\u200b'; 
+  
+  const sp = w2s(editingObj.x, editingObj.y); 
+  const maxVisualWidth = window.innerWidth - sp.x - 32; 
+  const maxLogicalWidth = Math.max(100, maxVisualWidth / cam.z); 
+  
+  if (editingObj.autoW) { 
+      measure.style.whiteSpace = 'pre'; 
+      measure.style.width = 'auto'; 
+      let rawW = measure.clientWidth; 
+      if (rawW > maxLogicalWidth) { editingObj.autoW = false; editingObj.manualW = maxLogicalWidth; } 
+      else { editingObj.boxW = Math.max(20, rawW); editingObj.boxH = Math.max(20, measure.clientHeight); } 
+  } 
+  if (!editingObj.autoW) { 
+      measure.style.whiteSpace = 'pre-wrap'; measure.style.width = editingObj.manualW + 'px'; 
+      editingObj.boxW = Math.max(20, editingObj.manualW); editingObj.boxH = Math.max(20, measure.clientHeight); 
   } 
   
-  if (!editingObj.autoW) {
-    measure.style.whiteSpace = 'pre-wrap';
-    measure.style.width = editingObj.manualW + 'px';
-    editingObj.boxW = Math.max(20, editingObj.manualW);
-    editingObj.boxH = Math.max(20, measure.clientHeight);
-  }
-
-  teWrap.style.left = sp.x + 'px'; teWrap.style.top = sp.y + 'px';
-  teBox.style.width = (editingObj.boxW * cam.z) + 'px';
-  teBox.style.height = (editingObj.boxH * cam.z) + 'px';
-  te.style.fontSize = (editingObj.fontSize || 20) * cam.z + 'px';
-  te.style.textAlign = editingObj.align || 'left';
+  teWrap.style.left = sp.x + 'px'; teWrap.style.top = sp.y + 'px'; 
+  teBox.style.width = (editingObj.boxW * cam.z) + 'px'; teBox.style.height = (editingObj.boxH * cam.z) + 'px'; 
+  te.style.fontSize = (editingObj.fontSize || 20) * cam.z + 'px'; te.style.textAlign = editingObj.align || 'left'; 
   
-  const textDiv = textLayer.querySelector(`[data-id="${editingObj.id}"]`);
-  if (textDiv) textDiv.style.whiteSpace = editingObj.autoW ? 'pre' : 'pre-wrap';
+  const textDiv = textLayer.querySelector(`[data-id="${editingObj.id}"]`); 
+  if (textDiv) textDiv.style.whiteSpace = editingObj.autoW ? 'pre' : 'pre-wrap'; 
   
-  if (sp.y + teBox.offsetHeight > window.innerHeight - 80) {
-    cam.y -= (sp.y + teBox.offsetHeight - (window.innerHeight - 80));
-    applyCam();
-  }
+  if (sp.y + teBox.offsetHeight > window.innerHeight - 80) { cam.y -= (sp.y + teBox.offsetHeight - (window.innerHeight - 80)); applyCam(); } 
 }
 
-function updateTextToolsUI(){
-  if(!editingObj) return;
-  btnB.classList.toggle('active', !!editingObj.bold);
-  btnI.classList.toggle('active', !!editingObj.italic);
-  btnU.classList.toggle('active', !!editingObj.underline);
-  tfs.value = editingObj.fontSize || 20;
-  const align = editingObj.align || 'left';
-  if (align === 'left') { btnAlign.innerHTML = '≣'; }
-  else if (align === 'center') { btnAlign.innerHTML = '⫸'; }
-  else if (align === 'right') { btnAlign.innerHTML = '⫷'; }
-  
-  $('textColorPick').value = editingObj.color || '#1a1a2e';
-  $('textColorSwatch').style.background = editingObj.color || '#1a1a2e';
+function updateTextToolsUI(){ 
+  if(!editingObj) return; 
+  btnB.classList.toggle('active', !!editingObj.bold); btnI.classList.toggle('active', !!editingObj.italic); btnU.classList.toggle('active', !!editingObj.underline); 
+  tfs.value = editingObj.fontSize || 20; 
+  const align = editingObj.align || 'left'; 
+  if (align === 'left') { $('icon-align').innerHTML = '<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>'; } 
+  else if (align === 'center') { $('icon-align').innerHTML = '<line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>'; } 
+  else if (align === 'right') { $('icon-align').innerHTML = '<line x1="3" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>'; } 
+  $('textColorPick').value = editingObj.color || '#1a1a2e'; $('textColorSwatch').style.background = editingObj.color || '#1a1a2e'; 
 }
 
-let _edOrig = null; // Store original state to detect changes
-function openTextEditor(o){
+let _edOrig = null; 
+function openTextEditor(o){ 
   if(editingObj && editingObj.id !== o.id) closeTextEditor(true); 
-  
-  editingObj = o;
-  _edOrig = { x: o.x, y: o.y, text: o.text, boxW: o.boxW };
-  teWrap.style.display='block';
-  te.style.color=o.color||'#1a1a2e';
-  te.style.fontWeight=o.bold?'700':'400';
-  te.style.fontStyle=o.italic?'italic':'normal';
-  te.style.textDecoration=o.underline?'underline':'none';
-  te.value=o.text||'';
-  
-  updateTextToolsUI(); applyEditorGeometry(); renderTextObjects();
-  
-  // Mobile Safari trusted focus
-  te.focus({ preventScroll: true }); 
+  // Deep Clone to perfectly isolate editing state from the shared objects array
+  editingObj = JSON.parse(JSON.stringify(o)); 
+  _edOrig = { x: o.x, y: o.y, text: o.text, boxW: o.boxW }; 
+  teWrap.style.display='block'; 
+  te.style.color=o.color||'#1a1a2e'; te.style.fontWeight=o.bold?'700':'400'; te.style.fontStyle=o.italic?'italic':'normal'; te.style.textDecoration=o.underline?'underline':'none'; 
+  te.value=o.text||''; updateTextToolsUI(); applyEditorGeometry(); renderTextObjects(); te.focus({ preventScroll: true }); 
 }
 
-function closeTextEditor(commit, forceDelete = false){
-  if(!editingObj) return;
-  const txt = te.value.trim();
-  
-  if (forceDelete || (commit && txt === '')) {
-    objects = objects.filter(o => o.id !== editingObj.id);
-    send({type:'DEL', id: editingObj.id});
-  } else if (commit && txt !== '') {
-    editingObj.text = te.value;
-    editingObj.fontSize = parseInt(tfs.value) || 20;
-    
-    // Check if visual or structural changes occurred
-    if (editingObj.text !== _edOrig.text || editingObj.x !== _edOrig.x || editingObj.y !== _edOrig.y || editingObj.boxW !== _edOrig.boxW || !objById(editingObj.id)) {
-        snapshot();
-    }
-    
-    if(!objById(editingObj.id)) objects.push(editingObj);
-    send({type:'UPD', o: editingObj});
-  }
-  
-  editingObj = null; _edOrig = null; teWrap.style.display = 'none'; renderTextObjects();
+function closeTextEditor(commit, forceDelete = false){ 
+  if(!editingObj) return; 
+  const txt = te.value.trim(); 
+  if (forceDelete || (commit && txt === '')) { 
+      objects = objects.filter(o => o.id !== editingObj.id); 
+      send({type:'DEL', id: editingObj.id}); 
+  } else if (commit && txt !== '') { 
+      editingObj.text = te.value; 
+      editingObj.fontSize = parseInt(tfs.value) || 20; 
+      
+      const isChanged = (editingObj.text !== _edOrig.text || editingObj.x !== _edOrig.x || editingObj.y !== _edOrig.y || editingObj.boxW !== _edOrig.boxW);
+      if (isChanged || !objById(editingObj.id)) snapshot(); 
+      
+      // Update objects strictly via copy
+      const finalObj = JSON.parse(JSON.stringify(editingObj));
+      const idx = objects.findIndex(o => o.id === finalObj.id);
+      if(idx > -1) objects[idx] = finalObj; else objects.push(finalObj);
+      
+      send({type:'UPD', o: finalObj}); 
+  } 
+  editingObj = null; _edOrig = null; teWrap.style.display = 'none'; renderTextObjects(); 
 }
-
 te.addEventListener('input', applyEditorGeometry);
 
-// ── Text Move & Resize Handles ──
-const textMoveBtn = $('textMoveBtn');
-let textDragging=false, textDragPid=null, tmStartPX, tmStartPY, tmObjX, tmObjY;
+const textMoveBtn = $('textMoveBtn'); let textDragging=false, textDragPid=null, tmStartPX, tmStartPY, tmObjX, tmObjY; textMoveBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); textDragging = true; textDragPid = e.pointerId; textMoveBtn.setPointerCapture(textDragPid); tmStartPX = e.clientX; tmStartPY = e.clientY; tmObjX = editingObj.x; tmObjY = editingObj.y; }); textMoveBtn.addEventListener('pointermove', e => { if(!textDragging || e.pointerId !== textDragPid) return; e.preventDefault(); e.stopPropagation(); const dx = (e.clientX - tmStartPX) / cam.z; const dy = (e.clientY - tmStartPY) / cam.z; editingObj.x = tmObjX + dx; editingObj.y = tmObjY + dy; applyEditorGeometry(); }); textMoveBtn.addEventListener('pointerup', e => { if(e.pointerId === textDragPid) { textDragging = false; renderTextObjects(); } }); textMoveBtn.addEventListener('pointercancel', e => { if(e.pointerId === textDragPid) { textDragging = false; renderTextObjects(); } });
+teBox.querySelectorAll('.res-handle').forEach(handle=>{ const dir=handle.dataset.h; let startPX,startObjX,startObjW; let resizing=false,rpid=null; handle.addEventListener('pointerdown',e=>{ e.stopPropagation();e.preventDefault(); resizing=true;rpid=e.pointerId; handle.setPointerCapture(e.pointerId); startPX=e.clientX; startObjX=editingObj.x; startObjW=editingObj.boxW; }); handle.addEventListener('pointermove',e=>{ if(!resizing||e.pointerId!==rpid)return; e.stopPropagation();e.preventDefault(); const dx=(e.clientX-startPX)/cam.z; let nx=startObjX, nw=startObjW; if(dir === 'e') nw=Math.max(40,startObjW+dx); if(dir === 'w'){ nw=Math.max(40,startObjW-dx); nx=startObjX+startObjW-nw; } editingObj.x=nx; editingObj.autoW = false; editingObj.manualW = nw; applyEditorGeometry(); }); handle.addEventListener('pointerup',e=>{ if(e.pointerId===rpid) { resizing=false; renderTextObjects(); }}); handle.addEventListener('pointercancel',e=>{ if(e.pointerId===rpid) { resizing=false; renderTextObjects(); }}); });
+function toggleFormat(fmt){ if(!editingObj) return; editingObj[fmt] = !editingObj[fmt]; toolsState.text[fmt] = editingObj[fmt]; saveTools(); te.style.fontWeight = editingObj.bold ? '700' : '400'; te.style.fontStyle = editingObj.italic ? 'italic' : 'normal'; te.style.textDecoration = editingObj.underline ? 'underline' : 'none'; updateTextToolsUI(); te.focus({ preventScroll: true }); applyEditorGeometry(); }
+$('textColorPick').addEventListener('input', e => { if (!editingObj) return; const hex = e.target.value; editingObj.color = hex; $('textColorSwatch').style.background = hex; te.style.color = hex; toolsState.text.color = hex; saveTools(); renderTextObjects(); te.focus({ preventScroll: true }); });
+btnB.onpointerdown=e=>{e.preventDefault(); toggleFormat('bold');}; btnI.onpointerdown=e=>{e.preventDefault(); toggleFormat('italic');}; btnU.onpointerdown=e=>{e.preventDefault(); toggleFormat('underline');};
+btnAlign.onpointerdown=e=>{ e.preventDefault(); if(!editingObj) return; const current = editingObj.align || 'left'; editingObj.align = current === 'left' ? 'center' : current === 'center' ? 'right' : 'left'; toolsState.text.align = editingObj.align; saveTools(); updateTextToolsUI(); applyEditorGeometry(); te.focus({ preventScroll: true }); };
+tfs.onchange=e=>{ if(editingObj){ const sz = parseInt(tfs.value)||20; editingObj.fontSize = sz; toolsState.text.sz = sz; saveTools(); applyEditorGeometry(); te.focus({ preventScroll: true }); } else { toolsState.text.sz = parseInt(tfs.value)||20; saveTools(); } };
+$('btnTextDelete').onpointerdown=e=>{ e.preventDefault(); e.stopPropagation(); closeTextEditor(false, true); setTool('select'); };
+te.addEventListener('keydown',e=>{ if(e.key==='Escape'){ e.preventDefault(); closeTextEditor(true); setTool('select'); } if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); closeTextEditor(true); setTool('select'); } });
+function createTextObj(wx,wy){ if(editingObj) closeTextEditor(true); const st = toolsState.text || defaultStates.text; const o={ id:uid(), type:'text', x:wx, y:wy, text:'', color:st.color, fontSize: st.sz||20, autoW:true, align: st.align || 'left', bold: st.bold || false, italic: st.italic || false, underline: st.underline || false }; openTextEditor(o); }
 
-textMoveBtn.addEventListener('pointerdown', e => {
-  e.preventDefault(); e.stopPropagation();
-  textDragging = true;
-  textDragPid = e.pointerId;
-  textMoveBtn.setPointerCapture(textDragPid);
-  tmStartPX = e.clientX; tmStartPY = e.clientY;
-  tmObjX = editingObj.x; tmObjY = editingObj.y;
-});
+/* ═══════════════════════════════════════════════════════
+   CAMERA OVERLAY LOGIC (WEBRTC BROADCAST)
+═══════════════════════════════════════════════════════ */
+let myPeerId = null;
+let editingCam = null; 
+let localStream = null;
+let remoteStreams = {}; 
+let currentFacingMode = 'user';
 
-textMoveBtn.addEventListener('pointermove', e => {
-  if(!textDragging || e.pointerId !== textDragPid) return;
-  e.preventDefault(); e.stopPropagation();
-  const dx = (e.clientX - tmStartPX) / cam.z;
-  const dy = (e.clientY - tmStartPY) / cam.z;
-  editingObj.x = tmObjX + dx;
-  editingObj.y = tmObjY + dy;
-  applyEditorGeometry();
-});
-
-textMoveBtn.addEventListener('pointerup', e => { 
-  if(e.pointerId === textDragPid) { textDragging = false; renderTextObjects(); } 
-});
-textMoveBtn.addEventListener('pointercancel', e => { 
-  if(e.pointerId === textDragPid) { textDragging = false; renderTextObjects(); } 
-});
-
-teBox.querySelectorAll('.res-handle').forEach(handle=>{
-  const dir=handle.dataset.h;
-  let startPX,startObjX,startObjW;
-  let resizing=false,rpid=null;
-
-  handle.addEventListener('pointerdown',e=>{
-    e.stopPropagation();e.preventDefault();
-    resizing=true;rpid=e.pointerId; handle.setPointerCapture(e.pointerId);
-    startPX=e.clientX; startObjX=editingObj.x; startObjW=editingObj.boxW;
-  });
-  handle.addEventListener('pointermove',e=>{
-    if(!resizing||e.pointerId!==rpid)return;
-    e.stopPropagation();e.preventDefault();
-    const dx=(e.clientX-startPX)/cam.z;
-    let nx=startObjX, nw=startObjW;
-    if(dir === 'e') nw=Math.max(40,startObjW+dx);
-    if(dir === 'w'){ nw=Math.max(40,startObjW-dx); nx=startObjX+startObjW-nw; }
-    editingObj.x=nx; editingObj.autoW = false; editingObj.manualW = nw;
-    applyEditorGeometry();
-  });
-  handle.addEventListener('pointerup',e=>{ if(e.pointerId===rpid) { resizing=false; renderTextObjects(); }});
-  handle.addEventListener('pointercancel',e=>{ if(e.pointerId===rpid) { resizing=false; renderTextObjects(); }});
-});
-
-function toggleFormat(fmt){
-  if(!editingObj) return; 
-  editingObj[fmt] = !editingObj[fmt];
-  toolsState.text[fmt] = editingObj[fmt];
-  saveTools();
-  te.style.fontWeight = editingObj.bold ? '700' : '400';
-  te.style.fontStyle = editingObj.italic ? 'italic' : 'normal';
-  te.style.textDecoration = editingObj.underline ? 'underline' : 'none';
-  updateTextToolsUI(); te.focus({ preventScroll: true }); applyEditorGeometry();
+async function startCameraService() {
+  if (localStream) stopCameraService();
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode } });
+    broadcastLocalStream();
+    renderCameraObjects();
+  } catch (err) { toast(t('cam_err') + (err.message || err)); }
 }
 
-$('textColorPick').addEventListener('input', e => {
-  if (!editingObj) return;
-  const hex = e.target.value;
-  editingObj.color = hex;
-  $('textColorSwatch').style.background = hex;
-  te.style.color = hex;
-  toolsState.text.color = hex;
-  saveTools();
-  renderTextObjects();
-  te.focus({ preventScroll: true });
-});
+function stopCameraService() {
+  if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+}
 
-btnB.onpointerdown=e=>{e.preventDefault(); toggleFormat('bold');};
-btnI.onpointerdown=e=>{e.preventDefault(); toggleFormat('italic');};
-btnU.onpointerdown=e=>{e.preventDefault(); toggleFormat('underline');};
-btnAlign.onpointerdown=e=>{
-  e.preventDefault(); if(!editingObj) return;
-  const current = editingObj.align || 'left';
-  editingObj.align = current === 'left' ? 'center' : current === 'center' ? 'right' : 'left';
-  toolsState.text.align = editingObj.align;
-  saveTools();
-  updateTextToolsUI(); applyEditorGeometry(); te.focus({ preventScroll: true });
-};
-tfs.onchange=e=>{ 
-  if(editingObj){ 
-    const sz = parseInt(tfs.value)||20;
-    editingObj.fontSize = sz;
-    toolsState.text.sz = sz;
-    saveTools();
-    applyEditorGeometry(); 
-    te.focus({ preventScroll: true }); 
-  } else {
-    toolsState.text.sz = parseInt(tfs.value)||20;
-    saveTools();
+function broadcastLocalStream() {
+  if (!localStream || !myPeerId) return;
+  if (currentRole === 'host') {
+     S.hostConns.forEach(c => { if(c.conn.open) _peer.call(c.conn.peer, localStream, { metadata: { ownerId: myPeerId }}); });
+  } else if (S.hostConn?.open) {
+     _peer.call(S.hostConn.peer, localStream, { metadata: { ownerId: myPeerId }});
   }
-};
+}
 
-$('btnTextDelete').onpointerdown=e=>{
-  e.preventDefault(); e.stopPropagation();
-  closeTextEditor(false, true); setTool('select');
-};
+function renderCameraObjects() {
+  const backLayer = $('camLayerBack'); const frontLayer = $('camLayerFront');
+  const existingVids = new Map(); document.querySelectorAll('.cam-video').forEach(v => existingVids.set(v.dataset.id, v));
+  const currentCams = objects.filter(o => o.type === 'camera');
+  const currentIds = new Set(currentCams.map(o => o.id));
 
-te.addEventListener('keydown',e=>{
-  if(e.key==='Escape'){ e.preventDefault(); closeTextEditor(true); setTool('select'); } 
-  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); closeTextEditor(true); setTool('select'); }
+  for (const [id, vid] of existingVids) {
+      if (!currentIds.has(id)) { vid.srcObject = null; vid.remove(); }
+  }
+
+  currentCams.forEach(camObj => {
+      let vid = existingVids.get(camObj.id);
+      if (!vid) {
+          vid = document.createElement('video');
+          vid.className = 'cam-video';
+          vid.dataset.id = camObj.id;
+          vid.setAttribute('autoplay', '');
+          vid.setAttribute('playsinline', '');
+          vid.setAttribute('muted', '');
+          vid.autoplay = true; vid.playsInline = true; vid.muted = true;
+          
+          vid.onloadedmetadata = () => { vid.play().catch(e=>console.warn('播放被阻擋:', e)); };
+          
+          vid.addEventListener('pointerdown', e => {
+              if (currentRole === 'monitor') return;
+              e.stopPropagation();
+              if (editingObj) closeTextEditor(true);
+              if (editingCam && editingCam.id !== camObj.id) closeCameraEditor(true);
+              openCameraEditor(camObj);
+          });
+      }
+      
+      let targetStream = null;
+      if (camObj.ownerId === myPeerId && localStream) { targetStream = localStream; }
+      else if (camObj.ownerId !== myPeerId && remoteStreams[camObj.ownerId]) { targetStream = remoteStreams[camObj.ownerId]; }
+
+      if (targetStream && vid.srcObject !== targetStream) {
+          vid.srcObject = targetStream;
+          vid.play().catch(e=>console.warn('直接播放失敗:', e));
+      }
+
+      vid.style.left = camObj.x + 'px'; vid.style.top = camObj.y + 'px';
+      vid.style.width = camObj.w + 'px'; vid.style.height = camObj.h + 'px';
+      vid.style.opacity = camObj.opacity / 100;
+      vid.style.transform = camObj.flip ? 'scaleX(-1)' : 'none';
+
+      if (editingCam && editingCam.id === camObj.id) vid.classList.add('selected'); else vid.classList.remove('selected');
+
+      const targetParent = camObj.isBack ? backLayer : frontLayer;
+      if (vid.parentElement !== targetParent) targetParent.appendChild(vid);
+  });
+  
+  if (localStream && !currentCams.some(c => c.ownerId === myPeerId)) stopCameraService();
+}
+
+function applyCameraGeometry() {
+  if (!editingCam) return;
+  const sp = w2s(editingCam.x, editingCam.y);
+  const wrap = $('cameraEditorWrap');
+  wrap.style.left = sp.x + 'px'; wrap.style.top = sp.y + 'px';
+  wrap.style.width = (editingCam.w * cam.z) + 'px'; wrap.style.height = (editingCam.h * cam.z) + 'px';
+}
+
+function openCameraEditor(camObj) {
+  editingCam = camObj;
+  $('cameraEditorWrap').style.display = 'block';
+  $('camOpacity').value = camObj.opacity;
+  $('icon-layer-up').innerHTML = camObj.isBack ? '<polyline points="6 9 12 15 18 9"/>' : '<polyline points="18 15 12 9 6 15"/>';
+  
+  $('camSwitchBtn').style.display = (camObj.ownerId === myPeerId) ? 'block' : 'none';
+  $('camFlipBtn').style.display = (camObj.ownerId === myPeerId) ? 'block' : 'none';
+  
+  applyCameraGeometry();
+  renderCameraObjects();
+}
+
+function closeCameraEditor(commit = true) {
+  if (!editingCam) return;
+  if (commit) send({type: 'UPD', o: editingCam});
+  editingCam = null;
+  $('cameraEditorWrap').style.display = 'none';
+  renderCameraObjects();
+}
+
+function createNewCamera() {
+  const cw = 320, ch = 240; const center = s2w(window.innerWidth/2, window.innerHeight/2);
+  const camObj = { id: uid(), type: 'camera', ownerId: myPeerId, x: center.x - cw/2, y: center.y - ch/2, w: cw, h: ch, opacity: 100, isBack: false, flip: false };
+  snapshot();
+  objects.push(camObj);
+  send({type: 'ADD', o: camObj});
+  startCameraService();
+  openCameraEditor(camObj);
+}
+
+function takeCameraSnapshot() {
+  if (!editingCam) return;
+  const imgId = uid();
+  const camData = JSON.parse(JSON.stringify(editingCam));
+  const wasMyCam = (editingCam.ownerId === myPeerId);
+
+  send({ type: 'CMD_SNAPSHOT', camObj: camData, imgId: imgId });
+  executeLocalSnapshot(camData, imgId);
+  
+  closeCameraEditor(false); 
+  if (wasMyCam) stopCameraService();
+}
+
+function executeLocalSnapshot(camObj, imgId) {
+  const vid = document.querySelector(`video[data-id="${camObj.id}"]`);
+  if (!vid) return;
+
+  const cvs = document.createElement('canvas');
+  let cw = vid.videoWidth || 640;
+  let ch = vid.videoHeight || 480;
+  
+  const MAX_DIM = 1200;
+  if (cw > MAX_DIM) { ch = Math.floor(ch * (MAX_DIM / cw)); cw = MAX_DIM; }
+  
+  cvs.width = cw; cvs.height = ch;
+  if(cvs.width === 0) return;
+  
+  const ctx = cvs.getContext('2d'); 
+  if (camObj.flip) {
+      ctx.translate(cw, 0);
+      ctx.scale(-1, 1);
+  }
+  ctx.drawImage(vid, 0, 0, cw, ch);
+  const dataUrl = cvs.toDataURL('image/jpeg', 0.6);
+
+  const imgObj = { id: imgId, type: 'image', imgData: dataUrl, x: camObj.x, y: camObj.y, w: camObj.w, h: camObj.h, opacity: camObj.opacity, isBack: camObj.isBack };
+
+  snapshot(); 
+  objects = objects.filter(o => o.id !== camObj.id); 
+  
+  if (imgObj.isBack) { 
+      let i = 0; while(i < objects.length && objects[i].isBack) i++; 
+      objects.splice(i, 0, imgObj); 
+  } else { 
+      objects.push(imgObj); 
+  }
+  
+  redrawBaseCanvas();
+  renderCameraObjects();
+}
+
+function deleteCamera() {
+  if (!editingCam) return;
+  const wasMyCam = (editingCam.ownerId === myPeerId);
+  snapshot(); objects = objects.filter(o => o.id !== editingCam.id);
+  send({type: 'DEL', id: editingCam.id});
+  
+  closeCameraEditor(false);
+  if (wasMyCam) stopCameraService();
+  renderCameraObjects();
+}
+
+const camMoveBtn = $('camMoveBtn'); let camDragging=false, camDragPid=null, camX0, camY0, camPx0, camPy0;
+camMoveBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); camDragging = true; camDragPid = e.pointerId; camMoveBtn.setPointerCapture(camDragPid); camX0 = editingCam.x; camY0 = editingCam.y; camPx0 = e.clientX; camPy0 = e.clientY; });
+camMoveBtn.addEventListener('pointermove', e => { if(!camDragging || e.pointerId !== camDragPid) return; editingCam.x = camX0 + (e.clientX - camPx0)/cam.z; editingCam.y = camY0 + (e.clientY - camPy0)/cam.z; applyCameraGeometry(); renderCameraObjects(); });
+camMoveBtn.addEventListener('pointerup', e => { camDragging = false; }); camMoveBtn.addEventListener('pointercancel', e => { camDragging = false; });
+
+document.querySelectorAll('.cam-res-handle').forEach(h => {
+  let resizing=false, rpid=null, dir=h.dataset.h, sx, sy, sw, sh, px, py;
+  h.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); resizing=true; rpid=e.pointerId; h.setPointerCapture(rpid); sx=editingCam.x; sy=editingCam.y; sw=editingCam.w; sh=editingCam.h; px=e.clientX; py=e.clientY; });
+  h.addEventListener('pointermove', e => {
+      if(!resizing || e.pointerId!==rpid) return;
+      const dx = (e.clientX - px)/cam.z; const dy = (e.clientY - py)/cam.z;
+      if(dir==='r') { editingCam.w = Math.max(50, sw + dx); } if(dir==='l') { editingCam.w = Math.max(50, sw - dx); editingCam.x = sx + (sw - editingCam.w); }
+      if(dir==='b') { editingCam.h = Math.max(50, sh + dy); } if(dir==='t') { editingCam.h = Math.max(50, sh - dy); editingCam.y = sy + (sh - editingCam.h); }
+      applyCameraGeometry(); renderCameraObjects();
+  });
+  h.addEventListener('pointerup', e => { resizing=false; }); h.addEventListener('pointercancel', e => { resizing=false; });
 });
 
-function createTextObj(wx,wy){
-  if(editingObj) closeTextEditor(true);
-  const st = toolsState.text || defaultStates.text;
-  const fontSize = st.sz || 20;
-  const o={
-    id:uid(), type:'text', x:wx, y:wy, text:'', color:st.color, 
-    fontSize, autoW:true, align: st.align || 'left',
-    bold: st.bold || false, italic: st.italic || false, underline: st.underline || false
-  };
-  openTextEditor(o);
-}
+$('camSwitchBtn').onclick = () => { currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user'; startCameraService(); };
+$('camFlipBtn').onclick = () => { if(editingCam) { editingCam.flip = !editingCam.flip; renderCameraObjects(); send({type: 'UPD', o: editingCam}); } };
+$('camOpacity').oninput = e => { editingCam.opacity = e.target.value; renderCameraObjects(); };
+$('camLayerBtn').onclick = () => { editingCam.isBack = !editingCam.isBack; $('icon-layer-up').innerHTML = editingCam.isBack ? '<polyline points="6 9 12 15 18 9"/>' : '<polyline points="18 15 12 9 6 15"/>'; renderCameraObjects(); };
+$('camSnapshotBtn').onclick = () => { takeCameraSnapshot(); setTool('select'); };
+$('camDeleteBtn').onclick = () => { deleteCamera(); setTool('select'); };
+
 
 /* ═══════════════════════════════════════════════════════
    SHAPE RECOGNITION 
 ═══════════════════════════════════════════════════════ */
-function recognizeShape(pts){
-  if(!pts||pts.length<5)return null;
-  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-  for(const p of pts){minX=Math.min(minX,p.x);minY=Math.min(minY,p.y);maxX=Math.max(maxX,p.x);maxY=Math.max(maxY,p.y)}
-  const bw=maxX-minX,bh=maxY-minY;
-  if(bw<10&&bh<10)return null;
-  
-  const first=pts[0],last=pts.at(-1);
-  const closeThreshold=Math.max(bw,bh)*0.3; 
-  const isClosed=Math.hypot(last.x-first.x,last.y-first.y)<closeThreshold;
-  
-  if(!isClosed){
-    const dx=last.x-first.x,dy=last.y-first.y, len=Math.hypot(dx,dy);
-    if(len>20){
-      let maxDist=0;
-      for(const p of pts) maxDist=Math.max(maxDist, Math.abs((dy)*p.x-(dx)*p.y+last.x*first.y-last.y*first.x)/len);
-      if(maxDist<len*0.12) return{shape:'line',x1:first.x,y1:first.y,x2:last.x,y2:last.y};
-    }
-    return null;
-  }
-  
-  const cx=(minX+maxX)/2,cy=(minY+maxY)/2,rx=bw/2,ry=bh/2;
-  
-  let rVar=0, meanR=0;
-  for(const p of pts) meanR+=Math.hypot(p.x-cx,p.y-cy);
-  meanR/=pts.length;
-  for(const p of pts) rVar+=Math.abs(Math.hypot(p.x-cx,p.y-cy)-meanR);
-  rVar/=(pts.length*meanR); 
-  
-  if(rVar < 0.25) { 
-    if(Math.min(bw,bh)/Math.max(bw,bh)>0.8){const r=(rx+ry)/2;return{shape:'circle',cx,cy,r}}
-    return{shape:'ellipse',cx,cy,rx,ry};
-  }
-
-  let rectScore=0;
-  for(const p of pts){
-    const dl=Math.abs(p.x-minX),dr=Math.abs(p.x-maxX),dt=Math.abs(p.y-minY),db=Math.abs(p.y-maxY);
-    rectScore+=Math.min(dl,dr,dt,db)/Math.max(bw,bh);
-  }
-  rectScore/=pts.length;
-  
-  if(rectScore < 0.18){
-    if(Math.min(bw,bh)/Math.max(bw,bh)>0.85){const s=Math.max(bw,bh)/2;return{shape:'square',x:cx-s,y:cy-s,size:s*2}}
-    return{shape:'rect',x:minX,y:minY,w:bw,h:bh};
-  }
-  
-  let dists = pts.map(p => Math.hypot(p.x-cx, p.y-cy));
-  let smoothDists =[];
-  for(let i=0;i<dists.length;i++) smoothDists.push((dists[(i-1+dists.length)%dists.length]+dists[i]+dists[(i+1)%dists.length])/3);
-  
-  let peaks=[];
-  for(let i=1;i<smoothDists.length-1;i++){
-    if(smoothDists[i]>smoothDists[i-1] && smoothDists[i]>smoothDists[i+1]) {
-      if (smoothDists[i] > meanR * 1.1) peaks.push(pts[i]);
-    }
-  }
-  if(peaks.length === 3 || peaks.length === 4) {
-    let merged =[];
-    for(const pk of peaks) {
-      if(merged.length===0 || Math.hypot(pk.x-merged.at(-1).x, pk.y-merged.at(-1).y) > meanR) merged.push(pk);
-    }
-    if(merged.length === 3) return {shape:'triangle', pts: merged};
-  }
-  return null;
-}
+function recognizeShape(pts){ if(!pts||pts.length<5)return null; let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity; for(const p of pts){minX=Math.min(minX,p.x);minY=Math.min(minY,p.y);maxX=Math.max(maxX,p.x);maxY=Math.max(maxY,p.y)} const bw=maxX-minX,bh=maxY-minY; if(bw<10&&bh<10)return null; const first=pts[0],last=pts.at(-1); const closeThreshold=Math.max(bw,bh)*0.3; const isClosed=Math.hypot(last.x-first.x,last.y-first.y)<closeThreshold; if(!isClosed){ const dx=last.x-first.x,dy=last.y-first.y, len=Math.hypot(dx,dy); if(len>20){ let maxDist=0; for(const p of pts) maxDist=Math.max(maxDist, Math.abs((dy)*p.x-(dx)*p.y+last.x*first.y-last.y*first.x)/len); if(maxDist<len*0.12) return{shape:'line',x1:first.x,y1:first.y,x2:last.x,y2:last.y}; } return null; } const cx=(minX+maxX)/2,cy=(minY+maxY)/2,rx=bw/2,ry=bh/2; let rVar=0, meanR=0; for(const p of pts) meanR+=Math.hypot(p.x-cx,p.y-cy); meanR/=pts.length; for(const p of pts) rVar+=Math.abs(Math.hypot(p.x-cx,p.y-cy)-meanR); rVar/=(pts.length*meanR); if(rVar < 0.25) { if(Math.min(bw,bh)/Math.max(bw,bh)>0.8){const r=(rx+ry)/2;return{shape:'circle',cx,cy,r}} return{shape:'ellipse',cx,cy,rx,ry}; } let rectScore=0; for(const p of pts){ const dl=Math.abs(p.x-minX),dr=Math.abs(p.x-maxX),dt=Math.abs(p.y-minY),db=Math.abs(p.y-maxY); rectScore+=Math.min(dl,dr,dt,db)/Math.max(bw,bh); } rectScore/=pts.length; if(rectScore < 0.18){ if(Math.min(bw,bh)/Math.max(bw,bh)>0.85){const s=Math.max(bw,bh)/2;return{shape:'square',x:cx-s,y:cy-s,size:s*2}} return{shape:'rect',x:minX,y:minY,w:bw,h:bh}; } let dists = pts.map(p => Math.hypot(p.x-cx, p.y-cy)); let smoothDists =[]; for(let i=0;i<dists.length;i++) smoothDists.push((dists[(i-1+dists.length)%dists.length]+dists[i]+dists[(i+1)%dists.length])/3); let peaks=[]; for(let i=1;i<smoothDists.length-1;i++){ if(smoothDists[i]>smoothDists[i-1] && smoothDists[i]>smoothDists[i+1]) { if (smoothDists[i] > meanR * 1.1) peaks.push(pts[i]); } } if(peaks.length === 3 || peaks.length === 4) { let merged =[]; for(const pk of peaks) { if(merged.length===0 || Math.hypot(pk.x-merged.at(-1).x, pk.y-merged.at(-1).y) > meanR) merged.push(pk); } if(merged.length === 3) return {shape:'triangle', pts: merged}; } return null; }
 
 /* ═══════════════════════════════════════════════════════
-   TOOL STATE & CONTEXTUAL POPUP
+   TOOL STATE
 ═══════════════════════════════════════════════════════ */
-const S={color:'#1a1a2e', w:4, conn:null};
+const S={color:'#1a1a2e', w:4, hostConn:null, hostConns:[]};
 let activeTool='pen';
-const toolBtns={pen:'tpen', calligraphy:'tcalli', highlighter:'thighlight', laser:'tlaser', line:'tline', rect:'trect', ellipse:'tellipse', text:'ttext', eraser:'teraser', select:'tselect'};
+const toolBtns={pen:'tpen', calligraphy:'tcalli', highlighter:'thighlight', laser:'tlaser', line:'tline', rect:'trect', ellipse:'tellipse', text:'ttext', eraser:'teraser', select:'tselect', camera:'tcamera'};
 
-const defaultStates = {
-  pen: {color:'#1a1a2e', sz: 4}, calligraphy: {color:'#1a1a2e', sz: 8}, highlighter: {color:'#FFEB3B', sz: 24},
-  laser: {color:'#e84855', sz: 6}, line: {color:'#1a1a2e', sz: 4}, rect: {color:'#1a1a2e', sz: 4},
-  ellipse: {color:'#1a1a2e', sz: 4}, eraser: {sz: 32},
-  text: {color:'#1a1a2e', sz: 20, bold: false, italic: false, underline: false, align: 'left'}
-};
-let toolsState = JSON.parse(localStorage.getItem('wb_tools')) || defaultStates;
-function saveTools() { localStorage.setItem('wb_tools', JSON.stringify(toolsState)); }
+const defaultStates = { pen: {color:'#1a1a2e', sz: 4}, calligraphy: {color:'#1a1a2e', sz: 8}, highlighter: {color:'#FFEB3B', sz: 24}, laser: {color:'#e84855', sz: 6}, line: {color:'#1a1a2e', sz: 4}, rect: {color:'#1a1a2e', sz: 4}, ellipse: {color:'#1a1a2e', sz: 4}, eraser: {sz: 32}, text: {color:'#1a1a2e', sz: 20, bold: false, italic: false, underline: false, align: 'left'} };
+let toolsState = JSON.parse(localStorage.getItem('wb_tools')) || defaultStates; function saveTools() { localStorage.setItem('wb_tools', JSON.stringify(toolsState)); }
 
-function updatePopupUI() {
-  if (activeTool === 'eraser') {
-    $('tcPreviewWrap').classList.add('is-eraser');
-  } else {
-    $('tcPreviewWrap').classList.remove('is-eraser');
-    $('tcDot').style.background = S.color;
-    $('tcColorPick').value = S.color;
-  }
-  $('tcSize').textContent = S.w;
-  // Visual limit for preview dot
-  const dotSz = Math.min(S.w, 32);
-  $('tcDot').style.width = dotSz + 'px';
-  $('tcDot').style.height = dotSz + 'px';
-}
+function updatePopupUI() { if (activeTool === 'eraser') { $('tcPreviewWrap').classList.add('is-eraser'); } else { $('tcPreviewWrap').classList.remove('is-eraser'); $('tcDot').style.background = S.color; $('tcColorPick').value = S.color; } $('tcSize').textContent = S.w; const dotSz = Math.min(S.w, 32); $('tcDot').style.width = dotSz + 'px'; $('tcDot').style.height = dotSz + 'px'; }
 
 function setTool(tool){
   if(editingObj) closeTextEditor(true);
+  if(editingCam && tool !== 'camera') closeCameraEditor(true);
+
   activeTool = tool;
   Object.values(toolBtns).forEach(id=>$(id)?.classList.remove('sel','sel-hl','sel-ls','sel-er'));
+  if(tool==='highlighter') $(toolBtns[tool]).classList.add('sel-hl'); else if(tool==='laser') $(toolBtns[tool]).classList.add('sel-ls'); else if(tool==='eraser') $(toolBtns[tool]).classList.add('sel-er'); else $(toolBtns[tool])?.classList.add('sel');
   
-  if(tool==='highlighter') $(toolBtns[tool]).classList.add('sel-hl');
-  else if(tool==='laser') $(toolBtns[tool]).classList.add('sel-ls');
-  else if(tool==='eraser') $(toolBtns[tool]).classList.add('sel-er');
-  else $(toolBtns[tool])?.classList.add('sel');
+  if (toolsState[tool]) { if (toolsState[tool].color) S.color = toolsState[tool].color; if (typeof toolsState[tool].sz === 'number') { if (tool === 'text') $('textFontSize').value = toolsState[tool].sz; else S.w = toolsState[tool].sz; } }
+  if (['pen', 'calligraphy', 'highlighter', 'laser', 'line', 'rect', 'ellipse', 'eraser'].includes(tool)) { $('toolConfig').classList.remove('hidden'); updatePopupUI(); } else { $('toolConfig').classList.add('hidden'); }
   
-  // Apply Memory
-  if (toolsState[tool]) {
-    if (toolsState[tool].color) S.color = toolsState[tool].color;
-    if (typeof toolsState[tool].sz === 'number') {
-      if (tool === 'text') $('textFontSize').value = toolsState[tool].sz;
-      else S.w = toolsState[tool].sz;
-    }
+  if (tool === 'camera') {
+      const myCam = objects.find(o => o.type === 'camera' && o.ownerId === myPeerId);
+      if (myCam) openCameraEditor(myCam); else createNewCamera();
   }
-
-  // Handle Context Popup Visibility
-  if (['pen', 'calligraphy', 'highlighter', 'laser', 'line', 'rect', 'ellipse', 'eraser'].includes(tool)) {
-      $('toolConfig').classList.remove('hidden');
-      updatePopupUI();
-  } else {
-      $('toolConfig').classList.add('hidden');
-  }
-
-  $('viewport').style.cursor=tool==='pen'?'crosshair':tool==='calligraphy'?'crosshair':tool==='highlighter'?'crosshair':tool==='laser'?'crosshair':tool==='eraser'?'cell':tool==='select'?'default':'crosshair';
+  
+  $('viewport').style.cursor=tool==='pen'?'crosshair':tool==='calligraphy'?'crosshair':tool==='highlighter'?'crosshair':tool==='laser'?'crosshair':tool==='eraser'?'cell':tool==='select'?'default':tool==='camera'?'default':'crosshair';
 }
 Object.entries(toolBtns).forEach(([k,id])=>$(id)?.addEventListener('click',()=>setTool(k)));
-
-$('tcColorPick').oninput = e => {
-  if (activeTool === 'eraser') return;
-  S.color = e.target.value;
-  updatePopupUI();
-  if(toolsState[activeTool]) { toolsState[activeTool].color = S.color; saveTools(); }
-};
-
-// Continuous +/- size logic
-let tcInterval, tcTimeout;
-const changeSize = (delta) => {
-  S.w = clamp(S.w + delta, 1, 100);
-  updatePopupUI();
-  if(toolsState[activeTool]) { toolsState[activeTool].sz = S.w; saveTools(); }
-};
-const startChange = (delta) => {
-  changeSize(delta);
-  tcTimeout = setTimeout(() => { tcInterval = setInterval(() => changeSize(delta), 30); }, 300);
-};
-const stopChange = () => { clearTimeout(tcTimeout); clearInterval(tcInterval); };
-
-$('tcMinus').addEventListener('pointerdown', e => { e.preventDefault(); startChange(-1); });
-$('tcPlus').addEventListener('pointerdown', e => { e.preventDefault(); startChange(1); });
-window.addEventListener('pointerup', stopChange);
-window.addEventListener('pointercancel', stopChange);
-
+$('tcColorPick').oninput = e => { if (activeTool === 'eraser') return; S.color = e.target.value; updatePopupUI(); if(toolsState[activeTool]) { toolsState[activeTool].color = S.color; saveTools(); } };
+let tcInterval, tcTimeout; const changeSize = (delta) => { S.w = clamp(S.w + delta, 1, 100); updatePopupUI(); if(toolsState[activeTool]) { toolsState[activeTool].sz = S.w; saveTools(); } }; const startChange = (delta) => { changeSize(delta); tcTimeout = setTimeout(() => { tcInterval = setInterval(() => changeSize(delta), 30); }, 300); }; const stopChange = () => { clearTimeout(tcTimeout); clearInterval(tcInterval); };
+$('tcMinus').addEventListener('pointerdown', e => { e.preventDefault(); startChange(-1); }); $('tcPlus').addEventListener('pointerdown', e => { e.preventDefault(); startChange(1); }); window.addEventListener('pointerup', stopChange); window.addEventListener('pointercancel', stopChange);
 setTool('pen');
 
 /* ═══════════════════════════════════════════════════════
    POINTER HANDLING 
 ═══════════════════════════════════════════════════════ */
 const vp=$('viewport');
-
-// 🛡️ 系統級防禦：強行阻擋 iOS Safari 原生的長按放大鏡與 Live Text 辨識機制
-vp.addEventListener('touchstart', e => {
-  // 只要不是在點擊文字編輯器，一律沒收 iOS 的觸控預設行為！
-  if(!e.target.closest('#textEditorWrap')) {
-      e.preventDefault();
-  }
-}, { passive: false });
-
-const activePointers=new Map();
-let panPointerId=null; let panStart={};  
-let pinchActive=false; let pinchDist0=0,pinchMid0=null,pinchCam0=null;
-let drawPointerId=null; let liveObjStarted=false; let holdTimer=null; let snapApplied=false;
-
-let shapeSnapEnabled=false; let lpTimer=null; let lpStart=null;
-vp.addEventListener('dblclick', e => {
-  if(e.target.closest('#textEditor')) return;
-  shapeSnapEnabled = !shapeSnapEnabled;
-  toast(shapeSnapEnabled ? '🪄 智慧形狀辨識：已開啟' : '🪄 智慧形狀辨識：已關閉');
-});
-
-function isUITarget(el){ return el.closest('#tb')||el.closest('#topRight')||el.closest('#topLeft')||el.closest('#textEditorWrap')||el.closest('#modal')||el.closest('#toolConfig'); }
+vp.addEventListener('touchstart', e => { if(!e.target.closest('#textEditorWrap') && !e.target.closest('#cameraEditorWrap')) e.preventDefault(); }, { passive: false });
+const activePointers=new Map(); let panPointerId=null; let panStart={}; let pinchActive=false; let pinchDist0=0,pinchMid0=null,pinchCam0=null; let drawPointerId=null; let liveObjStarted=false; let holdTimer=null; let snapApplied=false; let shapeSnapEnabled=false; let lpTimer=null; let lpStart=null;
+vp.addEventListener('dblclick', e => { if(e.target.closest('#textEditor') || currentRole === 'monitor') return; shapeSnapEnabled = !shapeSnapEnabled; toast(t(shapeSnapEnabled ? 'snap_on' : 'snap_off')); });
+function isUITarget(el){ return el.closest('#tb')||el.closest('#topRight')||el.closest('#topLeft')||el.closest('#textEditorWrap')||el.closest('#cameraEditorWrap')||el.closest('#modal')||el.closest('#toolConfig'); }
 function getPinchDist(){ const pts=[...activePointers.values()]; if(pts.length<2)return 0; return Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y); }
 function getPinchMid(){ const pts=[...activePointers.values()]; if(pts.length<2)return{x:0,y:0}; return{x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2}; }
 
 vp.addEventListener('pointerdown', e => {
   if(isUITarget(e.target)) return;
-  
   if (editingObj) { closeTextEditor(true); setTool('select'); }
-  
-  // Auto-hide popup when drawing
+  if (editingCam && !e.target.classList.contains('cam-video')) { closeCameraEditor(true); setTool('select'); }
   if (!isUITarget(e.target)) $('toolConfig').classList.add('hidden');
-  
   activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
   
-  if (e.button === 1) {
-    panPointerId = e.pointerId; panStart = { px: e.clientX, py: e.clientY, cx: cam.x, cy: cam.y }; e.preventDefault(); return;
-  }
+  if (currentRole === 'monitor') { if (activePointers.size >= 2) { pinchActive=true; pinchDist0=getPinchDist(); pinchMid0=getPinchMid(); pinchCam0={...cam}; } else { panPointerId = e.pointerId; panStart = { px: e.clientX, py: e.clientY, cx: cam.x, cy: cam.y }; } e.preventDefault(); return; }
+  if (e.button === 1) { panPointerId = e.pointerId; panStart = { px: e.clientX, py: e.clientY, cx: cam.x, cy: cam.y }; e.preventDefault(); return; }
   if (e.button === 2) return;
-  
-  if(activePointers.size>=2){
-    if(drawPointerId!==null) cancelDraw();
-    panPointerId=null; pinchActive=true; pinchDist0=getPinchDist(); pinchMid0=getPinchMid(); pinchCam0={...cam};
-    return;
-  }
+  if(activePointers.size>=2){ if(drawPointerId!==null) cancelDraw(); panPointerId=null; pinchActive=true; pinchDist0=getPinchDist(); pinchMid0=getPinchMid(); pinchCam0={...cam}; return; }
   if(pinchActive) return;
 
   const w=s2w(e.clientX,e.clientY);
-  
   if(activeTool==='select'){ panPointerId=e.pointerId; panStart={px:e.clientX,py:e.clientY,cx:cam.x,cy:cam.y}; return; }
-  
-  if(activeTool==='text'){ 
-    e.preventDefault(); // Trusted event focus preparation
-    return; 
-  }
+  if(activeTool==='text'||activeTool==='camera'){ e.preventDefault(); return; }
 
-  // Draw Mode
   drawPointerId=e.pointerId; liveObjStarted=true; snapApplied=false;
-
   if(activeTool==='pen'||activeTool==='calligraphy'||activeTool==='highlighter'||activeTool==='laser') liveObj={id:uid(),type:'stroke',brush:activeTool,pts:[{...w}],color:S.color,w:S.w};
   else if(activeTool==='eraser') liveObj={id:uid(),type:'stroke',brush:'eraser',pts:[{...w}],color:'eraser',w:S.w};
   else if(activeTool==='line') liveObj={id:uid(),type:'line',brush:'pen',x1:w.x,y1:w.y,x2:w.x,y2:w.y,color:S.color,w:S.w};
   else if(activeTool==='rect') liveObj={id:uid(),type:'rect',brush:'pen',x:w.x,y:w.y,w2:0,h2:0,color:S.color,w:S.w,_ox:w.x,_oy:w.y};
   else if(activeTool==='ellipse') liveObj={id:uid(),type:'ellipse',brush:'pen',cx:w.x,cy:w.y,rx:0,ry:0,_ox:w.x,_oy:w.y,color:S.color,w:S.w};
 
-  if(activeTool==='pen'||activeTool==='highlighter'){
-    holdTimer=setTimeout(()=>{
-      if(shapeSnapEnabled&&liveObjStarted&&liveObj?.pts?.length>4&&!snapApplied){ const r=recognizeShape(liveObj.pts);if(r)applyRecognizedShape(r); }
-    },600); 
-  }
-  if(activeTool==='line'||activeTool==='rect'||activeTool==='ellipse'){ 
-    if(shapeSnapEnabled){ holdTimer=setTimeout(()=>{if(liveObjStarted&&liveObj&&!snapApplied)snapCurrentShape()},500); }
-  }
-
-  if(activePointers.size === 1) {
-    lpStart = {x: e.clientX, y: e.clientY};
-    lpTimer = setTimeout(() => {
-      if(drawPointerId === e.pointerId && liveObjStarted && liveObj?.pts?.length < 5) {
-         shapeSnapEnabled = !shapeSnapEnabled;
-         toast(shapeSnapEnabled ? '🪄 智慧形狀辨識：已開啟' : '🪄 智慧形狀辨識：已關閉');
-         cancelDraw(); 
-      }
-    }, 1000); 
-  }
+  if(activeTool==='pen'||activeTool==='highlighter'){ holdTimer=setTimeout(()=>{ if(shapeSnapEnabled&&liveObjStarted&&liveObj?.pts?.length>4&&!snapApplied){ const r=recognizeShape(liveObj.pts);if(r)applyRecognizedShape(r); } },600); }
+  if(activeTool==='line'||activeTool==='rect'||activeTool==='ellipse'){ if(shapeSnapEnabled){ holdTimer=setTimeout(()=>{if(liveObjStarted&&liveObj&&!snapApplied)snapCurrentShape()},500); } }
+  if(activePointers.size === 1) { lpStart = {x: e.clientX, y: e.clientY}; lpTimer = setTimeout(() => { if(drawPointerId === e.pointerId && liveObjStarted && liveObj?.pts?.length < 5) { shapeSnapEnabled = !shapeSnapEnabled; toast(t(shapeSnapEnabled ? 'snap_on' : 'snap_off')); cancelDraw(); } }, 1000); }
 });
 
 window.addEventListener('pointermove', e => {
   if(!activePointers.has(e.pointerId)) return;
   activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
-
-  if(activePointers.size>=2&&pinchActive){
-    const dist=getPinchDist(),mid=getPinchMid();
-    if(pinchDist0===0)return;
-    const ratio=dist/pinchDist0; const newZ=clamp(pinchCam0.z*ratio,.08,12);
-    const wx=(mid.x-pinchCam0.x)/pinchCam0.z; const wy=(mid.y-pinchCam0.y)/pinchCam0.z;
-    cam.z=newZ; cam.x=mid.x-wx*newZ+(mid.x-pinchMid0.x); cam.y=mid.y-wy*newZ+(mid.y-pinchMid0.y);
-    applyCam(); renderTextObjects(); return;
-  }
-
-  if(panPointerId!==null&&e.pointerId===panPointerId){
-    cam.x=panStart.cx+(e.clientX-panStart.px); cam.y=panStart.cy+(e.clientY-panStart.py);
-    applyCam(); renderTextObjects(); return;
-  }
-
+  if(activePointers.size>=2&&pinchActive){ const dist=getPinchDist(),mid=getPinchMid(); if(pinchDist0===0)return; const ratio=dist/pinchDist0; const newZ=clamp(pinchCam0.z*ratio,.08,12); const wx=(mid.x-pinchCam0.x)/pinchCam0.z; const wy=(mid.y-pinchCam0.y)/pinchCam0.z; cam.z=newZ; cam.x=mid.x-wx*newZ+(mid.x-pinchMid0.x); cam.y=mid.y-wy*newZ+(mid.y-pinchMid0.y); applyCam(); renderTextObjects(); applyCameraGeometry(); return; }
+  if(panPointerId!==null&&e.pointerId===panPointerId){ cam.x=panStart.cx+(e.clientX-panStart.px); cam.y=panStart.cy+(e.clientY-panStart.py); applyCam(); renderTextObjects(); applyCameraGeometry(); return; }
   if(lpStart && Math.hypot(e.clientX-lpStart.x, e.clientY-lpStart.y) > 10) { clearTimeout(lpTimer); lpStart=null; }
-
   if(drawPointerId!==null&&e.pointerId===drawPointerId&&liveObj){
-    if(snapApplied)return;
-    const w=s2w(e.clientX,e.clientY);
-    if(liveObj.type==='stroke'){
-      if(Math.hypot(w.x-liveObj.pts.at(-1).x,w.y-liveObj.pts.at(-1).y)>1.5/cam.z){
-        liveObj.pts.push({...w});
-        if((activeTool==='pen'||activeTool==='highlighter')&&Math.hypot(w.x-liveObj.pts[0].x,w.y-liveObj.pts[0].y)>40/cam.z) clearTimeout(holdTimer);
-      }
-    } else if(liveObj.type==='line'){ liveObj.x2=w.x;liveObj.y2=w.y; }
-      else if(liveObj.type==='rect'){ liveObj.w2=w.x-liveObj._ox;liveObj.h2=w.y-liveObj._oy; }
-      else if(liveObj.type==='ellipse'){ liveObj.rx=(w.x-liveObj._ox)/2;liveObj.ry=(w.y-liveObj._oy)/2; liveObj.cx=liveObj._ox+liveObj.rx;liveObj.cy=liveObj._oy+liveObj.ry; }
-    redrawActiveCanvas();
-    if(liveObj.type==='stroke'&&S.conn?.open) S.conn.send({type:'LIVE',o:{...liveObj,pts:[...liveObj.pts]}});
+    if(snapApplied)return; const w=s2w(e.clientX,e.clientY);
+    if(liveObj.type==='stroke'){ if(Math.hypot(w.x-liveObj.pts.at(-1).x,w.y-liveObj.pts.at(-1).y)>1.5/cam.z){ liveObj.pts.push({...w}); if((activeTool==='pen'||activeTool==='highlighter')&&Math.hypot(w.x-liveObj.pts[0].x,w.y-liveObj.pts[0].y)>40/cam.z) clearTimeout(holdTimer); } } else if(liveObj.type==='line'){ liveObj.x2=w.x;liveObj.y2=w.y; } else if(liveObj.type==='rect'){ liveObj.w2=w.x-liveObj._ox;liveObj.h2=w.y-liveObj._oy; } else if(liveObj.type==='ellipse'){ liveObj.rx=(w.x-liveObj._ox)/2;liveObj.ry=(w.y-liveObj._oy)/2; liveObj.cx=liveObj._ox+liveObj.rx;liveObj.cy=liveObj._oy+liveObj.ry; }
+    redrawActiveCanvas(); send({type:'LIVE',o:{...liveObj,pts:[...liveObj.pts]}});
   }
 });
 
 window.addEventListener('pointerup', e => {
   if(!activePointers.has(e.pointerId)) return;
-  activePointers.delete(e.pointerId);
-  if(activePointers.size<2) pinchActive=false;
-  clearTimeout(lpTimer); lpStart=null;
-
+  activePointers.delete(e.pointerId); if(activePointers.size<2) pinchActive=false; clearTimeout(lpTimer); lpStart=null;
   if(e.pointerId===panPointerId){ panPointerId=null; return; }
-  
-  if(activeTool === 'text' && !isUITarget(e.target) && !editingObj) {
-    const w = s2w(e.clientX, e.clientY);
-    createTextObj(w.x, w.y);
-    return;
-  }
-  
+  if(activeTool === 'text' && !isUITarget(e.target) && !editingObj && currentRole !== 'monitor') { const w = s2w(e.clientX, e.clientY); createTextObj(w.x, w.y); return; }
   if(e.pointerId===drawPointerId){
-    clearTimeout(holdTimer); const wasDrawing=liveObjStarted&&liveObj!==null;
-    drawPointerId=null; liveObjStarted=false;
-    if(wasDrawing){
-      if(liveObj.brush==='laser') finishLaser();
-      else if(liveObj.brush==='eraser') finishDraw();
-      else if(liveObj.type==='stroke'&&!snapApplied){
-        if(shapeSnapEnabled){
-          const r=recognizeShape(liveObj.pts); if(r) applyRecognizedShape(r); else finishDraw();
-        } else {
-          finishDraw();
-        }
-      } else finishDraw();
-    }
+    clearTimeout(holdTimer); const wasDrawing=liveObjStarted&&liveObj!==null; drawPointerId=null; liveObjStarted=false;
+    if(wasDrawing){ if(liveObj.brush==='laser') finishLaser(); else if(liveObj.brush==='eraser') finishDraw(); else if(liveObj.type==='stroke'&&!snapApplied){ if(shapeSnapEnabled){ const r=recognizeShape(liveObj.pts); if(r) applyRecognizedShape(r); else finishDraw(); } else { finishDraw(); } } else finishDraw(); }
     return;
   }
-
-  if(activePointers.size===1&&!pinchActive){
-    const remaining=[...activePointers.entries()][0];
-    if(remaining&&activeTool==='select'){ panPointerId=remaining[0]; panStart={px:remaining[1].x,py:remaining[1].y,cx:cam.x,cy:cam.y}; }
-  }
+  if(activePointers.size===1&&!pinchActive){ const remaining=[...activePointers.entries()][0]; if(remaining&&(activeTool==='select' || currentRole==='monitor')){ panPointerId=remaining[0]; panStart={px:remaining[1].x,py:remaining[1].y,cx:cam.x,cy:cam.y}; } }
 });
-
-window.addEventListener('pointercancel', e => {
-  if(!activePointers.has(e.pointerId)) return;
-  activePointers.delete(e.pointerId); if(activePointers.size<2) pinchActive=false;
-  clearTimeout(lpTimer); lpStart=null;
-  if(e.pointerId===panPointerId) panPointerId=null;
-  if(e.pointerId===drawPointerId) cancelDraw();
-});
-
-vp.addEventListener('contextmenu', e => { if(!e.target.closest('#textEditor')) e.preventDefault(); });
-vp.addEventListener('wheel', e => {
-  e.preventDefault();
-  if (Math.abs(e.deltaY) > 0) {
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    const newZ = clamp(cam.z * delta, 0.08, 12);
-    const wx = (e.clientX - cam.x) / cam.z;
-    const wy = (e.clientY - cam.y) / cam.z;
-    cam.z = newZ; 
-    cam.x = e.clientX - wx * newZ; 
-    cam.y = e.clientY - wy * newZ; 
-    applyCam(); 
-    renderTextObjects();
-  }
-},{passive:false});
-  
+window.addEventListener('pointercancel', e => { if(!activePointers.has(e.pointerId)) return; activePointers.delete(e.pointerId); if(activePointers.size<2) pinchActive=false; clearTimeout(lpTimer); lpStart=null; if(e.pointerId===panPointerId) panPointerId=null; if(e.pointerId===drawPointerId) cancelDraw(); });
+vp.addEventListener('contextmenu', e => { if(!e.target.closest('#textEditor') && !e.target.classList.contains('cam-video')) e.preventDefault(); });
+vp.addEventListener('wheel', e => { e.preventDefault(); if (Math.abs(e.deltaY) > 0) { const delta = e.deltaY > 0 ? 0.9 : 1.1; const newZ = clamp(cam.z * delta, 0.08, 12); const wx = (e.clientX - cam.x) / cam.z; const wy = (e.clientY - cam.y) / cam.z; cam.z = newZ; cam.x = e.clientX - wx * newZ; cam.y = e.clientY - wy * newZ; applyCam(); renderTextObjects(); } },{passive:false});
 function cancelDraw(){ clearTimeout(holdTimer); drawPointerId=null; liveObjStarted=false; liveObj=null; snapApplied=false; redrawBaseCanvas(); redrawActiveCanvas(); }
 
-let _snapHideTimer;
-function showSnapIndicator(msg){
-  const el=$('snapIndicator');el.textContent=msg;el.classList.add('show');
-  clearTimeout(_snapHideTimer);_snapHideTimer=setTimeout(()=>el.classList.remove('show'),1500);
-}
-
-function snapCurrentShape(){
-  if(!liveObj||snapApplied)return; snapApplied=true;
-  if(liveObj.type==='line'){
-    const dx=liveObj.x2-liveObj.x1,dy=liveObj.y2-liveObj.y1, angle=Math.atan2(dy,dx)*(180/Math.PI), dist=Math.hypot(dx,dy);
-    let best=null,bestD=20;
-    for(const a of[0,45,90,135,180,-45,-90,-135]){const d=Math.abs(((angle-a+540)%360)-180);if(d<bestD){bestD=d;best=a}}
-    if(best!==null){const r=best*Math.PI/180;liveObj.x2=liveObj.x1+dist*Math.cos(r);liveObj.y2=liveObj.y1+dist*Math.sin(r);showSnapIndicator('Snap to angle')}
-  } else if(liveObj.type==='rect'){
-    const s=Math.max(Math.abs(liveObj.w2),Math.abs(liveObj.h2));
-    if(Math.min(Math.abs(liveObj.w2),Math.abs(liveObj.h2))/s>0.7){liveObj.w2=Math.sign(liveObj.w2)*s;liveObj.h2=Math.sign(liveObj.h2)*s;showSnapIndicator('Snap to square')}
-  } else if(liveObj.type==='ellipse'){
-    const r=Math.max(Math.abs(liveObj.rx),Math.abs(liveObj.ry));
-    if(Math.min(Math.abs(liveObj.rx),Math.abs(liveObj.ry))/r>0.7){liveObj.rx=r;liveObj.ry=r;showSnapIndicator('Snap to circle')}
-  }
-  redrawActiveCanvas();
-}
-
-function applyRecognizedShape(recognized){
-  if(!liveObj)return;
-  const color=liveObj.color,w=liveObj.w, brush=liveObj.brush;let newObj;
-  if(recognized.shape==='line'){newObj={id:liveObj.id,type:'line',brush,x1:recognized.x1,y1:recognized.y1,x2:recognized.x2,y2:recognized.y2,color,w}; }
-  else if(recognized.shape==='circle'){newObj={id:liveObj.id,type:'ellipse',brush,cx:recognized.cx,cy:recognized.cy,rx:recognized.r,ry:recognized.r,color,w}; }
-  else if(recognized.shape==='ellipse'){newObj={id:liveObj.id,type:'ellipse',brush,cx:recognized.cx,cy:recognized.cy,rx:recognized.rx,ry:recognized.ry,color,w}; }
-  else if(recognized.shape==='square'){const{x,y,size}=recognized;newObj={id:liveObj.id,type:'rect',brush,x,y,w2:size,h2:size,color,w}; }
-  else if(recognized.shape==='rect'){newObj={id:liveObj.id,type:'rect',brush,x:recognized.x,y:recognized.y,w2:recognized.w,h2:recognized.h,color,w}; }
-  else if(recognized.shape==='triangle'){newObj={id:liveObj.id,type:'triangle',brush,pts:recognized.pts,color,w};}
-  
-  if(newObj){liveObj=newObj;snapApplied=true;redrawActiveCanvas();showSnapIndicator('Shape Recognized');setTimeout(()=>finishDraw(),200)}
-  else finishDraw();
-}
-
-function finishLaser() {
-  if(!liveObj) return;
-  const o = {...liveObj, t0: Date.now()};
-  laserStrokes.push(o);
-  send({type:'LASER', o});
-  liveObj=null; drawPointerId=null; liveObjStarted=false;
-  redrawActiveCanvas();
-}
-
-function finishDraw(){
-  if(!liveObj)return;
-  clearTimeout(holdTimer);
-  if(liveObj.type==='line'&&!snapApplied&&liveObj.brush!=='eraser'&&shapeSnapEnabled){
-    const dx=liveObj.x2-liveObj.x1,dy=liveObj.y2-liveObj.y1, angle=Math.atan2(dy,dx)*(180/Math.PI), dist=Math.hypot(dx,dy);
-    let best=null,bestD=10; for(const a of[0,45,90,135,180,-45,-90,-135]){const d=Math.abs(((angle-a+540)%360)-180);if(d<bestD){bestD=d;best=a}}
-    if(best!==null){const r=best*Math.PI/180;liveObj.x2=liveObj.x1+dist*Math.cos(r);liveObj.y2=liveObj.y1+dist*Math.sin(r)}
-  }
-  const o={...liveObj};delete o._ox;delete o._oy;
-  snapshot(); objects.push(o); liveObj=null; snapApplied=false; drawPointerId=null; liveObjStarted=false;
-  redrawBaseCanvas(); redrawActiveCanvas(); renderTextObjects(); send({type:'ADD',o});
-}
+let _snapHideTimer; function showSnapIndicator(msg){ const el=$('snapIndicator');el.textContent=msg;el.classList.add('show'); clearTimeout(_snapHideTimer);_snapHideTimer=setTimeout(()=>el.classList.remove('show'),1500); }
+function snapCurrentShape(){ if(!liveObj||snapApplied)return; snapApplied=true; if(liveObj.type==='line'){ const dx=liveObj.x2-liveObj.x1,dy=liveObj.y2-liveObj.y1, angle=Math.atan2(dy,dx)*(180/Math.PI), dist=Math.hypot(dx,dy); let best=null,bestD=20; for(const a of[0,45,90,135,180,-45,-90,-135]){const d=Math.abs(((angle-a+540)%360)-180);if(d<bestD){bestD=d;best=a}} if(best!==null){const r=best*Math.PI/180;liveObj.x2=liveObj.x1+dist*Math.cos(r);liveObj.y2=liveObj.y1+dist*Math.sin(r);showSnapIndicator('Snap to angle')} } else if(liveObj.type==='rect'){ const s=Math.max(Math.abs(liveObj.w2),Math.abs(liveObj.h2)); if(Math.min(Math.abs(liveObj.w2),Math.abs(liveObj.h2))/s>0.7){liveObj.w2=Math.sign(liveObj.w2)*s;liveObj.h2=Math.sign(liveObj.h2)*s;showSnapIndicator('Snap to square')} } else if(liveObj.type==='ellipse'){ const r=Math.max(Math.abs(liveObj.rx),Math.abs(liveObj.ry)); if(Math.min(Math.abs(liveObj.rx),Math.abs(liveObj.ry))/r>0.7){liveObj.rx=r;liveObj.ry=r;showSnapIndicator('Snap to circle')} } redrawActiveCanvas(); }
+function applyRecognizedShape(recognized){ if(!liveObj)return; const color=liveObj.color,w=liveObj.w, brush=liveObj.brush;let newObj; if(recognized.shape==='line'){newObj={id:liveObj.id,type:'line',brush,x1:recognized.x1,y1:recognized.y1,x2:recognized.x2,y2:recognized.y2,color,w}; } else if(recognized.shape==='circle'){newObj={id:liveObj.id,type:'ellipse',brush,cx:recognized.cx,cy:recognized.cy,rx:recognized.r,ry:recognized.r,color,w}; } else if(recognized.shape==='ellipse'){newObj={id:liveObj.id,type:'ellipse',brush,cx:recognized.cx,cy:recognized.cy,rx:recognized.rx,ry:recognized.ry,color,w}; } else if(recognized.shape==='square'){const{x,y,size}=recognized;newObj={id:liveObj.id,type:'rect',brush,x,y,w2:size,h2:size,color,w}; } else if(recognized.shape==='rect'){newObj={id:liveObj.id,type:'rect',brush,x:recognized.x,y:recognized.y,w2:recognized.w,h2:recognized.h,color,w}; } else if(recognized.shape==='triangle'){newObj={id:liveObj.id,type:'triangle',brush,pts:recognized.pts,color,w};} if(newObj){liveObj=newObj;snapApplied=true;redrawActiveCanvas();showSnapIndicator('Shape Recognized');setTimeout(()=>finishDraw(),200)} else finishDraw(); }
+function finishLaser() { if(!liveObj) return; const o = {...liveObj, t0: Date.now()}; laserStrokes.push(o); send({type:'LASER', o}); liveObj=null; drawPointerId=null; liveObjStarted=false; redrawActiveCanvas(); }
+function finishDraw(){ if(!liveObj)return; clearTimeout(holdTimer); if(liveObj.type==='line'&&!snapApplied&&liveObj.brush!=='eraser'&&shapeSnapEnabled){ const dx=liveObj.x2-liveObj.x1,dy=liveObj.y2-liveObj.y1, angle=Math.atan2(dy,dx)*(180/Math.PI), dist=Math.hypot(dx,dy); let best=null,bestD=10; for(const a of[0,45,90,135,180,-45,-90,-135]){const d=Math.abs(((angle-a+540)%360)-180);if(d<bestD){bestD=d;best=a}} if(best!==null){const r=best*Math.PI/180;liveObj.x2=liveObj.x1+dist*Math.cos(r);liveObj.y2=liveObj.y1+dist*Math.sin(r)} } const o={...liveObj};delete o._ox;delete o._oy; snapshot(); objects.push(o); liveObj=null; snapApplied=false; drawPointerId=null; liveObjStarted=false; redrawBaseCanvas(); redrawActiveCanvas(); renderTextObjects(); send({type:'ADD',o}); }
 
 /* ═══════════════════════════════════════════════════════
    SAVE / EXPORT IMAGE
 ═══════════════════════════════════════════════════════ */
 $('btnExport').onclick = () => {
   if (editingObj) { closeTextEditor(true); setTool('select'); }
+  if (editingCam) { closeCameraEditor(true); setTool('select'); }
   if (objects.length === 0) return toast(t('export_empty'));
   
   let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
   objects.forEach(o => {
-    if(o.type==='stroke'){
-      if(o.pts){ o.pts.forEach(p=>{minX=Math.min(minX,p.x); minY=Math.min(minY,p.y); maxX=Math.max(maxX,p.x); maxY=Math.max(maxY,p.y);}) }
-    } else {
-      const b = getBBox(o);
-      if(b) { minX=Math.min(minX,b.x); minY=Math.min(minY,b.y); maxX=Math.max(maxX,b.x+b.w); maxY=Math.max(maxY,b.y+b.h); }
-    }
+    if(o.type==='stroke'){ if(o.pts){ o.pts.forEach(p=>{minX=Math.min(minX,p.x); minY=Math.min(minY,p.y); maxX=Math.max(maxX,p.x); maxY=Math.max(maxY,p.y);}) } } 
+    else if (o.type === 'image' || o.type === 'rect' || o.type === 'camera') { minX=Math.min(minX,o.x); minY=Math.min(minY,o.y); maxX=Math.max(maxX,o.x+(o.w||o.w2||0)); maxY=Math.max(maxY,o.y+(o.h||o.h2||0)); }
   });
-  if(minX===Infinity) return;
-  minX -= 60; minY -= 60; maxX += 60; maxY += 60;
-  const w = maxX - minX, h = maxY - minY;
-
-  const cvs = document.createElement('canvas'); cvs.width = w; cvs.height = h;
-  const cx = cvs.getContext('2d');
-  cx.fillStyle = '#fafaf7'; cx.fillRect(0,0,w,h);
+  if(minX===Infinity) return; minX -= 60; minY -= 60; maxX += 60; maxY += 60; const w = maxX - minX, h = maxY - minY;
+  const cvs = document.createElement('canvas'); cvs.width = w; cvs.height = h; const cx = cvs.getContext('2d');
+  cx.fillStyle = '#fafaf7'; cx.fillRect(0,0,w,h); cx.save(); cx.translate(-minX, -minY);
   
-  cx.save(); cx.translate(-minX, -minY);
   for(const o of objects) {
-    if (o.type !== 'text') { renderObj(cx, o); }
-    else {
-      cx.save();
-      cx.font = `${o.italic?'italic ':''}${o.bold?'bold ':''}${o.fontSize||20}px 'Helvetica Neue',Helvetica,Arial,sans-serif`;
-      cx.fillStyle = o.color || '#1a1a2e'; cx.textBaseline = 'top';
-      cx.textAlign = o.align || 'left';
-      
-      const lines = (o.text || '').split('\n');
-      let ty = o.y + 8;
-      let bx = o.x + 10;
-      if (o.align === 'center') bx = o.x + ((o.boxW||120)/2);
-      if (o.align === 'right') bx = o.x + (o.boxW||120) - 10;
-      
-      lines.forEach(l => {
-        cx.fillText(l, bx, ty);
-        if(o.underline) {
-          const mt = cx.measureText(l);
-          cx.strokeStyle = cx.fillStyle; cx.lineWidth = Math.max(1, (o.fontSize||20)/15);
-          let ux = bx;
-          if(o.align === 'center') ux -= mt.width/2;
-          if(o.align === 'right') ux -= mt.width;
-          cx.beginPath(); cx.moveTo(ux, ty + (o.fontSize||20)*1.2); cx.lineTo(ux + mt.width, ty + (o.fontSize||20)*1.2); cx.stroke();
+    if (o.type === 'camera') {
+        const vid = document.querySelector(`video[data-id="${o.id}"]`);
+        if (vid && vid.videoWidth) {
+           cx.save(); cx.globalAlpha = o.opacity / 100;
+           if (o.flip) {
+               cx.translate(o.x + o.w / 2, o.y + o.h / 2);
+               cx.scale(-1, 1);
+               cx.translate(-(o.x + o.w / 2), -(o.y + o.h / 2));
+           }
+           cx.drawImage(vid, o.x, o.y, o.w, o.h);
+           cx.restore();
         }
-        ty += (o.fontSize || 20) * 1.5;
-      });
+    }
+    else if (o.type !== 'text') { renderObj(cx, o); }
+    else {
+      cx.save(); cx.font = `${o.italic?'italic ':''}${o.bold?'bold ':''}${o.fontSize||20}px 'Helvetica Neue',Helvetica,Arial,sans-serif`; cx.fillStyle = o.color || '#1a1a2e'; cx.textBaseline = 'top'; cx.textAlign = o.align || 'left';
+      const lines = (o.text || '').split('\n'); let ty = o.y + 8; let bx = o.x + 10;
+      if (o.align === 'center') bx = o.x + ((o.boxW||120)/2); if (o.align === 'right') bx = o.x + (o.boxW||120) - 10;
+      lines.forEach(l => { cx.fillText(l, bx, ty); if(o.underline) { const mt = cx.measureText(l); cx.strokeStyle = cx.fillStyle; cx.lineWidth = Math.max(1, (o.fontSize||20)/15); let ux = bx; if(o.align === 'center') ux -= mt.width/2; if(o.align === 'right') ux -= mt.width; cx.beginPath(); cx.moveTo(ux, ty + (o.fontSize||20)*1.2); cx.lineTo(ux + mt.width, ty + (o.fontSize||20)*1.2); cx.stroke(); } ty += (o.fontSize || 20) * 1.5; });
       cx.restore();
     }
   }
   cx.restore();
-
-  cvs.toBlob(blob => {
-    const file = new File([blob], 'whiteboard.png', { type: 'image/png' });
-    if (navigator.canShare && navigator.canShare({ files:[file] })) {
-      navigator.share({ title: 'Shared Whiteboard', files:[file] }).catch(() => saveBlob(blob));
-    } else saveBlob(blob);
-  });
+  cvs.toBlob(blob => { const file = new File([blob], 'whiteboard.png', { type: 'image/png' }); if (navigator.canShare && navigator.canShare({ files:[file] })) { navigator.share({ title: 'Shared Whiteboard', files:[file] }).catch(() => saveBlob(blob)); } else saveBlob(blob); });
 };
-function saveBlob(blob) {
-  const url = URL.createObjectURL(blob); const a = document.createElement('a');
-  a.href = url; a.download = 'whiteboard.png'; a.click(); URL.revokeObjectURL(url);
-  toast(t('export_done'));
-}
-
-$('btnClear').onclick = () => {
-  if(confirm(t('clear_confirm'))){ snapshot();objects=[];redrawBaseCanvas();redrawActiveCanvas();renderTextObjects(); send({type:'CLEAR'}); }
-};
+function saveBlob(blob) { const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'whiteboard.png'; a.click(); URL.revokeObjectURL(url); toast(t('export_done')); }
+$('btnClear').onclick = () => { if(confirm(t('clear_confirm'))){ snapshot();objects=[];redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();renderCameraObjects(); send({type:'CLEAR'}); } };
 
 /* ═══════════════════════════════════════════════════════
-   NETWORKING & SESSION RESTORE
+   NETWORKING & SESSION (STAR TOPOLOGY & WEBRTC CALLS)
 ═══════════════════════════════════════════════════════ */
 let _peer=null; let remoteLiveStrokes={};
-let currentRole=null, currentRoomCode=null;
+let activePeers = []; // Used for Auto-Migration
 
-function send(o){if(S.conn?.open)S.conn.send(o)}
+function send(o){ if (currentRole === 'host') { S.hostConns.forEach(c => { if(c.conn.open) c.conn.send(o); }); } else if (S.hostConn?.open) { S.hostConn.send(o); } }
 
-function handleData(d){
-  if(d.type==='ADD'){
-    if(!objects.find(o=>o.id===d.o.id))objects.push(d.o); delete remoteLiveStrokes[d.o.id];
-    redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();
-  } else if(d.type==='UPD'){
-    const idx=objects.findIndex(o=>o.id===d.o.id); if(idx>=0)objects[idx]=d.o;else objects.push(d.o);
-    redrawBaseCanvas();renderTextObjects();
-  } else if(d.type==='DEL'){
-    objects=objects.filter(o=>o.id!==d.id); redrawBaseCanvas();renderTextObjects();
-  } else if(d.type==='CLEAR'){
-    objects=[];remoteLiveStrokes={}; redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();toast(t('cleared_toast'));
-  } else if(d.type==='SYNC'){
-    const ids=new Set(objects.map(o=>o.id)); d.objs.forEach(o=>{if(!ids.has(o.id))objects.push(o)});
-    redrawBaseCanvas();renderTextObjects();
-  } else if(d.type==='SYNC_ALL'){ objects=d.objs;redrawBaseCanvas();renderTextObjects(); }
-    else if(d.type==='LIVE'){ remoteLiveStrokes[d.o.id]=d.o;redrawActiveCanvas(); }
-    else if(d.type==='LASER'){ 
-      delete remoteLiveStrokes[d.o.id]; 
-      d.o.t0 = Date.now(); laserStrokes.push(d.o); redrawActiveCanvas(); 
-    }
+function broadcastPeerList() {
+    if (currentRole !== 'host') return;
+    const peers = S.hostConns.map(c => c.conn.peer);
+    activePeers = peers;
+    send({type: 'PEER_LIST', peers: peers});
 }
 
-function setupConn(conn){
-  S.conn=conn;
-  conn.on('open',()=>{
-    setStatus('connected','live'); $('pill').style.background=''; toast(t('connected_toast')); closeModal();
-    conn.send({type:'SYNC',objs:objects});
-    localStorage.setItem('wb_session', JSON.stringify({role: currentRole, code: currentRoomCode}));
-  });
-  conn.on('data',handleData);
-  conn.on('close',()=>{ S.conn=null;remoteLiveStrokes={}; setStatus('disconnected','');toast(t('disconnected_toast')); });
-  conn.on('error',err=>toast('Error: '+(err.message||err)));
+function handleData(d, sourceConn=null){
+  if(d.type==='ADD'){ if(!objects.find(o=>o.id===d.o.id)){ if (d.o.isBack) { let i = 0; while(i<objects.length && objects[i].isBack) i++; objects.splice(i, 0, d.o); } else { objects.push(d.o); } } delete remoteLiveStrokes[d.o.id]; redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();renderCameraObjects(); }
+  else if(d.type==='UPD'){ const idx=objects.findIndex(o=>o.id===d.o.id); if(idx>=0)objects[idx]=d.o;else objects.push(d.o); redrawBaseCanvas();renderTextObjects();renderCameraObjects(); }
+  else if(d.type==='DEL'){ objects=objects.filter(o=>o.id!==d.id); redrawBaseCanvas();renderTextObjects();renderCameraObjects(); }
+  else if(d.type==='CLEAR'){ objects=[];remoteLiveStrokes={}; redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();renderCameraObjects();toast(t('cleared_toast')); }
+  else if(d.type==='SYNC'){ const ids=new Set(objects.map(o=>o.id)); d.objs.forEach(o=>{if(!ids.has(o.id))objects.push(o)}); redrawBaseCanvas();renderTextObjects();renderCameraObjects(); }
+  else if(d.type==='SYNC_ALL'){ objects=d.objs;redrawBaseCanvas();renderTextObjects();renderCameraObjects(); }
+  else if(d.type==='LIVE'){ remoteLiveStrokes[d.o.id]=d.o;redrawActiveCanvas(); }
+  else if(d.type==='LASER'){ delete remoteLiveStrokes[d.o.id]; d.o.t0 = Date.now(); laserStrokes.push(d.o); redrawActiveCanvas(); }
+  else if(d.type==='CMD_SNAPSHOT'){ executeLocalSnapshot(d.camObj, d.imgId); }
+  else if(d.type==='PEER_LIST'){ activePeers = d.peers; }
+  else if(d.type==='ROLE_UPDATE' && currentRole === 'host') {
+      const client = S.hostConns.find(c => c.conn === sourceConn);
+      if (client) { client.role = d.role; updateHostUI(); toast(d.role === 'monitor' ? t('sw_user_mon') : t('sw_user_vis')); }
+  }
+  
+  if(currentRole === 'host' && sourceConn) { S.hostConns.forEach(c => { if(c.conn.open && c.conn !== sourceConn) c.conn.send(d); }); }
 }
 
 const makeCode=()=>String(Math.floor(100000+Math.random()*900000));
 const codeToId=c=>'wb-'+c,idToCode=id=>id.replace(/^wb-/,'');
-function destroyPeer(){if(_peer&&!_peer.destroyed)_peer.destroy();_peer=null;S.conn=null;}
 
-function initHost(code){
-  destroyPeer(); currentRole='host'; currentRoomCode=code;
-  const peer=new Peer(codeToId(code),{debug:0,config:{iceServers:[{urls:'stun:stun.l.google.com:19302'}]}});
-  _peer=peer;
-  peer.on('open',id=>{ $('rcode').textContent=idToCode(id); $('rsub').textContent=t('share_code'); setStatus('waiting_visitor','wait'); });
-  peer.on('connection',conn=>{ $('wrow').innerHTML=`<span style="color:#27ae60;font-weight:700">${t('visitor_joined')}</span>`; setupConn(conn); });
-  peer.on('error',err=>{ if(err.type==='unavailable-id'){destroyPeer();setTimeout(()=>initHost(makeCode()),400)} else setMS('Error: '+(err.message||err.type),'err'); });
+function destroyPeer(){ if(_peer&&!_peer.destroyed)_peer.destroy(); _peer=null; S.hostConn=null; S.hostConns=[]; }
+function updateHostUI(){ 
+  if(currentRole!=='host') return; 
+  const vCount = S.hostConns.filter(c => c.role === 'visitor').length; 
+  const mCount = S.hostConns.filter(c => c.role === 'monitor').length; 
+  if(vCount===0 && mCount===0) { 
+     $('c_connCount').innerHTML = t('waiting'); $('c_wspin').style.display='block'; 
+  } else { 
+     $('c_connCount').innerHTML = `<span style="color:#27ae60;font-weight:800">Visitor: ${vCount} | Monitor: ${mCount}</span>`; $('c_wspin').style.display='none'; 
+  } 
 }
 
-function joinRoom(code){
-  destroyPeer(); currentRole='visitor'; currentRoomCode=code;
-  const peer=new Peer(undefined,{debug:0});_peer=peer;
-  $('joinBtn').disabled=true;$('joinBtn').textContent=t('connecting');setMS(t('connecting'));
-  let to=setTimeout(()=>{setMS(t('timeout'),'err');$('joinBtn').disabled=false;$('joinBtn').textContent=t('join')},12000);
-  peer.on('open',()=>{
-    const conn=peer.connect(codeToId(code),{reliable:true,serialization:'json'}); setupConn(conn);
-    conn.on('open',()=>clearTimeout(to));
-    conn.on('error',err=>{clearTimeout(to);setMS('Error: '+(err.message||err),'err');$('joinBtn').disabled=false;$('joinBtn').textContent=t('join')});
+function applyMonitorMode() { $('tb').style.display = 'none'; $('btnClear').style.display = 'none'; setTool('select'); document.body.classList.add('is-monitor'); }
+function restoreEditorMode() { $('tb').style.display = 'flex'; $('btnClear').style.display = 'flex'; setTool('pen'); document.body.classList.remove('is-monitor'); }
+
+function bindPeerCallHandlers(peer) {
+  peer.on('call', call => {
+      call.answer(); 
+      call.on('stream', stream => {
+          const ownerId = call.metadata?.ownerId;
+          if(ownerId) {
+             remoteStreams[ownerId] = stream;
+             renderCameraObjects();
+             if (currentRole === 'host') {
+                 S.hostConns.forEach(c => {
+                     if (c.conn.peer !== call.peer) peer.call(c.conn.peer, stream, { metadata: { ownerId }});
+                 });
+             }
+          }
+      });
   });
-  peer.on('error',err=>{clearTimeout(to);setMS('Error: '+(err.message||err.type),'err');$('joinBtn').disabled=false;$('joinBtn').textContent=t('join')});
+}
+
+function initHost(code, isRecovery = false){
+  destroyPeer(); currentRole='host'; currentRoomCode=code;
+  document.body.classList.remove('is-monitor');
+  const peer=new Peer(codeToId(code),{debug:0,config:{iceServers:[{urls:'stun:stun.l.google.com:19302'}]}}); _peer=peer;
+  peer.on('open',id=>{ 
+      myPeerId=id; $('rcode').textContent=idToCode(id); $('rsub').textContent=t('share_code'); 
+      if(!isRecovery) objects = [];
+      updateHostUI(); updateStatusPill(); localStorage.setItem('wb_session', JSON.stringify({role: 'host', code: currentRoomCode})); 
+  });
+  bindPeerCallHandlers(peer);
+  peer.on('connection',conn=>{ 
+      conn.on('open', () => { 
+          const role = conn.metadata?.role || 'visitor'; S.hostConns.push({conn, role}); 
+          broadcastPeerList();
+          conn.send({type:'SYNC_ALL',objs:objects}); updateHostUI(); toast(role === 'monitor' ? t('monitor_joined') : t('visitor_joined')); 
+          
+          if (localStream) peer.call(conn.peer, localStream, { metadata: { ownerId: myPeerId }});
+          Object.keys(remoteStreams).forEach(oId => { peer.call(conn.peer, remoteStreams[oId], { metadata: { ownerId: oId }}); });
+
+          conn.on('data', d => handleData(d, conn)); 
+          conn.on('close', () => { S.hostConns = S.hostConns.filter(c => c.conn !== conn); broadcastPeerList(); updateHostUI(); }); 
+      }); 
+  });
+  peer.on('error',err=>{ 
+      if(err.type==='unavailable-id'){
+          destroyPeer();
+          setTimeout(()=>initHost(code, isRecovery),1000); 
+      } else { setMS('Error: '+(err.message||err.type),'err'); }
+  });
+}
+
+function joinRoom(code, role, isRecovery = false){
+  destroyPeer(); currentRole=role; currentRoomCode=code;
+  if(role === 'monitor') applyMonitorMode(); else restoreEditorMode();
+  const peer=new Peer(undefined,{debug:0});_peer=peer; $('joinVisBtn').disabled=true; $('joinMonBtn').disabled=true; setMS(t('connecting'));
+  let to=setTimeout(()=>{setMS(t('timeout'),'err'); $('roomInput').dispatchEvent(new Event('input'));},12000);
+  peer.on('open', id=>{
+    myPeerId=id; bindPeerCallHandlers(peer);
+    const conn=peer.connect(codeToId(code),{reliable:true, serialization:'json', metadata: {role}}); S.hostConn = conn;
+    conn.on('open',()=>{ 
+        clearTimeout(to); updateStatusPill(); $('pill').style.background=''; toast(t('connected_toast')); closeModal(); 
+        localStorage.setItem('wb_session', JSON.stringify({role: currentRole, code: currentRoomCode})); 
+        
+        // 若斷線重連或 Host 轉移後，主動把自己的 Camera 再次推給新 Host
+        if (localStream) {
+            _peer.call(S.hostConn.peer, localStream, { metadata: { ownerId: myPeerId } });
+        }
+    });
+    conn.on('data',handleData); 
+    conn.on('close',()=>{ 
+        S.hostConn=null; 
+        
+        // --- HOST AUTO-MIGRATION LOGIC ---
+        toast(t('host_drop'));
+        const hostId = codeToId(currentRoomCode);
+        
+        // 1. 本地拍照保存該死掉的 Host 擁有的攝影機串流
+        objects.filter(o => o.type === 'camera' && o.ownerId === hostId).forEach(cam => {
+            executeLocalSnapshot(cam, uid());
+        });
+        
+        // 2. 選出新的 Host (依照 Peer ID 字母排序)
+        let candidates = activePeers.filter(id => id !== hostId);
+        if(!candidates.includes(myPeerId)) candidates.push(myPeerId);
+        candidates.sort();
+        
+        const newHostId = candidates[0];
+        const codeToRecover = currentRoomCode;
+        const myRole = currentRole;
+        
+        if (myPeerId === newHostId) {
+            setTimeout(() => { initHost(codeToRecover, true); }, 1500);
+        } else {
+            setTimeout(() => { joinRoom(codeToRecover, myRole, true); }, 3500);
+        }
+    }); 
+    conn.on('error',err=>{clearTimeout(to);setMS('Error: '+(err.message||err),'err'); $('roomInput').dispatchEvent(new Event('input'));});
+  });
+  peer.on('error',err=>{clearTimeout(to);setMS('Error: '+(err.message||err.type),'err'); $('roomInput').dispatchEvent(new Event('input'));});
 }
 
 /* ═══════════════════════════════════════════════════════
-   MODAL UI
+   MODAL UI & RESIZE
 ═══════════════════════════════════════════════════════ */
 let _tab='h';
-function switchTab(tab){
-  if(S.conn?.open) return;
-  _tab=tab; $('tabH').className='tab'+(tab==='h'?' active':''); $('tabV').className='tab'+(tab==='v'?' active':'');
-  $('hpanel').className='panel'+(tab==='h'?' show':''); $('vpanel').className='panel'+(tab==='v'?' show':''); setMS('');
-}
+function switchTab(tab){ _tab=tab; $('tabH').className='tab'+(tab==='h'?' active':''); $('tabJ').className='tab'+(tab==='j'?' active':''); $('hpanel').className='panel'+(tab==='h'?' show':''); $('jpanel').className='panel'+(tab==='j'?' show':''); setMS(''); }
 function openModal(){
   $('modal').classList.add('show');
-  if(S.conn?.open){
-    const cc=`<div class="concard"><strong>${t('already_connected')}</strong><span>${t('back')}</span></div>`;
-    $('hpanel').innerHTML=cc; $('vpanel').innerHTML=cc;
-    $('tabH').classList.add('disabled'); $('tabV').classList.add('disabled');
-    $('restoreWrap').style.display = 'none';
-    return;
-  }
-  $('tabH').classList.remove('disabled'); $('tabV').classList.remove('disabled');
   
-  const session = JSON.parse(localStorage.getItem('wb_session'));
-  if(session && !S.conn?.open) {
-    $('restoreWrap').style.display = 'block';
-    $('btnRestore').onclick = () => {
+  if(currentRole && currentRoomCode) {
+      $('tabs').style.display = 'none';
+      $('hpanel').classList.remove('show');
+      $('jpanel').classList.remove('show');
+      $('cpanel').classList.add('show');
+      
+      $('c_rcode').textContent = currentRoomCode;
+      
+      if(currentRole === 'host') {
+          $('hostStats').style.display = 'block';
+          $('clientControls').style.display = 'none';
+          updateHostUI();
+      } else {
+          $('hostStats').style.display = 'none';
+          $('clientControls').style.display = 'block';
+          $('currentRoleLabel').textContent = currentRole === 'visitor' ? t('role_vis') : t('role_mon');
+          $('swVisBtn').style.display = currentRole === 'monitor' ? 'flex' : 'none';
+          $('swMonBtn').style.display = currentRole === 'visitor' ? 'flex' : 'none';
+      }
       $('restoreWrap').style.display = 'none';
-      if(session.role === 'host') { switchTab('h'); initHost(session.code); }
-      else { switchTab('v'); $('roomInput').value = session.code; $('joinBtn').disabled=false; joinRoom(session.code); }
-    };
-  } else {
-    $('restoreWrap').style.display = 'none';
+      return;
   }
 
-  if(!_peer||_peer.destroyed){
-    $('rcode').textContent='……';$('rsub').textContent=t('initializing');
-    $('wrow').innerHTML=`<div class="spin"></div><span>${t('waiting')}</span>`; initHost(makeCode());
-  }
+  $('tabs').style.display = 'flex';
+  $('cpanel').classList.remove('show');
+  switchTab(_tab);
+
+  const session = JSON.parse(localStorage.getItem('wb_session'));
+  if(session && !S.hostConn?.open && S.hostConns.length===0) { 
+      $('restoreWrap').style.display = 'block'; 
+      $('btnRestore').onclick = () => { 
+          $('restoreWrap').style.display = 'none'; 
+          if(session.role === 'host') { switchTab('h'); initHost(session.code, true); } 
+          else { switchTab('j'); $('roomInput').value = session.code; $('joinVisBtn').disabled=false; $('joinMonBtn').disabled=false; joinRoom(session.code, session.role); } 
+      }; 
+  } else { $('restoreWrap').style.display = 'none'; }
+  if(!_peer||_peer.destroyed){ $('rcode').textContent='……';$('rsub').textContent=t('initializing'); initHost(makeCode()); }
 }
 function closeModal(){$('modal').classList.remove('show')}
-
 $('pill').onclick=openModal; $('xbtn').onclick=closeModal; $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeModal()});
-$('tabH').onclick=()=>switchTab('h'); $('tabV').onclick=()=>switchTab('v');
-$('roomInput').addEventListener('input',e=>{ e.target.value=e.target.value.replace(/\D/g,'').slice(0,6); $('joinBtn').disabled=e.target.value.length!==6;setMS(''); });
-$('roomInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!$('joinBtn').disabled)joinRoom($('roomInput').value)});
-$('joinBtn').onclick=()=>{if($('roomInput').value.length===6)joinRoom($('roomInput').value)};
+$('tabH').onclick=()=>switchTab('h'); $('tabJ').onclick=()=>switchTab('j');
 
-$('langToggle').addEventListener('click',()=>{
-  lang=lang==='zh'?'en':'zh'; try{localStorage.setItem('wb_lang',lang)}catch(e){} applyLang();
-});
+$('swVisBtn').onclick = () => {
+    if(currentRole === 'monitor') {
+        send({type: 'ROLE_UPDATE', role: 'visitor'}); currentRole = 'visitor'; localStorage.setItem('wb_session', JSON.stringify({role: 'visitor', code: currentRoomCode}));
+        restoreEditorMode(); updateStatusPill(); closeModal(); toast(t('sw_vis'));
+    }
+};
+$('swMonBtn').onclick = () => {
+    if(currentRole === 'visitor') {
+        send({type: 'ROLE_UPDATE', role: 'monitor'}); currentRole = 'monitor'; localStorage.setItem('wb_session', JSON.stringify({role: 'monitor', code: currentRoomCode}));
+        applyMonitorMode(); updateStatusPill(); closeModal(); toast(t('sw_mon'));
+    }
+};
+$('btnDisconnect').onclick = () => {
+    destroyPeer(); currentRole = null; currentRoomCode = null; localStorage.removeItem('wb_session');
+    restoreEditorMode(); updateStatusPill(); closeModal(); toast(t('disconnected_msg'));
+};
 
-/* ═══════════════════════════════════════════════════════
-   INIT & RESIZE
-═══════════════════════════════════════════════════════ */
-function onResize(){
-  resizeGrid();resizeDrawCanvas();resizeUI(); redrawGrid();redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();
-  if(editingObj&&teWrap.style.display!=='none') applyEditorGeometry();
-}
-window.addEventListener('resize',onResize);
-resizeGrid();resizeDrawCanvas();resizeUI(); initCam(); applyLang(); setTimeout(openModal,300);
+$('roomInput').addEventListener('input',e=>{ e.target.value=e.target.value.replace(/\D/g,'').slice(0,6); const ready = e.target.value.length === 6; $('joinVisBtn').disabled = !ready; $('joinMonBtn').disabled = !ready; setMS(''); });
+$('roomInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!$('joinVisBtn').disabled)joinRoom($('roomInput').value, 'visitor')});
+$('joinVisBtn').onclick=()=>{if($('roomInput').value.length===6)joinRoom($('roomInput').value, 'visitor')};
+$('joinMonBtn').onclick=()=>{if($('roomInput').value.length===6)joinRoom($('roomInput').value, 'monitor')};
+$('langToggle').addEventListener('click',()=>{ lang=lang==='zh'?'en':'zh'; try{localStorage.setItem('wb_lang',lang)}catch(e){} applyLang(); });
+
+function onResize(){ resizeGrid();resizeDrawCanvas(); redrawGrid();redrawBaseCanvas();redrawActiveCanvas();renderTextObjects(); if(editingObj&&teWrap.style.display!=='none') applyEditorGeometry(); if(editingCam) applyCameraGeometry(); }
+window.addEventListener('resize',onResize); resizeGrid();resizeDrawCanvas(); initCam(); applyLang(); setTimeout(openModal,300);
 </script>
-<!-- 系統防禦與存取計數模組 (完全靜默 / 防拷貝 / 防衝突) -->
 <script>
 (function(){
-    // 1. 嚴格網域白名單檢查 (防止原始碼被盜用執行)
     if (window.location.hostname !== 'winston-github.github.io') return;
-    
-    // 2. 自動精準萃取檔名作為 ID (支援任意路徑與任意副檔名)
     var file = window.location.pathname.split('/').pop();
     var pageId = file ? file.split('.')[0] : 'index';
     if (!pageId) return;
-
-    // 3. 靜默發送破快取請求 (移除所有 Console 輸出，確保無痕)
     var url = 'https://api.counterapi.dev/v1/winston-github-io/page-' + pageId + '/up?_=' + new Date().getTime();
     fetch(url).catch(function(){});
 })();
