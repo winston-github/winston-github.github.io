@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>共用白板</title>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
@@ -15,12 +15,13 @@
 html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
   font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;touch-action:none;}
 
-/* ── Canvas layer ─────────────────────────────── */
-#viewport{position:fixed;inset:0;overflow:hidden;touch-action:none;}
-#canvas{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}
+/* ── Canvas & Viewport layers ─────────────────────────────── */
 #gridCanvas{position:fixed;top:0;left:0;pointer-events:none;z-index:0}
-#drawCanvas{position:absolute;top:0;left:0;pointer-events:none}
+.draw-layer{position:fixed;top:0;left:0;pointer-events:none;z-index:1;touch-action:none}
+#viewport{position:fixed;inset:0;overflow:hidden;touch-action:none;z-index:2}
+#canvas{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}
 #textLayer{position:absolute;top:0;left:0;pointer-events:none}
+#uiLayer{position:fixed;top:0;left:0;pointer-events:none;z-index:10}
 
 /* ── Text editing ──────────────────────────────── */
 #textEditorWrap{
@@ -237,9 +238,6 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
 }
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
-/* UI layer for selection */
-#uiLayer{position:fixed;top:0;left:0;pointer-events:none;z-index:10}
-
 /* Text object divs */
 .textObj{
   position:absolute;cursor:move;white-space:pre;
@@ -253,9 +251,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
 <body>
 
 <canvas id="gridCanvas"></canvas>
+<!-- 將巨型 Canvas 改為基於視窗大小的雙層渲染引擎 -->
+<canvas id="baseCanvas" class="draw-layer"></canvas>
+<canvas id="activeCanvas" class="draw-layer"></canvas>
+
 <div id="viewport">
   <div id="canvas">
-    <canvas id="drawCanvas"></canvas>
     <div id="textLayer"></div>
   </div>
 </div>
@@ -479,7 +480,10 @@ const cam={x:0,y:0,z:1};
 function initCam(){cam.x=window.innerWidth/2;cam.y=window.innerHeight/2;cam.z=1;applyCam()}
 function applyCam(){
   $('canvas').style.transform=`translate(${cam.x}px,${cam.y}px) scale(${cam.z})`;
-  redrawGrid();redrawUI();
+  redrawGrid();
+  redrawBaseCanvas();
+  redrawActiveCanvas();
+  redrawUI();
 }
 function s2w(sx,sy){return{x:(sx-cam.x)/cam.z,y:(sy-cam.y)/cam.z}}
 function w2s(wx,wy){return{x:wx*cam.z+cam.x,y:wy*cam.z+cam.y}}
@@ -490,9 +494,14 @@ function w2s(wx,wy){return{x:wx*cam.z+cam.x,y:wy*cam.z+cam.y}}
 let gridVisible=false;
 const gc=$('gridCanvas');
 const gctx=gc.getContext('2d');
-function resizeGrid(){gc.width=window.innerWidth;gc.height=window.innerHeight}
+function resizeGrid(){
+  const dpr=window.devicePixelRatio||1;
+  gc.width=window.innerWidth*dpr;gc.height=window.innerHeight*dpr;
+  gc.style.width=window.innerWidth+'px';gc.style.height=window.innerHeight+'px';
+  gctx.scale(dpr,dpr);
+}
 function redrawGrid(){
-  const W=gc.width,H=gc.height;
+  const W=window.innerWidth,H=window.innerHeight;
   gctx.clearRect(0,0,W,H);
   if(!gridVisible)return;
   const spacing=24*cam.z;
@@ -517,36 +526,82 @@ $('tgrid').addEventListener('click',()=>{
 });
 
 /* ═══════════════════════════════════════════════════════
-   DRAW CANVAS
+   DRAW CANVAS (絲滑雙層渲染引擎 & 真實橡皮擦)
 ═══════════════════════════════════════════════════════ */
-const dc=$('drawCanvas');
-const dctx=dc.getContext('2d');
-const CANVAS_SIZE=16000;
-const HALF=CANVAS_SIZE/2;
+const bc=$('baseCanvas');
+const bctx=bc.getContext('2d');
+const ac=$('activeCanvas');
+const actx=ac.getContext('2d');
+
 function resizeDrawCanvas(){
-  dc.width=CANVAS_SIZE;dc.height=CANVAS_SIZE;
-  dc.style.width=CANVAS_SIZE+'px';dc.style.height=CANVAS_SIZE+'px';
-  dc.style.left=(-HALF)+'px';dc.style.top=(-HALF)+'px';
-  dctx.lineCap='round';dctx.lineJoin='round';
-  redrawCanvas();
+  const dpr=window.devicePixelRatio||1;
+  const W=window.innerWidth, H=window.innerHeight;
+  
+  bc.width=W*dpr; bc.height=H*dpr;
+  bc.style.width=W+'px'; bc.style.height=H+'px';
+  bctx.scale(dpr,dpr);
+
+  ac.width=W*dpr; ac.height=H*dpr;
+  ac.style.width=W+'px'; ac.style.height=H+'px';
+  actx.scale(dpr,dpr);
 }
-function redrawCanvas(){
-  dctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
-  dctx.save();dctx.translate(HALF,HALF);
-  for(const o of objects)renderObj(dctx,o);
-  if(liveObj)renderObj(dctx,liveObj);
-  dctx.restore();
+
+function redrawBaseCanvas(){
+  bctx.clearRect(0,0,window.innerWidth,window.innerHeight);
+  bctx.save();
+  bctx.translate(cam.x, cam.y);
+  bctx.scale(cam.z, cam.z);
+  for(const o of objects) renderObj(bctx, o);
+  bctx.restore();
 }
+
+function redrawActiveCanvas(){
+  actx.clearRect(0,0,window.innerWidth,window.innerHeight);
+  if(!liveObj && Object.keys(remoteLiveStrokes).length === 0) return;
+  
+  actx.save();
+  actx.translate(cam.x, cam.y);
+  actx.scale(cam.z, cam.z);
+  
+  if(liveObj && liveObj.color !== 'eraser') renderObj(actx, liveObj);
+  for(const o of Object.values(remoteLiveStrokes)) {
+    if (o.color !== 'eraser') renderObj(actx, o);
+  }
+  actx.restore();
+
+  // 橡皮擦：實時所見即所得擦除底層 (Destination Out)
+  if ((liveObj && liveObj.color === 'eraser') || Object.values(remoteLiveStrokes).some(o => o.color === 'eraser')) {
+    bctx.save();
+    bctx.translate(cam.x, cam.y);
+    bctx.scale(cam.z, cam.z);
+    if(liveObj && liveObj.color === 'eraser') renderObj(bctx, liveObj);
+    for(const o of Object.values(remoteLiveStrokes)) {
+      if (o.color === 'eraser') renderObj(bctx, o);
+    }
+    bctx.restore();
+  }
+}
+
 function styleCtx(ctx,o){
-  ctx.strokeStyle=o.color||'#1a1a2e';
-  ctx.lineWidth=o.w||4;
+  if(o.color === 'eraser' || o._eraser){
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.strokeStyle = '#000'; // 顏色不重要，直接破壞像素
+    ctx.lineWidth = o.w || 20;
+  } else {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = o.color || '#1a1a2e';
+    ctx.lineWidth = o.w || 4;
+  }
+  ctx.lineCap='round';
+  ctx.lineJoin='round';
   ctx.fillStyle='transparent';
 }
+
 function renderObj(ctx,o){
-  if(o.type==='stroke')drawStroke(ctx,o);
-  else if(o.type==='line')drawLine(ctx,o);
-  else if(o.type==='rect')drawRect(ctx,o);
-  else if(o.type==='ellipse')drawEllipse(ctx,o);
+  if(o.type==='stroke') drawStroke(ctx,o);
+  else if(o.type==='line') drawLine(ctx,o);
+  else if(o.type==='rect') drawRect(ctx,o);
+  else if(o.type==='ellipse') drawEllipse(ctx,o);
 }
 function drawStroke(ctx,o){
   if(!o.pts?.length)return;
@@ -590,14 +645,14 @@ function undo(){
   redoStack.push(JSON.stringify(objects));
   if(redoStack.length>MAX_HISTORY)redoStack.shift();
   objects=JSON.parse(undoStack.pop());
-  redrawCanvas();renderTextObjects();updateUndoRedo();
+  redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();updateUndoRedo();
   send({type:'SYNC_ALL',objs:objects});
 }
 function redo(){
   if(!redoStack.length)return;
   undoStack.push(JSON.stringify(objects));
   objects=JSON.parse(redoStack.pop());
-  redrawCanvas();renderTextObjects();updateUndoRedo();
+  redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();updateUndoRedo();
   send({type:'SYNC_ALL',objs:objects});
 }
 function updateUndoRedo(){$('undoBtn').disabled=!undoStack.length;$('redoBtn').disabled=!redoStack.length}
@@ -681,7 +736,6 @@ const tfs=$('textFontSize');
 let editingObj=null;
 let editorCommitting=false;
 
-// Editor state in screen coords
 let edX=0,edY=0,edW=200,edH=60;
 
 function applyEditorGeometry(){
@@ -739,10 +793,9 @@ function closeTextEditor(commit){
   editingObj=null;
   teWrap.style.display='none';
   renderTextObjects();
-  redrawCanvas();
+  redrawBaseCanvas();
 }
 
-// Resize handles
 teBox.querySelectorAll('.res-handle').forEach(handle=>{
   const dir=handle.dataset.h;
   let startPX,startPY,startEdX,startEdY,startEdW,startEdH;
@@ -777,7 +830,6 @@ teBox.querySelectorAll('.res-handle').forEach(handle=>{
   });
 });
 
-// Drag editor box by its border area
 let edDragging=false,edDragPid=null,edDragStartX,edDragStartY,edDragX0,edDragY0;
 teBox.addEventListener('pointerdown',e=>{
   if(e.target===te||e.target.classList.contains('res-handle'))return;
@@ -829,9 +881,14 @@ function createTextObj(wx,wy){
 ═══════════════════════════════════════════════════════ */
 const uiCanvas=$('uiLayer');
 const uictx=uiCanvas.getContext('2d');
-function resizeUI(){uiCanvas.width=window.innerWidth;uiCanvas.height=window.innerHeight}
+function resizeUI(){
+  const dpr=window.devicePixelRatio||1;
+  uiCanvas.width=window.innerWidth*dpr;uiCanvas.height=window.innerHeight*dpr;
+  uiCanvas.style.width=window.innerWidth+'px';uiCanvas.style.height=window.innerHeight+'px';
+  uictx.scale(dpr,dpr);
+}
 function redrawUI(){
-  uictx.clearRect(0,0,uiCanvas.width,uiCanvas.height);
+  uictx.clearRect(0,0,window.innerWidth,window.innerHeight);
   if(!selectedId)return;
   const o=objById(selectedId);if(!o)return;
   const bbox=getBBox(o);if(!bbox)return;
@@ -931,22 +988,17 @@ $('szMinus').addEventListener('click',e=>{e.stopPropagation();if(szIdx>0){szIdx-
 $('szPlus').addEventListener('click',e=>{e.stopPropagation();if(szIdx<SIZE_STEPS.length-1){szIdx++;updateSizeDisplay()}});
 updateSizeDisplay();
 
-
 /* ═══════════════════════════════════════════════════════
-   POINTER HANDLING (還原極簡穩定版：支援所有手機與雙指)
+   POINTER HANDLING (完美相容雙指與所有手機)
 ═══════════════════════════════════════════════════════ */
 const vp=$('viewport');
-
-// 用 Map 追蹤目前所有活躍指標
 const activePointers=new Map();
 
-// 平移與雙指縮放狀態
 let panPointerId=null;
 let panStart={};
 let pinchActive=false;
 let pinchDist0=0,pinchMid0=null,pinchCam0=null;
 
-// 繪圖狀態
 let drawPointerId=null;
 let liveObjStarted=false;
 let holdTimer=null;
@@ -967,7 +1019,6 @@ function getPinchMid(){
   return{x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2};
 }
 
-// 核心修正 1：移除原本的 e.preventDefault() 與 setPointerCapture()，讓手機順利通過第一關
 vp.addEventListener('pointerdown', e => {
   if(isUITarget(e.target)) return;
   
@@ -1006,7 +1057,7 @@ vp.addEventListener('pointerdown', e => {
   if(activeTool==='pen'){
     liveObj={id:uid(),type:'stroke',pts:[{...w}],color:S.color,w:S.w};
   } else if(activeTool==='eraser'){
-    liveObj={id:uid(),type:'stroke',pts:[{...w}],color:'#fafaf7',w:S.w*5,_eraser:true};
+    liveObj={id:uid(),type:'stroke',pts:[{...w}],color:'eraser',w:S.w*5};
   } else if(activeTool==='line'){
     liveObj={id:uid(),type:'line',x1:w.x,y1:w.y,x2:w.x,y2:w.y,color:S.color,w:S.w};
   } else if(activeTool==='rect'){
@@ -1027,7 +1078,6 @@ vp.addEventListener('pointerdown', e => {
   }
 });
 
-// 核心修正 2：如同早期版本，將 move 綁定在 window 上，確保手指不管滑到哪裡都不斷線
 window.addEventListener('pointermove', e => {
   if(!activePointers.has(e.pointerId)) return;
   activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
@@ -1075,14 +1125,13 @@ window.addEventListener('pointermove', e => {
       liveObj.rx=(w.x-liveObj._ox)/2;liveObj.ry=(w.y-liveObj._oy)/2;
       liveObj.cx=liveObj._ox+liveObj.rx;liveObj.cy=liveObj._oy+liveObj.ry;
     }
-    redrawCanvas();
+    redrawActiveCanvas();
     if(liveObj.type==='stroke'&&S.conn?.open){
       S.conn.send({type:'LIVE',o:{...liveObj,pts:[...liveObj.pts]}});
     }
   }
 });
 
-// 核心修正 3：同樣將 up 與 cancel 綁定在 window 上
 window.addEventListener('pointerup', e => {
   if(!activePointers.has(e.pointerId)) return;
   activePointers.delete(e.pointerId);
@@ -1102,7 +1151,7 @@ window.addEventListener('pointerup', e => {
     liveObjStarted=false;
 
     if(wasDrawing){
-      if(liveObj._eraser||activeTool==='eraser'){
+      if(liveObj.color==='eraser'||activeTool==='eraser'){
         finishDraw();
       } else if(liveObj.type==='stroke'&&!snapApplied){
         const r=recognizeShape(liveObj.pts);
@@ -1137,12 +1186,7 @@ window.addEventListener('pointercancel', e => {
     panPointerId=null;
   }
   if(e.pointerId===drawPointerId){
-    clearTimeout(holdTimer);
-    drawPointerId=null;
-    liveObjStarted=false;
-    liveObj=null;
-    snapApplied=false;
-    redrawCanvas();
+    cancelDraw();
   }
 });
 
@@ -1163,7 +1207,8 @@ function cancelDraw(){
   liveObjStarted=false;
   liveObj=null;
   snapApplied=false;
-  redrawCanvas();
+  redrawBaseCanvas();
+  redrawActiveCanvas();
 }
 
 let _snapHideTimer;
@@ -1194,7 +1239,7 @@ function snapCurrentShape(){
     if(aspect>0.7){liveObj.rx=r;liveObj.ry=r;showSnapIndicator(t('snap_circle2'))}
     else showSnapIndicator(t('snap_ellipse2'));
   }
-  redrawCanvas();
+  redrawActiveCanvas();
 }
 
 function applyRecognizedShape(recognized){
@@ -1205,15 +1250,14 @@ function applyRecognizedShape(recognized){
   else if(recognized.shape==='ellipse'){newObj={id:liveObj.id,type:'ellipse',cx:recognized.cx,cy:recognized.cy,rx:recognized.rx,ry:recognized.ry,color,w};showSnapIndicator(t('snap_ellipse'))}
   else if(recognized.shape==='square'){const{x,y,size}=recognized;newObj={id:liveObj.id,type:'rect',x,y,w2:size,h2:size,color,w};showSnapIndicator(t('snap_square'))}
   else if(recognized.shape==='rect'){newObj={id:liveObj.id,type:'rect',x:recognized.x,y:recognized.y,w2:recognized.w,h2:recognized.h,color,w};showSnapIndicator(t('snap_rect'))}
-  if(newObj){liveObj=newObj;snapApplied=true;redrawCanvas();setTimeout(()=>finishDraw(),120)}
+  if(newObj){liveObj=newObj;snapApplied=true;redrawActiveCanvas();setTimeout(()=>finishDraw(),120)}
   else finishDraw();
 }
 
 function finishDraw(){
   if(!liveObj)return;
   clearTimeout(holdTimer);
-  // line 工具：完成時自動 snap 角度
-  if(liveObj.type==='line'&&!snapApplied&&!liveObj._eraser){
+  if(liveObj.type==='line'&&!snapApplied&&liveObj.color!=='eraser'){
     const dx=liveObj.x2-liveObj.x1,dy=liveObj.y2-liveObj.y1;
     const angle=Math.atan2(dy,dx)*(180/Math.PI);
     const snapAngles=[0,45,90,135,180,-45,-90,-135];
@@ -1222,15 +1266,16 @@ function finishDraw(){
     for(const a of snapAngles){const d=Math.abs(((angle-a+540)%360)-180);if(d<bestD){bestD=d;best=a}}
     if(best!==null){const r=best*Math.PI/180;liveObj.x2=liveObj.x1+dist*Math.cos(r);liveObj.y2=liveObj.y1+dist*Math.sin(r)}
   }
-  const o={...liveObj};delete o._ox;delete o._oy;delete o._eraser;
+  const o={...liveObj};delete o._ox;delete o._oy;
   snapshot();
   objects.push(o);
   liveObj=null;
   snapApplied=false;
-  // 重置繪圖指標（finishDraw 可能從 applyRecognizedShape 的 setTimeout 呼叫，此時已重置過）
   drawPointerId=null;
   liveObjStarted=false;
-  redrawCanvas();renderTextObjects();
+  redrawBaseCanvas();
+  redrawActiveCanvas();
+  renderTextObjects();
   send({type:'ADD',o});
 }
 
@@ -1245,43 +1290,26 @@ function handleData(d){
   if(d.type==='ADD'){
     if(!objects.find(o=>o.id===d.o.id))objects.push(d.o);
     delete remoteLiveStrokes[d.o.id];
-    redrawCanvas();renderTextObjects();
+    redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();
   } else if(d.type==='UPD'){
     const idx=objects.findIndex(o=>o.id===d.o.id);
     if(idx>=0)objects[idx]=d.o;else objects.push(d.o);
-    redrawCanvas();renderTextObjects();
+    redrawBaseCanvas();renderTextObjects();
   } else if(d.type==='DEL'){
     objects=objects.filter(o=>o.id!==d.id);
-    redrawCanvas();renderTextObjects();
+    redrawBaseCanvas();renderTextObjects();
   } else if(d.type==='CLEAR'){
     objects=[];remoteLiveStrokes={};
-    redrawCanvas();renderTextObjects();toast(t('cleared_toast'));
+    redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();toast(t('cleared_toast'));
   } else if(d.type==='SYNC'){
     const ids=new Set(objects.map(o=>o.id));
     d.objs.forEach(o=>{if(!ids.has(o.id))objects.push(o)});
-    redrawCanvas();renderTextObjects();
+    redrawBaseCanvas();renderTextObjects();
   } else if(d.type==='SYNC_ALL'){
-    objects=d.objs;redrawCanvas();renderTextObjects();
+    objects=d.objs;redrawBaseCanvas();renderTextObjects();
   } else if(d.type==='LIVE'){
-    remoteLiveStrokes[d.o.id]=d.o;redrawRemoteLive();
+    remoteLiveStrokes[d.o.id]=d.o;redrawActiveCanvas();
   }
-}
-
-let remoteLiveCanvas=null;
-function ensureRemoteLiveCanvas(){
-  if(remoteLiveCanvas)return;
-  remoteLiveCanvas=document.createElement('canvas');
-  remoteLiveCanvas.width=CANVAS_SIZE;remoteLiveCanvas.height=CANVAS_SIZE;
-  remoteLiveCanvas.style.cssText=`position:absolute;top:0;left:0;width:${CANVAS_SIZE}px;height:${CANVAS_SIZE}px;left:${-HALF}px;top:${-HALF}px;pointer-events:none;opacity:.85`;
-  $('canvas').appendChild(remoteLiveCanvas);
-}
-function redrawRemoteLive(){
-  ensureRemoteLiveCanvas();
-  const ctx=remoteLiveCanvas.getContext('2d');
-  ctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
-  ctx.save();ctx.translate(HALF,HALF);ctx.lineCap='round';ctx.lineJoin='round';
-  for(const o of Object.values(remoteLiveStrokes))renderObj(ctx,o);
-  ctx.restore();
 }
 
 function setupConn(conn){
@@ -1383,7 +1411,7 @@ $('langToggle').addEventListener('click',()=>{
 
 $('tclear').addEventListener('click',()=>{
   if(confirm(t('clear_confirm'))){
-    snapshot();objects=[];redrawCanvas();renderTextObjects();
+    snapshot();objects=[];redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();
     send({type:'CLEAR'});
   }
 });
@@ -1392,8 +1420,8 @@ $('tclear').addEventListener('click',()=>{
    INIT & RESIZE
 ═══════════════════════════════════════════════════════ */
 function onResize(){
-  resizeGrid();resizeUI();
-  redrawGrid();redrawCanvas();renderTextObjects();
+  resizeGrid();resizeDrawCanvas();resizeUI();
+  redrawGrid();redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();
   if(editingObj&&teWrap.style.display!=='none'){
     const sp=w2s(editingObj.x,editingObj.y);
     edX=sp.x;edY=sp.y;
