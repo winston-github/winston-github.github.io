@@ -29,7 +29,6 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
 #uiLayer{position:fixed;top:0;left:0;pointer-events:none;z-index:10}
 
 /* Camera Video Elements */
-/* 移除 transform-origin: 0 0，讓 scaleX(-1) 可以完美原地翻轉 */
 .cam-video { position:absolute; object-fit:fill; pointer-events:auto; outline: 1px solid transparent; transition: outline 0.1s, transform 0.2s ease; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
 .cam-video.selected { outline: 3px solid var(--blue); }
 
@@ -395,7 +394,6 @@ function renderObj(ctx,o){
 
 function drawImageObj(ctx, o) {
   if (!o._img) { 
-      // 使用 Object.defineProperty 確保 _img 不會被 JSON.stringify 序列化，導致效能問題或錯誤
       Object.defineProperty(o, '_img', { enumerable: false, writable: true, value: new Image() });
       o._img.src = o.imgData; 
       o._img.onload = () => { redrawBaseCanvas(); }; 
@@ -543,8 +541,6 @@ function renderCameraObjects() {
       vid.style.left = camObj.x + 'px'; vid.style.top = camObj.y + 'px';
       vid.style.width = camObj.w + 'px'; vid.style.height = camObj.h + 'px';
       vid.style.opacity = camObj.opacity / 100;
-      
-      // 套用翻轉狀態
       vid.style.transform = camObj.flip ? 'scaleX(-1)' : 'none';
 
       if (editingCam && editingCam.id === camObj.id) vid.classList.add('selected'); else vid.classList.remove('selected');
@@ -571,7 +567,6 @@ function openCameraEditor(camObj) {
   $('camLayerBtn').textContent = camObj.isBack ? '🔽' : '🔼';
   $('camLayerBtn').title = camObj.isBack ? '目前在: 背景圖層' : '目前在: 最前圖層';
   
-  // 顯示或隱藏鏡頭切換與翻轉按鈕
   $('camSwitchBtn').style.display = (camObj.ownerId === myPeerId) ? 'block' : 'none';
   $('camFlipBtn').style.display = (camObj.ownerId === myPeerId) ? 'block' : 'none';
   
@@ -597,16 +592,33 @@ function createNewCamera() {
   openCameraEditor(camObj);
 }
 
+// 修改：發送「拍照指令」取代傳送龐大像素
 function takeCameraSnapshot() {
   if (!editingCam) return;
-  const vid = document.querySelector(`video[data-id="${editingCam.id}"]`);
-  if (!vid) return;
+  const imgId = uid();
+  const camData = JSON.parse(JSON.stringify(editingCam)); // 複製一份狀態
+  const wasMyCam = (editingCam.ownerId === myPeerId);
+
+  // 1. 廣播拍照指令給所有人，讓大家各自在本地從串流抓圖
+  send({ type: 'CMD_SNAPSHOT', camObj: camData, imgId: imgId });
+  
+  // 2. 本地也執行抓圖
+  executeLocalSnapshot(camData, imgId);
+  
+  // 3. 關閉編輯器並清除相機
+  closeCameraEditor(false); 
+  if (wasMyCam) stopCameraService();
+}
+
+// 新增：所有設備在本地端各自執行抓取自己的 <video> 畫面
+function executeLocalSnapshot(camObj, imgId) {
+  const vid = document.querySelector(`video[data-id="${camObj.id}"]`);
+  if (!vid) return; // 防呆
 
   const cvs = document.createElement('canvas');
   let cw = vid.videoWidth || 640;
   let ch = vid.videoHeight || 480;
   
-  // 智慧縮放：防止高畫質鏡頭導致的單一圖片體積過大 (上限 1200px)
   const MAX_DIM = 1200;
   if (cw > MAX_DIM) { ch = Math.floor(ch * (MAX_DIM / cw)); cw = MAX_DIM; }
   
@@ -614,29 +626,24 @@ function takeCameraSnapshot() {
   if(cvs.width === 0) return;
   
   const ctx = cvs.getContext('2d'); 
-  
-  // 判斷是否需要鏡像翻轉像素！
-  if (editingCam.flip) {
+  if (camObj.flip) {
       ctx.translate(cw, 0);
       ctx.scale(-1, 1);
   }
-  
   ctx.drawImage(vid, 0, 0, cw, ch);
-  
-  // 壓縮為 JPEG，大幅縮小傳輸體積，解決跨裝置同步失敗的問題
   const dataUrl = cvs.toDataURL('image/jpeg', 0.6);
 
-  const imgObj = { id: uid(), type: 'image', imgData: dataUrl, x: editingCam.x, y: editingCam.y, w: editingCam.w, h: editingCam.h, opacity: editingCam.opacity, isBack: editingCam.isBack };
-  const wasMyCam = (editingCam.ownerId === myPeerId);
+  const imgObj = { id: imgId, type: 'image', imgData: dataUrl, x: camObj.x, y: camObj.y, w: camObj.w, h: camObj.h, opacity: camObj.opacity, isBack: camObj.isBack };
 
-  snapshot();
-  objects = objects.filter(o => o.id !== editingCam.id); 
-  if (imgObj.isBack) { let i = 0; while(i < objects.length && objects[i].isBack) i++; objects.splice(i, 0, imgObj); } else { objects.push(imgObj); }
+  snapshot(); // 紀錄 Undo 狀態
+  objects = objects.filter(o => o.id !== camObj.id); // 刪除攝影機
   
-  send({type: 'DEL', id: editingCam.id}); send({type: 'ADD', o: imgObj});
-  
-  closeCameraEditor(false); 
-  if (wasMyCam) stopCameraService();
+  if (imgObj.isBack) { 
+      let i = 0; while(i < objects.length && objects[i].isBack) i++; 
+      objects.splice(i, 0, imgObj); 
+  } else { 
+      objects.push(imgObj); 
+  }
   
   redrawBaseCanvas();
   renderCameraObjects();
@@ -859,6 +866,9 @@ function handleData(d, sourceConn=null){
   else if(d.type==='SYNC_ALL'){ objects=d.objs;redrawBaseCanvas();renderTextObjects();renderCameraObjects(); }
   else if(d.type==='LIVE'){ remoteLiveStrokes[d.o.id]=d.o;redrawActiveCanvas(); }
   else if(d.type==='LASER'){ delete remoteLiveStrokes[d.o.id]; d.o.t0 = Date.now(); laserStrokes.push(d.o); redrawActiveCanvas(); }
+  // 新增：處理拍照指令
+  else if(d.type==='CMD_SNAPSHOT'){ executeLocalSnapshot(d.camObj, d.imgId); }
+  
   if(currentRole === 'host' && sourceConn) { S.hostConns.forEach(c => { if(c.conn.open && c.conn !== sourceConn) c.conn.send(d); }); }
 }
 
