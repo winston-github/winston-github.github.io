@@ -931,50 +931,31 @@ $('szMinus').addEventListener('click',e=>{e.stopPropagation();if(szIdx>0){szIdx-
 $('szPlus').addEventListener('click',e=>{e.stopPropagation();if(szIdx<SIZE_STEPS.length-1){szIdx++;updateSizeDisplay()}});
 updateSizeDisplay();
 
+
 /* ═══════════════════════════════════════════════════════
-   POINTER HANDLING
-   
-   核心修復：
-   1. 移除 drawPointerId 與 panning 的衝突邏輯
-   2. 用獨立的 panPointerId 追蹤平移手指
-   3. pointerup/pointercancel 不依賴 activePointers.size 判斷，改用各自旗標
-   4. finishDraw 不再依賴 drawing flag，改為直接判斷 liveObj
-   5. 所有 pointermove 嚴格只回應各自的 pointerId
+   POINTER HANDLING (終極行動裝置觸控防禦版)
 ═══════════════════════════════════════════════════════ */
 const vp=$('viewport');
 
 // 用 Map 追蹤目前所有活躍指標
 const activePointers=new Map();
 
-// 平移狀態（select 工具 或 雙指縮放後剩一指）
+// 平移與雙指縮放狀態
 let panPointerId=null;
 let panStart={};
-
-// 雙指縮放
 let pinchActive=false;
 let pinchDist0=0,pinchMid0=null,pinchCam0=null;
 
 // 繪圖狀態
 let drawPointerId=null;
-let liveObjStarted=false; // 確保 liveObj 確實已初始化
-
+let liveObjStarted=false;
 let holdTimer=null;
 let snapApplied=false;
 
-// 判斷事件目標是否為 UI 元素（不應觸發繪圖）
 function isUITarget(el){
   return el.closest('#tb')||el.closest('#topRight')||el.closest('#textEditorWrap')||el.closest('#modal');
 }
 
-vp.addEventListener('touchstart', e => {
-  // 如果摸到的不是按鈕或工具列，強制沒收瀏覽器的滑動手勢
-  if(!isUITarget(e.target)) e.preventDefault();
-}, { passive: false });
-
-vp.addEventListener('touchmove', e => {
-  if(!isUITarget(e.target)) e.preventDefault();
-}, { passive: false });
-    
 function getPinchDist(){
   const pts=[...activePointers.values()];
   if(pts.length<2)return 0;
@@ -986,26 +967,29 @@ function getPinchMid(){
   return{x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2};
 }
 
-vp.addEventListener('pointerdown',e=>{
+// 核心修正 1：在 document 層級徹底封殺瀏覽器原生手勢 (滑動上一頁、下拉更新)
+document.addEventListener('touchstart', e => {
+  if(!isUITarget(e.target)) e.preventDefault();
+}, { passive: false });
+
+document.addEventListener('touchmove', e => {
+  if(!isUITarget(e.target)) e.preventDefault();
+}, { passive: false });
+
+// 核心修正 2：pointerdown 綁定於畫布，且移除 e.preventDefault()
+vp.addEventListener('pointerdown', e => {
   if(isUITarget(e.target))return;
-  e.preventDefault();
 
   activePointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
 
-  // 嘗試捕獲指標（確保 move/up 都在 vp 上觸發）
-  try{vp.setPointerCapture(e.pointerId)}catch(_){}
+  // 核心修正 3：改對真正的觸發目標 (e.target) 進行捕獲
+  try{ e.target.setPointerCapture(e.pointerId); }catch(_){}
 
   const nptrs=activePointers.size;
 
-  // ── 雙指以上：進入 pinch 模式 ──────────────────
   if(nptrs>=2){
-    // 取消正在進行的繪圖
-    if(drawPointerId!==null){
-      cancelDraw();
-    }
-    // 取消平移
+    if(drawPointerId!==null) cancelDraw();
     panPointerId=null;
-
     pinchActive=true;
     pinchDist0=getPinchDist();
     pinchMid0=getPinchMid();
@@ -1013,26 +997,21 @@ vp.addEventListener('pointerdown',e=>{
     return;
   }
 
-  // ── 單指 ────────────────────────────────────────
-  // 若還在 pinch 中等最後一指抬起，不處理新操作
   if(pinchActive)return;
 
   const w=s2w(e.clientX,e.clientY);
 
-  // select 工具 → 平移畫布
   if(activeTool==='select'){
     panPointerId=e.pointerId;
     panStart={px:e.clientX,py:e.clientY,cx:cam.x,cy:cam.y};
     return;
   }
 
-  // text 工具 → 建立文字物件
   if(activeTool==='text'){
     createTextObj(w.x,w.y);
     return;
   }
 
-  // 其他工具 → 開始繪圖
   drawPointerId=e.pointerId;
   liveObjStarted=true;
   snapApplied=false;
@@ -1049,7 +1028,6 @@ vp.addEventListener('pointerdown',e=>{
     liveObj={id:uid(),type:'ellipse',cx:w.x,cy:w.y,rx:0,ry:0,_ox:w.x,_oy:w.y,color:S.color,w:S.w};
   }
 
-  // shape-hold snap timers
   if(activeTool==='pen'){
     holdTimer=setTimeout(()=>{
       if(liveObjStarted&&liveObj?.pts?.length>3&&!snapApplied){
@@ -1060,15 +1038,15 @@ vp.addEventListener('pointerdown',e=>{
   if(activeTool==='line'||activeTool==='rect'||activeTool==='ellipse'){
     holdTimer=setTimeout(()=>{if(liveObjStarted&&liveObj&&!snapApplied)snapCurrentShape()},500);
   }
-},{passive:false});
+});
 
-vp.addEventListener('pointermove',e=>{
+// 核心修正 4：將 pointermove 提升至 window，確保手指滑出邊界也不會斷掉
+window.addEventListener('pointermove', e => {
   if(!activePointers.has(e.pointerId))return;
-  e.preventDefault();
+  
   activePointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
   const nptrs=activePointers.size;
 
-  // ── 雙指縮放 ────────────────────────────────────
   if(nptrs>=2&&pinchActive){
     const dist=getPinchDist(),mid=getPinchMid();
     if(pinchDist0===0)return;
@@ -1084,7 +1062,6 @@ vp.addEventListener('pointermove',e=>{
     return;
   }
 
-  // ── 平移（select 工具） ─────────────────────────
   if(panPointerId!==null&&e.pointerId===panPointerId){
     cam.x=panStart.cx+(e.clientX-panStart.px);
     cam.y=panStart.cy+(e.clientY-panStart.py);
@@ -1092,7 +1069,6 @@ vp.addEventListener('pointermove',e=>{
     return;
   }
 
-  // ── 繪圖 ────────────────────────────────────────
   if(drawPointerId!==null&&e.pointerId===drawPointerId&&liveObj){
     if(snapApplied)return;
     const w=s2w(e.clientX,e.clientY);
@@ -1118,28 +1094,24 @@ vp.addEventListener('pointermove',e=>{
       S.conn.send({type:'LIVE',o:{...liveObj,pts:[...liveObj.pts]}});
     }
   }
-},{passive:false});
+});
 
-vp.addEventListener('pointerup',e=>{
+// 核心修正 5：將 pointerup 與 cancel 提升至 window
+window.addEventListener('pointerup', e => {
   if(!activePointers.has(e.pointerId))return;
-  e.preventDefault();
   activePointers.delete(e.pointerId);
   const nptrs=activePointers.size;
 
-  // 當所有手指都離開，結束 pinch
   if(nptrs<2)pinchActive=false;
 
-  // 若是平移指標抬起
   if(e.pointerId===panPointerId){
     panPointerId=null;
     return;
   }
 
-  // 若是繪圖指標抬起
   if(e.pointerId===drawPointerId){
     clearTimeout(holdTimer);
     const wasDrawing=liveObjStarted&&liveObj!==null;
-    // 重置繪圖狀態
     drawPointerId=null;
     liveObjStarted=false;
 
@@ -1157,7 +1129,6 @@ vp.addEventListener('pointerup',e=>{
     return;
   }
 
-  // 若剩一個手指（從 pinch 退回單指），重啟平移基準
   if(nptrs===1&&pinchActive===false){
     const remaining=[...activePointers.entries()][0];
     if(remaining){
@@ -1168,9 +1139,9 @@ vp.addEventListener('pointerup',e=>{
       }
     }
   }
-},{passive:false});
+});
 
-vp.addEventListener('pointercancel',e=>{
+window.addEventListener('pointercancel', e => {
   if(!activePointers.has(e.pointerId))return;
   activePointers.delete(e.pointerId);
   const nptrs=activePointers.size;
@@ -1189,9 +1160,9 @@ vp.addEventListener('pointercancel',e=>{
   }
 });
 
-vp.addEventListener('contextmenu',e=>e.preventDefault());
+vp.addEventListener('contextmenu', e => e.preventDefault());
 
-vp.addEventListener('wheel',e=>{
+vp.addEventListener('wheel', e => {
   e.preventDefault();
   const delta=e.deltaY>0?0.9:1.1;
   const newZ=clamp(cam.z*delta,.08,12);
@@ -1200,6 +1171,7 @@ vp.addEventListener('wheel',e=>{
   applyCam();renderTextObjects();
 },{passive:false});
 
+  
 function cancelDraw(){
   clearTimeout(holdTimer);
   drawPointerId=null;
