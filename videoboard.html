@@ -17,15 +17,7 @@
 html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
   font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;touch-action:none;}
 
-/* ── Z-Index Hierarchy ──
-   0: Grid Canvas
-   1: Camera Layer (Back)
-   2: Draw Layers (Base & Active)
-   4: Camera Layer (Front)
-   5: Viewport (Text objects & Hitbox)
-   10: UI Tools
-   50: Editor UI (Text Editor & Camera Overlay)
-*/
+/* ── Z-Index Hierarchy ── */
 #gridCanvas{position:fixed;top:0;left:0;pointer-events:none;z-index:0}
 #camLayerBack{position:fixed;top:0;left:0;transform-origin:0 0;z-index:1;pointer-events:none;width:100%;height:100%;}
 .draw-layer{position:fixed;top:0;left:0;pointer-events:none;z-index:2;touch-action:none}
@@ -499,34 +491,40 @@ function renderCameraObjects() {
   const currentCams = objects.filter(o => o.type === 'camera');
   const currentIds = new Set(currentCams.map(o => o.id));
 
-  // Remove deleted cameras
   for (const [id, vid] of existingVids) {
       if (!currentIds.has(id)) { vid.srcObject = null; vid.remove(); }
   }
 
-  // Add / Update
   currentCams.forEach(camObj => {
       let vid = existingVids.get(camObj.id);
       if (!vid) {
           vid = document.createElement('video');
           vid.className = 'cam-video';
           vid.dataset.id = camObj.id;
+          vid.setAttribute('autoplay', '');
+          vid.setAttribute('playsinline', '');
+          vid.setAttribute('muted', '');
           vid.autoplay = true; vid.playsInline = true; vid.muted = true;
+          
+          // 強制觸發播放，避免被瀏覽器防自動播放政策擋住
+          vid.onloadedmetadata = () => { vid.play().catch(e=>console.warn('播放被阻擋:', e)); };
           
           vid.addEventListener('pointerdown', e => {
               if (currentRole === 'monitor') return;
               e.stopPropagation();
               if (editingObj) closeTextEditor(true);
-              if (editingCam && editingCam.id !== camObj.id) closeCameraEditor();
+              if (editingCam && editingCam.id !== camObj.id) closeCameraEditor(true);
               openCameraEditor(camObj);
           });
       }
       
-      // Update Stream Binding
-      if (camObj.ownerId === myPeerId && localStream && vid.srcObject !== localStream) {
-          vid.srcObject = localStream;
-      } else if (camObj.ownerId !== myPeerId && remoteStreams[camObj.ownerId] && vid.srcObject !== remoteStreams[camObj.ownerId]) {
-          vid.srcObject = remoteStreams[camObj.ownerId];
+      let targetStream = null;
+      if (camObj.ownerId === myPeerId && localStream) { targetStream = localStream; }
+      else if (camObj.ownerId !== myPeerId && remoteStreams[camObj.ownerId]) { targetStream = remoteStreams[camObj.ownerId]; }
+
+      if (targetStream && vid.srcObject !== targetStream) {
+          vid.srcObject = targetStream;
+          vid.play().catch(e=>console.warn('直接播放失敗:', e));
       }
 
       vid.style.left = camObj.x + 'px'; vid.style.top = camObj.y + 'px';
@@ -559,7 +557,7 @@ function openCameraEditor(camObj) {
   $('camSwitchBtn').style.display = (camObj.ownerId === myPeerId) ? 'block' : 'none';
   
   applyCameraGeometry();
-  renderCameraObjects(); // update outline
+  renderCameraObjects();
 }
 
 function closeCameraEditor(commit = true) {
@@ -580,6 +578,7 @@ function createNewCamera() {
   openCameraEditor(camObj);
 }
 
+// 修改：拍照固定成像素 (修復多重視窗殘留與同步問題)
 function takeCameraSnapshot() {
   if (!editingCam) return;
   const vid = document.querySelector(`video[data-id="${editingCam.id}"]`);
@@ -592,20 +591,33 @@ function takeCameraSnapshot() {
   const dataUrl = cvs.toDataURL('image/jpeg', 0.85);
 
   const imgObj = { id: uid(), type: 'image', imgData: dataUrl, x: editingCam.x, y: editingCam.y, w: editingCam.w, h: editingCam.h, opacity: editingCam.opacity, isBack: editingCam.isBack };
-  
+  const wasMyCam = (editingCam.ownerId === myPeerId);
+
   snapshot();
-  objects = objects.filter(o => o.id !== editingCam.id); // Delete camera
+  objects = objects.filter(o => o.id !== editingCam.id); 
   if (imgObj.isBack) { let i = 0; while(i < objects.length && objects[i].isBack) i++; objects.splice(i, 0, imgObj); } else { objects.push(imgObj); }
   
   send({type: 'DEL', id: editingCam.id}); send({type: 'ADD', o: imgObj});
-  closeCameraEditor(); redrawBaseCanvas();
+  
+  // 傳入 false 避免 close 時又送出 UPD 將已刪除的相機死灰復燃
+  closeCameraEditor(false); 
+  if (wasMyCam) stopCameraService();
+  
+  redrawBaseCanvas();
+  renderCameraObjects();
 }
 
+// 修改：直接刪除相機
 function deleteCamera() {
   if (!editingCam) return;
+  const wasMyCam = (editingCam.ownerId === myPeerId);
   snapshot(); objects = objects.filter(o => o.id !== editingCam.id);
   send({type: 'DEL', id: editingCam.id});
-  closeCameraEditor();
+  
+  // 傳入 false 避免復活
+  closeCameraEditor(false);
+  if (wasMyCam) stopCameraService();
+  renderCameraObjects();
 }
 
 const camMoveBtn = $('camMoveBtn'); let camDragging=false, camDragPid=null, camX0, camY0, camPx0, camPy0;
@@ -767,7 +779,6 @@ $('btnExport').onclick = () => {
   const cvs = document.createElement('canvas'); cvs.width = w; cvs.height = h; const cx = cvs.getContext('2d');
   cx.fillStyle = '#fafaf7'; cx.fillRect(0,0,w,h); cx.save(); cx.translate(-minX, -minY);
   
-  // Custom draw loop to handle video frames if exported while camera is live
   for(const o of objects) {
     if (o.type === 'camera') {
         const vid = document.querySelector(`video[data-id="${o.id}"]`);
@@ -822,13 +833,13 @@ function restoreEditorMode() { $('tb').style.display = 'flex'; $('btnClear').sty
 
 function bindPeerCallHandlers(peer) {
   peer.on('call', call => {
-      call.answer(); // Accept the media stream
+      call.answer(); 
       call.on('stream', stream => {
           const ownerId = call.metadata?.ownerId;
           if(ownerId) {
              remoteStreams[ownerId] = stream;
              renderCameraObjects();
-             // 🎯 星狀廣播 Relay: 如果我是 Host，立刻轉發給其他人
+             // Host Relay
              if (currentRole === 'host') {
                  S.hostConns.forEach(c => {
                      if (c.conn.peer !== call.peer) peer.call(c.conn.peer, stream, { metadata: { ownerId }});
@@ -849,7 +860,6 @@ function initHost(code){
           const role = conn.metadata?.role || 'visitor'; S.hostConns.push({conn, role}); 
           conn.send({type:'SYNC_ALL',objs:objects}); updateHostUI(); toast(role === 'monitor' ? t('monitor_joined') : t('visitor_joined')); 
           
-          // 如果新的人加入，主機主動將現有的 Stream 推播給他
           if (localStream) peer.call(conn.peer, localStream, { metadata: { ownerId: myPeerId }});
           Object.keys(remoteStreams).forEach(oId => { peer.call(conn.peer, remoteStreams[oId], { metadata: { ownerId: oId }}); });
 
