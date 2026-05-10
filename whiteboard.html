@@ -596,10 +596,10 @@ function renderObj(ctx,o){
 function drawCalligraphy(ctx, o) {
   if(!o.pts?.length) return;
   ctx.globalCompositeOperation = 'source-over';
-  
+  ctx.fillStyle = o.color || '#1a1a2e';
+
   // 單點點擊：畫一個有自信的實心小點
   if (o.pts.length === 1) {
-      ctx.fillStyle = o.color || '#1a1a2e';
       ctx.beginPath(); ctx.arc(o.pts[0].x, o.pts[0].y, o.w * 0.25, 0, Math.PI*2); ctx.fill();
       return;
   }
@@ -608,11 +608,8 @@ function drawCalligraphy(ctx, o) {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
-  // 起筆不從 0 開始，消除鼻涕牽絲感
-  let lastW = o.w * 0.2; 
+  let currentW = o.w * 0.2; 
   const total = o.pts.length;
-  
-  // 關鍵修正：固定首尾收尖的範圍（絕對點數），不再隨總長度改變而導致前端被「壓扁縮水」
   const taperLen = 6; 
   
   let lastX = o.pts[0].x;
@@ -628,35 +625,68 @@ function drawCalligraphy(ctx, o) {
       // 計算錐度 (筆鋒)
       let taper = 1;
       if (i <= taperLen) {
-          taper = 0.3 + 0.7 * (i / taperLen); // 頭部快速達到正常粗度
+          taper = 0.3 + 0.7 * (i / taperLen);
       } 
       if (i >= total - taperLen) {
-          const tailTaper = 0.3 + 0.7 * ((total - i) / taperLen); // 尾部自然收尖
-          if (tailTaper < taper) taper = tailTaper; // 如果總長度很短，取較細的值避免衝突
+          const tailTaper = 0.3 + 0.7 * ((total - i) / taperLen);
+          if (tailTaper < taper) taper = tailTaper; 
       }
       
       targetW *= taper; 
-      // 提高平滑過渡權重 (0.4 -> 0.5)，讓筆觸反應更輕快敏捷
-      lastW += (targetW - lastW) * 0.5; 
-      
-      ctx.lineWidth = Math.max(0.5, lastW);
+      let nextW = currentW + (targetW - currentW) * 0.4; 
+      nextW = Math.max(0.5, nextW);
 
-      // 貝茲曲線連接中點，消除轉折鋸齒
       if (i < total - 1) {
           const midX = (p2.x + o.pts[i+1].x) / 2;
           const midY = (p2.y + o.pts[i+1].y) / 2;
-          ctx.beginPath();
-          ctx.moveTo(lastX, lastY);
-          ctx.quadraticCurveTo(p2.x, p2.y, midX, midY);
-          ctx.stroke();
+          
+          // 【關鍵核心】微積分插值法：將一條貝茲曲線切碎成多段微小直線，平滑過渡寬度
+          // 距離越長切越細，保證每 2 像素至少過渡一次
+          const steps = Math.max(4, Math.ceil(dist / 2)); 
+          let prevSubX = lastX, prevSubY = lastY;
+          
+          for (let j = 1; j <= steps; j++) {
+              const t = j / steps;
+              // 二次貝茲曲線點位公式
+              const subX = (1-t)*(1-t)*lastX + 2*(1-t)*t*p2.x + t*t*midX;
+              const subY = (1-t)*(1-t)*lastY + 2*(1-t)*t*p2.y + t*t*midY;
+              // 寬度線性漸變
+              const subW = currentW + (nextW - currentW) * t;
+
+              ctx.beginPath();
+              ctx.moveTo(prevSubX, prevSubY);
+              ctx.lineTo(subX, subY);
+              ctx.lineWidth = subW;
+              ctx.stroke();
+              
+              prevSubX = subX;
+              prevSubY = subY;
+          }
+          
           lastX = midX;
           lastY = midY;
       } else {
-          ctx.beginPath();
-          ctx.moveTo(lastX, lastY);
-          ctx.lineTo(p2.x, p2.y);
-          ctx.stroke();
+          // 最後一個線段的漸變收尾
+          const steps = Math.max(4, Math.ceil(dist / 2));
+          let prevSubX = lastX, prevSubY = lastY;
+          
+          for (let j = 1; j <= steps; j++) {
+              const t = j / steps;
+              const subX = lastX + (p2.x - lastX) * t;
+              const subY = lastY + (p2.y - lastY) * t;
+              const subW = currentW + (nextW - currentW) * t;
+
+              ctx.beginPath();
+              ctx.moveTo(prevSubX, prevSubY);
+              ctx.lineTo(subX, subY);
+              ctx.lineWidth = subW;
+              ctx.stroke();
+              
+              prevSubX = subX;
+              prevSubY = subY;
+          }
       }
+      currentW = nextW;
   }
 }
 
