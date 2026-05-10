@@ -621,7 +621,7 @@ function snapshot(){
   redoStack=[];updateUndoRedo();
 }
 function undo(){
-  if(editingObj) closeTextEditor(true); 
+  if(editingObj) { closeTextEditor(true); setTool('select'); }
   if(!undoStack.length)return;
   redoStack.push(JSON.stringify(objects));
   objects=JSON.parse(undoStack.pop());
@@ -629,7 +629,7 @@ function undo(){
   send({type:'SYNC_ALL',objs:objects});
 }
 function redo(){
-  if(editingObj) closeTextEditor(true);
+  if(editingObj) { closeTextEditor(true); setTool('select'); }
   if(!redoStack.length)return;
   undoStack.push(JSON.stringify(objects));
   objects=JSON.parse(redoStack.pop());
@@ -694,7 +694,9 @@ function bindTextDiv(div,o){
   });
   div.addEventListener('pointerup',e=>{
     if(activeTool!=='select'&&activeTool!=='text')return;
-    e.stopPropagation(); openTextEditor(o);
+    e.stopPropagation(); 
+    if(activeTool !== 'text') setTool('text');
+    openTextEditor(o);
   });
 }
 
@@ -781,19 +783,15 @@ function closeTextEditor(commit, forceDelete = false){
   const txt = te.value.trim();
   
   if (forceDelete || (commit && txt === '')) {
-    // Delete mode
     objects = objects.filter(o => o.id !== editingObj.id);
     send({type:'DEL', id: editingObj.id});
   } else if (commit && txt !== '') {
-    // Save mode
     if(editingObj.text !== txt || !objById(editingObj.id)) snapshot();
     editingObj.text = te.value;
     editingObj.fontSize = parseInt(tfs.value) || 20;
     if(!objById(editingObj.id)) objects.push(editingObj);
     send({type:'UPD', o: editingObj});
   }
-  
-  if (commit || forceDelete) setTool('select'); // Implicit fallback to select
   
   editingObj = null; teWrap.style.display = 'none'; renderTextObjects();
 }
@@ -825,7 +823,10 @@ teBox.querySelectorAll('.res-handle').forEach(handle=>{
 });
 
 function toggleFormat(fmt){
-  if(!editingObj) return; editingObj[fmt] = !editingObj[fmt];
+  if(!editingObj) return; 
+  editingObj[fmt] = !editingObj[fmt];
+  toolsState.text[fmt] = editingObj[fmt];
+  saveTools();
   te.style.fontWeight = editingObj.bold ? '700' : '400';
   te.style.fontStyle = editingObj.italic ? 'italic' : 'normal';
   te.style.textDecoration = editingObj.underline ? 'underline' : 'none';
@@ -838,25 +839,45 @@ btnAlign.onclick=e=>{
   e.preventDefault(); if(!editingObj) return;
   const current = editingObj.align || 'left';
   editingObj.align = current === 'left' ? 'center' : current === 'center' ? 'right' : 'left';
+  toolsState.text.align = editingObj.align;
+  saveTools();
   updateTextToolsUI(); applyEditorGeometry(); te.focus({ preventScroll: true });
 };
-tfs.onchange=e=>{ if(editingObj){ editingObj.fontSize=parseInt(tfs.value)||20; applyEditorGeometry(); te.focus({ preventScroll: true }); }};
+tfs.onchange=e=>{ 
+  if(editingObj){ 
+    const sz = parseInt(tfs.value)||20;
+    editingObj.fontSize = sz;
+    toolsState.text.sz = sz;
+    saveTools();
+    applyEditorGeometry(); 
+    te.focus({ preventScroll: true }); 
+  } else {
+    toolsState.text.sz = parseInt(tfs.value)||20;
+    saveTools();
+  }
+};
 
 // Text Delete (Trash icon)
 $('btnTextDelete').onpointerdown=e=>{
   e.preventDefault(); e.stopPropagation();
   closeTextEditor(false, true); // force delete
+  setTool('select');
 };
 
 te.addEventListener('keydown',e=>{
-  if(e.key==='Escape'){ e.preventDefault(); closeTextEditor(true); } 
-  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); closeTextEditor(true); }
+  if(e.key==='Escape'){ e.preventDefault(); closeTextEditor(true); setTool('select'); } 
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); closeTextEditor(true); setTool('select'); }
 });
 
 function createTextObj(wx,wy){
   if(editingObj) closeTextEditor(true);
-  const fontSize=parseInt(tfs.value)||20;
-  const o={id:uid(),type:'text',x:wx,y:wy,text:'',color:S.color,fontSize,autoW:true,align:'left'};
+  const st = toolsState.text || defaultStates.text;
+  const fontSize = st.sz || 20;
+  const o={
+    id:uid(), type:'text', x:wx, y:wy, text:'', color:st.color, 
+    fontSize, autoW:true, align: st.align || 'left',
+    bold: st.bold || false, italic: st.italic || false, underline: st.underline || false
+  };
   openTextEditor(o);
 }
 
@@ -994,7 +1015,7 @@ function recognizeShape(pts){
 }
 
 /* ═══════════════════════════════════════════════════════
-   TOOL STATE (With Persistent Memory)
+   TOOL STATE (With Persistent Memory for All Tools)
 ═══════════════════════════════════════════════════════ */
 const S={color:'#1a1a2e',w:4,conn:null};
 let activeTool='pen';
@@ -1003,13 +1024,18 @@ const toolBtns={pen:'tpen',highlighter:'thighlight',laser:'tlaser',line:'tline',
 const SIZE_STEPS=[1,2,3,4,6,8,12,16,24,32,48];
 let szIdx=SIZE_STEPS.indexOf(4);
 
-const defaultPens = {
+const defaultStates = {
   pen: {color:'#1a1a2e', sz: SIZE_STEPS.indexOf(4)},
   highlighter: {color:'#FFEB3B', sz: SIZE_STEPS.indexOf(24)},
-  laser: {color:'#e84855', sz: SIZE_STEPS.indexOf(6)}
+  laser: {color:'#e84855', sz: SIZE_STEPS.indexOf(6)},
+  line: {color:'#1a1a2e', sz: SIZE_STEPS.indexOf(4)},
+  rect: {color:'#1a1a2e', sz: SIZE_STEPS.indexOf(4)},
+  ellipse: {color:'#1a1a2e', sz: SIZE_STEPS.indexOf(4)},
+  eraser: {sz: SIZE_STEPS.indexOf(24)},
+  text: {color:'#1a1a2e', sz: 20, bold: false, italic: false, underline: false, align: 'left'}
 };
-let penStates = JSON.parse(localStorage.getItem('wb_pens')) || defaultPens;
-function savePens() { localStorage.setItem('wb_pens', JSON.stringify(penStates)); }
+let toolsState = JSON.parse(localStorage.getItem('wb_tools')) || defaultStates;
+function saveTools() { localStorage.setItem('wb_tools', JSON.stringify(toolsState)); }
 
 function setTool(tool){
   if(editingObj) closeTextEditor(true);
@@ -1021,11 +1047,20 @@ function setTool(tool){
   else if(tool==='eraser') $(toolBtns[tool]).classList.add('sel-er');
   else $(toolBtns[tool])?.classList.add('sel');
   
-  if(['pen','highlighter','laser'].includes(tool)) {
-    S.color = penStates[tool].color || defaultPens[tool].color;
-    szIdx = typeof penStates[tool].sz === 'number' ? penStates[tool].sz : defaultPens[tool].sz;
-    $('colorpick').value = S.color; $('colorSwatch').style.background = S.color;
-    updateSizeDisplay();
+  if (toolsState[tool]) {
+    if (toolsState[tool].color) {
+      S.color = toolsState[tool].color;
+      $('colorpick').value = S.color; 
+      $('colorSwatch').style.background = S.color;
+    }
+    if (typeof toolsState[tool].sz === 'number') {
+      if (tool === 'text') {
+         $('textFontSize').value = toolsState[tool].sz;
+      } else {
+         szIdx = toolsState[tool].sz;
+         updateSizeDisplay();
+      }
+    }
   }
   
   if(tool !== 'select') deselect();
@@ -1035,7 +1070,7 @@ Object.entries(toolBtns).forEach(([k,id])=>$(id)?.addEventListener('click',()=>s
 
 function setBrushColor(hex) {
   S.color = hex; $('colorpick').value = hex; $('colorSwatch').style.background = hex;
-  if(['pen','highlighter','laser'].includes(activeTool)) { penStates[activeTool].color = hex; savePens(); }
+  if(toolsState[activeTool]) { toolsState[activeTool].color = hex; saveTools(); }
   if(editingObj){ editingObj.color=S.color; te.style.color=S.color; renderTextObjects(); }
 }
 
@@ -1047,7 +1082,7 @@ function updateSizeDisplay(){
 function changeSize(delta) {
   szIdx = clamp(szIdx + delta, 0, SIZE_STEPS.length - 1);
   updateSizeDisplay();
-  if(['pen','highlighter','laser'].includes(activeTool)) { penStates[activeTool].sz = szIdx; savePens(); }
+  if(toolsState[activeTool]) { toolsState[activeTool].sz = szIdx; saveTools(); }
 }
 $('szMinus').addEventListener('click',e=>{e.stopPropagation(); changeSize(-1);});
 $('szPlus').addEventListener('click',e=>{e.stopPropagation(); changeSize(1);});
@@ -1077,7 +1112,11 @@ function getPinchMid(){ const pts=[...activePointers.values()]; if(pts.length<2)
 vp.addEventListener('pointerdown', e => {
   if(isUITarget(e.target)) return;
   
-  if (editingObj) closeTextEditor(true); // Implicit Commit (Switches tool to 'select' if committed)
+  if (editingObj) {
+    closeTextEditor(true); 
+    setTool('select');
+    // 不加 return，讓這一下點擊直接順勢成為抓取/拖拉的開端，保持心流順暢！
+  }
   
   activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
   
@@ -1213,13 +1252,18 @@ window.addEventListener('pointercancel', e => {
 
 vp.addEventListener('contextmenu', e => { if(!e.target.closest('#textEditor')) e.preventDefault(); });
 vp.addEventListener('wheel', e => {
-  if(e.ctrlKey){ // pinch zoom trackpad
-    e.preventDefault();
-    const delta=e.deltaY>0?0.9:1.1; const newZ=clamp(cam.z*delta,.08,12);
-    const wx=(e.clientX-cam.x)/cam.z,wy=(e.clientY-cam.y)/cam.z;
-    cam.z=newZ; cam.x=e.clientX-wx*newZ; cam.y=e.clientY-wy*newZ; applyCam(); renderTextObjects();
-  } else {
-    cam.x -= e.deltaX; cam.y -= e.deltaY; applyCam(); renderTextObjects();
+  e.preventDefault();
+  // 不論有無 Ctrl，直接讓滑鼠滾輪實現縮放
+  if (Math.abs(e.deltaY) > 0) {
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    const newZ = clamp(cam.z * delta, 0.08, 12);
+    const wx = (e.clientX - cam.x) / cam.z;
+    const wy = (e.clientY - cam.y) / cam.z;
+    cam.z = newZ; 
+    cam.x = e.clientX - wx * newZ; 
+    cam.y = e.clientY - wy * newZ; 
+    applyCam(); 
+    renderTextObjects();
   }
 },{passive:false});
   
@@ -1288,7 +1332,7 @@ function finishDraw(){
    SAVE / EXPORT IMAGE
 ═══════════════════════════════════════════════════════ */
 $('btnExport').onclick = () => {
-  if (editingObj) closeTextEditor(true);
+  if (editingObj) { closeTextEditor(true); setTool('select'); }
   if (objects.length === 0) return toast(t('export_empty'));
   
   let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
@@ -1378,7 +1422,7 @@ function handleData(d){
   } else if(d.type==='SYNC_ALL'){ objects=d.objs;redrawBaseCanvas();renderTextObjects(); }
     else if(d.type==='LIVE'){ remoteLiveStrokes[d.o.id]=d.o;redrawActiveCanvas(); }
     else if(d.type==='LASER'){ 
-      delete remoteLiveStrokes[d.o.id]; // Fix Ghost Laser Sync issue
+      delete remoteLiveStrokes[d.o.id]; 
       d.o.t0 = Date.now(); laserStrokes.push(d.o); redrawActiveCanvas(); 
     }
 }
