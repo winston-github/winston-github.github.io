@@ -597,9 +597,10 @@ function drawCalligraphy(ctx, o) {
   if(!o.pts?.length) return;
   ctx.globalCompositeOperation = 'source-over';
   
+  // 單點點擊：畫一個有自信的實心小點
   if (o.pts.length === 1) {
       ctx.fillStyle = o.color || '#1a1a2e';
-      ctx.beginPath(); ctx.arc(o.pts[0].x, o.pts[0].y, o.w * 0.1, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(o.pts[0].x, o.pts[0].y, o.w * 0.25, 0, Math.PI*2); ctx.fill();
       return;
   }
 
@@ -607,9 +608,12 @@ function drawCalligraphy(ctx, o) {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
-  let lastW = 0;
+  // 起筆不從 0 開始，消除鼻涕牽絲感
+  let lastW = o.w * 0.2; 
   const total = o.pts.length;
-  const taperLen = Math.max(2, Math.min(15, total / 3));
+  
+  // 關鍵修正：固定首尾收尖的範圍（絕對點數），不再隨總長度改變而導致前端被「壓扁縮水」
+  const taperLen = 6; 
   
   let lastX = o.pts[0].x;
   let lastY = o.pts[0].y;
@@ -619,21 +623,25 @@ function drawCalligraphy(ctx, o) {
       const dist = Math.hypot(p2.x-p1.x, p2.y-p1.y);
       const speed = Math.min(dist, 25) / 25; 
       
-      let targetW = Math.max(o.w * 0.15, o.w * (1 - speed * 0.8));
+      let targetW = Math.max(o.w * 0.2, o.w * (1 - speed * 0.75));
       
+      // 計算錐度 (筆鋒)
       let taper = 1;
       if (i <= taperLen) {
-          taper = i / taperLen; 
-      } else if (i >= total - taperLen) {
-          taper = (total - i) / taperLen; 
+          taper = 0.3 + 0.7 * (i / taperLen); // 頭部快速達到正常粗度
+      } 
+      if (i >= total - taperLen) {
+          const tailTaper = 0.3 + 0.7 * ((total - i) / taperLen); // 尾部自然收尖
+          if (tailTaper < taper) taper = tailTaper; // 如果總長度很短，取較細的值避免衝突
       }
       
       targetW *= taper; 
-      lastW += (targetW - lastW) * 0.4; 
+      // 提高平滑過渡權重 (0.4 -> 0.5)，讓筆觸反應更輕快敏捷
+      lastW += (targetW - lastW) * 0.5; 
       
-      ctx.lineWidth = Math.max(0.1, lastW);
+      ctx.lineWidth = Math.max(0.5, lastW);
 
-      // 關鍵：使用貝茲曲線連接中點，消除轉折鋸齒
+      // 貝茲曲線連接中點，消除轉折鋸齒
       if (i < total - 1) {
           const midX = (p2.x + o.pts[i+1].x) / 2;
           const midY = (p2.y + o.pts[i+1].y) / 2;
@@ -644,7 +652,6 @@ function drawCalligraphy(ctx, o) {
           lastX = midX;
           lastY = midY;
       } else {
-          // 最後一個點，直接收尾連接
           ctx.beginPath();
           ctx.moveTo(lastX, lastY);
           ctx.lineTo(p2.x, p2.y);
