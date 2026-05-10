@@ -597,14 +597,14 @@ function drawTriangle(ctx,o){
 }
 
 // Laser Animation Loop
-let laserStrokes =[];
+let laserStrokes =[]; let _hadLasers = false;
 function loop() {
-  const now = Date.now(); let needsRedraw = false;
-  laserStrokes = laserStrokes.filter(l => {
-    if (now - l.t0 < 2500) { needsRedraw = true; return true; }
-    return false;
-  });
-  if (needsRedraw) redrawActiveCanvas();
+  const now = Date.now();
+  laserStrokes = laserStrokes.filter(l => now - l.t0 < 2500);
+  if (laserStrokes.length > 0 || _hadLasers) {
+    redrawActiveCanvas();
+  }
+  _hadLasers = laserStrokes.length > 0;
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
@@ -873,7 +873,7 @@ function redrawUI(){
   uictx.strokeRect(p1.x-8,p1.y-8,p2.x-p1.x+16,p2.y-p1.y+16);
   // corner handles
   uictx.fillStyle='#fff';
-  [ [p1.x-8,p1.y-8],[p2.x+8,p1.y-8], [p1.x-8,p2.y+8],[p2.x+8,p2.y+8] ].forEach(pt=>{
+  [ [p1.x-8,p1.y-8],[p2.x+8,p1.y-8],[p1.x-8,p2.y+8],[p2.x+8,p2.y+8] ].forEach(pt=>{
     uictx.fillRect(pt[0]-4,pt[1]-4,8,8); uictx.strokeRect(pt[0]-4,pt[1]-4,8,8);
   });
   uictx.restore();
@@ -987,11 +987,22 @@ function recognizeShape(pts){
 }
 
 /* ═══════════════════════════════════════════════════════
-   TOOL STATE
+   TOOL STATE (With Persistent Memory)
 ═══════════════════════════════════════════════════════ */
 const S={color:'#1a1a2e',w:4,conn:null};
 let activeTool='pen';
 const toolBtns={pen:'tpen',highlighter:'thighlight',laser:'tlaser',line:'tline',rect:'trect',ellipse:'tellipse',text:'ttext',eraser:'teraser',select:'tselect'};
+
+const SIZE_STEPS=[1,2,3,4,6,8,12,16,24,32,48];
+let szIdx=SIZE_STEPS.indexOf(4);
+
+const defaultPens = {
+  pen: {color:'#1a1a2e', sz: SIZE_STEPS.indexOf(4)},
+  highlighter: {color:'#FFEB3B', sz: SIZE_STEPS.indexOf(24)},
+  laser: {color:'#e84855', sz: SIZE_STEPS.indexOf(6)}
+};
+let penStates = JSON.parse(localStorage.getItem('wb_pens')) || defaultPens;
+function savePens() { localStorage.setItem('wb_pens', JSON.stringify(penStates)); }
 
 function setTool(tool){
   if(editingObj) closeTextEditor(true);
@@ -1003,42 +1014,54 @@ function setTool(tool){
   else if(tool==='eraser') $(toolBtns[tool]).classList.add('sel-er');
   else $(toolBtns[tool])?.classList.add('sel');
   
-  // Default highlighter color logic
-  if(tool==='highlighter' && S.color==='#1a1a2e') setBrushColor('#FFEB3B');
-  if(tool==='laser' && S.color==='#1a1a2e') setBrushColor('#e84855');
-  if(tool==='pen' && (S.color==='#FFEB3B' || S.color==='#e84855')) setBrushColor('#1a1a2e');
+  if(['pen','highlighter','laser'].includes(tool)) {
+    S.color = penStates[tool].color || defaultPens[tool].color;
+    szIdx = typeof penStates[tool].sz === 'number' ? penStates[tool].sz : defaultPens[tool].sz;
+    $('colorpick').value = S.color; $('colorSwatch').style.background = S.color;
+    updateSizeDisplay();
+  }
   
   if(tool !== 'select') deselect();
   $('viewport').style.cursor=tool==='pen'?'crosshair':tool==='highlighter'?'crosshair':tool==='laser'?'crosshair':tool==='eraser'?'cell':tool==='select'?'default':'crosshair';
 }
 Object.entries(toolBtns).forEach(([k,id])=>$(id)?.addEventListener('click',()=>setTool(k)));
-setTool('pen');
 
 function setBrushColor(hex) {
   S.color = hex; $('colorpick').value = hex; $('colorSwatch').style.background = hex;
+  if(['pen','highlighter','laser'].includes(activeTool)) { penStates[activeTool].color = hex; savePens(); }
   if(editingObj){ editingObj.color=S.color; te.style.color=S.color; renderTextObjects(); }
 }
 
 $('colorpick').oninput=e=> setBrushColor(e.target.value);
-$('colorSwatch').style.background=S.color;
 
-const SIZE_STEPS=[1,2,3,4,6,8,12,16,24,32,48];
-let szIdx=SIZE_STEPS.indexOf(4);
 function updateSizeDisplay(){
   S.w=SIZE_STEPS[szIdx];$('szLabel').textContent=S.w;
 }
-$('szMinus').addEventListener('click',e=>{e.stopPropagation();if(szIdx>0){szIdx--;updateSizeDisplay()}});
-$('szPlus').addEventListener('click',e=>{e.stopPropagation();if(szIdx<SIZE_STEPS.length-1){szIdx++;updateSizeDisplay()}});
-updateSizeDisplay();
+function changeSize(delta) {
+  szIdx = clamp(szIdx + delta, 0, SIZE_STEPS.length - 1);
+  updateSizeDisplay();
+  if(['pen','highlighter','laser'].includes(activeTool)) { penStates[activeTool].sz = szIdx; savePens(); }
+}
+$('szMinus').addEventListener('click',e=>{e.stopPropagation(); changeSize(-1);});
+$('szPlus').addEventListener('click',e=>{e.stopPropagation(); changeSize(1);});
+
+setTool('pen');
 
 /* ═══════════════════════════════════════════════════════
-   POINTER HANDLING
+   POINTER HANDLING (Hidden Shape Rec Toggle)
 ═══════════════════════════════════════════════════════ */
 const vp=$('viewport');
 const activePointers=new Map();
 let panPointerId=null; let panStart={};
 let pinchActive=false; let pinchDist0=0,pinchMid0=null,pinchCam0=null;
 let drawPointerId=null; let liveObjStarted=false; let holdTimer=null; let snapApplied=false;
+
+let shapeSnapEnabled=false; let lpTimer=null; let lpStart=null;
+vp.addEventListener('dblclick', e => {
+  if(e.target.closest('#textEditor')) return;
+  shapeSnapEnabled = !shapeSnapEnabled;
+  toast(shapeSnapEnabled ? '🪄 智慧形狀辨識：已開啟' : '🪄 智慧形狀辨識：已關閉');
+});
 
 function isUITarget(el){ return el.closest('#tb')||el.closest('#topRight')||el.closest('#topLeft')||el.closest('#textEditorWrap')||el.closest('#modal')||el.closest('#ctxMenu'); }
 function getPinchDist(){ const pts=[...activePointers.values()]; if(pts.length<2)return 0; return Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y); }
@@ -1071,10 +1094,26 @@ vp.addEventListener('pointerdown', e => {
 
   if(activeTool==='pen'||activeTool==='highlighter'){
     holdTimer=setTimeout(()=>{
-      if(liveObjStarted&&liveObj?.pts?.length>4&&!snapApplied){ const r=recognizeShape(liveObj.pts);if(r)applyRecognizedShape(r); }
+      if(shapeSnapEnabled&&liveObjStarted&&liveObj?.pts?.length>4&&!snapApplied){ const r=recognizeShape(liveObj.pts);if(r)applyRecognizedShape(r); }
     },600); // Draw and hold
   }
-  if(activeTool==='line'||activeTool==='rect'||activeTool==='ellipse'){ holdTimer=setTimeout(()=>{if(liveObjStarted&&liveObj&&!snapApplied)snapCurrentShape()},500); }
+  if(activeTool==='line'||activeTool==='rect'||activeTool==='ellipse'){ 
+    if(shapeSnapEnabled){
+      holdTimer=setTimeout(()=>{if(liveObjStarted&&liveObj&&!snapApplied)snapCurrentShape()},500); 
+    }
+  }
+
+  // Long press toggle for touch
+  if(activePointers.size === 1) {
+    lpStart = {x: e.clientX, y: e.clientY};
+    lpTimer = setTimeout(() => {
+      if(drawPointerId === e.pointerId && liveObjStarted && liveObj?.pts?.length < 5) {
+         shapeSnapEnabled = !shapeSnapEnabled;
+         toast(shapeSnapEnabled ? '🪄 智慧形狀辨識：已開啟' : '🪄 智慧形狀辨識：已關閉');
+         cancelDraw(); // 中斷繪圖以免殘留一個點
+      }
+    }, 1000); // 1 sec long press
+  }
 });
 
 window.addEventListener('pointermove', e => {
@@ -1094,6 +1133,8 @@ window.addEventListener('pointermove', e => {
     cam.x=panStart.cx+(e.clientX-panStart.px); cam.y=panStart.cy+(e.clientY-panStart.py);
     applyCam(); renderTextObjects(); return;
   }
+
+  if(lpStart && Math.hypot(e.clientX-lpStart.x, e.clientY-lpStart.y) > 10) { clearTimeout(lpTimer); lpStart=null; }
 
   if(drawPointerId!==null&&e.pointerId===drawPointerId&&liveObj){
     if(snapApplied)return;
@@ -1115,6 +1156,7 @@ window.addEventListener('pointerup', e => {
   if(!activePointers.has(e.pointerId)) return;
   activePointers.delete(e.pointerId);
   if(activePointers.size<2) pinchActive=false;
+  clearTimeout(lpTimer); lpStart=null;
 
   if(e.pointerId===panPointerId){ panPointerId=null; return; }
   if(e.pointerId===drawPointerId){
@@ -1124,7 +1166,11 @@ window.addEventListener('pointerup', e => {
       if(liveObj.brush==='laser') finishLaser();
       else if(liveObj.brush==='eraser') finishDraw();
       else if(liveObj.type==='stroke'&&!snapApplied){
-        const r=recognizeShape(liveObj.pts); if(r) applyRecognizedShape(r); else finishDraw();
+        if(shapeSnapEnabled){
+          const r=recognizeShape(liveObj.pts); if(r) applyRecognizedShape(r); else finishDraw();
+        } else {
+          finishDraw();
+        }
       } else finishDraw();
     }
     return;
@@ -1139,6 +1185,7 @@ window.addEventListener('pointerup', e => {
 window.addEventListener('pointercancel', e => {
   if(!activePointers.has(e.pointerId)) return;
   activePointers.delete(e.pointerId); if(activePointers.size<2) pinchActive=false;
+  clearTimeout(lpTimer); lpStart=null;
   if(e.pointerId===panPointerId) panPointerId=null;
   if(e.pointerId===drawPointerId) cancelDraw();
 });
@@ -1206,7 +1253,7 @@ function finishLaser() {
 function finishDraw(){
   if(!liveObj)return;
   clearTimeout(holdTimer);
-  if(liveObj.type==='line'&&!snapApplied&&liveObj.brush!=='eraser'){
+  if(liveObj.type==='line'&&!snapApplied&&liveObj.brush!=='eraser'&&shapeSnapEnabled){
     const dx=liveObj.x2-liveObj.x1,dy=liveObj.y2-liveObj.y1, angle=Math.atan2(dy,dx)*(180/Math.PI), dist=Math.hypot(dx,dy);
     let best=null,bestD=10; for(const a of[0,45,90,135,180,-45,-90,-135]){const d=Math.abs(((angle-a+540)%360)-180);if(d<bestD){bestD=d;best=a}}
     if(best!==null){const r=best*Math.PI/180;liveObj.x2=liveObj.x1+dist*Math.cos(r);liveObj.y2=liveObj.y1+dist*Math.sin(r)}
