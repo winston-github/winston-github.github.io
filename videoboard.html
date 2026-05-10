@@ -128,7 +128,11 @@ body.is-fs.is-monitor #btnFullscreen:hover, body.is-fs.is-monitor #btnFullscreen
 .wrow{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;color:var(--muted);padding:8px 0;justify-content:center;}
 .spin{width:16px;height:16px;border:2.5px solid rgba(0,0,0,.1);border-top-color:var(--ink); border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0} @keyframes spin{to{transform:rotate(360deg)}}
 .ilabel{font-size:12px;font-weight:800;color:var(--muted);margin-bottom:8px}
-#roomInput{ width:100%;border:2px solid rgba(0,0,0,.1);border-radius:12px; padding:16px;font-size:36px;font-weight:900;letter-spacing:.2em; text-align:center;color:var(--ink);background:rgba(255,255,255,.5);outline:none; transition:border .2s; } #roomInput:focus{border-color:var(--blue);background:#fff;}
+
+#roomInput{ width:100%;border:2px solid rgba(0,0,0,.1);border-radius:12px; padding:16px;font-size:36px;font-weight:900;letter-spacing:.2em; text-align:center;color:var(--ink);background:rgba(255,255,255,.5);outline:none; transition:border .2s; }
+#roomInput:focus{border-color:var(--blue);background:#fff;}
+#roomInput::placeholder { font-size: 16px; font-weight: 700; letter-spacing: normal; color: rgba(0,0,0,0.25); }
+
 .btn-row { display: flex; gap: 8px; margin-top: 12px; }
 .jbtn { flex:1; border:none; border-radius:12px; padding:16px 8px; font-size:15px; font-weight:800; cursor:pointer; transition:.2s; display:flex; flex-direction:column; align-items:center; gap:4px; } .jbtn:disabled { opacity:.4; cursor:not-allowed; }
 .btn-vis { background:var(--blue); color:#fff; } .btn-mon { background:var(--ink); color:#fff; } .jbtn span.st { font-size: 11px; font-weight: 600; opacity: 0.8; }
@@ -333,7 +337,7 @@ body.is-fs.is-monitor #btnFullscreen:hover, body.is-fs.is-monitor #btnFullscreen
       </div>
       <div class="wrow" id="wrow">
         <div class="spin" id="wspin"></div>
-        <span id="connCount" data-i="waiting">等待加入…</span>
+        <span id="connCount" data-i="host_status_wait">等待加入…</span>
       </div>
     </div>
     
@@ -360,7 +364,7 @@ body.is-fs.is-monitor #btnFullscreen:hover, body.is-fs.is-monitor #btnFullscreen
       <div id="hostStats" style="display:none;">
         <div class="wrow">
           <div class="spin" id="c_wspin"></div>
-          <span id="c_connCount" data-i="waiting">等待加入…</span>
+          <span id="c_connCount" data-i="host_status_wait">等待加入…</span>
         </div>
       </div>
       <div id="clientControls" style="display:none; text-align:center;">
@@ -371,8 +375,8 @@ body.is-fs.is-monitor #btnFullscreen:hover, body.is-fs.is-monitor #btnFullscreen
            <button id="swVisBtn" class="jbtn btn-vis"><span data-i="btn_sw_vis">✍️ 切換為 共編</span><span class="st">Visitor</span></button>
            <button id="swMonBtn" class="jbtn btn-mon"><span data-i="btn_sw_mon">📺 切換為 投影</span><span class="st">Monitor</span></button>
         </div>
-        <button id="btnDisconnect" class="pill-btn" data-i="btn_leave" style="margin:24px auto 0; background:rgba(232,72,85,.08); color:var(--accent); border:1px solid rgba(232,72,85,.2); width:100%; justify-content:center;">斷開連線退出</button>
       </div>
+      <button id="btnDisconnect" class="pill-btn" data-i="btn_leave" style="margin:24px auto 0; background:rgba(232,72,85,.08); color:var(--accent); border:1px solid rgba(232,72,85,.2); width:100%; justify-content:center;">斷開連線退出</button>
     </div>
 
     <div id="mstatus"></div>
@@ -399,7 +403,7 @@ const STRINGS={
     clear_confirm:'確定清空白板？', restore_conn:'嘗試恢復上次連線', connected_toast:'🎉 連線成功！',
     disconnected_toast:'連線已斷開', cleared_toast:'白板已清空', visitor_joined:'✓ 共編者 已加入！',
     monitor_joined:'📺 觀看者 已加入！', connecting:'連線中…', timeout:'逾時，請確認房間碼',
-    share_code:'把這個碼告訴其他人', grid_on:'網格已開啟', grid_off:'網格已關閉', export_empty:'白板是空的', export_done:'已儲存圖片',
+    share_code:'分享此房間碼', grid_on:'網格已開啟', grid_off:'網格已關閉', export_empty:'白板是空的', export_done:'已儲存圖片',
     fs_err:'此瀏覽器不支援全螢幕', cam_err:'無法存取攝影機: ', host_drop:'Host連線中斷，嘗試自動接手恢復連線...',
     sw_vis:'已切換為 共編模式 ✍️', sw_mon:'已切換為 投影模式 📺', disconnected_msg:'已斷開連線退出',
     snap_on:'🪄 智慧形狀辨識：已開啟', snap_off:'🪄 智慧形狀辨識：已關閉', role_vis:'共編 (Visitor)', role_mon:'投影 (Monitor)',
@@ -468,7 +472,15 @@ function applyLang() {
 }
 
 const $=id=>document.getElementById(id); let _tt; const toast=m=>{$('toast').textContent=m;$('toast').classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>$('toast').classList.remove('show'),3500)};
-const setMS=(txt,c)=>{$('mstatus').textContent=txt;$('mstatus').className=c||''};
+
+// 支援動態注入 data-i 屬性以便切換語言也能即時反應
+const setMS=(key, c)=>{
+    if(!key) { $('mstatus').textContent=''; $('mstatus').removeAttribute('data-i'); $('mstatus').className=''; return; }
+    const txt = STRINGS[lang][key] || STRINGS.en[key];
+    if(txt) { $('mstatus').textContent=txt; $('mstatus').setAttribute('data-i', key); } 
+    else { $('mstatus').textContent=key; $('mstatus').removeAttribute('data-i'); } // 用於顯示無法翻譯的原始錯誤
+    $('mstatus').className=c||'';
+};
 const uid=()=>crypto.randomUUID(); const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 function hex2rgba(hex, alpha) { let c = hex.substring(1).split(''); if(c.length===3) c=[c[0],c[0],c[1],c[1],c[2],c[2]]; c= '0x'+c.join(''); return 'rgba('+[(c>>16)&255, (c>>8)&255, c&255].join(',')+','+alpha+')'; }
 
@@ -720,7 +732,7 @@ te.addEventListener('keydown',e=>{ if(e.key==='Escape'){ e.preventDefault(); clo
 function createTextObj(wx,wy){ if(editingObj) closeTextEditor(true); const st = toolsState.text || defaultStates.text; const o={ id:uid(), type:'text', x:wx, y:wy, text:'', color:st.color, fontSize: st.sz||20, autoW:true, align: st.align || 'left', bold: st.bold || false, italic: st.italic || false, underline: st.underline || false }; openTextEditor(o); }
 
 /* ═══════════════════════════════════════════════════════
-   CAMERA OVERLAY LOGIC & SNAPSHOT (FIXED GHOST FRAME)
+   CAMERA OVERLAY LOGIC & SNAPSHOT
 ═══════════════════════════════════════════════════════ */
 let myPeerId = null;
 let editingCam = null; 
@@ -756,14 +768,9 @@ function renderCameraObjects() {
   const currentCams = objects.filter(o => o.type === 'camera');
   const currentIds = new Set(currentCams.map(o => o.id));
 
-  // 徹底清除幽靈框：若正在編輯的攝影機物件已被刪除，強制關閉 UI
-  if (editingCam && !currentIds.has(editingCam.id)) {
-      closeCameraEditor(false);
-  }
+  if (editingCam && !currentIds.has(editingCam.id)) { closeCameraEditor(false); }
 
-  for (const [id, vid] of existingVids) {
-      if (!currentIds.has(id)) { vid.srcObject = null; vid.remove(); }
-  }
+  for (const [id, vid] of existingVids) { if (!currentIds.has(id)) { vid.srcObject = null; vid.remove(); } }
 
   currentCams.forEach(camObj => {
       let vid = existingVids.get(camObj.id);
@@ -775,9 +782,7 @@ function renderCameraObjects() {
           vid.setAttribute('playsinline', '');
           vid.setAttribute('muted', '');
           vid.autoplay = true; vid.playsInline = true; vid.muted = true;
-          
           vid.onloadedmetadata = () => { vid.play().catch(e=>console.warn('播放被阻擋:', e)); };
-          
           vid.addEventListener('pointerdown', e => {
               if (currentRole === 'monitor') return;
               e.stopPropagation();
@@ -823,10 +828,8 @@ function openCameraEditor(camObj) {
   $('cameraEditorWrap').style.display = 'block';
   $('camOpacity').value = camObj.opacity;
   $('icon-layer-up').innerHTML = camObj.isBack ? '<polyline points="6 9 12 15 18 9"/>' : '<polyline points="18 15 12 9 6 15"/>';
-  
   $('camSwitchBtn').style.display = (camObj.ownerId === myPeerId) ? 'block' : 'none';
   $('camFlipBtn').style.display = (camObj.ownerId === myPeerId) ? 'block' : 'none';
-  
   applyCameraGeometry();
   renderCameraObjects();
 }
@@ -849,15 +852,12 @@ function createNewCamera() {
   openCameraEditor(camObj);
 }
 
-// 將攝影機快照為標準畫布物件 (type: 'image')
 function executeLocalSnapshot(camObj, imgId) {
   const vid = document.querySelector(`video[data-id="${camObj.id}"]`);
   if (!vid || vid.videoWidth === 0) return null;
 
   const cvs = document.createElement('canvas');
-  let cw = vid.videoWidth || 640;
-  let ch = vid.videoHeight || 480;
-  
+  let cw = vid.videoWidth || 640; let ch = vid.videoHeight || 480;
   const MAX_DIM = 1200;
   if (cw > MAX_DIM) { ch = Math.floor(ch * (MAX_DIM / cw)); cw = MAX_DIM; }
   
@@ -865,14 +865,9 @@ function executeLocalSnapshot(camObj, imgId) {
   if(cvs.width === 0) return null;
   
   const ctx = cvs.getContext('2d'); 
-  if (camObj.flip) {
-      ctx.translate(cw, 0);
-      ctx.scale(-1, 1);
-  }
+  if (camObj.flip) { ctx.translate(cw, 0); ctx.scale(-1, 1); }
   ctx.drawImage(vid, 0, 0, cw, ch);
   const dataUrl = cvs.toDataURL('image/jpeg', 0.6);
-
-  // 產生的 imgObj 是標準可擦除圖片
   return { id: imgId || uid(), type: 'image', imgData: dataUrl, x: camObj.x, y: camObj.y, w: camObj.w, h: camObj.h, opacity: camObj.opacity, isBack: camObj.isBack };
 }
 
@@ -891,14 +886,9 @@ function takeCameraSnapshot() {
   if (imgObj) {
       snapshot(); 
       objects = objects.filter(o => o.id !== camData.id); 
-      if (imgObj.isBack) { 
-          let i = 0; while(i < objects.length && objects[i].isBack) i++; 
-          objects.splice(i, 0, imgObj); 
-      } else { 
-          objects.push(imgObj); 
-      }
-      redrawBaseCanvas();
-      renderCameraObjects();
+      if (imgObj.isBack) { let i = 0; while(i < objects.length && objects[i].isBack) i++; objects.splice(i, 0, imgObj); } 
+      else { objects.push(imgObj); }
+      redrawBaseCanvas(); renderCameraObjects();
   }
 }
 
@@ -1126,10 +1116,7 @@ function handleData(d, sourceConn=null){
   else if(d.type==='SYNC_ALL'){ objects=d.objs;redrawBaseCanvas();renderTextObjects();renderCameraObjects(); }
   else if(d.type==='LIVE'){ remoteLiveStrokes[d.o.id]=d.o;redrawActiveCanvas(); }
   else if(d.type==='LASER'){ delete remoteLiveStrokes[d.o.id]; d.o.t0 = Date.now(); laserStrokes.push(d.o); redrawActiveCanvas(); }
-  else if(d.type==='CMD_SNAPSHOT'){ 
-      const imgObj = executeLocalSnapshot(d.camObj, d.imgId); 
-      // 確保客戶端也同步完成替換（若需要）
-  }
+  else if(d.type==='CMD_SNAPSHOT'){ executeLocalSnapshot(d.camObj, d.imgId); }
   else if(d.type==='PEER_LIST'){ activePeers = d.peers; }
   else if(d.type==='ROLE_UPDATE' && currentRole === 'host') {
       const client = S.hostConns.find(c => c.conn === sourceConn);
@@ -1143,14 +1130,19 @@ const makeCode=()=>String(Math.floor(100000+Math.random()*900000));
 const codeToId=c=>'wb-'+c,idToCode=id=>id.replace(/^wb-/,'');
 
 function destroyPeer(){ if(_peer&&!_peer.destroyed)_peer.destroy(); _peer=null; S.hostConn=null; S.hostConns=[]; }
+
+// 同時更新兩個面板（Hpanel 剛建立時 / Cpanel 面板重新打開時）的連線數狀態
 function updateHostUI(){ 
   if(currentRole!=='host') return; 
   const vCount = S.hostConns.filter(c => c.role === 'visitor').length; 
   const mCount = S.hostConns.filter(c => c.role === 'monitor').length; 
   if(vCount===0 && mCount===0) { 
-     $('c_connCount').textContent = t('host_status_wait'); $('c_connCount').style.color = 'var(--muted)'; $('c_connCount').style.fontWeight = '600'; $('c_wspin').style.display='block'; 
+     const w = t('host_status_wait');
+     $('connCount').textContent = w; $('connCount').style.color = 'var(--muted)'; $('connCount').style.fontWeight = '600'; $('wspin').style.display='block';
+     $('c_connCount').textContent = w; $('c_connCount').style.color = 'var(--muted)'; $('c_connCount').style.fontWeight = '600'; $('c_wspin').style.display='block';
   } else { 
      const msg = t('host_status_ok').replace('{v}', vCount).replace('{m}', mCount);
+     $('connCount').textContent = msg; $('connCount').style.color = '#27ae60'; $('connCount').style.fontWeight = '800'; $('wspin').style.display='none'; 
      $('c_connCount').textContent = msg; $('c_connCount').style.color = '#27ae60'; $('c_connCount').style.fontWeight = '800'; $('c_wspin').style.display='none'; 
   } 
 }
@@ -1181,7 +1173,8 @@ function initHost(code, isRecovery = false){
   document.body.classList.remove('is-monitor');
   const peer=new Peer(codeToId(code),{debug:0,config:{iceServers:[{urls:'stun:stun.l.google.com:19302'}]}}); _peer=peer;
   peer.on('open',id=>{ 
-      myPeerId=id; $('rcode').textContent=idToCode(id); $('rsub').textContent=t('share_code'); 
+      myPeerId=id; $('rcode').textContent=idToCode(id); 
+      $('rsub').textContent=t('share_code'); $('rsub').setAttribute('data-i', 'share_code');
       if(!isRecovery) objects = [];
       updateHostUI(); updateStatusPill(); localStorage.setItem('wb_session', JSON.stringify({role: 'host', code: currentRoomCode})); 
   });
@@ -1196,8 +1189,6 @@ function initHost(code, isRecovery = false){
           Object.keys(remoteStreams).forEach(oId => { peer.call(conn.peer, remoteStreams[oId], { metadata: { ownerId: oId }}); });
 
           conn.on('data', d => handleData(d, conn)); 
-          
-          // 若 Visitor 斷線：Host 立刻針對他的視訊建立畫布快照
           conn.on('close', () => { 
               S.hostConns = S.hostConns.filter(c => c.conn !== conn); 
               broadcastPeerList(); 
@@ -1209,10 +1200,8 @@ function initHost(code, isRecovery = false){
                   const imgObj = executeLocalSnapshot(cam, uid());
                   objects = objects.filter(o => o.id !== cam.id);
                   if (imgObj) {
-                      if (imgObj.isBack) { 
-                          let i = 0; while(i < objects.length && objects[i].isBack) i++; 
-                          objects.splice(i, 0, imgObj); 
-                      } else { objects.push(imgObj); }
+                      if (imgObj.isBack) { let i = 0; while(i < objects.length && objects[i].isBack) i++; objects.splice(i, 0, imgObj); } 
+                      else { objects.push(imgObj); }
                       send({type: 'ADD', o: imgObj});
                   }
                   send({type: 'DEL', id: cam.id});
@@ -1232,8 +1221,8 @@ function initHost(code, isRecovery = false){
 function joinRoom(code, role, isRecovery = false){
   destroyPeer(); currentRole=role; currentRoomCode=code;
   if(role === 'monitor') applyMonitorMode(); else restoreEditorMode();
-  const peer=new Peer(undefined,{debug:0});_peer=peer; $('joinVisBtn').disabled=true; $('joinMonBtn').disabled=true; setMS(t('connecting'));
-  let to=setTimeout(()=>{setMS(t('timeout'),'err'); $('roomInput').dispatchEvent(new Event('input'));},12000);
+  const peer=new Peer(undefined,{debug:0});_peer=peer; $('joinVisBtn').disabled=true; $('joinMonBtn').disabled=true; setMS('connecting');
+  let to=setTimeout(()=>{setMS('timeout','err'); $('roomInput').dispatchEvent(new Event('input'));},12000);
   peer.on('open', id=>{
     myPeerId=id; bindPeerCallHandlers(peer);
     const conn=peer.connect(codeToId(code),{reliable:true, serialization:'json', metadata: {role}}); S.hostConn = conn;
@@ -1247,7 +1236,6 @@ function joinRoom(code, role, isRecovery = false){
     });
     conn.on('data',handleData); 
     
-    // 若 Host 斷線：所有人（包含自己）會把除了自己以外的所有視訊轉成靜態畫布物件
     conn.on('close',()=>{ 
         S.hostConn=null; 
         toast(t('host_drop'));
@@ -1257,15 +1245,12 @@ function joinRoom(code, role, isRecovery = false){
             const imgObj = executeLocalSnapshot(cam, cam.id + '_snap');
             objects = objects.filter(o => o.id !== cam.id);
             if (imgObj) {
-                if (imgObj.isBack) { 
-                    let i = 0; while(i < objects.length && objects[i].isBack) i++; 
-                    objects.splice(i, 0, imgObj); 
-                } else { objects.push(imgObj); }
+                if (imgObj.isBack) { let i = 0; while(i < objects.length && objects[i].isBack) i++; objects.splice(i, 0, imgObj); } 
+                else { objects.push(imgObj); }
             }
         });
         redrawBaseCanvas(); renderCameraObjects();
         
-        // Auto-Migration
         let candidates = activePeers.filter(id => id !== hostId);
         if(!candidates.includes(myPeerId)) candidates.push(myPeerId);
         candidates.sort();
@@ -1274,11 +1259,8 @@ function joinRoom(code, role, isRecovery = false){
         const codeToRecover = currentRoomCode;
         const myRole = currentRole;
         
-        if (myPeerId === newHostId) {
-            setTimeout(() => { initHost(codeToRecover, true); }, 1500);
-        } else {
-            setTimeout(() => { joinRoom(codeToRecover, myRole, true); }, 3500);
-        }
+        if (myPeerId === newHostId) { setTimeout(() => { initHost(codeToRecover, true); }, 1500); } 
+        else { setTimeout(() => { joinRoom(codeToRecover, myRole, true); }, 3500); }
     }); 
     conn.on('error',err=>{clearTimeout(to);setMS('Error: '+(err.message||err),'err'); $('roomInput').dispatchEvent(new Event('input'));});
   });
@@ -1329,7 +1311,7 @@ function openModal(){
           else { switchTab('j'); $('roomInput').value = session.code; $('joinVisBtn').disabled=false; $('joinMonBtn').disabled=false; joinRoom(session.code, session.role); } 
       }; 
   } else { $('restoreWrap').style.display = 'none'; }
-  if(!_peer||_peer.destroyed){ $('rcode').textContent='……';$('rsub').textContent=t('initializing'); initHost(makeCode()); }
+  if(!_peer||_peer.destroyed){ $('rcode').textContent='……';$('rsub').textContent=t('initializing'); $('rsub').setAttribute('data-i','initializing'); initHost(makeCode()); }
 }
 function closeModal(){$('modal').classList.remove('show')}
 $('pill').onclick=openModal; $('xbtn').onclick=closeModal; $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeModal()});
@@ -1347,6 +1329,7 @@ $('swMonBtn').onclick = () => {
         applyMonitorMode(); updateStatusPill(); closeModal(); toast(t('sw_mon'));
     }
 };
+// 斷開按鈕已經移到全域，供所有角色點擊
 $('btnDisconnect').onclick = () => {
     destroyPeer(); currentRole = null; currentRoomCode = null; localStorage.removeItem('wb_session');
     restoreEditorMode(); updateStatusPill(); closeModal(); toast(t('disconnected_msg'));
