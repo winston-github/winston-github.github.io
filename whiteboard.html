@@ -596,20 +596,43 @@ function renderObj(ctx,o){
 function drawCalligraphy(ctx, o) {
   if(!o.pts?.length) return;
   ctx.globalCompositeOperation = 'source-over';
-  ctx.fillStyle = o.color || '#1a1a2e';
-  ctx.beginPath(); ctx.arc(o.pts[0].x, o.pts[0].y, o.w/2, 0, Math.PI*2); ctx.fill();
-  let lastW = o.w * 0.3;
+  
+  // 單點點擊時畫一個極小的點，符合尖筆的特性
+  if (o.pts.length === 1) {
+      ctx.fillStyle = o.color || '#1a1a2e';
+      ctx.beginPath(); ctx.arc(o.pts[0].x, o.pts[0].y, o.w * 0.1, 0, Math.PI*2); ctx.fill();
+      return;
+  }
+
+  let lastW = 0; // 關鍵修改：從 0 開始，創造起筆的尖銳感
   for(let i=1; i<o.pts.length; i++){
       const p1 = o.pts[i-1], p2 = o.pts[i];
       const dist = Math.hypot(p2.x-p1.x, p2.y-p1.y);
       const speed = Math.min(dist, 25) / 25; // 0 to 1
-      const targetW = Math.max(o.w * 0.15, o.w * (1 - speed * 0.8));
-      lastW += (targetW - lastW) * 0.4;
+      
+      // 基本寬度 (畫越快線條越細)
+      let targetW = Math.max(o.w * 0.15, o.w * (1 - speed * 0.8));
+      
+      // 關鍵修改：動態錐度 (Tapering) 計算，強制頭尾收尖
+      const total = o.pts.length;
+      const taperLen = Math.max(2, Math.min(15, total / 3)); // 決定收尖的過渡長度
+      let taper = 1;
+      
+      if (i <= taperLen) {
+          taper = i / taperLen; // 頭部漸漸變粗
+      } else if (i >= total - taperLen) {
+          taper = (total - i) / taperLen; // 尾部漸漸收尾變細
+      }
+      
+      targetW *= taper; // 疊加錐度倍率
+      lastW += (targetW - lastW) * 0.4; // 平滑過渡
+      
       ctx.beginPath();
       ctx.moveTo(p1.x, p1.y);
       ctx.lineTo(p2.x, p2.y);
       ctx.strokeStyle = o.color || '#1a1a2e';
-      ctx.lineWidth = lastW;
+      // 因為寬度會自然收斂到 0，視覺上線條端點就會變成銳利的尖端
+      ctx.lineWidth = Math.max(0.1, lastW); 
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.stroke();
