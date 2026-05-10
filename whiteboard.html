@@ -295,6 +295,15 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
     <div class="res-handle" data-h="e"><div class="rh-dot"></div></div>
     
     <div id="textEditorTools">
+      <!-- 移動文字方塊按鈕 -->
+      <div class="tt-btn" id="textMoveBtn" style="cursor:move;" title="拖曳移動">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"></polyline><polyline points="9 5 12 2 15 5"></polyline><polyline points="19 9 22 12 19 15"></polyline><polyline points="9 19 12 22 15 19"></polyline><line x1="2" y1="12" x2="22" y2="12"></line><line x1="12" y1="2" x2="12" y2="22"></line></svg>
+      </div>
+      <!-- 文字專屬顏色選取器 -->
+      <div id="textColorSwatch" class="tt-btn" style="padding:0; overflow:hidden; position:relative; width:22px; height:22px; min-width:22px; border-radius:50%; border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.2); margin:0 4px;" title="文字顏色">
+        <input id="textColorPick" type="color" value="#1a1a2e" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">
+      </div>
+      
       <button class="tt-btn" id="btnBold">B</button>
       <button class="tt-btn" id="btnItalic">I</button>
       <button class="tt-btn" id="btnUnderline">U</button>
@@ -688,7 +697,7 @@ function renderTextObjects(){
 function bindTextDiv(div,o){
   div.addEventListener('pointerdown',e=>{
     if(activeTool!=='select'&&activeTool!=='text')return;
-    e.stopPropagation(); 
+    e.stopPropagation(); e.preventDefault(); // 防止干擾焦點
     if(editingObj && editingObj.id !== o.id) closeTextEditor(true);
     selectObj(o.id);
   });
@@ -760,6 +769,9 @@ function updateTextToolsUI(){
   if (align === 'left') { btnAlign.innerHTML = '≣'; }
   else if (align === 'center') { btnAlign.innerHTML = '⫸'; }
   else if (align === 'right') { btnAlign.innerHTML = '⫷'; }
+  
+  $('textColorPick').value = editingObj.color || '#1a1a2e';
+  $('textColorSwatch').style.background = editingObj.color || '#1a1a2e';
 }
 
 function openTextEditor(o){
@@ -775,7 +787,9 @@ function openTextEditor(o){
   te.value=o.text||'';
   
   updateTextToolsUI(); applyEditorGeometry(); renderTextObjects();
-  te.focus({ preventScroll: true }); 
+  
+  // 加入微小延遲保證在 display:block 渲染後能順利鎖定輸入焦點 (修復電腦版需手動點擊的問題)
+  setTimeout(() => { te.focus({ preventScroll: true }); }, 10);
 }
 
 function closeTextEditor(commit, forceDelete = false){
@@ -797,6 +811,32 @@ function closeTextEditor(commit, forceDelete = false){
 }
 
 te.addEventListener('input', applyEditorGeometry);
+
+// ── Text Move & Resize Handles ──
+const textMoveBtn = $('textMoveBtn');
+let textDragging=false, textDragPid=null, tmStartPX, tmStartPY, tmObjX, tmObjY;
+
+textMoveBtn.addEventListener('pointerdown', e => {
+  e.preventDefault(); e.stopPropagation();
+  textDragging = true;
+  textDragPid = e.pointerId;
+  textMoveBtn.setPointerCapture(textDragPid);
+  tmStartPX = e.clientX; tmStartPY = e.clientY;
+  tmObjX = editingObj.x; tmObjY = editingObj.y;
+});
+
+textMoveBtn.addEventListener('pointermove', e => {
+  if(!textDragging || e.pointerId !== textDragPid) return;
+  e.preventDefault(); e.stopPropagation();
+  const dx = (e.clientX - tmStartPX) / cam.z;
+  const dy = (e.clientY - tmStartPY) / cam.z;
+  editingObj.x = tmObjX + dx;
+  editingObj.y = tmObjY + dy;
+  applyEditorGeometry();
+});
+
+textMoveBtn.addEventListener('pointerup', e => { if(e.pointerId === textDragPid) textDragging = false; });
+textMoveBtn.addEventListener('pointercancel', e => { if(e.pointerId === textDragPid) textDragging = false; });
 
 teBox.querySelectorAll('.res-handle').forEach(handle=>{
   const dir=handle.dataset.h;
@@ -832,6 +872,21 @@ function toggleFormat(fmt){
   te.style.textDecoration = editingObj.underline ? 'underline' : 'none';
   updateTextToolsUI(); te.focus({ preventScroll: true }); applyEditorGeometry();
 }
+
+$('textColorPick').addEventListener('input', e => {
+  if (!editingObj) return;
+  const hex = e.target.value;
+  editingObj.color = hex;
+  $('textColorSwatch').style.background = hex;
+  te.style.color = hex;
+  toolsState.text.color = hex;
+  saveTools();
+  // 保持主色選取器同步更新
+  if (activeTool === 'text') { S.color = hex; $('colorpick').value = hex; $('colorSwatch').style.background = hex; }
+  renderTextObjects();
+  te.focus({ preventScroll: true });
+});
+
 btnB.onclick=e=>{e.preventDefault(); toggleFormat('bold');};
 btnI.onclick=e=>{e.preventDefault(); toggleFormat('italic');};
 btnU.onclick=e=>{e.preventDefault(); toggleFormat('underline');};
@@ -1071,7 +1126,13 @@ Object.entries(toolBtns).forEach(([k,id])=>$(id)?.addEventListener('click',()=>s
 function setBrushColor(hex) {
   S.color = hex; $('colorpick').value = hex; $('colorSwatch').style.background = hex;
   if(toolsState[activeTool]) { toolsState[activeTool].color = hex; saveTools(); }
-  if(editingObj){ editingObj.color=S.color; te.style.color=S.color; renderTextObjects(); }
+  if(editingObj){ 
+    editingObj.color=S.color; 
+    te.style.color=S.color; 
+    $('textColorPick').value = S.color;
+    $('textColorSwatch').style.background = S.color;
+    renderTextObjects(); 
+  }
 }
 
 $('colorpick').oninput=e=> setBrushColor(e.target.value);
@@ -1115,7 +1176,6 @@ vp.addEventListener('pointerdown', e => {
   if (editingObj) {
     closeTextEditor(true); 
     setTool('select');
-    // 不加 return，讓這一下點擊直接順勢成為抓取/拖拉的開端，保持心流順暢！
   }
   
   activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
@@ -1140,7 +1200,12 @@ vp.addEventListener('pointerdown', e => {
   const w=s2w(e.clientX,e.clientY);
   // Tool handling
   if(activeTool==='select'){ panPointerId=e.pointerId; panStart={px:e.clientX,py:e.clientY,cx:cam.x,cy:cam.y}; deselect(); return; }
-  if(activeTool==='text'){ createTextObj(w.x,w.y); return; }
+  
+  if(activeTool==='text'){ 
+    e.preventDefault(); // 阻擋電腦版原生 mousedown 搶走輸入框焦點
+    createTextObj(w.x,w.y); 
+    return; 
+  }
 
   // Draw Mode
   drawPointerId=e.pointerId; liveObjStarted=true; snapApplied=false;
@@ -1253,7 +1318,6 @@ window.addEventListener('pointercancel', e => {
 vp.addEventListener('contextmenu', e => { if(!e.target.closest('#textEditor')) e.preventDefault(); });
 vp.addEventListener('wheel', e => {
   e.preventDefault();
-  // 不論有無 Ctrl，直接讓滑鼠滾輪實現縮放
   if (Math.abs(e.deltaY) > 0) {
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
     const newZ = clamp(cam.z * delta, 0.08, 12);
@@ -1506,6 +1570,17 @@ function onResize(){
 window.addEventListener('resize',onResize);
 resizeGrid();resizeDrawCanvas();resizeUI(); initCam(); applyLang(); setTimeout(openModal,300);
 </script>
+<!-- 系統防禦與存取計數模組 (完全靜默 / 防拷貝 / 防衝突) -->
+<script>
+(function(){
+    if (window.location.hostname !== 'winston-github.github.io') return;
+    var file = window.location.pathname.split('/').pop();
+    var pageId = file ? file.split('.')[0] : 'index';
+    if (!pageId) return;
+    var url = 'https://api.counterapi.dev/v1/winston-github-io/page-' + pageId + '/up?_=' + new Date().getTime();
+    fetch(url).catch(function(){});
+})();
+</script>  
 <!-- 系統防禦與存取計數模組 (完全靜默 / 防拷貝 / 防衝突) -->
 <script>
 (function(){
