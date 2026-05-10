@@ -93,7 +93,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
   position:absolute; top:100%; left:0;
   display:flex; gap:6px; margin-top:8px; align-items:center; pointer-events:all; cursor:default;
   background: var(--panel); padding: 6px; border-radius: 10px; box-shadow: var(--shadow);
-  backdrop-filter: blur(16px); border: 1px solid rgba(0,0,0,.08);
+  backdrop-filter: blur(16px); border: 1px solid rgba(0,0,0,.08); min-width: max-content;
 }
 .tt-btn {
   border: none; background:transparent; border-radius:6px;
@@ -106,8 +106,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
 #btnItalic { font-style:italic; font-family:serif; }
 #btnUnderline { text-decoration:underline; }
 #btnAlign { font-size:18px; }
-#textConfirm{ background:var(--blue); color:#fff; font-size:14px; box-shadow:0 2px 8px rgba(58,134,255,.3); margin-left:4px; padding:0 12px; }
-#textConfirm:active { transform:scale(.92); }
+#btnTextDelete { margin-left: 8px; color: var(--accent); padding: 0 8px; font-size: 17px; }
+#btnTextDelete:active { transform: scale(0.85); }
 #textFontSize{ padding:0 4px; border:none; background:transparent; font-weight:700; font-size:14px; outline:none; color:var(--ink); cursor:pointer; }
 
 /* ── Toolbar (Floating Island) ──────────────────────────────────── */
@@ -304,7 +304,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
         <option value="20" selected>20</option><option value="28">28</option>
         <option value="36">36</option><option value="48">48</option><option value="72">72</option>
       </select>
-      <button class="tt-btn" id="textConfirm" data-i="confirm">✓ 完成</button>
+      <button class="tt-btn" id="btnTextDelete" title="刪除文字">🗑️</button>
     </div>
   </div>
 </div>
@@ -392,7 +392,7 @@ const STRINGS={
     modal_title:'建立連線', modal_sub:'Host 產生房間碼，Visitor 輸入後即可即時共編。',
     tab_host:'🖥 Host', tab_visitor:'📱 Visitor', room_code:'房間碼', initializing:'初始化中…',
     waiting:'等待 Visitor 加入…', enter_code:'輸入 Host 的房間碼', join:'加入白板',
-    confirm:'✓ 完成', clear_confirm:'確定清空白板？',
+    clear_confirm:'確定清空白板？',
     connected_toast:'🎉 連線成功！', disconnected_toast:'連線已斷開', cleared_toast:'白板已清空',
     visitor_joined:'✓ Visitor 已加入！', connecting:'連線中…', timeout:'逾時，請確認房間碼',
     already_connected:'✓ 已連線中', back:'點 ✕ 回到白板', share_code:'把這個碼告訴 Visitor',
@@ -404,7 +404,7 @@ const STRINGS={
     modal_title:'Connect', modal_sub:'Host generates a room code; Visitor enters it.',
     tab_host:'🖥 Host', tab_visitor:'📱 Visitor', room_code:'ROOM CODE', initializing:'Initializing…',
     waiting:'Waiting for Visitor…', enter_code:"Enter Host's Room Code", join:'Join',
-    confirm:'✓ Done', clear_confirm:'Clear the whiteboard?',
+    clear_confirm:'Clear the whiteboard?',
     connected_toast:'🎉 Connected!', disconnected_toast:'Connection closed', cleared_toast:'Whiteboard cleared',
     visitor_joined:'✓ Visitor joined!', connecting:'Connecting…', timeout:'Timed out. Check code.',
     already_connected:'✓ Connected', back:'Tap ✕ to return', share_code:'Share this code',
@@ -776,23 +776,26 @@ function openTextEditor(o){
   te.focus({ preventScroll: true }); 
 }
 
-function closeTextEditor(commit){
-  if(!editingObj)return;
-  if(commit){
-    const txt=te.value.trim();
-    if(txt !== ''){
-      if(editingObj.text !== txt || !objById(editingObj.id)) snapshot();
-      editingObj.text=te.value; // keep actual spaces but we checked trim
-      editingObj.fontSize=parseInt(tfs.value)||20;
-      if(!objById(editingObj.id)) objects.push(editingObj);
-      send({type:'UPD',o:editingObj});
-    } else {
-      objects=objects.filter(o=>o.id!==editingObj.id);
-      send({type:'DEL',id:editingObj.id});
-    }
-    setTool('select'); // Implicit fallback to select
+function closeTextEditor(commit, forceDelete = false){
+  if(!editingObj) return;
+  const txt = te.value.trim();
+  
+  if (forceDelete || (commit && txt === '')) {
+    // Delete mode
+    objects = objects.filter(o => o.id !== editingObj.id);
+    send({type:'DEL', id: editingObj.id});
+  } else if (commit && txt !== '') {
+    // Save mode
+    if(editingObj.text !== txt || !objById(editingObj.id)) snapshot();
+    editingObj.text = te.value;
+    editingObj.fontSize = parseInt(tfs.value) || 20;
+    if(!objById(editingObj.id)) objects.push(editingObj);
+    send({type:'UPD', o: editingObj});
   }
-  editingObj=null; teWrap.style.display='none'; renderTextObjects();
+  
+  if (commit || forceDelete) setTool('select'); // Implicit fallback to select
+  
+  editingObj = null; teWrap.style.display = 'none'; renderTextObjects();
 }
 
 te.addEventListener('input', applyEditorGeometry);
@@ -839,7 +842,11 @@ btnAlign.onclick=e=>{
 };
 tfs.onchange=e=>{ if(editingObj){ editingObj.fontSize=parseInt(tfs.value)||20; applyEditorGeometry(); te.focus({ preventScroll: true }); }};
 
-$('textConfirm').onclick=()=>closeTextEditor(true);
+// Text Delete (Trash icon)
+$('btnTextDelete').onpointerdown=e=>{
+  e.preventDefault(); e.stopPropagation();
+  closeTextEditor(false, true); // force delete
+};
 
 te.addEventListener('keydown',e=>{
   if(e.key==='Escape'){ e.preventDefault(); closeTextEditor(true); } 
@@ -873,7 +880,7 @@ function redrawUI(){
   uictx.strokeRect(p1.x-8,p1.y-8,p2.x-p1.x+16,p2.y-p1.y+16);
   // corner handles
   uictx.fillStyle='#fff';
-  [ [p1.x-8,p1.y-8],[p2.x+8,p1.y-8],[p1.x-8,p2.y+8],[p2.x+8,p2.y+8] ].forEach(pt=>{
+  [[p1.x-8,p1.y-8],[p2.x+8,p1.y-8],[p1.x-8,p2.y+8],[p2.x+8,p2.y+8] ].forEach(pt=>{
     uictx.fillRect(pt[0]-4,pt[1]-4,8,8); uictx.strokeRect(pt[0]-4,pt[1]-4,8,8);
   });
   uictx.restore();
@@ -1048,7 +1055,7 @@ $('szPlus').addEventListener('click',e=>{e.stopPropagation(); changeSize(1);});
 setTool('pen');
 
 /* ═══════════════════════════════════════════════════════
-   POINTER HANDLING (Hidden Shape Rec Toggle)
+   POINTER HANDLING (Hidden Shape Rec Toggle & UX Fixes)
 ═══════════════════════════════════════════════════════ */
 const vp=$('viewport');
 const activePointers=new Map();
@@ -1070,9 +1077,20 @@ function getPinchMid(){ const pts=[...activePointers.values()]; if(pts.length<2)
 vp.addEventListener('pointerdown', e => {
   if(isUITarget(e.target)) return;
   
-  if (editingObj) closeTextEditor(true); // Implicit Commit
+  if (editingObj) closeTextEditor(true); // Implicit Commit (Switches tool to 'select' if committed)
   
   activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  
+  // Middle Mouse Button override for panning
+  if (e.button === 1) {
+    panPointerId = e.pointerId;
+    panStart = { px: e.clientX, py: e.clientY, cx: cam.x, cy: cam.y };
+    e.preventDefault();
+    return;
+  }
+  // Prevent context menu/right-click from drawing
+  if (e.button === 2) return;
+  
   if(activePointers.size>=2){
     if(drawPointerId!==null) cancelDraw();
     panPointerId=null; pinchActive=true; pinchDist0=getPinchDist(); pinchMid0=getPinchMid(); pinchCam0={...cam};
@@ -1081,9 +1099,11 @@ vp.addEventListener('pointerdown', e => {
   if(pinchActive) return;
 
   const w=s2w(e.clientX,e.clientY);
+  // Tool handling
   if(activeTool==='select'){ panPointerId=e.pointerId; panStart={px:e.clientX,py:e.clientY,cx:cam.x,cy:cam.y}; deselect(); return; }
   if(activeTool==='text'){ createTextObj(w.x,w.y); return; }
 
+  // Draw Mode
   drawPointerId=e.pointerId; liveObjStarted=true; snapApplied=false;
 
   if(activeTool==='pen'||activeTool==='highlighter'||activeTool==='laser') liveObj={id:uid(),type:'stroke',brush:activeTool,pts:[{...w}],color:S.color,w:S.w};
@@ -1129,6 +1149,7 @@ window.addEventListener('pointermove', e => {
     applyCam(); renderTextObjects(); return;
   }
 
+  // Pan (Middle click or Select tool)
   if(panPointerId!==null&&e.pointerId===panPointerId){
     cam.x=panStart.cx+(e.clientX-panStart.px); cam.y=panStart.cy+(e.clientY-panStart.py);
     applyCam(); renderTextObjects(); return;
@@ -1318,7 +1339,7 @@ $('btnExport').onclick = () => {
   cvs.toBlob(blob => {
     const file = new File([blob], 'whiteboard.png', { type: 'image/png' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      navigator.share({ title: 'Shared Whiteboard', files: [file] }).catch(() => saveBlob(blob));
+      navigator.share({ title: 'Shared Whiteboard', files:[file] }).catch(() => saveBlob(blob));
     } else saveBlob(blob);
   });
 };
@@ -1356,7 +1377,10 @@ function handleData(d){
     redrawBaseCanvas();renderTextObjects();
   } else if(d.type==='SYNC_ALL'){ objects=d.objs;redrawBaseCanvas();renderTextObjects(); }
     else if(d.type==='LIVE'){ remoteLiveStrokes[d.o.id]=d.o;redrawActiveCanvas(); }
-    else if(d.type==='LASER'){ d.o.t0 = Date.now(); laserStrokes.push(d.o); redrawActiveCanvas(); }
+    else if(d.type==='LASER'){ 
+      delete remoteLiveStrokes[d.o.id]; // Fix Ghost Laser Sync issue
+      d.o.t0 = Date.now(); laserStrokes.push(d.o); redrawActiveCanvas(); 
+    }
 }
 
 function setupConn(conn){
