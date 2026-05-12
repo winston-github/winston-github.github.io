@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ExpertLingo | 頂級冷門語彙學習庫</title>
+    <style>
+        :root {
+            --bg-base: #0f172a;
+            --bg-panel: #1e293b;
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+            --accent: #38bdf8;
+            --accent-glow: rgba(56, 189, 248, 0.3);
+            --border: rgba(255, 255, 255, 0.1);
+            --btn-again: #ef4444; --btn-hard: #f59e0b;
+            --btn-good: #10b981; --btn-easy: #3b82f6;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, sans-serif; }
+        
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            height: 100vh;
+            display: grid;
+            grid-template-areas: 
+                "header header header"
+                "sidebar main aside"
+                "footer footer footer";
+            grid-template-rows: 60px 1fr 40px;
+            grid-template-columns: 280px 1fr 380px;
+            overflow: hidden;
+        }
+
+        /* ========== 1. Top Header (搜尋列) ========== */
+        header {
+            grid-area: header;
+            background: rgba(30, 41, 59, 0.9);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 20px;
+            z-index: 10;
+        }
+        .logo { font-size: 1.4rem; font-weight: 800; color: var(--accent); letter-spacing: 1px; }
+        .search-container { flex: 1; max-width: 500px; position: relative; }
+        .search-container input {
+            width: 100%; padding: 8px 15px; border-radius: 20px; border: 1px solid var(--border);
+            background: #0f172a; color: white; outline: none; transition: 0.3s;
+        }
+        .search-container input:focus { border-color: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
+
+        /* ========== 2. Left Sidebar (多層跳轉目錄) ========== */
+        nav {
+            grid-area: sidebar;
+            background: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            padding: 15px;
+        }
+        nav::-webkit-scrollbar { width: 5px; }
+        nav::-webkit-scrollbar-thumb { background: #475569; }
+        
+        .category-group { margin-bottom: 10px; }
+        .category-title {
+            font-size: 0.95rem; font-weight: bold; color: var(--text-sub);
+            padding: 10px; cursor: pointer; border-radius: 6px;
+            display: flex; justify-content: space-between;
+        }
+        .category-title:hover { background: rgba(255,255,255,0.05); color: var(--accent); }
+        .topic-list { display: none; padding-left: 15px; margin-top: 5px; }
+        .topic-item {
+            font-size: 0.85rem; padding: 8px 10px; color: #cbd5e1; cursor: pointer; border-radius: 4px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .topic-item:hover, .topic-item.active { background: rgba(56, 189, 248, 0.15); color: var(--accent); }
+
+        /* ========== 3. Center Main (練習核心區塊) ========== */
+        main {
+            grid-area: main;
+            display: flex; justify-content: center; align-items: center;
+            perspective: 1500px; padding: 20px; position: relative;
+        }
+        .flashcard {
+            width: 100%; max-width: 500px; height: 60vh; max-height: 500px;
+            position: relative; transform-style: preserve-3d; transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
+            cursor: pointer;
+        }
+        .flashcard.flipped { transform: rotateY(180deg); }
+        .card-face {
+            position: absolute; width: 100%; height: 100%; backface-visibility: hidden;
+            background: var(--bg-panel); border-radius: 20px; border: 1px solid var(--border);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4); text-align: center; padding: 30px;
+        }
+        .card-front { }
+        .card-back { transform: rotateY(180deg); }
+        
+        .word { font-size: 3.5rem; font-weight: 800; background: linear-gradient(135deg, #fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .phonetic { font-size: 1.2rem; color: var(--text-sub); margin: 10px 0 20px; font-style: italic; }
+        .btn-speak { 
+            background: none; border: 2px solid var(--accent); color: var(--accent);
+            width: 60px; height: 60px; border-radius: 50%; font-size: 1.5rem; cursor: pointer;
+            transition: 0.3s; box-shadow: 0 0 15px var(--accent-glow); margin-bottom: 20px;
+        }
+        .btn-speak:hover { background: var(--accent); color: #000; transform: scale(1.1); }
+        
+        .meaning-huge { font-size: 2rem; font-weight: bold; margin-bottom: 15px; color: var(--accent); }
+        .meta-info { font-size: 1rem; color: var(--text-sub); margin-bottom: 20px; }
+        
+        /* Anki Controls */
+        .anki-controls {
+            display: flex; width: 100%; gap: 10px; margin-top: auto;
+            opacity: 0; pointer-events: none; transition: 0.3s;
+        }
+        .flashcard.flipped .anki-controls { opacity: 1; pointer-events: auto; }
+        .anki-btn { flex: 1; padding: 12px 0; border: none; border-radius: 8px; color: white; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .anki-btn:hover { filter: brightness(1.1); transform: translateY(-2px); }
+        .btn-again { background: var(--btn-again); } .btn-hard { background: var(--btn-hard); }
+        .btn-good { background: var(--btn-good); } .btn-easy { background: var(--btn-easy); }
+        
+        /* ========== 4. Right Aside (背景教學面板) ========== */
+        aside {
+            grid-area: aside; background: var(--bg-panel); border-left: 1px solid var(--border);
+            padding: 20px; overflow-y: auto; opacity: 0; transition: opacity 0.5s;
+        }
+        aside.active { opacity: 1; }
+        aside::-webkit-scrollbar { width: 5px; }
+        aside::-webkit-scrollbar-thumb { background: #475569; }
+
+        .panel-title { font-size: 0.8rem; color: var(--accent); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 5px;}
+        .panel-content { font-size: 1rem; line-height: 1.6; color: #cbd5e1; margin-bottom: 25px; }
+        
+        .dialogue-box { background: rgba(0,0,0,0.3); padding: 15px; border-radius: 10px; border-left: 4px solid var(--accent); margin-bottom: 10px;}
+        .dialogue-en { font-weight: 500; cursor: pointer; margin-bottom: 5px; color: #fff; transition: color 0.2s; }
+        .dialogue-en:hover { color: var(--accent); }
+        .dialogue-zh { font-size: 0.9rem; color: var(--text-sub); }
+
+        /* ========== 5. Bottom Footer (統計資料) ========== */
+        footer {
+            grid-area: footer; background: #0f172a; border-top: 1px solid var(--border);
+            display: flex; justify-content: space-around; align-items: center; font-size: 0.85rem; color: var(--text-sub);
+        }
+        .stat span { font-weight: bold; color: var(--accent); margin-left: 5px;}
+
+        /* ========== RWD 處理 ========== */
+        @media (max-width: 1024px) {
+            body { grid-template-areas: "header header" "sidebar main" "footer footer"; grid-template-columns: 250px 1fr; }
+            aside { position: absolute; right: -100%; top: 60px; height: calc(100vh - 100px); width: 300px; z-index: 20; box-shadow: -5px 0 20px rgba(0,0,0,0.5); }
+            aside.active.mobile-show { right: 0; }
+        }
+        @media (max-width: 768px) {
+            body { grid-template-areas: "header" "main" "footer"; grid-template-columns: 1fr; }
+            nav { position: absolute; left: -100%; top: 60px; height: calc(100vh - 100px); width: 250px; z-index: 20; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">ExpertLingo</div>
+        <div class="search-container">
+            <input type="text" placeholder="搜尋領域或冷門詞彙 (例如: 拓撲學、Dasein)..." onkeyup="filterTopics(this.value)">
+        </div>
+        <button style="background: none; border:none; color:var(--text-sub); cursor:pointer;" onclick="toggleMenu()">☰ 目錄</button>
+    </header>
+
+    <nav id="sidebar">
+        <!-- 目錄由 JS 動態生成，包含 100 個主題分類 -->
+    </nav>
+
+    <main>
+        <div class="flashcard" id="flashcard" onclick="flipCard()">
+            <div class="card-face card-front">
+                <div class="word" id="front-word">Loading...</div>
+                <div class="phonetic" id="front-phonetic"></div>
+                <button class="btn-speak" onclick="speakCurrent(event)">🔊</button>
+                <div style="font-size:0.8rem; color:var(--text-sub); margin-top:20px;">點擊卡片顯示解釋與深度背景</div>
+            </div>
+            <div class="card-face card-back">
+                <div class="meaning-huge" id="back-meaning">Meaning</div>
+                <div class="meta-info" id="back-meta"></div>
+                <div class="anki-controls">
+                    <button class="anki-btn btn-again" onclick="processSRS(event, 0)">重來</button>
+                    <button class="anki-btn btn-hard" onclick="processSRS(event, 1)">困難</button>
+                    <button class="anki-btn btn-good" onclick="processSRS(event, 2)">良好</button>
+                    <button class="anki-btn btn-easy" onclick="processSRS(event, 3)">簡單</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <aside id="right-panel">
+        <div class="panel-title">背景知識 (Background)</div>
+        <div class="panel-content" id="panel-bg"></div>
+
+        <div class="panel-title">使用時機 (Context)</div>
+        <div class="panel-content" id="panel-context"></div>
+
+        <div class="panel-title">衍生與俚語 (Phrases)</div>
+        <div class="panel-content" id="panel-phrases"></div>
+
+        <div class="panel-title">情境對話 (點擊英文朗讀)</div>
+        <div id="panel-dialogue"></div>
+    </aside>
+
+    <footer>
+        <div class="stat">今日學習主題: <span id="stat-topic">-</span></div>
+        <div class="stat">待複習卡片: <span id="stat-queue">0</span></div>
+        <div class="stat">整體熟練度: <span>87%</span></div>
+    </footer>
+
+    <script>
+        // ------------------------------------------------------------
+        // 1. 10大分類與 100個主題清單 (根據您的清單重新打散編排)
+        // ------------------------------------------------------------
+        const catalog =[
+            {
+                group: "哲學、人文與心理學",
+                topics:[
+                    { id: '001', title: "1. 歐陸哲學與現象學 (Phenomenology)" },
+                    { id: '004', title: "4. 修辭學與古典辯論 (Classical Rhetoric)" },
+                    { id: '005', title: "5. 邏輯與分析哲學謬誤 (Logical Fallacies)" },
+                    { id: '008', title: "8. 宗教儀式與神學爭端 (Theological Dogma)" },
+                    { id: '015', title: "15. 語言學：語音與形態 (Linguistics)" },
+                    { id: '019', title: "19. 精神分析與深度心理學 (Psychoanalysis)" },
+                    { id: '049', title: "49. 社會心理學與群體行為 (Social Psychology)" },
+                    { id: '062', title: "62. 認知偏差與統計謬誤 (Cognitive Biases)" },
+                    { id: '064', title: "64. 符號學與結構主義 (Semiotics)" },
+                    { id: '069', title: "69. 演化心理學 (Evolutionary Psychology)" }
+                ]
+            },
+            {
+                group: "法政、社會與地緣戰略",
+                topics:[
+                    { id: '002', title: "2. 英美法系程序與令狀 (Legal Writs)" },
+                    { id: '011', title: "11. 地緣政治與戰略情報 (Geopolitics)" },
+                    { id: '028', title: "28. 博弈論與決策分析 (Game Theory)" },
+                    { id: '038', title: "38. 法律證據學與法醫學 (Forensic Jurisprudence)" },
+                    { id: '040', title: "40. 全球物流與供應鏈博弈 (Incoterms)" },
+                    { id: '042', title: "42. 法律倫理與職業操守 (Legal Ethics)" },
+                    { id: '043', title: "43. 非法經濟與洗錢防制 (Money Laundering)" },
+                    { id: '048', title: "48. 國際私法與衝突法 (Conflict of Laws)" },
+                    { id: '058', title: "58. 行為經濟學與推力理論 (Behavioral Economics)" },
+                    { id: '092', title: "92. 反情報與實體安全設計 (Counter-Surveillance)" }
+                ]
+            },
+            {
+                group: "基礎與應用科學",
+                topics:[
+                    { id: '016', title: "16. 系統論與控制論 (Systems Theory)" },
+                    { id: '032', title: "32. 社會科學統計與計量經濟 (Econometrics)" },
+                    { id: '037', title: "37. 材料科學與流變學 (Rheology)" },
+                    { id: '039', title: "39. 拓撲學與空間幾何 (Topology)" },
+                    { id: '053', title: "53. 粒子物理與量子場論 (Particle Physics)" },
+                    { id: '076', title: "76. 拓撲絕緣體與凝聚態 (Condensed Matter)" },
+                    { id: '078', title: "78. 非線性動力學與混沌理論 (Chaos Theory)" },
+                    { id: '086', title: "86. 拓撲流形與非歐幾何 (Non-Euclidean Geo)" },
+                    { id: '093', title: "93. 極高壓物理與鑽石砧 (High-Pressure Physics)" },
+                    { id: '096', title: "96. 社會網絡分析與圖論 (SNA)" }
+                ]
+            },
+            {
+                group: "生物、醫學與生態地質",
+                topics:[
+                    { id: '006', title: "6. 神經科學與認知障礙 (Neuropsychological)" },
+                    { id: '017', title: "17. 演化生物學與分類學 (Evolutionary Bio)" },
+                    { id: '026', title: "26. 毒物學與藥代動力學 (Toxicology)" },
+                    { id: '034', title: "34. 極地探險與冰河學 (Glaciology)" },
+                    { id: '047', title: "47. 地質災害與地震學 (Seismology)" },
+                    { id: '056', title: "56. 高級製藥工程與賦形劑 (Excipients)" },
+                    { id: '059', title: "59. 景觀建築與土壤力學 (Soil Mechanics)" },
+                    { id: '080', title: "80. 系統生物學與代謝組學 (Metabolomics)" },
+                    { id: '087', title: "87. 基因編輯與合成生物學 (CRISPR)" },
+                    { id: '100', title: "100. 行為生物計量學與識別 (Biometrics)" }
+                ]
+            },
+            {
+                group: "資訊技術與密碼學",
+                topics:[
+                    { id: '021', title: "21. 密碼學與零知識證明 (ZKP)" },
+                    { id: '045', title: "45. 數位鑑識與駭客攻防 (Digital Forensics)" },
+                    { id: '052', title: "52. 形式語言與編譯理論 (Formal Languages)" },
+                    { id: '067', title: "67. 系統架構與分散式邏輯 (Distributed Systems)" },
+                    { id: '070', title: "70. 數位訊號處理與濾波器 (DSP)" },
+                    { id: '074', title: "74. 密碼學：後量子算法 (Post-Quantum)" },
+                    { id: '075', title: "75. 賽博空間與網路法醫學 (Cyber-Forensics)" },
+                    { id: '098', title: "98. 數位長期保存與位元腐爛 (Bit Rot)" },
+                    { id: '095', title: "95. 極端深空遙測與訊號 (Space Telemetry)" },
+                    { id: '082', title: "82. 衍生性金融工具與對沖 (Derivatives)" }
+                ]
+            },
+            {
+                group: "工程、航空與先進技術",
+                topics:[
+                    { id: '013', title: "13. 航空航太與軌道力學 (Orbital Mechanics)" },
+                    { id: '022', title: "22. 精密鐘錶與計時學 (Horology)" },
+                    { id: '029', title: "29. 音響工程與電聲學 (Acoustics)" },
+                    { id: '031', title: "31. 現代製槍與彈道學 (Ballistics)" },
+                    { id: '041', title: "41. 精密光學與鏡頭設計 (Optical Engineering)" },
+                    { id: '060', title: "60. 航空交通管制與協議 (ATC Protocols)" },
+                    { id: '061', title: "61. 精密切削與工具幾何 (Machining)" },
+                    { id: '063', title: "63. 噴射發動機與渦輪機械 (Gas Turbine)" },
+                    { id: '081', title: "81. 微影製程與納米級光學 (Photolithography)" },
+                    { id: '084', title: "84. 真空技術與低溫物理 (Cryogenics)" },
+                    { id: '089', title: "89. 賽車空氣動力學 (F1 Aerodynamics)" },
+                    { id: '071', title: "71. 計時學與原子鐘頻標 (Frequency Standards)" }
+                ]
+            },
+            {
+                group: "工藝、建築與設計歷史",
+                topics:[
+                    { id: '007', title: "7. 建築學與空間結構 (Classical Architecture)" },
+                    { id: '010', title: "10. 紡織與古典裁縫工藝 (Tailoring)" },
+                    { id: '023', title: "23. 城市規劃與景觀生態 (Urbanism)" },
+                    { id: '033', title: "33. 古典裝幀與手工書工藝 (Bookbinding)" },
+                    { id: '044', title: "44. 早期印刷與鉛字工藝 (Typography)" },
+                    { id: '046', title: "46. 高級木工與榫卯結構 (Joinery)" },
+                    { id: '051', title: "51. 皮革工藝與鞣製技術 (Leatherworking)" },
+                    { id: '057', title: "57. 中古服飾與織品史 (Historical Costuming)" },
+                    { id: '068', title: "68. 傳統漆藝與漆化學 (Urushi)" },
+                    { id: '073', title: "73. 精密製鞋與紳裝工藝 (Bespoke Shoemaking)" }
+                ]
+            },
+            {
+                group: "文化歷史與藝術鑑賞",
+                topics:[
+                    { id: '003', title: "3. 紋章學與貴族制度 (Heraldry)" },
+                    { id: '012', title: "12. 古文獻學與版本目錄學 (Codicology)" },
+                    { id: '014', title: "14. 藝術鑑定與拍賣行術語 (Art Provenance)" },
+                    { id: '018', title: "18. 古典音樂與對位法 (Counterpoint)" },
+                    { id: '030', title: "30. 博物館學與文物保存 (Museology)" },
+                    { id: '036', title: "36. 中世紀攻城戰與築壘術 (Poliorcetica)" },
+                    { id: '050', title: "50. 古代武器與護甲構造 (Historical Armor)" },
+                    { id: '054', title: "54. 音韻學與修辭語音學 (Phonetics)" },
+                    { id: '079', title: "79. 考古學：絕對年代測定 (Archaeological Dating)" },
+                    { id: '085', title: "85. 日本刀工藝與冶金學 (Katana Metallurgy)" }
+                ]
+            },
+            {
+                group: "自然探索與感官分析",
+                topics:[
+                    { id: '009', title: "9. 早期航海與天文航海 (Celestial Navigation)" },
+                    { id: '020', title: "20. 釀酒學與品酒專業語彙 (Enology)" },
+                    { id: '024', title: "24. 寶石學與礦物晶體 (Gemology)" },
+                    { id: '025', title: "25. 航海氣象與大氣動力 (Maritime Meteorology)" },
+                    { id: '027', title: "27. 古典馬術與馬匹行為 (Equestrian Dressage)" },
+                    { id: '035', title: "35. 香水工藝與氣味分子 (Perfumery)" },
+                    { id: '055', title: "55. 深海探索與海洋物理 (Deep Sea Exploration)" },
+                    { id: '065', title: "65. 寶石切磨與光學路徑 (Lapidary)" },
+                    { id: '066', title: "66. 深層氣候建模與古氣候 (Paleoclimatology)" },
+                    { id: '072', title: "72. 礦物光學與薄片鑑定 (Optical Mineralogy)" }
+                ]
+            },
+            {
+                group: "特殊技藝與收藏學",
+                topics:[
+                    { id: '077', title: "77. 拍賣行：珠寶鑑定與成色 (Auction Grading)" },
+                    { id: '083', title: "83. 小提琴製作與聲學構造 (Luthier)" },
+                    { id: '088', title: "88. 古典地毯編織與鑑定 (Oriental Rug)" },
+                    { id: '090', title: "90. 傳統木帆船構造與索具 (Wooden Shipbuilding)" },
+                    { id: '091', title: "91. 咖啡感官分析與化學 (Coffee Sensory)" },
+                    { id: '094', title: "94. 傳統造紙與纖維科學 (Papermaking)" },
+                    { id: '097', title: "97. 古典管風琴構造與聲學 (Pipe Organ)" },
+                    { id: '099', title: "99. 煙火工藝與火學反應 (Pyrotechnics)" }
+                ]
+            }
+        ];
+
+        // ------------------------------------------------------------
+        // 系統變數與初始化
+        // ------------------------------------------------------------
+        let currentData = null;
+        let learningQueue =[];
+        let currentIndex = 0;
+        let srsDB = JSON.parse(localStorage.getItem('expertLingoSRS')) || {};
+
+        window.onload = () => {
+            renderSidebar();
+            loadTopic('001'); // 預設載入 Topic 001
+        };
+
+        // 渲染左側目錄
+        function renderSidebar() {
+            const nav = document.getElementById('sidebar');
+            nav.innerHTML = '';
+            catalog.forEach((cat, index) => {
+                const groupDiv = document.createElement('div');
+                groupDiv.className = 'category-group';
+                groupDiv.innerHTML = `
+                    <div class="category-title" onclick="toggleSubMenu('menu-${index}')">
+                        ${cat.group} <span>▼</span>
+                    </div>
+                    <div class="topic-list" id="menu-${index}">
+                        ${cat.topics.map(t => `<div class="topic-item" onclick="loadTopic('${t.id}')">${t.title}</div>`).join('')}
+                    </div>
+                `;
+                nav.appendChild(groupDiv);
+            });
+        }
+
+        function toggleSubMenu(id) {
+            const el = document.getElementById(id);
+            el.style.display = el.style.display === 'block' ? 'none' : 'block';
+        }
+
+        // 搜尋過濾
+        function filterTopics(keyword) {
+            const items = document.querySelectorAll('.topic-item');
+            items.forEach(item => {
+                if(item.innerText.toLowerCase().includes(keyword.toLowerCase())) {
+                    item.style.display = 'block';
+                    item.parentElement.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        // ------------------------------------------------------------
+        // 核心邏輯：載入 JSON 與 Anki 佇列
+        // ------------------------------------------------------------
+        async function loadTopic(id) {
+            // 實際環境中，會根據 id fetch 對應的 JSON
+            // 這裡模擬只提供 topic001.json
+            if(id !== '001') {
+                alert(`⚠️ 在完整系統中，將去伺服器讀取 topic${id}.json。現在為展示架構，僅載入 001。`);
+                return;
+            }
+
+            try {
+                const res = await fetch(`topic${id}.json`);
+                currentData = await res.json();
+                
+                document.getElementById('stat-topic').innerText = currentData.title;
+                buildQueue();
+                renderCard();
+            } catch (e) {
+                console.error("無法載入 JSON。請確保使用 Local Server 環境。", e);
+                alert("無法載入 topic001.json。請確認使用 Web Server (如 Live Server) 開啟。");
+            }
+        }
+
+        function buildQueue() {
+            const now = Date.now();
+            learningQueue = currentData.items.filter(item => {
+                const rec = srsDB[item.id];
+                return !rec || rec.nextReview <= now;
+            });
+            if(learningQueue.length === 0) learningQueue = [...currentData.items]; // 演示用
+            
+            currentIndex = 0;
+            document.getElementById('stat-queue').innerText = learningQueue.length;
+        }
+
+        // ------------------------------------------------------------
+        // UI 渲染與互動
+        // ------------------------------------------------------------
+        function renderCard() {
+            if(currentIndex >= learningQueue.length) {
+                alert("🎉 本章節待複習卡片已清空！");
+                buildQueue();
+                return;
+            }
+            const item = learningQueue[currentIndex];
+            const card = document.getElementById('flashcard');
+            const aside = document.getElementById('right-panel');
+            
+            // 恢復卡片狀態
+            card.classList.remove('flipped');
+            aside.classList.remove('active');
+
+            // 正面
+            document.getElementById('front-word').innerText = item.word;
+            document.getElementById('front-phonetic').innerText = item.phonetic;
+
+            // 背面 (Flashcard 中心)
+            document.getElementById('back-meaning').innerText = item.zh_tw_meaning;
+            document.getElementById('back-meta').innerText = `${item.part_of_speech} | 變體: ${item.variations.length>0 ? item.variations.join(', ') : '無'}`;
+
+            // 右側面板 (深度知識)
+            document.getElementById('panel-bg').innerText = item.background_knowledge;
+            document.getElementById('panel-context').innerText = item.context_of_use;
+            
+            const phtml = item.phrases.map(p => `<strong>${p.en}</strong>: ${p.zh}`).join('<br>');
+            document.getElementById('panel-phrases').innerHTML = phtml;
+
+            const dhtml = item.dialogues.map(d => `
+                <div class="dialogue-box">
+                    <div class="dialogue-en" onclick="speakText('${d.en.replace(/'/g, "\\'")}')">
+                        ${d.speaker}: ${d.en} 🔊
+                    </div>
+                    <div class="dialogue-zh">${d.zh}</div>
+                </div>
+            `).join('');
+            document.getElementById('panel-dialogue').innerHTML = dhtml;
+
+            document.getElementById('stat-queue').innerText = (learningQueue.length - currentIndex);
+        }
+
+        function flipCard() {
+            document.getElementById('flashcard').classList.add('flipped');
+            document.getElementById('right-panel').classList.add('active'); // 翻開後顯示右側資料
+        }
+
+        // ------------------------------------------------------------
+        // 語音引擎 (TTS)
+        // ------------------------------------------------------------
+        function speakCurrent(e) {
+            e.stopPropagation();
+            if(!learningQueue[currentIndex]) return;
+            speakText(learningQueue[currentIndex].word);
+        }
+
+        function speakText(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utter = new SpeechSynthesisUtterance(text);
+                utter.lang = 'en-US'; utter.rate = 0.9;
+                window.speechSynthesis.speak(utter);
+            }
+        }
+
+        // ------------------------------------------------------------
+        // SRS 間隔重複演算法 (簡化 SuperMemo-2)
+        // ------------------------------------------------------------
+        function processSRS(e, quality) {
+            e.stopPropagation();
+            const item = learningQueue[currentIndex];
+            let rec = srsDB[item.id] || { interval: 0, reps: 0, ease: 2.5 };
+
+            if(quality === 0) {
+                rec.reps = 0; rec.interval = 1;
+            } else {
+                if(rec.reps === 0) rec.interval = (quality===1)?12*60 : (quality===2)?2*24*60 : 4*24*60;
+                else if(rec.reps === 1) rec.interval = 6*24*60;
+                else rec.interval = Math.round(rec.interval * rec.ease);
+                rec.reps++;
+            }
+            rec.ease = Math.max(1.3, rec.ease + (0.1 - (3 - quality) * (0.08 + (3 - quality) * 0.02)));
+            rec.nextReview = Date.now() + rec.interval * 60 * 1000;
+            
+            srsDB[item.id] = rec;
+            localStorage.setItem('expertLingoSRS', JSON.stringify(srsDB));
+
+            currentIndex++;
+            document.getElementById('flashcard').classList.remove('flipped');
+            document.getElementById('right-panel').classList.remove('active');
+            setTimeout(renderCard, 300);
+        }
+
+        // Mobile Menu Toggle
+        function toggleMenu() {
+            const nav = document.getElementById('sidebar');
+            nav.style.left = nav.style.left === '0px' ? '-100%' : '0px';
+        }
+    </script>
+</body>
+</html>
