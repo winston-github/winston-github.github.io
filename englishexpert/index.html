@@ -3,22 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ExpertLingo | 終極心流引擎</title>
-    <!-- 學術襯線體 -->
+    <title>ExpertLingo | Keyboard-Driven Flow</title>
+    <!-- 頂級學術襯線體 -->
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,500;1,700&display=swap" rel="stylesheet">
     
     <style>
         :root {
-            --bg-base: #05080f; --bg-panel: #111827; --bg-inner: #0b0f19;
+            --bg-base: #030508; --bg-panel: #0a0f18; --bg-inner: #060910;
             --text-main: #f8fafc; --text-sub: #94a3b8; --text-mut: #475569;
-            --accent: #38bdf8; --border: rgba(255, 255, 255, 0.06);
+            --accent: #38bdf8; --accent-glow: rgba(56, 189, 248, 0.6);
+            --border: rgba(255, 255, 255, 0.05);
             --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif;
             --font-serif: 'Playfair Display', Georgia, serif;
-            --sidebar-w: 280px; --aside-w: 380px;
+            --sidebar-w: 260px; --aside-w: 380px;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-sans); -webkit-tap-highlight-color: transparent;}
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-sans); outline: none;}
         
         body {
             background-color: var(--bg-base); color: var(--text-main); height: 100vh; display: grid; overflow: hidden;
@@ -29,81 +30,89 @@
 
         body.hide-sidebar { --sidebar-w: 0px; } body.hide-aside { --aside-w: 0px; }
         .serif { font-family: var(--font-serif); }
-
         #top-progress-bar { position: fixed; top: 0; left: 0; height: 2px; background: var(--accent); width: 0%; z-index: 9999; transition: width 0.3s ease-out; }
 
-        /* ========== 無痕點讀 (拔除虛線，改用微光背景) ========== */
-        .en-click { cursor: pointer; display: inline-block; transition: var(--transition); border-radius: 4px; padding: 0 2px;}
-        .en-click:hover { color: var(--accent); background: rgba(56, 189, 248, 0.1); }
+        /* ========== 鍵盤焦點系統 (Focus Engine) ========== */
+        .tts-block {
+            transition: all 0.2s ease;
+            border-radius: 8px;
+            border: 2px solid transparent;
+            cursor: pointer;
+        }
+        /* 當區塊被上下鍵聚焦時的高科技發光效果 */
+        .tts-block.is-focused {
+            border: 2px solid var(--accent);
+            background: rgba(56, 189, 248, 0.05);
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.15);
+            transform: scale(1.01);
+            z-index: 10;
+        }
+        /* 特別針對行內標籤的 Focus 微調 */
+        span.tts-block.is-focused { transform: scale(1.05); display: inline-block; padding: 0 4px; }
 
-        /* 挖空提取 */
-        .cloze-blank { display: inline-block; min-width: 80px; padding: 0 10px; margin: 0 4px; border-bottom: 2px solid var(--text-mut); color: transparent; cursor: pointer; transition: var(--transition); user-select: none; position: relative;}
-        .cloze-blank:hover { border-bottom-color: var(--accent); background: rgba(56, 189, 248, 0.05); }
-        .cloze-revealed { color: var(--accent); background: transparent; border-bottom: none; font-weight: bold; font-size: 1.05em; padding: 0;}
+        /* 挖空提取 (Cloze Deletion) - 乾淨底線 */
+        .cloze-blank { display: inline-block; min-width: 60px; border-bottom: 2px solid var(--text-mut); color: transparent; user-select: none; position: relative;}
+        .cloze-revealed { color: var(--accent); background: transparent; border-bottom: none; font-weight: bold; font-size: 1.05em;}
 
         /* ========== Header ========== */
         header { grid-area: header; background: var(--bg-base); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 25px; z-index: 50; }
-        .logo { font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin-right: 30px; cursor: pointer; letter-spacing: 2px; text-transform: uppercase;}
-        .menu-btn { background: none; border: none; color: var(--text-sub); cursor: pointer; font-size: 0.9rem; transition: var(--transition); text-transform: uppercase; letter-spacing: 1px; margin-right: 20px;}
+        .logo { font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin-right: 30px; letter-spacing: 2px; text-transform: uppercase;}
+        .menu-btn { background: none; border: none; color: var(--text-sub); cursor: pointer; font-size: 0.85rem; transition: var(--transition); text-transform: uppercase; letter-spacing: 1px; margin-right: 20px;}
         .menu-btn:hover { color: var(--accent); }
-        
         .btn-global-review { margin-left: 20px; background: transparent; border: 1px solid var(--border); color: var(--text-sub); padding: 4px 15px; border-radius: 20px; cursor: pointer; font-size: 0.8rem; font-weight: bold; transition: var(--transition); text-transform: uppercase; letter-spacing: 1px;}
         .btn-global-review.has-review { background: rgba(239, 68, 68, 0.05); color: #ef4444; border-color: #ef4444; }
         .btn-global-review.has-review:hover { background: #ef4444; color: #fff; }
         #header-topic-title { color:var(--text-sub); font-size: 0.9rem; margin-left:auto; display: none; font-weight: 500; letter-spacing: 1px;}
 
         /* ========== Sidebar ========== */
-        nav { grid-area: sidebar; background: var(--bg-inner); border-right: 1px solid var(--border); overflow-y: auto; padding: 25px 20px; transition: var(--transition); position: relative; z-index: 40;}
-        nav::-webkit-scrollbar { width: 3px; } nav::-webkit-scrollbar-thumb { background: var(--text-mut); }
+        nav { grid-area: sidebar; background: var(--bg-inner); border-right: 1px solid var(--border); overflow-y: auto; padding: 25px 20px; transition: var(--transition); z-index: 40;}
+        nav::-webkit-scrollbar { display: none; }
         .category-title { font-size: 0.7rem; color: var(--text-mut); text-transform: uppercase; letter-spacing: 2px; padding: 0 10px; margin-bottom: 10px; margin-top: 20px;}
-        .topic-list { margin-bottom: 20px; }
         .topic-item { font-size: 0.95rem; padding: 10px; color: var(--text-sub); cursor: pointer; border-radius: 6px; transition: var(--transition); line-height: 1.4;}
         .topic-item:hover { background: var(--bg-panel); color: var(--text-main);}
-        #sidebar-overlay { display: none; position: fixed; top:60px; left:0; width:100%; height:calc(100vh - 60px); background: rgba(0,0,0,0.8); z-index: 35; }
 
-        /* ========== Main App Area ========== */
-        main { grid-area: main; position: relative; overflow-y: auto; overflow-x: hidden; }
+        /* ========== Main Catalog ========== */
+        main { grid-area: main; position: relative; overflow-y: auto; overflow-x: hidden; scroll-behavior: smooth;}
+        main::-webkit-scrollbar { display: none; } /* 隱藏滾動條，靠鍵盤驅動 */
         
         #view-catalog { padding: 60px 5%; display: block; max-width: 1000px; margin: 0 auto; }
         .catalog-header { font-size: 2.5rem; margin-bottom: 50px; font-weight: 300; color: #fff; font-family: var(--font-serif);}
         .catalog-grid { display: flex; flex-direction: column; gap: 15px; }
         .catalog-card { background: transparent; border-bottom: 1px solid var(--border); padding: 25px 15px; cursor: pointer; transition: var(--transition); display: flex; justify-content: space-between; align-items: center;}
         .catalog-card:hover { background: rgba(255,255,255,0.02); padding-left: 25px;}
-        .cat-info { flex: 1; }
         .cat-badge { font-size: 0.7rem; color: var(--text-mut); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 2px; }
         .cat-title { font-size: 1.3rem; color: #fff; font-weight: 500;}
         .cat-action { color: var(--accent); font-size: 0.9rem; opacity: 0; transition: var(--transition); text-transform: uppercase; letter-spacing: 1px;}
         .catalog-card:hover .cat-action { opacity: 1; }
 
-        #view-topic { padding: 60px 5%; display: none; max-width: 800px; margin: 0 auto; text-align: center;}
-        .topic-title-lg { font-size: 2.5rem; margin-bottom: 15px; color: var(--text-main); font-family: var(--font-serif);}
+        /* ========== Topic Intro ========== */
+        #view-topic { padding: 80px 5%; display: none; max-width: 800px; margin: 0 auto; text-align: center;}
+        .topic-title-lg { font-size: 3rem; margin-bottom: 30px; color: var(--text-main); font-family: var(--font-serif);}
         .action-buttons { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 50px;}
-        .btn-primary, .btn-secondary { border: 1px solid var(--border); padding: 15px 30px; font-size: 0.95rem; border-radius: 8px; cursor: pointer; transition: var(--transition); text-transform: uppercase; letter-spacing: 1px; font-weight: 600;}
-        .btn-primary { background: var(--text-main); color: var(--bg-base); }
-        .btn-primary:hover { background: #fff; transform: translateY(-2px);}
-        .btn-secondary { background: transparent; color: var(--text-sub); }
-        .btn-secondary:hover { border-color: var(--text-main); color: var(--text-main); }
+        .btn-primary { border: 1px solid var(--border); padding: 15px 35px; font-size: 0.95rem; border-radius: 8px; cursor: pointer; transition: var(--transition); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; background: var(--text-main); color: var(--bg-base); }
+        .btn-primary:hover { background: #fff; transform: translateY(-2px); box-shadow: 0 5px 20px rgba(255,255,255,0.2);}
 
         /* ========== Flashcards ========== */
         #view-study { display: none; height: 100%; justify-content: center; align-items: center; perspective: 2000px; padding: 20px; }
-        .flashcard { width: 100%; max-width: 680px; height: 85vh; max-height: 800px; position: relative; transform-style: preserve-3d; transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; }
-        .flashcard.flipped { transform: rotateY(180deg); cursor: default;}
-        .card-face { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; background: var(--bg-panel); border-radius: 16px; border: 1px solid var(--border); display: flex; flex-direction: column; box-shadow: 0 30px 60px -15px rgba(0,0,0,0.8); overflow: hidden; }
+        .flashcard { width: 100%; max-width: 720px; height: 88vh; max-height: 850px; position: relative; transform-style: preserve-3d; transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+        .flashcard.flipped { transform: rotateY(180deg); }
+        .card-face { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; background: var(--bg-panel); border-radius: 12px; border: 1px solid var(--border); display: flex; flex-direction: column; box-shadow: 0 30px 60px -15px rgba(0,0,0,0.8); overflow: hidden; }
         
         .card-front { justify-content: center; align-items: center; text-align: center; padding: 30px;}
         .word-front { font-size: 4.5rem; margin-bottom: 5px; color:#fff; font-weight: 500;}
         .phonetic-front { font-family: "Lucida Sans Unicode", "Arial Unicode MS", sans-serif; font-size: 1.2rem; color: var(--text-mut); margin-bottom: 30px; font-weight: 300; letter-spacing: 1px;}
         .front-hint { position: absolute; bottom: 35px; font-size: 0.75rem; color: var(--text-mut); letter-spacing: 3px; text-transform: uppercase;}
 
-        /* Card Back (Unified Scrolling Area, NO TABS) */
         .card-back { transform: rotateY(180deg); }
+        
+        /* 背面佈局：移除滾動條，靠鍵盤驅動 */
         .back-sticky-header { padding: 25px 30px; background: var(--bg-inner); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: baseline; z-index: 10;}
         .back-word { font-size: 2rem; color:#fff; font-weight: 500;}
         .back-phonetic { font-family: "Lucida Sans Unicode", "Arial Unicode MS", sans-serif; font-size: 0.9rem; color: var(--text-mut); margin-left: 15px;}
         .back-meaning { font-size: 1.1rem; color: var(--accent); font-weight: 500;}
 
-        .back-scroll-area { padding: 30px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 35px;}
-        .back-scroll-area::-webkit-scrollbar { width: 3px; } .back-scroll-area::-webkit-scrollbar-thumb { background: var(--text-mut); }
+        .back-scroll-area { padding: 30px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 40px; scroll-behavior: smooth;}
+        .back-scroll-area::-webkit-scrollbar { display: none; }
 
         .section-title { font-size: 0.7rem; color: var(--text-mut); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 15px; font-weight: 700; border-bottom: 1px solid var(--border); padding-bottom: 8px;}
 
@@ -119,68 +128,44 @@
         .lex-tag { font-size: 0.9rem; color: #cbd5e1; }
         .nuance-box { padding: 15px; border-left: 2px solid var(--border);}
         .nuance-item { margin-bottom: 12px; font-size: 0.95rem; line-height: 1.6; color: var(--text-sub);}
-        .nuance-item span.en-click { font-weight: bold; color: #fff; }
+        .nuance-item span { font-weight: bold; color: #fff; }
 
-        /* ========================================================
-           重構的 Focus Stepper (毛玻璃解鎖 + 鍵盤操作提示)
-           ======================================================== */
+        /* Focus Stepper (Keyboard Driven) */
         .focus-header-row { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 15px;}
         .kbd-hints { font-size: 0.75rem; color: var(--text-mut); font-family: monospace; word-spacing: -1px;}
-        .kbd-hints kbd { background: var(--bg-base); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border); margin: 0 2px;}
+        .kbd-hints kbd { border: 1px solid var(--text-mut); padding: 1px 4px; border-radius: 3px; margin: 0 2px;}
         
-        .focus-outer { display: flex; flex-direction: column; background: var(--bg-base); border: 1px solid var(--border); border-radius: 8px; overflow: hidden;}
-        
-        .focus-stage { padding: 25px; border-bottom: 1px dashed var(--border); transition: var(--transition); position: relative; display: flex; flex-direction: column; justify-content: center;}
+        .focus-outer { display: flex; flex-direction: column; background: var(--bg-base); border: 1px solid var(--border); border-radius: 8px;}
+        .focus-stage { padding: 25px; border-bottom: 1px dashed var(--border); position: relative; display: flex; flex-direction: column; justify-content: center;}
         .focus-stage:last-child { border-bottom: none; }
         
         .ex-en { font-size: 1.15rem; margin-bottom: 8px; line-height: 1.6; color:#fff;}
         .ex-zh { font-size: 0.95rem; color: var(--text-sub); }
         .ex-speaker { color: var(--text-mut); font-weight: bold; margin-right: 10px; font-size: 0.9rem;}
 
-        /* 毛玻璃鎖定狀態 */
-        .stage-locked { opacity: 0.2; filter: blur(3px); pointer-events: none; user-select: none; }
+        /* 毛玻璃鎖定狀態 - 透過鍵盤移入即可解鎖 */
+        .stage-locked { opacity: 0.15; filter: blur(4px); transition: all 0.3s ease; }
 
-        /* SRS Buttons (Micro-SRS) */
+        /* 新版 SRS Buttons (Micro-SRS) */
         .anki-controls { display: flex; border-top: 1px solid var(--border); position: sticky; bottom: 0; opacity: 0; pointer-events: none; transition: 0.3s; z-index: 20; background: var(--bg-panel);}
         .flashcard.flipped .anki-controls { opacity: 1; pointer-events: auto; }
         .anki-btn { flex: 1; padding: 20px 0; border: none; border-right: 1px solid var(--border); color: var(--text-sub); font-size: 0.9rem; cursor: pointer; transition: var(--transition); background: transparent; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;}
         .anki-btn:last-child { border-right: none; }
-        .anki-btn:hover { background: var(--bg-inner); color: var(--text-main); }
-        .btn-again:hover { box-shadow: inset 0 -3px 0 #ef4444;} 
-        .btn-hard:hover { box-shadow: inset 0 -3px 0 #f59e0b;} 
-        .btn-easy:hover { box-shadow: inset 0 -3px 0 #10b981;}
+        .anki-btn.active-action { background: var(--text-main); color: var(--bg-base); transform: scale(0.98);} /* 鍵盤按下時的反饋 */
 
-        #view-finish { display: none; height: 100%; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
-
-        /* ========== Right Aside (Context & Links) ========== */
+        /* ========== Right Aside ========== */
         aside { grid-area: aside; background: var(--bg-inner); border-left: 1px solid var(--border); overflow: hidden; position: relative; z-index: 20;}
-        .aside-scroll { padding: 30px; height: 100%; overflow-y: auto; display: flex; flex-direction: column;}
-        .aside-scroll::-webkit-scrollbar { width: 3px; } .aside-scroll::-webkit-scrollbar-thumb { background: var(--text-mut); }
+        .aside-scroll { padding: 30px; height: 100%; overflow-y: auto; display: flex; flex-direction: column; scroll-behavior: smooth;}
+        .aside-scroll::-webkit-scrollbar { display: none; }
         .aside-block { margin-bottom: 40px; }
         .aside-content { font-size: 0.95rem; line-height: 1.8; color: #cbd5e1; }
         
-        #right-panel-overlay { position: absolute; top:0; left:0; width:100%; height:100%; backdrop-filter: blur(15px); background: rgba(5, 8, 15, 0.6); z-index: 10; display: flex; justify-content: center; align-items: center; transition: opacity 0.4s ease-out; opacity: 1;}
+        #right-panel-overlay { position: absolute; top:0; left:0; width:100%; height:100%; backdrop-filter: blur(15px); background: rgba(5, 8, 15, 0.7); z-index: 10; display: flex; justify-content: center; align-items: center; transition: opacity 0.4s ease-out; opacity: 1;}
         #right-panel-overlay.unlocked { opacity: 0; pointer-events: none; }
 
-        /* External Links (Moved to Aside Bottom) */
-        .external-links { margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding-top: 30px;}
-        .external-links a { text-decoration: none; font-size: 0.85rem; padding: 12px; border-radius: 6px; color: var(--text-sub); border: 1px solid var(--border); transition: var(--transition); display: flex; justify-content: space-between;}
-        .external-links a:hover { border-color: var(--text-mut); color: var(--text-main); background: rgba(255,255,255,0.02);}
+        #view-finish { display: none; height: 100%; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
 
         footer { grid-area: footer; background: var(--bg-base); border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; padding: 0 25px; font-size: 0.75rem; color: var(--text-mut); text-transform: uppercase; letter-spacing: 1px;}
-
-        @media (max-width: 1024px) {
-            :root { --sidebar-w: 0px; }
-            nav { position: fixed; left: -280px; width: 280px; height: calc(100vh - 60px); top: 60px; }
-            body.show-mobile-sidebar nav { left: 0; }
-            body.show-mobile-sidebar #sidebar-overlay { display: block; }
-        }
-        @media (max-width: 768px) {
-            :root { --aside-w: 0px; }
-            aside { position: fixed; right: -100%; top: 60px; height: calc(100vh - 100px); width: 100%; transition: right 0.3s;}
-            body.show-mobile-aside aside { right: 0; }
-            .kbd-hints { display: none; } /* Hide shortcuts on mobile */
-        }
     </style>
 </head>
 <body class="hide-sidebar hide-aside">
@@ -194,7 +179,6 @@
         <div id="header-topic-title"></div>
     </header>
 
-    <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
     <nav id="sidebar"></nav>
 
     <main>
@@ -209,33 +193,29 @@
             <div class="topic-title-lg serif" id="topic-title-display">Title</div>
             <div class="action-buttons">
                 <button class="btn-primary" onclick="startStudy()">Enter Flow State</button>
-                <button class="btn-secondary" onclick="goHome()">Back</button>
             </div>
         </div>
 
         <!-- Layer 3: Study Flashcards -->
         <div id="view-study">
-            <div class="flashcard" id="flashcard" onclick="flipCard()">
+            <div class="flashcard" id="flashcard">
                 
                 <div class="card-face card-front">
-                    <div class="word-front en-click serif" id="front-word" onclick="speakExactText(this.innerText, event)">Loading</div>
+                    <div class="word-front serif" id="front-word">Loading</div>
                     <div class="phonetic-front" id="front-phonetic"></div>
                     <div class="front-hint">Press Space to Reveal</div>
                 </div>
                 
-                <div class="card-face card-back" onclick="event.stopPropagation()">
-                    
-                    <div class="back-sticky-header">
+                <div class="card-face card-back">
+                    <div class="back-sticky-header tts-block" id="sticky-header-block">
                         <div style="display:flex; align-items:baseline;">
-                            <div class="back-word en-click serif" id="sticky-word" onclick="speakExactText(this.innerText, event)">Word</div>
+                            <div class="back-word serif" id="sticky-word">Word</div>
                             <div class="back-phonetic" id="sticky-phonetic">/phonetic/</div>
                         </div>
                         <div class="back-meaning" id="sticky-meaning">Meaning</div>
                     </div>
 
-                    <!-- 單一無縫滾動內容區 -->
-                    <div class="back-scroll-area">
-                        
+                    <div class="back-scroll-area" id="back-scroll-area">
                         <!-- Block 1: Etymology & Lexical -->
                         <div>
                             <div id="back-etymology"></div>
@@ -244,24 +224,23 @@
                             <div id="near-synonyms-container"></div>
                         </div>
 
-                        <!-- Block 2: Focus Stepper 2.0 (毛玻璃解鎖) -->
+                        <!-- Block 2: Focus Stepper (自動解鎖) -->
                         <div>
                             <div class="focus-header-row">
                                 <div class="section-title" style="margin:0; border:none;">Contextual Focus</div>
                                 <div class="kbd-hints">
-                                    <kbd>←</kbd> <kbd>→</kbd> Switch | <kbd>↓</kbd> Expand <kbd>↑</kbd> Collapse
+                                    <kbd>←</kbd> <kbd>→</kbd> Switch | <kbd>↑</kbd> <kbd>↓</kbd> Focus | <kbd>Space</kbd> Audio
                                 </div>
                             </div>
                             <div style="text-align:right; font-size:0.75rem; color:var(--text-mut); font-family:monospace; margin-bottom:8px;" id="focus-counter">Example 1 of 5</div>
                             <div id="focus-wrapper-outer" class="focus-outer"></div>
                         </div>
-
-                    </div> <!-- End Scroll Area -->
+                    </div>
 
                     <div class="anki-controls">
-                        <button class="anki-btn btn-again" onclick="processSRS(0)">[ 1 ] 忘記</button>
-                        <button class="anki-btn btn-hard" onclick="processSRS(1)">[ 2 ] 模糊</button>
-                        <button class="anki-btn btn-easy" onclick="processSRS(2)">[ 3 ] 掌握</button>
+                        <button class="anki-btn btn-again" id="btn-again">[ 1 ] 忘記 (1m)</button>
+                        <button class="anki-btn btn-hard" id="btn-hard">[ 2 ] 模糊 (5m)</button>
+                        <button class="anki-btn btn-easy" id="btn-easy">[ 3 ] 掌握 (10m)</button>
                     </div>
                 </div>
             </div>
@@ -275,7 +254,7 @@
 
     <aside id="right-panel">
         <div id="right-panel-overlay"></div>
-        <div class="aside-scroll">
+        <div class="aside-scroll" id="aside-scroll-area">
             <div class="aside-block">
                 <div class="section-title">Background</div>
                 <div class="aside-content" id="panel-bg"></div>
@@ -284,8 +263,6 @@
                 <div class="section-title">Usage Context</div>
                 <div class="aside-content" id="panel-context"></div>
             </div>
-            <!-- 外部連結移至最右下方 -->
-            <div class="external-links" id="back-links"></div>
         </div>
     </aside>
 
@@ -297,10 +274,15 @@
     <script>
         let catalogData =[]; let currentTopicWords =[]; let cardCache = {}; 
         let learningQueue =[]; let currentIndex = 0;
-        const SRS_KEY = 'expertLingoSRS_v13';
+        const SRS_KEY = 'expertLingoSRS_v15';
         let srsDB = JSON.parse(localStorage.getItem(SRS_KEY)) || {};
 
-        let currentExIndex = 0; let currentExStage = 1;
+        let currentExIndex = 0;
+        
+        // 焦點管理引擎
+        let focusNodes =[];
+        let focusIndex = 0;
+        let isSpeakingSRS = false; // 防止 SRS 語音重疊
 
         window.onload = async () => {
             updateGlobalReviewCount();
@@ -308,23 +290,90 @@
             goHome();
         };
 
-        // --- 全局快捷鍵 (鍵盤全映射) ---
+        // --- 鍵盤總司令 (Keyboard Engine) ---
         document.addEventListener('keydown', (e) => {
-            if(document.getElementById('view-study').style.display !== 'flex') return;
+            if(document.getElementById('view-study').style.display !== 'flex' || isSpeakingSRS) return;
             const card = document.getElementById('flashcard');
             
             if (e.code === 'Space') {
-                e.preventDefault(); flipCard();
+                e.preventDefault();
+                if (!card.classList.contains('flipped')) {
+                    flipCard();
+                } else {
+                    playFocusedBlock();
+                }
             } else if (card.classList.contains('flipped')) {
-                if (e.key === '1') { e.preventDefault(); processSRS(0); }
-                else if (e.key === '2') { e.preventDefault(); processSRS(1); }
-                else if (e.key === '3') { e.preventDefault(); processSRS(2); }
-                else if (e.key === 'ArrowLeft') { e.preventDefault(); changeEx(-1); }
-                else if (e.key === 'ArrowRight') { e.preventDefault(); changeEx(1); }
-                else if (e.key === 'ArrowDown') { e.preventDefault(); changeStage(1); }
-                else if (e.key === 'ArrowUp') { e.preventDefault(); changeStage(-1); }
+                if (e.key === '1') { e.preventDefault(); processAndSpeakSRS(0); }
+                else if (e.key === '2') { e.preventDefault(); processAndSpeakSRS(1); }
+                else if (e.key === '3') { e.preventDefault(); processAndSpeakSRS(2); }
+                else if (e.key === 'ArrowLeft') { e.preventDefault(); changeExCluster(-1); }
+                else if (e.key === 'ArrowRight') { e.preventDefault(); changeExCluster(1); }
+                else if (e.key === 'ArrowDown') { e.preventDefault(); moveFocus(1); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); moveFocus(-1); }
             }
         });
+
+        // --- 焦點管理 (Focus Management) ---
+        function initFocus() {
+            // 抓取畫面上所有的 tts-block (包含背面的內容與側邊欄)
+            focusNodes = Array.from(document.querySelectorAll('.tts-block'));
+            focusIndex = 0;
+            updateFocusVisuals();
+        }
+
+        function moveFocus(dir) {
+            if (focusNodes.length === 0) return;
+            focusIndex = Math.max(0, Math.min(focusNodes.length - 1, focusIndex + dir));
+            updateFocusVisuals();
+        }
+
+        function updateFocusVisuals() {
+            focusNodes.forEach((node, i) => {
+                if (i === focusIndex) {
+                    node.classList.add('is-focused');
+                    // 自動解鎖毛玻璃 (如果它被鎖住的話)
+                    if(node.classList.contains('stage-locked')) {
+                        node.classList.remove('stage-locked');
+                    }
+                    // 平滑置中滾動
+                    node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else {
+                    node.classList.remove('is-focused');
+                }
+            });
+        }
+
+        function playFocusedBlock() {
+            if (focusNodes.length === 0) return;
+            let el = focusNodes[focusIndex];
+            
+            // 處理挖空解鎖
+            let cloze = el.querySelector('.cloze-blank');
+            if (cloze) {
+                cloze.className = 'cloze-revealed serif';
+                cloze.innerText = cloze.dataset.word;
+            }
+            
+            // 抓取文字並清除非發音符號
+            let text = el.innerText.replace(/[^\w\s\.\,\?!'-]/gi, '');
+            speakExactText(text);
+        }
+
+        // --- TTS 引擎 ---
+        function speakExactText(text, callback) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                let utter = new SpeechSynthesisUtterance(text);
+                utter.lang = 'en-US'; utter.rate = 0.95;
+                if(callback) utter.onend = callback;
+                window.speechSynthesis.speak(utter);
+                
+                // Fallback 確保卡死時也能執行 callback
+                if(callback) setTimeout(callback, 4000); 
+            } else {
+                if(callback) callback();
+            }
+        }
 
         // --- Layout ---
         function toggleSidebar() {
@@ -344,7 +393,7 @@
         async function startGlobalReview() {
             const now = Date.now(); let dueFiles =[];
             for(let key in srsDB) { if(srsDB[key].nextReview <= now && srsDB[key].card_file) dueFiles.push(srsDB[key].card_file); }
-            if(dueFiles.length === 0) { alert("目前沒有需要複習的卡片。"); return; }
+            if(dueFiles.length === 0) { alert("無須複習。"); return; }
             
             document.getElementById('view-catalog').style.display = 'none';
             document.getElementById('view-topic').style.display = 'none';
@@ -361,7 +410,6 @@
             document.getElementById('header-topic-title').style.display = 'block';
             document.getElementById('view-study').style.display = 'flex';
             document.body.classList.add('hide-sidebar', 'hide-aside');
-            if(window.innerWidth <= 1024) document.body.classList.remove('show-mobile-sidebar');
             currentIndex = 0; renderCard();
         }
 
@@ -382,7 +430,7 @@
                         </div>
                         <div class="cat-action">Enter ➔</div>
                     </div>`).join('')).join('');
-            } catch (e) { console.log("未檢測到 index.json"); }
+            } catch (e) { }
         }
 
         function goHome() {
@@ -392,7 +440,6 @@
             document.getElementById('view-study').style.display = 'none';
             document.getElementById('view-finish').style.display = 'none';
             document.getElementById('header-topic-title').style.display = 'none';
-            if(window.innerWidth <= 1024) document.body.classList.remove('show-mobile-sidebar');
         }
 
         async function loadTopic(fileName, titleDisplay) {
@@ -405,7 +452,6 @@
                 document.getElementById('header-topic-title').style.display = 'block';
                 document.getElementById('topic-title-display').innerText = topicData.title_en;
                 document.body.classList.add('hide-sidebar');
-                if(window.innerWidth <= 1024) document.body.classList.remove('show-mobile-sidebar');
                 preloadCards(currentTopicWords);
             } catch (e) { alert(`無法載入主題包 ${fileName}`); }
         }
@@ -427,54 +473,43 @@
         }
 
         // --- 字串解析與挖空 (Cloze Deletion) ---
-        function parseInlineTTS(text) {
-            if(!text) return '';
-            return text.replace(/\{\{(.*?)\}\}/g, '<span class="en-click" onclick="speakExactText(\'$1\', event)">$1</span>');
-        }
         function applyCloze(text, targetWord) {
             if(!text || !targetWord) return text;
             const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const regex = new RegExp(`(${escapeRegExp(targetWord)})`, 'gi');
-            return text.replace(regex, `<span class="cloze-blank" onclick="revealCloze(this, '$1', event)">&nbsp;</span>`);
-        }
-        window.revealCloze = function(el, word, e) {
-            if(e) e.stopPropagation();
-            el.className = 'en-click cloze-revealed serif';
-            el.innerText = word;
-            speakExactText(word);
+            return text.replace(regex, `<span class="cloze-blank" data-word="$1">&nbsp;</span>`);
         }
 
-        function speakExactText(text, e) {
-            if(e) e.stopPropagation();
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-                const utter = new SpeechSynthesisUtterance(text.replace(/[^\w\s]/gi, '')); 
-                utter.lang = 'en-US'; utter.rate = 0.95; window.speechSynthesis.speak(utter);
-            }
-        }
-
-        // --- Render Functions ---
+        // --- Render Card Elements ---
         function renderLexicalWeb(item) {
             let lexHtml = ''; let nearHtml = ''; let etyHtml = '';
             if(item.lexical_relations) {
                 const {synonyms:syns, antonyms:ants, near_synonyms:nears} = item.lexical_relations;
-                if(syns?.length) lexHtml += `<div class="lex-box"><div class="lex-label">Synonyms</div><div class="lex-tags">${syns.map(s => `<span class="lex-tag en-click" onclick="speakExactText('${s}', event)">${s}</span>`).join('')}</div></div>`;
-                if(ants?.length) lexHtml += `<div class="lex-box"><div class="lex-label">Antonyms</div><div class="lex-tags">${ants.map(a => `<span class="lex-tag en-click" onclick="speakExactText('${a}', event)">${a}</span>`).join('')}</div></div>`;
-                if(nears?.length) nearHtml = `<div class="nuance-box"><div class="lex-label" style="margin-bottom:10px;">Near-Synonyms</div>${nears.map(n => `<div class="nuance-item"><span class="en-click" onclick="speakExactText('${n.word}', event)">${n.word}</span>：${n.nuance}</div>`).join('')}</div>`;
+                if(syns?.length) lexHtml += `<div class="lex-box"><div class="lex-label">Synonyms</div><div class="lex-tags">${syns.map(s => `<span class="lex-tag tts-block">${s}</span>`).join('')}</div></div>`;
+                if(ants?.length) lexHtml += `<div class="lex-box"><div class="lex-label">Antonyms</div><div class="lex-tags">${ants.map(a => `<span class="lex-tag tts-block">${a}</span>`).join('')}</div></div>`;
+                if(nears?.length) nearHtml = `<div class="nuance-box"><div class="lex-label" style="margin-bottom:10px;">Near-Synonyms</div>${nears.map(n => `<div class="nuance-item tts-block"><span style="font-weight:bold;color:#fff;">${n.word}</span>：${n.nuance}</div>`).join('')}</div>`;
             }
             document.getElementById('lexical-grid').innerHTML = lexHtml;
             document.getElementById('near-synonyms-container').innerHTML = nearHtml;
 
             if(item.etymology) {
-                etyHtml += `<div class="section-title">Etymology (詞源拆解)</div><div class="ety-breakdown serif">`;
-                etyHtml += item.etymology.breakdown.map(b => `<div class="ety-part"><span class="en-click" onclick="speakExactText('${b.part}', event)">${b.part}</span><em>${b.meaning}</em></div>`).join('<span style="color:var(--text-mut); margin: 0 5px; font-family:var(--font-sans);">+</span>'); 
-                if(item.etymology.cognates?.length) etyHtml += `<div style="width:100%; margin-top:8px; font-size:0.85rem; color:var(--text-sub); border-top:1px dashed var(--border); padding-top:8px; font-family:var(--font-sans);">Cognates: ${item.etymology.cognates.map(c => `<span class="en-click serif" style="color:#cbd5e1; margin-right:8px; font-weight:bold;" onclick="speakExactText('${c}', event)">${c}</span>`).join('')}</div>`;
+                etyHtml += `<div class="section-title">Etymology</div><div class="ety-breakdown serif tts-block">`;
+                etyHtml += item.etymology.breakdown.map(b => `<div class="ety-part"><span style="font-weight:bold; color:#fff;">${b.part}</span><em>${b.meaning}</em></div>`).join('<span style="color:var(--text-mut); margin: 0 5px; font-family:var(--font-sans);">+</span>'); 
+                if(item.etymology.cognates?.length) etyHtml += `<div style="width:100%; margin-top:8px; font-size:0.85rem; color:var(--text-sub); border-top:1px dashed var(--border); padding-top:8px; font-family:var(--font-sans);">Cognates: ${item.etymology.cognates.map(c => `<span class="serif" style="color:#cbd5e1; margin-right:8px; font-weight:bold;">${c}</span>`).join('')}</div>`;
                 etyHtml += `</div>`;
             }
             document.getElementById('back-etymology').innerHTML = etyHtml;
         }
 
-        // --- 毛玻璃解鎖 Focus Stepper ---
+        // --- 焦點例句切換 (左右鍵觸發) ---
+        function changeExCluster(dir) {
+            const total = learningQueue[currentIndex].example_clusters.length;
+            currentExIndex = Math.max(0, Math.min(total - 1, currentExIndex + dir));
+            renderFocusMode();
+            // 重建 DOM 後必須重新抓取焦點元素
+            initFocus();
+        }
+
         function renderFocusMode() {
             const item = learningQueue[currentIndex];
             const containerOuter = document.getElementById('focus-wrapper-outer');
@@ -487,61 +522,31 @@
 
             document.getElementById('focus-counter').innerText = `Example ${currentExIndex + 1} of ${total}`;
 
-            let html = ``;
+            let html = `<div class="focus-outer">`;
 
-            // Stage 1: Phrase (Always visible)
-            html += `<div class="focus-stage" onclick="handleStageClick(1, '${cluster.phrase.en.replace(/'/g, "\\'")}', event)">
+            // Stage 1: Phrase
+            html += `<div class="focus-stage tts-block">
                 <div class="ex-en">${applyCloze(cluster.phrase.en, targetWord)}</div>
                 <div class="ex-zh">${cluster.phrase.zh}</div>
             </div>`;
 
-            // Stage 2: Sentence (Blurred if locked)
-            const s2Class = currentExStage >= 2 ? '' : 'stage-locked';
-            html += `<div class="focus-stage ${s2Class}" onclick="handleStageClick(2, '${cluster.sentence.en.replace(/'/g, "\\'")}', event)">
+            // Stage 2: Sentence (預設鎖定毛玻璃，靠上下鍵解鎖)
+            html += `<div class="focus-stage tts-block stage-locked" style="background:rgba(255,255,255,0.02);">
                 <div class="ex-en">${applyCloze(cluster.sentence.en, targetWord)}</div>
                 <div class="ex-zh">${cluster.sentence.zh}</div>
             </div>`;
 
-            // Stage 3: Dialogue (Blurred if locked)
-            const s3Class = currentExStage >= 3 ? '' : 'stage-locked';
-            html += `<div class="focus-stage ${s3Class}" onclick="handleStageClick(3, '', event)">`;
+            // Stage 3: Dialogue (鎖定)
+            html += `<div class="focus-stage tts-block stage-locked" style="background:rgba(255,255,255,0.04);">`;
             cluster.dialogue.forEach(d => {
-                html += `<div style="margin-bottom:12px; cursor:pointer;" onclick="speakExactText('${d.en.replace(/'/g, "\\'")}', event)">
+                html += `<div style="margin-bottom:12px;">
                     <span class="ex-speaker">${d.speaker}</span><span class="ex-en" style="font-size:0.95rem;">${applyCloze(d.en, targetWord)}</span>
                     <div class="ex-zh">${d.zh}</div>
                 </div>`;
             });
-            html += `</div>`;
+            html += `</div></div>`;
 
             containerOuter.innerHTML = html;
-        }
-
-        function handleStageClick(clickedStage, text, e) {
-            e.stopPropagation();
-            if(text && !e.target.classList.contains('cloze-blank')) speakExactText(text);
-            
-            // 點擊未解鎖的區域會自動向下解鎖
-            if(clickedStage === 2 && currentExStage < 2) changeStage(1);
-            else if(clickedStage === 3 && currentExStage < 3) changeStage(1);
-        }
-
-        function changeEx(dir) {
-            const total = learningQueue[currentIndex].example_clusters.length;
-            currentExIndex = Math.max(0, Math.min(total - 1, currentExIndex + dir));
-            currentExStage = 1; // 換組時重置為短詞狀態
-            renderFocusMode();
-        }
-
-        function changeStage(dir) {
-            currentExStage = Math.max(1, Math.min(3, currentExStage + dir));
-            renderFocusMode();
-            
-            // 解鎖瞬間自動發音
-            if(dir > 0) {
-                const cluster = learningQueue[currentIndex].example_clusters[currentExIndex];
-                if(currentExStage === 2) speakExactText(cluster.sentence.en);
-                else if(currentExStage === 3) speakExactText(cluster.dialogue[0].en);
-            }
         }
 
         function renderCard() {
@@ -555,11 +560,9 @@
             const item = learningQueue[currentIndex];
             document.getElementById('flashcard').classList.remove('flipped');
             document.getElementById('right-panel-overlay').classList.remove('unlocked');
-            
             document.body.classList.add('hide-aside');
-            if(window.innerWidth <= 768) document.body.classList.remove('show-mobile-aside');
 
-            currentExIndex = 0; currentExStage = 1;
+            currentExIndex = 0;
 
             document.getElementById('front-word').innerText = item.word_en;
             document.getElementById('front-phonetic').innerText = item.phonetic;
@@ -569,19 +572,12 @@
             
             renderLexicalWeb(item); renderFocusMode();
 
-            // 外部連結移至 Aside 下方
-            const q = encodeURIComponent(item.word_en);
-            document.getElementById('back-links').innerHTML = `
-                <a href="https://youglish.com/pronounce/${q}/english" target="_blank">YouGlish 實境發音</a>
-                <a href="https://en.wiktionary.org/w/index.php?search=${q}" target="_blank">Wiktionary 詞源解析</a>
-                <a href="https://www.google.com/search?q=${q}+中文意思" target="_blank">Google 泛用搜尋</a>
-            `;
-
-            document.getElementById('panel-bg').innerHTML = parseInlineTTS(item.background);
-            document.getElementById('panel-context').innerHTML = parseInlineTTS(item.context);
+            document.getElementById('panel-bg').innerHTML = `<div class="tts-block" style="padding:10px;">${item.background.replace(/\{\{/g,'').replace(/\}\}/g,'')}</div>`;
+            document.getElementById('panel-context').innerHTML = `<div class="tts-block" style="padding:10px;">${item.context.replace(/\{\{/g,'').replace(/\}\}/g,'')}</div>`;
+            
             updateStats();
 
-            // ★ 雙重聽覺衝擊 1：卡片出現即發音
+            // ★ 聽覺衝擊 1：出現即唸
             speakExactText(item.word_en);
         }
 
@@ -590,18 +586,45 @@
             if(card.classList.contains('flipped')) return;
             card.classList.add('flipped');
             document.getElementById('right-panel-overlay').classList.add('unlocked');
-            if(window.innerWidth <= 768) document.body.classList.add('show-mobile-aside');
+            document.body.classList.remove('hide-aside');
             
-            // ★ 雙重聽覺衝擊 2：翻卡瞬間再發音一次
-            speakExactText(learningQueue[currentIndex].word_en);
+            // ★ 聽覺衝擊 2：翻卡再唸，並初始化焦點
+            speakExactText(learningQueue[currentIndex].word_en, () => {
+                initFocus();
+            });
         }
 
-        function processSRS(qIndex) {
+        // --- 全新語音 SRS 系統 ---
+        function processAndSpeakSRS(qIndex) {
+            isSpeakingSRS = true;
             const item = learningQueue[currentIndex];
+            const word = item.word_en;
+            let speakText = "";
+
+            // 視覺特效
+            const btns = ['btn-again', 'btn-hard', 'btn-easy'];
+            document.getElementById(btns[qIndex]).classList.add('active-action');
+
+            if (qIndex === 0) {
+                speakText = `Review ${word} again later.`;
+                learningQueue.push(item); // 塞到最後面
+            } else if (qIndex === 1) {
+                speakText = `Review ${word} in memory bank.`;
+            } else {
+                speakText = `${word}`;
+            }
+
+            speakExactText(speakText, () => {
+                document.getElementById(btns[qIndex]).classList.remove('active-action');
+                isSpeakingSRS = false;
+                executeSRSLogic(qIndex, item);
+            });
+        }
+
+        function executeSRSLogic(qIndex, item) {
             let rec = srsDB[item.word_en] || { interval: 0, reps: 0 };
             if(item.card_file) rec.card_file = item.card_file;
 
-            // ★ 急速記憶引擎：微觀 SRS 分鐘制
             if(qIndex === 0) { rec.reps = 0; rec.interval = 1; }
             else if(qIndex === 1) { rec.reps++; rec.interval = 5; }
             else { rec.reps++; rec.interval = 10; }
