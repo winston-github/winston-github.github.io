@@ -7,7 +7,7 @@
     <style>
         :root {
             --bg-base: #0f172a; --bg-panel: #1e293b; --text-main: #f8fafc; --text-sub: #94a3b8;
-            --accent: #38bdf8; --border: rgba(255, 255, 255, 0.1);
+            --accent: #38bdf8; --accent-dark: #0284c7; --border: rgba(255, 255, 255, 0.1);
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, sans-serif; -webkit-tap-highlight-color: transparent;}
@@ -29,7 +29,6 @@
         .logo { font-size: 1.4rem; font-weight: 800; color: var(--accent); margin-right: 20px; cursor: pointer;}
         .menu-btn { background: none; border: 1px solid var(--border); color: var(--text-main); padding: 6px 12px; border-radius: 6px; cursor: pointer; margin-right: 20px; transition: 0.2s;}
         .menu-btn:hover { background: rgba(255,255,255,0.1); }
-        /* 標題不再截斷 */
         #header-topic-title { color:var(--text-main); font-weight:bold; display:none; flex: 1; text-align: right; }
 
         /* ========== Sidebar ========== */
@@ -75,8 +74,20 @@
         .back-scroll-area { padding: 25px; overflow-y: auto; flex: 1; }
         .back-scroll-area::-webkit-scrollbar { width: 4px; } .back-scroll-area::-webkit-scrollbar-thumb { background: #475569; }
         .meaning-huge { font-size: 1.8rem; font-weight: bold; color: var(--accent); margin-bottom: 5px; }
-        .meta-info { font-size: 0.9rem; color: var(--text-sub); margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid var(--border); }
+        .meta-info { font-size: 0.9rem; color: var(--text-sub); margin-bottom: 20px;}
         
+        /* === 拆文解字區 (Etymology & Morphology) === */
+        .etymology-box { background: rgba(2, 132, 199, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; padding: 15px; margin-bottom: 25px; }
+        .ety-title { font-size: 0.8rem; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; font-weight: bold; }
+        .ety-desc { font-size: 0.9rem; color: #cbd5e1; margin-bottom: 12px; line-height: 1.5; }
+        .ety-breakdown { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+        .ety-part { background: rgba(0,0,0,0.4); padding: 5px 10px; border-radius: 6px; font-size: 0.9rem; border: 1px solid rgba(255,255,255,0.05); }
+        .ety-part strong { color: #fff; }
+        .ety-part em { color: var(--text-sub); font-size: 0.85rem; font-style: normal; margin-left: 5px; }
+        .ety-cognates { font-size: 0.85rem; color: var(--text-sub); }
+        .ety-cognates span { color: #f8fafc; font-weight: 500; margin-right: 10px; display: inline-block; background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;}
+        /* ======================================= */
+
         .section-label { font-size: 0.8rem; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; font-weight: bold;}
         
         /* 網狀例句區：支援句級與單字級點擊 */
@@ -87,7 +98,7 @@
         .ex-zh { font-size: 0.9rem; color: var(--text-sub); }
         
         /* 單字級別點擊特效 */
-        .word-tts:hover { background: rgba(56, 189, 248, 0.4); border-radius: 3px; }
+        .word-tts:hover { background: rgba(56, 189, 248, 0.4); border-radius: 3px; color: #fff;}
 
         .external-links { display: flex; gap: 8px; margin-top: 15px; margin-bottom: 20px;}
         .external-links a { text-decoration: none; font-size: 0.85rem; padding: 8px 12px; border-radius: 6px; font-weight: bold; color: var(--text-main); background: rgba(255,255,255,0.05); border: 1px solid var(--border); transition: 0.2s; }
@@ -157,7 +168,7 @@
                 
                 <div class="card-face card-back" onclick="event.stopPropagation()">
                     
-                    <div class="back-sticky-header" onclick="speakExactText(document.getElementById('sticky-word').innerText, event)" title="點擊朗讀">
+                    <div class="back-sticky-header" onclick="speakExactText(document.getElementById('sticky-word').innerText, event)" title="點擊朗讀本詞">
                         <div>
                             <div class="back-word" id="sticky-word">Word</div>
                             <div class="back-phonetic" id="sticky-phonetic">/phonetic/</div>
@@ -168,6 +179,14 @@
                         <div class="meaning-huge" id="back-meaning">Meaning</div>
                         <div class="meta-info" id="back-meta"></div>
                         
+                        <!-- 拆文解字區 -->
+                        <div class="etymology-box" id="back-etymology" style="display:none;">
+                            <div class="ety-title">❖ 詞源與拆文解字 (Morphology)</div>
+                            <div class="ety-desc" id="ety-desc"></div>
+                            <div class="ety-breakdown" id="ety-breakdown"></div>
+                            <div class="ety-cognates"><strong>同源構型字：</strong><span id="ety-cognates"></span></div>
+                        </div>
+
                         <div class="section-label">情境網狀記憶 (點擊整行或單字發音)</div>
                         <div id="back-examples"></div>
 
@@ -209,15 +228,15 @@
 
     <script>
         const catalogData =[
-            { group: "哲學與人文", topics:[ {id:'001', title:"1. 歐陸哲學與現象學"}, {id:'004', title:"4. 修辭學與古典辯論"} ] },
-            { group: "法政與社會", topics:[ {id:'002', title:"2. 英美法系程序與令狀"}, {id:'011', title:"11. 地緣政治與戰略情報"} ] }
+            { group: "法政與社會", topics:[ {id:'002', title:"2. 英美法系程序與令狀 (Latin Writs)"} ] },
+            { group: "哲學與人文", topics:[ {id:'001', title:"1. 歐陸哲學與現象學"} ] }
         ];
         const flatTopics = catalogData.flatMap(c => c.topics);
 
         let currentTopicData = null;
         let learningQueue =[];
         let currentIndex = 0;
-        let srsDB = JSON.parse(localStorage.getItem('expertLingoSRS_v4')) || {};
+        let srsDB = JSON.parse(localStorage.getItem('expertLingoSRS_v5')) || {};
 
         window.onload = () => {
             renderCatalog();
@@ -258,7 +277,8 @@
         }
 
         async function loadTopic(id) {
-            if(id !== '001') { alert(`將抓取 topic${id}.json，現以 001 展示。`); id = '001'; }
+            // 現以 002 作為展示重點
+            if(id !== '002') { alert(`將抓取 topic${id}.json，目前範例預設載入 002 (拉丁文令狀)。`); id = '002'; }
             try {
                 const res = await fetch(`topic${id}.json`);
                 currentTopicData = await res.json();
@@ -282,7 +302,6 @@
             renderCard();
         }
 
-        // 把英文句子拆分成帶有 Span 的單字，允許字對字點讀
         function createWordLevelTTS(text) {
             return text.split(/\s+/).map(word => 
                 `<span class="word-tts" onclick="speakExactText('${word.replace(/'/g, "\\'").replace(/"/g, "&quot;")}', event)">${word}</span>`
@@ -305,8 +324,6 @@
 
             document.getElementById('front-word').innerText = item.word;
             document.getElementById('front-phonetic').innerText = item.phonetic;
-            
-            // 卡片翻面即發音 (若瀏覽器允許)
             speakExactText(item.word, null);
 
             document.getElementById('sticky-word').innerText = item.word;
@@ -314,6 +331,19 @@
             document.getElementById('back-meaning').innerText = item.zh_tw_meaning;
             document.getElementById('back-meta').innerText = `${item.part_of_speech} | 變體: ${item.variations.join(', ') || '無'}`;
             
+            // 渲染拆文解字 (Etymology)
+            const etyBox = document.getElementById('back-etymology');
+            if (item.etymology) {
+                etyBox.style.display = 'block';
+                document.getElementById('ety-desc').innerText = item.etymology.description;
+                document.getElementById('ety-breakdown').innerHTML = item.etymology.breakdown.map(b => 
+                    `<div class="ety-part"><strong>${b.part}</strong><em>${b.meaning}</em></div>`
+                ).join('➔ '); // 使用箭頭串接
+                document.getElementById('ety-cognates').innerHTML = item.etymology.cognates.map(c => `<span>${c}</span>`).join('');
+            } else {
+                etyBox.style.display = 'none';
+            }
+
             // 渲染網狀例句區
             document.getElementById('back-examples').innerHTML = item.examples.map(ex => {
                 const speakerTag = ex.speaker ? `<span class="ex-speaker">${ex.speaker}:</span>` : '';
@@ -354,7 +384,7 @@
             if(e) e.stopPropagation();
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel();
-                const utter = new SpeechSynthesisUtterance(text.replace(/[^\w\s]/gi, '')); // 移除標點提升發音準確度
+                const utter = new SpeechSynthesisUtterance(text.replace(/[^\w\s]/gi, '')); 
                 utter.lang = 'en-US'; 
                 utter.rate = 0.9;
                 window.speechSynthesis.speak(utter);
@@ -371,7 +401,7 @@
             
             rec.nextReview = Date.now() + rec.interval * 60 * 1000;
             srsDB[item.id] = rec;
-            localStorage.setItem('expertLingoSRS_v4', JSON.stringify(srsDB));
+            localStorage.setItem('expertLingoSRS_v5', JSON.stringify(srsDB));
 
             currentIndex++;
             updateStats();
