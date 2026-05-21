@@ -824,7 +824,86 @@ const ExplorePhase = {
  * ============================================================================
  */
 
-// (這裡保留您原本的 const TrialPhase = { ... } )
+const TrialPhase = {
+    options: [], selectedIndex: -1, answered: false, timer: 0,
+
+    init() {
+        this.selectedIndex = -1;
+        this.answered = false;
+        this.timer = 0;
+        Camera.reset();
+
+        const fragments = GameContext.inventory.fragments;
+        this.options = [
+            { label: fragments[0] || "記憶碎片 A", picked: false },
+            { label: fragments[1] || "記憶碎片 B", picked: false },
+            { label: fragments[2] || "記憶碎片 C", picked: false }
+        ];
+        if (GameContext.inventory.fragments.includes("真理")) {
+            this.options.push({ label: "真理（隱藏）", picked: false });
+        }
+    },
+
+    updateAndDraw(ctx) {
+        const cx = GameContext.width / 2;
+        const cy = GameContext.height / 2;
+        const fontSize = Math.max(16, GameContext.vmin * 0.038);
+        ctx.textAlign = "center";
+
+        ctx.fillStyle = "rgba(147, 197, 253, 0.85)";
+        ctx.font = `bold ${Math.max(18, GameContext.vmin * 0.05)}px 'Courier New'`;
+        ctx.fillText("心智法庭：選擇你要保留的記憶", cx, GameContext.height * 0.18);
+
+        ctx.fillStyle = "rgba(148, 163, 184, 0.7)";
+        ctx.font = `${Math.max(13, GameContext.vmin * 0.03)}px 'Courier New'`;
+        ctx.fillText("點選一段記憶，帶入下一個階段", cx, GameContext.height * 0.26);
+
+        const btnW = Math.max(240, GameContext.vmin * 0.55);
+        const btnH = Math.max(44, GameContext.vmin * 0.11);
+        const gap = btnH * 0.4;
+        const totalH = this.options.length * (btnH + gap);
+        let startY = cy - totalH / 2;
+
+        this.options.forEach((opt, i) => {
+            const bx = cx - btnW / 2;
+            const by = startY + i * (btnH + gap);
+
+            const isHovered = Input.screenX > bx && Input.screenX < bx + btnW &&
+                              Input.screenY > by && Input.screenY < by + btnH;
+            const isSelected = this.selectedIndex === i;
+
+            const rgb = isSelected ? "253, 224, 71" : isHovered ? "147, 197, 253" : "71, 85, 105";
+
+            ctx.fillStyle = `rgba(15, 23, 42, 0.85)`;
+            ctx.fillRect(bx, by, btnW, btnH);
+            ctx.strokeStyle = `rgba(${rgb}, ${isSelected ? 1 : 0.5})`;
+            ctx.lineWidth = isSelected ? 3 : 1.5;
+            ctx.strokeRect(bx, by, btnW, btnH);
+
+            ctx.fillStyle = `rgb(${rgb})`;
+            ctx.font = `bold ${fontSize}px 'Courier New'`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(opt.label, cx, by + btnH / 2);
+            ctx.textBaseline = "alphabetic";
+
+            if (isHovered && Input.isClicked && !this.answered) {
+                this.selectedIndex = i;
+                this.answered = true;
+                AudioManager.playClick();
+                SparkManager.emit(cx, by + btnH / 2, 25, rgb);
+            }
+        });
+
+        if (this.answered) {
+            this.timer++;
+            if (this.timer > 60) {
+                RebuildPhase.init();
+                GameContext.state = STATES.REBUILD;
+            }
+        }
+    }
+};
 
 /**
  * ============================================================================
@@ -1098,7 +1177,7 @@ document.getElementById('start-btn').addEventListener('click', () => {
 });
 
 // UI 事件綁定：提取進度 (接續上次輪迴)
-document.getElementById('load-btn').addEventListener('click', () => {
+document.getElementById('load-btn')?.addEventListener('click', () => {
     AudioManager.init();
     document.getElementById('start-screen').style.opacity = '0';
     setTimeout(() => {
