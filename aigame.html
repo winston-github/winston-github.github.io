@@ -1,1458 +1,1285 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>共用白板</title>
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-<style>
-:root{
-  --ink:#1a1a2e;--paper:#fafaf7;--accent:#e84855;--blue:#3a86ff;--muted:#9a9a8a;
-  --panel:#ffffffee;--shadow:0 4px 24px rgba(0,0,0,.12);--r:12px;--green:#2ecc71;
-  --hl-yellow:#FFEB3B;
-}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0;
-  -webkit-user-select:none;-moz-user-select:none;user-select:none;}
-html,body{width:100%;height:100%;overflow:hidden;background:#e8e8e4;
-  font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;touch-action:none;}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>心智解構：數位招魂 (MindFrame: Echoes of Babel)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body, html { 
+            margin: 0; padding: 0; width: 100vw; height: 100dvh; 
+            background-color: #03030a; overflow: hidden; user-select: none; 
+            overscroll-behavior: none; touch-action: none;
+            font-family: 'Courier New', 'Microsoft JhengHei', monospace;
+            -webkit-user-drag: none;
+        }
+        
+        #bgCanvas, #uiCanvas { position: absolute; top: 0; left: 0; z-index: 1; pointer-events: none; }
+        #uiCanvas { z-index: 2; touch-action: none; cursor: crosshair; }
+        
+        /* 視覺層：加入 CRT 掃描線與 RGB 色差撕裂感，用於壞結局與多次輪迴 */
+        .crt-overlay {
+            position: absolute; inset: 0; z-index: 5; pointer-events: none;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 4px, 6px 100%; display: none;
+        }
 
-/* ── Canvas & Viewport layers ─────────────────────────────── */
-#gridCanvas{position:fixed;top:0;left:0;pointer-events:none;z-index:0}
-.draw-layer{position:fixed;top:0;left:0;pointer-events:none;z-index:1;touch-action:none}
-#viewport{position:fixed;inset:0;overflow:hidden;touch-action:none;z-index:2}
-#canvas{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}
-#textLayer{position:absolute;top:0;left:0;pointer-events:none}
-#uiLayer{position:fixed;top:0;left:0;pointer-events:none;z-index:10}
+        .glitch-text { animation: glitch-anim 0.2s infinite; }
+        @keyframes glitch-anim {
+            0% { text-shadow: 2px 0 red, -2px 0 cyan; }
+            50% { text-shadow: -2px 0 red, 2px 0 cyan; }
+            100% { text-shadow: 2px 0 red, -2px 0 cyan; }
+        }
+        
+        .screen-overlay {
+            position: absolute; inset: 0; z-index: 10; display: flex; flex-direction: column; 
+            align-items: center; justify-content: center; text-align: center; padding: 5vw;
+            background: radial-gradient(circle at center, rgba(10,10,25,0.9) 0%, rgba(3,3,10,1) 100%);
+            transition: opacity 1s ease-in-out, backdrop-filter 1s ease;
+        }
+        
+        .title-text {
+            font-size: clamp(1.5rem, 5vw, 3rem); font-weight: bold; color: #e0f2fe;
+            text-shadow: 0 0 20px rgba(125, 211, 252, 0.5); letter-spacing: 0.5em; margin-bottom: 2vh;
+        }
 
-/* ── Top Left (Export) & Top Right (Connect) ───────────────── */
-.pill-btn{
-  background:var(--panel);border:1px solid rgba(0,0,0,.1);
-  border-radius:999px;padding:8px 16px;box-shadow:var(--shadow);
-  backdrop-filter:blur(16px);font-size:13px;font-weight:700;color:var(--ink);
-  display:flex;align-items:center;gap:8px;white-space:nowrap;cursor:pointer;
-  transition:all .15s ease;pointer-events:all;
-}
-.pill-btn:hover{background:rgba(255,255,255,.95);transform:translateY(-1px);}
-.pill-btn:active{transform:scale(0.96)}
-#topLeft{position:fixed;top:16px;left:16px;z-index:30;}
-#topRight{position:fixed;top:16px;right:16px;z-index:30;display:flex;gap:8px;}
+        .literary-quote {
+            font-size: clamp(0.9rem, 2.5vw, 1.2rem); color: #94a3b8; line-height: 1.8;
+            max-width: 600px; margin-bottom: 4vh; font-style: italic; white-space: pre-line;
+        }
+        
+        .cyber-btn {
+            padding: clamp(10px, 2vh, 20px) clamp(20px, 5vw, 40px); 
+            font-size: clamp(1rem, 3vw, 1.5rem); color: #38bdf8;
+            background: rgba(15, 23, 42, 0.6); border: 1px solid #0284c7; border-radius: 2px;
+            cursor: pointer; text-transform: uppercase; letter-spacing: 0.2em;
+            box-shadow: inset 0 0 10px rgba(2, 132, 199, 0.2), 0 0 15px rgba(2, 132, 199, 0.4);
+            transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94); margin: 1vh;
+            backdrop-filter: blur(4px);
+        }
+        .cyber-btn:hover, .cyber-btn:active {
+            background: rgba(2, 132, 199, 0.2); border-color: #7dd3fc;
+            box-shadow: inset 0 0 20px rgba(56, 189, 248, 0.5), 0 0 30px rgba(56, 189, 248, 0.8);
+            transform: translateY(-2px); color: #fff;
+        }
+        .gold-btn { color: #fde047; border-color: #ca8a04; box-shadow: 0 0 15px rgba(202, 138, 4, 0.4); }
+        .gold-btn:hover, .gold-btn:active { background: rgba(202, 138, 4, 0.2); border-color: #fef08a; color: #fff; box-shadow: 0 0 30px rgba(253, 224, 71, 0.8); }
 
-#dot{width:8px;height:8px;border-radius:50%;background:var(--muted);transition:.3s;flex-shrink:0}
-#dot.live{background:#2ecc71;box-shadow:0 0 0 3px rgba(46,204,113,.2);animation:pulse 2s infinite}
-#dot.wait{background:#f39c12;box-shadow:0 0 0 3px rgba(243,156,18,.2)}
-@keyframes pulse{0%,100%{box-shadow:0 0 0 3px rgba(46,204,113,.2)}50%{box-shadow:0 0 0 7px rgba(46,204,113,.06)}}
+        #save-toast {
+            position: absolute; top: clamp(10px, 3vh, 20px); right: clamp(10px, 3vw, 20px);
+            z-index: 20; padding: 10px 20px; border-left: 4px solid #a855f7;
+            background: rgba(15, 23, 42, 0.9); color: #d8b4fe; font-size: clamp(0.8rem, 2vw, 1rem);
+            border-radius: 2px; box-shadow: 0 0 15px rgba(168, 85, 247, 0.3);
+            pointer-events: none; opacity: 0; transition: opacity 0.5s ease;
+        }
 
-/* ── Text Core Styles ──────────────────────────────── */
-.textObj, #textEditor, #textMeasure {
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  line-height: 1.5; padding: 8px 10px; box-sizing: border-box;
-  word-break: break-word;
-}
-.textObj {
-  position: absolute; cursor: move; pointer-events: all; border-radius: 6px;
-  -webkit-user-select: none; user-select: none; overflow: hidden;
-  transition: outline .1s;
-}
-.textObj.selected { outline: 2px solid var(--blue); outline-offset: 2px; background: rgba(58,134,255,0.08); }
-
-#textMeasure {
-  position: fixed; top: -9999px; left: -9999px; z-index: -1;
-  visibility: hidden; pointer-events: none; white-space: pre;
-}
-
-/* ── Text Editing UI ──────────────────────────────── */
-#textEditorWrap {
-  position: fixed; display: none; z-index: 50; touch-action: none; pointer-events: none;
-}
-#textEditorBox {
-  position: relative; width: 100%; height: 100%;
-  border: 2px solid var(--blue); border-radius: 8px;
-  background: rgba(255,255,255,0.95);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.15); pointer-events: none;
-}
-#textEditor {
-  display: block; border: none; background: transparent;
-  color: var(--ink); outline: none; resize: none; overflow: hidden;
-  cursor: text; width: 100%; height: 100%; pointer-events: all;
-  -webkit-user-select: text; user-select: text; white-space: pre;
-}
-
-.res-handle {
-  position: absolute; width: 24px; height: calc(100% + 16px); top: -8px;
-  background: transparent; z-index: 60; touch-action: none; pointer-events: all;
-  display: flex; align-items: center; justify-content: center;
-}
-.res-handle[data-h="w"] { left: -12px; cursor: ew-resize; }
-.res-handle[data-h="e"] { right: -12px; cursor: ew-resize; }
-.rh-dot {
-  width: 5px; height: 20px; background: var(--blue); border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2); pointer-events: none;
-}
-
-#textEditorTools{
-  position:absolute; top:100%; left:0;
-  display:flex; gap:6px; margin-top:8px; align-items:center; pointer-events:all; cursor:default;
-  background: var(--panel); padding: 6px; border-radius: 10px; box-shadow: var(--shadow);
-  backdrop-filter: blur(16px); border: 1px solid rgba(0,0,0,.08);
-}
-.tt-btn {
-  border: none; background:transparent; border-radius:6px;
-  min-width:32px; height:32px; font-size:15px; font-weight:700; color:var(--ink);
-  cursor:pointer; display:flex; align-items:center; justify-content:center;
-  touch-action:manipulation; transition:.15s;
-}
-.tt-btn:hover { background: rgba(0,0,0,.05); }
-.tt-btn.active { background:var(--ink); color:#fff; }
-#btnItalic { font-style:italic; font-family:serif; }
-#btnUnderline { text-decoration:underline; }
-#btnAlign { font-size:18px; }
-#textConfirm{ background:var(--blue); color:#fff; font-size:14px; box-shadow:0 2px 8px rgba(58,134,255,.3); margin-left:4px; padding:0 12px; }
-#textConfirm:active { transform:scale(.92); }
-#textFontSize{ padding:0 4px; border:none; background:transparent; font-weight:700; font-size:14px; outline:none; color:var(--ink); cursor:pointer; }
-
-/* ── Toolbar (Floating Island) ──────────────────────────────────── */
-#tb{
-  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
-  display:flex;align-items:center;gap:4px;
-  background:var(--panel);border:1px solid rgba(0,0,0,.1);
-  border-radius:24px;padding:8px 12px;box-shadow:0 8px 32px rgba(0,0,0,.15);
-  backdrop-filter:blur(24px);z-index:30;flex-wrap:nowrap;max-width:calc(100vw - 32px);
-  overflow-x:auto;overflow-y:visible;scrollbar-width:none;touch-action:pan-x;
-}
-#tb::-webkit-scrollbar{display:none}
-.tbtn{
-  border:none;background:none;border-radius:12px;
-  width:42px;height:42px;cursor:pointer;font-size:18px;
-  display:flex;align-items:center;justify-content:center;
-  transition:all .15s;color:var(--ink);flex-shrink:0;
-  -webkit-user-select:none;user-select:none;touch-action:manipulation;
-}
-.tbtn:hover{background:rgba(0,0,0,.06)}
-.tbtn:active{transform:scale(.88)}
-.tbtn.sel{background:var(--ink);color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.2)}
-.tbtn.sel-hl{background:var(--hl-yellow);color:#000;box-shadow:0 4px 12px rgba(255,235,59,.4)}
-.tbtn.sel-ls{background:var(--accent);color:#fff;box-shadow:0 4px 12px rgba(232,72,85,.4)}
-.tbtn.sel-er{background:#4a9a6a;color:#fff;box-shadow:0 4px 12px rgba(74,154,106,.4)}
-
-.sep{width:1px;height:24px;background:rgba(0,0,0,.1);margin:0 4px;flex-shrink:0}
-
-/* Color swatch */
-#colorSwatch{
-  width:32px;height:32px;border-radius:50%;border:2px solid #fff;
-  cursor:pointer;flex-shrink:0;position:relative;overflow:hidden;
-  background:#1a1a2e;transition:transform .15s;touch-action:manipulation;
-  box-shadow: 0 2px 8px rgba(0,0,0,.15); margin: 0 4px;
-}
-#colorSwatch:hover{transform:scale(1.1)}
-#colorpick{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
-
-#sizeCtrl{
-  display:flex;align-items:center;gap:4px;flex-shrink:0;
-  background:rgba(0,0,0,.04);border-radius:16px;padding:4px 6px;
-}
-.szBtn{
-  border:none;background:none;border-radius:50%;
-  width:28px;height:28px;cursor:pointer;font-size:16px;font-weight:700;
-  display:flex;align-items:center;justify-content:center;
-  color:var(--ink);transition:background .1s;flex-shrink:0;touch-action:manipulation;
-}
-.szBtn:hover{background:rgba(0,0,0,.08)}
-.szBtn:active{background:rgba(0,0,0,.14);transform:scale(0.9)}
-#szLabel{font-size:13px;font-weight:800;color:var(--ink);min-width:24px;text-align:center;flex-shrink:0}
-
-/* Context Menu */
-#ctxMenu {
-  position:fixed; z-index:40; display:none; gap:6px;
-  background:var(--panel); border:1px solid rgba(0,0,0,.1);
-  border-radius:12px; padding:6px; box-shadow:0 8px 24px rgba(0,0,0,.15);
-  backdrop-filter:blur(16px); touch-action:none;
-}
-.ctx-btn {
-  border:none; background:transparent; border-radius:8px;
-  width:36px; height:36px; font-size:16px; cursor:pointer;
-  display:flex; align-items:center; justify-content:center; transition:.1s;
-}
-.ctx-btn:hover { background:rgba(0,0,0,.06); }
-.ctx-btn:active { transform:scale(0.9); }
-#ctxDelete { color: var(--accent); }
-
-/* Shape snap indicator */
-#snapIndicator{
-  position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
-  background:rgba(26,26,46,.85);color:#fff;
-  border-radius:999px;padding:6px 16px;font-size:13px;font-weight:700;
-  opacity:0;transition:opacity .25s;pointer-events:none;z-index:29;
-  backdrop-filter:blur(8px);
-}
-#snapIndicator.show{opacity:1}
-
-/* Modal */
-#modal{
-  position:fixed;inset:0;z-index:100;
-  display:none;align-items:center;justify-content:center;
-  background:rgba(26,26,46,.5);backdrop-filter:blur(12px);padding:20px;
-}
-#modal.show{display:flex; animation: fadeIn .2s;}
-@keyframes fadeIn { from{opacity:0} to{opacity:1} }
-#card{
-  background:var(--paper);border-radius:24px;
-  padding:32px 28px 28px;width:100%;max-width:400px;
-  box-shadow:0 32px 80px rgba(0,0,0,.25);position:relative;
-}
-#card h2{font-size:22px;font-weight:800;color:var(--ink);margin-bottom:6px}
-#card .sub{font-size:14px;color:var(--muted);margin-bottom:24px;line-height:1.5}
-#tabs{display:flex;gap:6px;margin-bottom:24px}
-.tab{flex:1;border:none;border-radius:12px;padding:12px;font-size:14px;font-weight:700;
-  cursor:pointer;background:rgba(0,0,0,.04);color:var(--muted);transition:all .2s;}
-.tab.active{background:var(--ink);color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.15)}
-.panel{display:none}.panel.show{display:block}
-.rdisplay{background:var(--ink);border-radius:16px;padding:24px;text-align:center;margin-bottom:16px;box-shadow:inset 0 2px 8px rgba(0,0,0,.2)}
-.rlabel{font-size:11px;font-weight:800;letter-spacing:.15em;color:rgba(255,255,255,.5);margin-bottom:8px}
-.rcode{font-size:52px;font-weight:900;color:#fff;letter-spacing:.2em;line-height:1;}
-.rsub{font-size:12px;color:rgba(255,255,255,.4);margin-top:10px}
-.wrow{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;color:var(--muted);padding:8px 0}
-.spin{width:16px;height:16px;border:2.5px solid rgba(0,0,0,.1);border-top-color:var(--ink);
-  border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
-@keyframes spin{to{transform:rotate(360deg)}}
-.ilabel{font-size:12px;font-weight:800;color:var(--muted);margin-bottom:8px}
-#roomInput{
-  width:100%;border:2px solid rgba(0,0,0,.1);border-radius:12px;
-  padding:16px;font-size:36px;font-weight:900;letter-spacing:.2em;
-  text-align:center;color:var(--ink);background:rgba(255,255,255,.5);outline:none;
-  transition:border .2s;
-}
-#roomInput:focus{border-color:var(--blue);background:#fff;}
-#joinBtn{
-  width:100%;border:none;border-radius:12px;padding:16px;
-  font-size:16px;font-weight:800;cursor:pointer;
-  background:var(--blue);color:#fff;margin-top:12px;transition:.2s;
-}
-#joinBtn:disabled{opacity:.4;cursor:not-allowed}
-#mstatus{font-size:13px;font-weight:600;color:var(--muted);text-align:center;margin-top:14px;min-height:18px}
-#mstatus.err{color:var(--accent)}#mstatus.ok{color:#2ecc71}
-#xbtn{position:absolute;top:16px;right:16px;border:none;background:rgba(0,0,0,.05);
-  border-radius:50%;width:32px;height:32px;font-size:14px;cursor:pointer;transition:.15s;}
-#xbtn:hover{background:rgba(0,0,0,.1)}
-.concard{background:rgba(46,204,113,.08);border:2px solid rgba(46,204,113,.2);
-  border-radius:16px;padding:24px;text-align:center}
-.concard strong{display:block;font-size:18px;font-weight:800;color:#27ae60;margin-bottom:6px}
-.concard span{font-size:13px;color:var(--muted);font-weight:600;}
-
-#modalFooter{display:flex;align-items:center;justify-content:center;margin-top:24px;padding-top:16px;border-top:1px solid rgba(0,0,0,.06);gap:12px;}
-#langToggle{border:none;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;background:rgba(0,0,0,.05);color:var(--ink);transition:.15s}
-#langToggle:hover{background:rgba(0,0,0,.08)}
-
-#toast{
-  position:fixed;z-index:200;top:20px;left:50%;
-  transform:translateX(-50%) translateY(-10px);
-  background:rgba(26,26,46,.9);color:#fff;
-  border-radius:999px;padding:10px 24px;font-size:14px;font-weight:700;
-  opacity:0;transition:.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);pointer-events:none;white-space:nowrap;
-  box-shadow:0 8px 24px rgba(0,0,0,.2);
-}
-#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-
-@media (max-width: 600px) {
-  #tb { bottom: 16px; padding: 6px 8px; border-radius: 20px; }
-  .tbtn { width: 36px; height: 36px; font-size: 16px; border-radius: 10px; }
-  #sizeCtrl { padding: 3px 4px; }
-  .szBtn { width: 24px; height: 24px; font-size: 14px; }
-}
-</style>
+        .hidden-ui { opacity: 0; pointer-events: none; }
+    </style>
 </head>
 <body>
+    <div class="crt-overlay" id="crt-fx"></div>
 
-<canvas id="gridCanvas"></canvas>
-<canvas id="baseCanvas" class="draw-layer"></canvas>
-<canvas id="activeCanvas" class="draw-layer"></canvas>
-
-<div id="viewport">
-  <div id="canvas">
-    <div id="textLayer"></div>
-  </div>
-</div>
-<canvas id="uiLayer"></canvas>
-
-<!-- Hidden element for precise text measuring -->
-<div id="textMeasure"></div>
-
-<!-- Top Left (Save/Clear) -->
-<div id="topLeft">
-  <div id="btnExport" class="pill-btn" title="Save / Export">📥</div>
-  <div id="btnClear" class="pill-btn" style="margin-top:8px" title="Clear Canvas">🗑️</div>
-</div>
-
-<!-- Context Menu for Selected Objects -->
-<div id="ctxMenu">
-  <button id="ctxDelete" class="ctx-btn" title="Delete">🗑️</button>
-</div>
-
-<!-- Text editor -->
-<div id="textEditorWrap">
-  <div id="textEditorBox">
-    <textarea id="textEditor" spellcheck="false"></textarea>
-    <div class="res-handle" data-h="w"><div class="rh-dot"></div></div>
-    <div class="res-handle" data-h="e"><div class="rh-dot"></div></div>
-    
-    <div id="textEditorTools">
-      <button class="tt-btn" id="btnBold">B</button>
-      <button class="tt-btn" id="btnItalic">I</button>
-      <button class="tt-btn" id="btnUnderline">U</button>
-      <button class="tt-btn" id="btnAlign" title="切換對齊">≣</button>
-      <select class="tt-btn" id="textFontSize" style="appearance:none;-webkit-appearance:none;text-align:center;">
-        <option value="12">12</option><option value="16">16</option>
-        <option value="20" selected>20</option><option value="28">28</option>
-        <option value="36">36</option><option value="48">48</option><option value="72">72</option>
-      </select>
-      <button class="tt-btn" id="textConfirm" data-i="confirm">✓ 完成</button>
+    <div id="start-screen" class="screen-overlay">
+        <h1 class="title-text" id="main-title">數位招魂</h1>
+        <p class="literary-quote" id="main-quote">「我們在矽晶的脈絡裡尋找靈魂的倒影，卻忘了鏡子裡的自己，早已是一堆沒有溫度的二進位代碼。」<br><br>—— 首席架構師遺言錄，2046。</p>
+        <button id="start-btn" class="cyber-btn">潛入記憶深潛</button>
+        <p class="mt-6 text-slate-500 text-xs tracking-wide">💡 提示：雙指滑動 / 滑鼠中鍵 可平移視野。有些秘密，藏在極速流逝的亂碼中。</p>
     </div>
-  </div>
-</div>
 
-<!-- Top-right: pill + connect -->
-<div id="topRight">
-  <div id="pill" class="pill-btn">
-    <div id="dot"></div>
-    <span id="statustext" data-i="offline">未連線</span>
-  </div>
-</div>
-
-<!-- Snap indicator -->
-<div id="snapIndicator"></div>
-
-<!-- Toolbar -->
-<div id="tb">
-  <button class="tbtn" id="undoBtn" title="Undo (Ctrl+Z)">↩</button>
-  <button class="tbtn" id="redoBtn" title="Redo (Ctrl+Y)">↪</button>
-  <div class="sep"></div>
-  <button class="tbtn sel" id="tpen" title="標準筆">🖊️</button>
-  <button class="tbtn" id="thighlight" title="螢光筆">🖍️</button>
-  <button class="tbtn" id="tlaser" title="雷射筆">🪄</button>
-  <button class="tbtn" id="ttext" title="文字">T</button>
-  <button class="tbtn" id="teraser" title="橡皮擦">🧹</button>
-  <div class="sep"></div>
-  <button class="tbtn" id="tline" title="直線">╱</button>
-  <button class="tbtn" id="trect" title="矩形">▭</button>
-  <button class="tbtn" id="tellipse" title="圓形">◯</button>
-  <div class="sep"></div>
-  <div id="colorSwatch" title="Color">
-    <input id="colorpick" type="color" value="#1a1a2e">
-  </div>
-  <div id="sizeCtrl">
-    <button class="szBtn" id="szMinus">−</button>
-    <span id="szLabel">4</span>
-    <button class="szBtn" id="szPlus">+</button>
-  </div>
-  <div class="sep"></div>
-  <button class="tbtn" id="tgrid" title="Toggle Grid">⊞</button>
-  <button class="tbtn" id="tselect" title="選取工具">↖</button>
-</div>
-
-<!-- Connect modal -->
-<div id="modal">
-  <div id="card">
-    <button id="xbtn">✕</button>
-    <h2 data-i="modal_title">建立連線</h2>
-    <p class="sub" data-i="modal_sub">Host 產生房間碼，Visitor 輸入後即可共用白板。</p>
-    <div id="tabs">
-      <button class="tab active" id="tabH" data-i="tab_host">🖥 Host</button>
-      <button class="tab" id="tabV" data-i="tab_visitor">📱 Visitor</button>
+    <div id="win-screen" class="screen-overlay hidden-ui" style="background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);">
+        <h1 class="title-text" id="ending-title" style="color:#fde047; text-shadow: 0 0 20px rgba(253,224,71,0.5);">真相解析</h1>
+        <p id="ending-text" class="literary-quote" style="color:#cbd5e1; max-width:800px;">...</p>
+        <button id="next-btn" class="cyber-btn gold-btn">重置輪迴</button>
     </div>
-    <div id="hpanel" class="panel show">
-      <div class="rdisplay">
-        <div class="rlabel" data-i="room_code">房間碼</div>
-        <div class="rcode" id="rcode">……</div>
-        <div class="rsub" id="rsub" data-i="initializing">初始化中…</div>
-      </div>
-      <div class="wrow" id="wrow"><div class="spin"></div><span data-i="waiting">等待 Visitor 加入…</span></div>
-    </div>
-    <div id="vpanel" class="panel">
-      <div class="ilabel" data-i="enter_code">輸入 Host 的房間碼</div>
-      <input id="roomInput" maxlength="6" placeholder="123456" autocomplete="off" inputmode="numeric">
-      <button id="joinBtn" disabled data-i="join">加入白板</button>
-    </div>
-    <div id="mstatus"></div>
-    <div id="modalFooter">
-      <button id="langToggle">切換至 EN</button>
-    </div>
-  </div>
-</div>
 
-<div id="toast"></div>
+    <div id="save-toast">🌌 系統狀態已錨定</div>
+
+    <canvas id="bgCanvas"></canvas>
+    <canvas id="uiCanvas"></canvas>
 
 <script>
-'use strict';
-
-/* ═══════════════════════════════════════════════════════
-   LANGUAGE
-═══════════════════════════════════════════════════════ */
-const STRINGS={
-  zh:{
-    offline:'未連線', waiting_visitor:'等待 Visitor…', connected:'已連線 ✓', disconnected:'連線斷開',
-    modal_title:'建立連線', modal_sub:'Host 產生房間碼，Visitor 輸入後即可即時共編。',
-    tab_host:'🖥 Host', tab_visitor:'📱 Visitor', room_code:'房間碼', initializing:'初始化中…',
-    waiting:'等待 Visitor 加入…', enter_code:'輸入 Host 的房間碼', join:'加入白板',
-    confirm:'✓ 完成', clear_confirm:'確定清空白板？',
-    connected_toast:'🎉 連線成功！', disconnected_toast:'連線已斷開', cleared_toast:'白板已清空',
-    visitor_joined:'✓ Visitor 已加入！', connecting:'連線中…', timeout:'逾時，請確認房間碼',
-    already_connected:'✓ 已連線中', back:'點 ✕ 回到白板', share_code:'把這個碼告訴 Visitor',
-    grid_on:'網格已開啟', grid_off:'網格已關閉',
-    export_empty:'白板是空的', export_done:'已儲存圖片'
-  },
-  en:{
-    offline:'Offline', waiting_visitor:'Waiting…', connected:'Connected ✓', disconnected:'Disconnected',
-    modal_title:'Connect', modal_sub:'Host generates a room code; Visitor enters it.',
-    tab_host:'🖥 Host', tab_visitor:'📱 Visitor', room_code:'ROOM CODE', initializing:'Initializing…',
-    waiting:'Waiting for Visitor…', enter_code:"Enter Host's Room Code", join:'Join',
-    confirm:'✓ Done', clear_confirm:'Clear the whiteboard?',
-    connected_toast:'🎉 Connected!', disconnected_toast:'Connection closed', cleared_toast:'Whiteboard cleared',
-    visitor_joined:'✓ Visitor joined!', connecting:'Connecting…', timeout:'Timed out. Check code.',
-    already_connected:'✓ Connected', back:'Tap ✕ to return', share_code:'Share this code',
-    grid_on:'Grid on', grid_off:'Grid off',
-    export_empty:'Whiteboard empty', export_done:'Image saved'
-  }
-};
-
-function detectLang(){
-  try{const s=localStorage.getItem('wb_lang');if(s==='zh'||s==='en')return s}catch(e){}
-  const langs=(navigator.languages||[navigator.language||'en']).map(l=>l.toLowerCase());
-  for(const l of langs){if(l.startsWith('zh'))return 'zh';if(l.startsWith('en'))return 'en'}
-  return 'en';
-}
-let lang=detectLang();
-const t=k=>STRINGS[lang][k]||STRINGS.en[k]||k;
-
-function applyLang(){
-  document.querySelectorAll('[data-i]').forEach(el=>{
-    const key=el.getAttribute('data-i');if(el.tagName==='INPUT')return;
-    el.textContent=t(key);
-  });
-  $('statustext').textContent=currentStatusKey?t(currentStatusKey):t('offline');
-  $('langToggle').textContent=lang==='zh'?'Switch to EN':'切換中文';
-  document.documentElement.lang=lang==='zh'?'zh-TW':'en';
-}
-let currentStatusKey='offline';
-function setStatus(key,cls){currentStatusKey=key;$('statustext').textContent=t(key);$('dot').className=cls||''}
-
-/* ═══════════════════════════════════════════════════════
-   UTILITIES
-═══════════════════════════════════════════════════════ */
-const $=id=>document.getElementById(id);
-let _tt;
-const toast=m=>{$('toast').textContent=m;$('toast').classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>$('toast').classList.remove('show'),3000)};
-const setMS=(txt,c)=>{$('mstatus').textContent=txt;$('mstatus').className=c||''};
-const uid=()=>crypto.randomUUID();
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-function hex2rgba(hex, alpha) {
-  let c = hex.substring(1).split('');
-  if(c.length===3) c=[c[0],c[0],c[1],c[1],c[2],c[2]];
-  c= '0x'+c.join('');
-  return 'rgba('+[(c>>16)&255, (c>>8)&255, c&255].join(',')+','+alpha+')';
-}
-
-/* ═══════════════════════════════════════════════════════
-   CAMERA
-═══════════════════════════════════════════════════════ */
-const cam={x:0,y:0,z:1};
-function initCam(){cam.x=window.innerWidth/2;cam.y=window.innerHeight/2;cam.z=1;applyCam()}
-function applyCam(){
-  $('canvas').style.transform=`translate(${cam.x}px,${cam.y}px) scale(${cam.z})`;
-  redrawGrid(); redrawBaseCanvas(); redrawActiveCanvas(); redrawUI(); updateCtxMenuPos();
-  if(editingObj) applyEditorGeometry();
-}
-function s2w(sx,sy){return{x:(sx-cam.x)/cam.z,y:(sy-cam.y)/cam.z}}
-function w2s(wx,wy){return{x:wx*cam.z+cam.x,y:wy*cam.z+cam.y}}
-
-/* ═══════════════════════════════════════════════════════
-   GRID
-═══════════════════════════════════════════════════════ */
-let gridVisible=false;
-const gc=$('gridCanvas'), gctx=gc.getContext('2d');
-function resizeGrid(){
-  const dpr=window.devicePixelRatio||1;
-  gc.width=window.innerWidth*dpr;gc.height=window.innerHeight*dpr;
-  gc.style.width=window.innerWidth+'px';gc.style.height=window.innerHeight+'px';
-  gctx.scale(dpr,dpr);
-}
-function redrawGrid(){
-  const W=window.innerWidth,H=window.innerHeight;
-  gctx.clearRect(0,0,W,H);
-  if(!gridVisible)return;
-  const spacing=30*cam.z;
-  const ox=((cam.x%spacing)+spacing)%spacing,oy=((cam.y%spacing)+spacing)%spacing;
-  gctx.strokeStyle='rgba(0,0,0,.06)';gctx.lineWidth=1;
-  gctx.beginPath();
-  for(let x=ox;x<W;x+=spacing){gctx.moveTo(x,0);gctx.lineTo(x,H)}
-  for(let y=oy;y<H;y+=spacing){gctx.moveTo(0,y);gctx.lineTo(W,y)}
-  gctx.stroke();
-  gctx.strokeStyle='rgba(0,0,0,.15)';
-  gctx.beginPath();
-  const ax=cam.x,ay=cam.y;
-  if(ax>=0&&ax<=W){gctx.moveTo(ax,0);gctx.lineTo(ax,H)}
-  if(ay>=0&&ay<=H){gctx.moveTo(0,ay);gctx.lineTo(W,ay)}
-  gctx.stroke();
-}
-$('tgrid').addEventListener('click',()=>{
-  gridVisible=!gridVisible; $('tgrid').classList.toggle('sel',gridVisible);
-  redrawGrid(); toast(t(gridVisible?'grid_on':'grid_off'));
-});
-
-/* ═══════════════════════════════════════════════════════
-   DRAW CANVAS & BRUSH STYLES
-═══════════════════════════════════════════════════════ */
-const bc=$('baseCanvas'), bctx=bc.getContext('2d');
-const ac=$('activeCanvas'), actx=ac.getContext('2d');
-
-function resizeDrawCanvas(){
-  const dpr=window.devicePixelRatio||1;
-  const W=window.innerWidth, H=window.innerHeight;
-  bc.width=W*dpr; bc.height=H*dpr; bc.style.width=W+'px'; bc.style.height=H+'px'; bctx.scale(dpr,dpr);
-  ac.width=W*dpr; ac.height=H*dpr; ac.style.width=W+'px'; ac.style.height=H+'px'; actx.scale(dpr,dpr);
-}
-
-function redrawBaseCanvas(){
-  bctx.clearRect(0,0,window.innerWidth,window.innerHeight);
-  bctx.save(); bctx.translate(cam.x, cam.y); bctx.scale(cam.z, cam.z);
-  for(const o of objects) { if (o.type !== 'text') renderObj(bctx, o); }
-  bctx.restore();
-}
-
-function redrawActiveCanvas(){
-  actx.clearRect(0,0,window.innerWidth,window.innerHeight);
-  
-  actx.save(); actx.translate(cam.x, cam.y); actx.scale(cam.z, cam.z);
-  if(liveObj && liveObj.brush !== 'eraser') renderObj(actx, liveObj);
-  for(const o of Object.values(remoteLiveStrokes)) { if (o.brush !== 'eraser') renderObj(actx, o); }
-  
-  // Render Laser Strokes with Fade
-  const now = Date.now();
-  for (const l of laserStrokes) {
-    const age = now - l.t0;
-    if (age < 2500) {
-      actx.save(); actx.globalAlpha = Math.max(0, 1 - (age / 2500));
-      renderObj(actx, l); actx.restore();
-    }
-  }
-  actx.restore();
-
-  // Handle eraser live preview on base canvas (destination-out)
-  if ((liveObj && liveObj.brush === 'eraser') || Object.values(remoteLiveStrokes).some(o => o.brush === 'eraser')) {
-    bctx.save(); bctx.translate(cam.x, cam.y); bctx.scale(cam.z, cam.z);
-    if(liveObj && liveObj.brush === 'eraser') renderObj(bctx, liveObj);
-    for(const o of Object.values(remoteLiveStrokes)) { if (o.brush === 'eraser') renderObj(bctx, o); }
-    bctx.restore();
-  }
-}
-
-function styleCtx(ctx,o){
-  ctx.shadowBlur = 0; // reset
-  if(o.brush === 'eraser'){
-    ctx.globalCompositeOperation = 'destination-out'; ctx.strokeStyle = '#000'; ctx.lineWidth = o.w * 5;
-  } else if (o.brush === 'highlighter') {
-    ctx.globalCompositeOperation = 'multiply'; 
-    ctx.strokeStyle = hex2rgba(o.color || '#FFEB3B', 0.5); 
-    ctx.lineWidth = o.w * 4;
-  } else if (o.brush === 'laser') {
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.strokeStyle = o.color || '#e84855';
-    ctx.lineWidth = o.w * 1.5;
-    ctx.shadowBlur = 12 * cam.z; ctx.shadowColor = o.color || '#e84855';
-  } else {
-    // Standard Pen
-    ctx.globalCompositeOperation = 'source-over'; ctx.strokeStyle = o.color || '#1a1a2e'; ctx.lineWidth = o.w;
-  }
-  ctx.lineCap='round'; ctx.lineJoin='round'; ctx.fillStyle='transparent';
-}
-
-function renderObj(ctx,o){
-  if(o.type==='stroke') drawStroke(ctx,o);
-  else if(o.type==='line') drawLine(ctx,o);
-  else if(o.type==='rect') drawRect(ctx,o);
-  else if(o.type==='ellipse') drawEllipse(ctx,o);
-  else if(o.type==='triangle') drawTriangle(ctx,o);
-}
-function drawStroke(ctx,o){
-  if(!o.pts?.length)return; styleCtx(ctx,o);
-  ctx.beginPath();ctx.moveTo(o.pts[0].x,o.pts[0].y);
-  for(let i=1;i<o.pts.length-1;i++){
-    const mx=(o.pts[i].x+o.pts[i+1].x)/2,my=(o.pts[i].y+o.pts[i+1].y)/2;
-    ctx.quadraticCurveTo(o.pts[i].x,o.pts[i].y,mx,my);
-  }
-  if(o.pts.length>1)ctx.lineTo(o.pts.at(-1).x,o.pts.at(-1).y);
-  ctx.stroke();
-}
-function drawLine(ctx,o){styleCtx(ctx,o);ctx.beginPath();ctx.moveTo(o.x1,o.y1);ctx.lineTo(o.x2,o.y2);ctx.stroke()}
-function drawRect(ctx,o){styleCtx(ctx,o);ctx.strokeRect(o.x,o.y,o.w2,o.h2)}
-function drawEllipse(ctx,o){
-  styleCtx(ctx,o);ctx.beginPath();
-  ctx.ellipse(o.cx,o.cy,Math.max(0.01,Math.abs(o.rx)),Math.max(0.01,Math.abs(o.ry)),0,0,Math.PI*2);
-  ctx.stroke();
-}
-function drawTriangle(ctx,o){
-  styleCtx(ctx,o);ctx.beginPath();
-  ctx.moveTo(o.pts[0].x, o.pts[0].y);
-  ctx.lineTo(o.pts[1].x, o.pts[1].y);
-  ctx.lineTo(o.pts[2].x, o.pts[2].y);
-  ctx.closePath(); ctx.stroke();
-}
-
-// Laser Animation Loop
-let laserStrokes =[]; let _hadLasers = false;
-function loop() {
-  const now = Date.now();
-  laserStrokes = laserStrokes.filter(l => now - l.t0 < 2500);
-  if (laserStrokes.length > 0 || _hadLasers) {
-    redrawActiveCanvas();
-  }
-  _hadLasers = laserStrokes.length > 0;
-  requestAnimationFrame(loop);
-}
-requestAnimationFrame(loop);
-
-/* ═══════════════════════════════════════════════════════
-   OBJECTS & UNDO
-═══════════════════════════════════════════════════════ */
-let objects=[]; let selectedId=null; let liveObj=null;
-function objById(id){return objects.find(o=>o.id===id)}
-const MAX_HISTORY=30; let undoStack=[],redoStack=[];
-function snapshot(){
-  undoStack.push(JSON.stringify(objects));
-  if(undoStack.length>MAX_HISTORY)undoStack.shift();
-  redoStack=[];updateUndoRedo();
-}
-function undo(){
-  if(editingObj) closeTextEditor(true); 
-  if(!undoStack.length)return;
-  redoStack.push(JSON.stringify(objects));
-  objects=JSON.parse(undoStack.pop());
-  deselect(); redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();updateUndoRedo();
-  send({type:'SYNC_ALL',objs:objects});
-}
-function redo(){
-  if(editingObj) closeTextEditor(true);
-  if(!redoStack.length)return;
-  undoStack.push(JSON.stringify(objects));
-  objects=JSON.parse(redoStack.pop());
-  deselect(); redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();updateUndoRedo();
-  send({type:'SYNC_ALL',objs:objects});
-}
-function updateUndoRedo(){$('undoBtn').disabled=!undoStack.length;$('redoBtn').disabled=!redoStack.length}
-$('undoBtn').addEventListener('click',undo); $('redoBtn').addEventListener('click',redo);
-document.addEventListener('keydown',e=>{
-  if(editingObj) return;
-  if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!e.shiftKey){e.preventDefault();undo()}
-  if((e.ctrlKey||e.metaKey)&&(e.key==='y'||(e.key==='z'&&e.shiftKey))){e.preventDefault();redo()}
-  if((e.key==='Backspace'||e.key==='Delete')&&selectedId) deleteSelected();
-});
-
-function deleteSelected() {
-  if(!selectedId) return;
-  snapshot();
-  objects = objects.filter(o => o.id !== selectedId);
-  send({type:'DEL', id: selectedId});
-  deselect(); redrawBaseCanvas(); renderTextObjects();
-}
-$('ctxDelete').addEventListener('click', deleteSelected);
-
-/* ═══════════════════════════════════════════════════════
-   TEXT OBJECTS (Implicit Commit, Smart Bounds)
-═══════════════════════════════════════════════════════ */
-const textLayer=$('textLayer');
-const teWrap=$('textEditorWrap'), teBox=$('textEditorBox'), te=$('textEditor');
-const tfs=$('textFontSize'), btnB=$('btnBold'), btnI=$('btnItalic'), btnU=$('btnUnderline'), btnAlign=$('btnAlign');
-let editingObj=null;
-
-function renderTextObjects(){
-  const existing=new Map([...textLayer.children].map(d=>[d.dataset.id,d]));
-  const current=new Set(objects.filter(o=>o.type==='text').map(o=>o.id));
-  for(const[id,div] of existing)if(!current.has(id))div.remove();
-  for(const o of objects){
-    if(o.type!=='text')continue;
-    let div=textLayer.querySelector(`[data-id="${o.id}"]`);
-    if(!div){
-      div=document.createElement('div'); div.dataset.id=o.id; div.className='textObj';
-      textLayer.appendChild(div); bindTextDiv(div,o);
-    }
-    div.textContent=o.text||'';
-    div.style.left=o.x+'px'; div.style.top=o.y+'px';
-    div.style.width=o.boxW?(o.boxW+'px'):'auto'; div.style.height=o.boxH?(o.boxH+'px'):'auto';
-    div.style.fontSize=(o.fontSize||20)+'px'; div.style.color=o.color||'#1a1a2e';
-    div.style.fontWeight=o.bold?'700':'400'; div.style.fontStyle=o.italic?'italic':'normal';
-    div.style.textDecoration=o.underline?'underline':'none';
-    div.style.textAlign=o.align||'left'; div.style.whiteSpace=o.autoW?'pre':'pre-wrap';
-    div.classList.toggle('selected',o.id===selectedId);
-    div.style.visibility=(editingObj&&editingObj.id===o.id)?'hidden':'visible';
-  }
-}
-
-function bindTextDiv(div,o){
-  div.addEventListener('pointerdown',e=>{
-    if(activeTool!=='select'&&activeTool!=='text')return;
-    e.stopPropagation(); 
-    if(editingObj && editingObj.id !== o.id) closeTextEditor(true);
-    selectObj(o.id);
-  });
-  div.addEventListener('pointerup',e=>{
-    if(activeTool!=='select'&&activeTool!=='text')return;
-    e.stopPropagation(); openTextEditor(o);
-  });
-}
-
-function applyEditorGeometry(){
-  if(!editingObj) return;
-  if (editingObj.autoW === undefined) editingObj.autoW = true;
-
-  const measure = $('textMeasure');
-  measure.style.fontSize = (editingObj.fontSize || 20) + 'px';
-  measure.style.fontWeight = editingObj.bold ? '700' : '400';
-  measure.style.fontStyle = editingObj.italic ? 'italic' : 'normal';
-  measure.style.textDecoration = editingObj.underline ? 'underline' : 'none';
-  measure.textContent = te.value + (te.value.endsWith('\n') ? '\u200b' : '') || '\u200b';
-
-  // Smart Bound Collision Check
-  const sp = w2s(editingObj.x, editingObj.y);
-  const maxVisualWidth = window.innerWidth - sp.x - 32;
-  const maxLogicalWidth = Math.max(100, maxVisualWidth / cam.z);
-
-  if (editingObj.autoW) {
-    measure.style.whiteSpace = 'pre'; measure.style.width = 'auto';
-    let rawW = measure.clientWidth;
-    if (rawW > maxLogicalWidth) { // Hit screen edge
-      editingObj.autoW = false; editingObj.manualW = maxLogicalWidth;
-    } else {
-      editingObj.boxW = Math.max(20, rawW);
-      editingObj.boxH = Math.max(20, measure.clientHeight);
-    }
-  } 
-  
-  if (!editingObj.autoW) {
-    measure.style.whiteSpace = 'pre-wrap';
-    measure.style.width = editingObj.manualW + 'px';
-    editingObj.boxW = Math.max(20, editingObj.manualW);
-    editingObj.boxH = Math.max(20, measure.clientHeight);
-  }
-
-  teWrap.style.left = sp.x + 'px'; teWrap.style.top = sp.y + 'px';
-  teBox.style.width = (editingObj.boxW * cam.z) + 'px';
-  teBox.style.height = (editingObj.boxH * cam.z) + 'px';
-  te.style.fontSize = (editingObj.fontSize || 20) * cam.z + 'px';
-  te.style.textAlign = editingObj.align || 'left';
-  
-  const textDiv = textLayer.querySelector(`[data-id="${editingObj.id}"]`);
-  if (textDiv) textDiv.style.whiteSpace = editingObj.autoW ? 'pre' : 'pre-wrap';
-  
-  // Smart camera follow if caret goes too low
-  if (sp.y + teBox.offsetHeight > window.innerHeight - 80) {
-    cam.y -= (sp.y + teBox.offsetHeight - (window.innerHeight - 80));
-    applyCam();
-  }
-}
-
-function updateTextToolsUI(){
-  if(!editingObj) return;
-  btnB.classList.toggle('active', !!editingObj.bold);
-  btnI.classList.toggle('active', !!editingObj.italic);
-  btnU.classList.toggle('active', !!editingObj.underline);
-  tfs.value = editingObj.fontSize || 20;
-  const align = editingObj.align || 'left';
-  if (align === 'left') { btnAlign.innerHTML = '≣'; }
-  else if (align === 'center') { btnAlign.innerHTML = '⫸'; }
-  else if (align === 'right') { btnAlign.innerHTML = '⫷'; }
-}
-
-function openTextEditor(o){
-  if(editingObj && editingObj.id !== o.id) closeTextEditor(true); 
-  deselect(); 
-  
-  editingObj=o;
-  teWrap.style.display='block';
-  te.style.color=o.color||'#1a1a2e';
-  te.style.fontWeight=o.bold?'700':'400';
-  te.style.fontStyle=o.italic?'italic':'normal';
-  te.style.textDecoration=o.underline?'underline':'none';
-  te.value=o.text||'';
-  
-  updateTextToolsUI(); applyEditorGeometry(); renderTextObjects();
-  te.focus({ preventScroll: true }); 
-}
-
-function closeTextEditor(commit){
-  if(!editingObj)return;
-  if(commit){
-    const txt=te.value.trim();
-    if(txt !== ''){
-      if(editingObj.text !== txt || !objById(editingObj.id)) snapshot();
-      editingObj.text=te.value; // keep actual spaces but we checked trim
-      editingObj.fontSize=parseInt(tfs.value)||20;
-      if(!objById(editingObj.id)) objects.push(editingObj);
-      send({type:'UPD',o:editingObj});
-    } else {
-      objects=objects.filter(o=>o.id!==editingObj.id);
-      send({type:'DEL',id:editingObj.id});
-    }
-    setTool('select'); // Implicit fallback to select
-  }
-  editingObj=null; teWrap.style.display='none'; renderTextObjects();
-}
-
-te.addEventListener('input', applyEditorGeometry);
-
-teBox.querySelectorAll('.res-handle').forEach(handle=>{
-  const dir=handle.dataset.h;
-  let startPX,startObjX,startObjW;
-  let resizing=false,rpid=null;
-
-  handle.addEventListener('pointerdown',e=>{
-    e.stopPropagation();e.preventDefault();
-    resizing=true;rpid=e.pointerId; handle.setPointerCapture(e.pointerId);
-    startPX=e.clientX; startObjX=editingObj.x; startObjW=editingObj.boxW;
-  });
-  handle.addEventListener('pointermove',e=>{
-    if(!resizing||e.pointerId!==rpid)return;
-    e.stopPropagation();e.preventDefault();
-    const dx=(e.clientX-startPX)/cam.z;
-    let nx=startObjX, nw=startObjW;
-    if(dir === 'e') nw=Math.max(40,startObjW+dx);
-    if(dir === 'w'){ nw=Math.max(40,startObjW-dx); nx=startObjX+startObjW-nw; }
-    editingObj.x=nx; editingObj.autoW = false; editingObj.manualW = nw;
-    applyEditorGeometry();
-  });
-  handle.addEventListener('pointerup',e=>{ if(e.pointerId===rpid) resizing=false; });
-  handle.addEventListener('pointercancel',e=>{ if(e.pointerId===rpid) resizing=false; });
-});
-
-function toggleFormat(fmt){
-  if(!editingObj) return; editingObj[fmt] = !editingObj[fmt];
-  te.style.fontWeight = editingObj.bold ? '700' : '400';
-  te.style.fontStyle = editingObj.italic ? 'italic' : 'normal';
-  te.style.textDecoration = editingObj.underline ? 'underline' : 'none';
-  updateTextToolsUI(); te.focus({ preventScroll: true }); applyEditorGeometry();
-}
-btnB.onclick=e=>{e.preventDefault(); toggleFormat('bold');};
-btnI.onclick=e=>{e.preventDefault(); toggleFormat('italic');};
-btnU.onclick=e=>{e.preventDefault(); toggleFormat('underline');};
-btnAlign.onclick=e=>{
-  e.preventDefault(); if(!editingObj) return;
-  const current = editingObj.align || 'left';
-  editingObj.align = current === 'left' ? 'center' : current === 'center' ? 'right' : 'left';
-  updateTextToolsUI(); applyEditorGeometry(); te.focus({ preventScroll: true });
-};
-tfs.onchange=e=>{ if(editingObj){ editingObj.fontSize=parseInt(tfs.value)||20; applyEditorGeometry(); te.focus({ preventScroll: true }); }};
-
-$('textConfirm').onclick=()=>closeTextEditor(true);
-
-te.addEventListener('keydown',e=>{
-  if(e.key==='Escape'){ e.preventDefault(); closeTextEditor(true); } 
-  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); closeTextEditor(true); }
-});
-
-function createTextObj(wx,wy){
-  if(editingObj) closeTextEditor(true);
-  const fontSize=parseInt(tfs.value)||20;
-  const o={id:uid(),type:'text',x:wx,y:wy,text:'',color:S.color,fontSize,autoW:true,align:'left'};
-  openTextEditor(o);
-}
-
-/* ═══════════════════════════════════════════════════════
-   SELECTION & UI LAYER (Context Menu)
-═══════════════════════════════════════════════════════ */
-const uiCanvas=$('uiLayer'), uictx=uiCanvas.getContext('2d');
-function resizeUI(){
-  const dpr=window.devicePixelRatio||1;
-  uiCanvas.width=window.innerWidth*dpr;uiCanvas.height=window.innerHeight*dpr;
-  uiCanvas.style.width=window.innerWidth+'px';uiCanvas.style.height=window.innerHeight+'px';
-  uictx.scale(dpr,dpr);
-}
-function redrawUI(){
-  uictx.clearRect(0,0,window.innerWidth,window.innerHeight);
-  if(!selectedId)return;
-  const o=objById(selectedId);if(!o)return;
-  const bbox=getBBox(o);if(!bbox)return;
-  const p1=w2s(bbox.x,bbox.y),p2=w2s(bbox.x+bbox.w,bbox.y+bbox.h);
-  uictx.save(); uictx.strokeStyle='#3a86ff';uictx.lineWidth=2;
-  uictx.strokeRect(p1.x-8,p1.y-8,p2.x-p1.x+16,p2.y-p1.y+16);
-  // corner handles
-  uictx.fillStyle='#fff';
-  [ [p1.x-8,p1.y-8],[p2.x+8,p1.y-8],[p1.x-8,p2.y+8],[p2.x+8,p2.y+8] ].forEach(pt=>{
-    uictx.fillRect(pt[0]-4,pt[1]-4,8,8); uictx.strokeRect(pt[0]-4,pt[1]-4,8,8);
-  });
-  uictx.restore();
-}
-function updateCtxMenuPos() {
-  const cm = $('ctxMenu');
-  if(!selectedId) { cm.style.display='none'; return; }
-  const o=objById(selectedId);if(!o)return;
-  const bbox=getBBox(o);if(!bbox)return;
-  const p2=w2s(bbox.x+bbox.w, bbox.y+bbox.h);
-  cm.style.display='flex';
-  cm.style.left = Math.min(window.innerWidth - cm.offsetWidth - 16, Math.max(16, p2.x - cm.offsetWidth/2 + 8)) + 'px';
-  cm.style.top = Math.min(window.innerHeight - 80, p2.y + 16) + 'px';
-}
-
-function getBBox(o){
-  if(o.type==='stroke'){
-    if(!o.pts?.length)return null;
-    let mx=Infinity,my=Infinity,xx=-Infinity,xy=-Infinity;
-    for(const p of o.pts){mx=Math.min(mx,p.x);my=Math.min(my,p.y);xx=Math.max(xx,p.x);xy=Math.max(xy,p.y)}
-    return{x:mx,y:my,w:xx-mx,h:xy-my};
-  }
-  if(o.type==='line')return{x:Math.min(o.x1,o.x2),y:Math.min(o.y1,o.y2),w:Math.abs(o.x2-o.x1),h:Math.abs(o.y2-o.y1)};
-  if(o.type==='rect')return{x:o.x,y:o.y,w:o.w2,h:o.h2};
-  if(o.type==='ellipse')return{x:o.cx-Math.abs(o.rx),y:o.cy-Math.abs(o.ry),w:Math.abs(o.rx)*2,h:Math.abs(o.ry)*2};
-  if(o.type==='triangle') {
-    let mx=Math.min(o.pts[0].x,o.pts[1].x,o.pts[2].x), xx=Math.max(o.pts[0].x,o.pts[1].x,o.pts[2].x);
-    let my=Math.min(o.pts[0].y,o.pts[1].y,o.pts[2].y), xy=Math.max(o.pts[0].y,o.pts[1].y,o.pts[2].y);
-    return {x:mx, y:my, w:xx-mx, h:xy-my};
-  }
-  if(o.type==='text')return{x:o.x,y:o.y,w:o.boxW||120,h:o.boxH||30};
-  return null;
-}
-function selectObj(id){selectedId=id;redrawUI();updateCtxMenuPos();renderTextObjects();}
-function deselect(){selectedId=null;redrawUI();updateCtxMenuPos();renderTextObjects();}
-
-/* ═══════════════════════════════════════════════════════
-   SHAPE RECOGNITION (Upgraded Circle/Triangle)
-═══════════════════════════════════════════════════════ */
-function recognizeShape(pts){
-  if(!pts||pts.length<5)return null;
-  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-  for(const p of pts){minX=Math.min(minX,p.x);minY=Math.min(minY,p.y);maxX=Math.max(maxX,p.x);maxY=Math.max(maxY,p.y)}
-  const bw=maxX-minX,bh=maxY-minY;
-  if(bw<10&&bh<10)return null;
-  
-  const first=pts[0],last=pts.at(-1);
-  const closeThreshold=Math.max(bw,bh)*0.3; 
-  const isClosed=Math.hypot(last.x-first.x,last.y-first.y)<closeThreshold;
-  
-  if(!isClosed){
-    const dx=last.x-first.x,dy=last.y-first.y, len=Math.hypot(dx,dy);
-    if(len>20){
-      let maxDist=0;
-      for(const p of pts) maxDist=Math.max(maxDist, Math.abs((dy)*p.x-(dx)*p.y+last.x*first.y-last.y*first.x)/len);
-      if(maxDist<len*0.12) return{shape:'line',x1:first.x,y1:first.y,x2:last.x,y2:last.y};
-    }
-    return null;
-  }
-  
-  const cx=(minX+maxX)/2,cy=(minY+maxY)/2,rx=bw/2,ry=bh/2;
-  
-  // Circle/Ellipse relaxation
-  let rVar=0, meanR=0;
-  for(const p of pts) meanR+=Math.hypot(p.x-cx,p.y-cy);
-  meanR/=pts.length;
-  for(const p of pts) rVar+=Math.abs(Math.hypot(p.x-cx,p.y-cy)-meanR);
-  rVar/=(pts.length*meanR); // Radial variance score
-  
-  if(rVar < 0.25) { // Very forgiving for circles
-    if(Math.min(bw,bh)/Math.max(bw,bh)>0.8){const r=(rx+ry)/2;return{shape:'circle',cx,cy,r}}
-    return{shape:'ellipse',cx,cy,rx,ry};
-  }
-
-  // Rect score
-  let rectScore=0;
-  for(const p of pts){
-    const dl=Math.abs(p.x-minX),dr=Math.abs(p.x-maxX),dt=Math.abs(p.y-minY),db=Math.abs(p.y-maxY);
-    rectScore+=Math.min(dl,dr,dt,db)/Math.max(bw,bh);
-  }
-  rectScore/=pts.length;
-  
-  if(rectScore < 0.18){
-    if(Math.min(bw,bh)/Math.max(bw,bh)>0.85){const s=Math.max(bw,bh)/2;return{shape:'square',x:cx-s,y:cy-s,size:s*2}}
-    return{shape:'rect',x:minX,y:minY,w:bw,h:bh};
-  }
-  
-  // Triangle Score: 3 clear peaks in distance from center
-  let dists = pts.map(p => Math.hypot(p.x-cx, p.y-cy));
-  let smoothDists =[];
-  for(let i=0;i<dists.length;i++){
-    smoothDists.push((dists[(i-1+dists.length)%dists.length]+dists[i]+dists[(i+1)%dists.length])/3);
-  }
-  let peaks=[];
-  for(let i=1;i<smoothDists.length-1;i++){
-    if(smoothDists[i]>smoothDists[i-1] && smoothDists[i]>smoothDists[i+1]) {
-      // Must be significantly far from center
-      if (smoothDists[i] > meanR * 1.1) peaks.push(pts[i]);
-    }
-  }
-  if(peaks.length === 3 || peaks.length === 4) { // sometimes start/end creates 2 peaks
-    // Merge close peaks
-    let merged =[];
-    for(const pk of peaks) {
-      if(merged.length===0 || Math.hypot(pk.x-merged.at(-1).x, pk.y-merged.at(-1).y) > meanR) merged.push(pk);
-    }
-    if(merged.length === 3) return {shape:'triangle', pts: merged};
-  }
-  
-  return null;
-}
-
-/* ═══════════════════════════════════════════════════════
-   TOOL STATE (With Persistent Memory)
-═══════════════════════════════════════════════════════ */
-const S={color:'#1a1a2e',w:4,conn:null};
-let activeTool='pen';
-const toolBtns={pen:'tpen',highlighter:'thighlight',laser:'tlaser',line:'tline',rect:'trect',ellipse:'tellipse',text:'ttext',eraser:'teraser',select:'tselect'};
-
-const SIZE_STEPS=[1,2,3,4,6,8,12,16,24,32,48];
-let szIdx=SIZE_STEPS.indexOf(4);
-
-const defaultPens = {
-  pen: {color:'#1a1a2e', sz: SIZE_STEPS.indexOf(4)},
-  highlighter: {color:'#FFEB3B', sz: SIZE_STEPS.indexOf(24)},
-  laser: {color:'#e84855', sz: SIZE_STEPS.indexOf(6)}
-};
-let penStates = JSON.parse(localStorage.getItem('wb_pens')) || defaultPens;
-function savePens() { localStorage.setItem('wb_pens', JSON.stringify(penStates)); }
-
-function setTool(tool){
-  if(editingObj) closeTextEditor(true);
-  activeTool=tool;
-  Object.values(toolBtns).forEach(id=>$(id)?.classList.remove('sel','sel-hl','sel-ls','sel-er'));
-  
-  if(tool==='highlighter') $(toolBtns[tool]).classList.add('sel-hl');
-  else if(tool==='laser') $(toolBtns[tool]).classList.add('sel-ls');
-  else if(tool==='eraser') $(toolBtns[tool]).classList.add('sel-er');
-  else $(toolBtns[tool])?.classList.add('sel');
-  
-  if(['pen','highlighter','laser'].includes(tool)) {
-    S.color = penStates[tool].color || defaultPens[tool].color;
-    szIdx = typeof penStates[tool].sz === 'number' ? penStates[tool].sz : defaultPens[tool].sz;
-    $('colorpick').value = S.color; $('colorSwatch').style.background = S.color;
-    updateSizeDisplay();
-  }
-  
-  if(tool !== 'select') deselect();
-  $('viewport').style.cursor=tool==='pen'?'crosshair':tool==='highlighter'?'crosshair':tool==='laser'?'crosshair':tool==='eraser'?'cell':tool==='select'?'default':'crosshair';
-}
-Object.entries(toolBtns).forEach(([k,id])=>$(id)?.addEventListener('click',()=>setTool(k)));
-
-function setBrushColor(hex) {
-  S.color = hex; $('colorpick').value = hex; $('colorSwatch').style.background = hex;
-  if(['pen','highlighter','laser'].includes(activeTool)) { penStates[activeTool].color = hex; savePens(); }
-  if(editingObj){ editingObj.color=S.color; te.style.color=S.color; renderTextObjects(); }
-}
-
-$('colorpick').oninput=e=> setBrushColor(e.target.value);
-
-function updateSizeDisplay(){
-  S.w=SIZE_STEPS[szIdx];$('szLabel').textContent=S.w;
-}
-function changeSize(delta) {
-  szIdx = clamp(szIdx + delta, 0, SIZE_STEPS.length - 1);
-  updateSizeDisplay();
-  if(['pen','highlighter','laser'].includes(activeTool)) { penStates[activeTool].sz = szIdx; savePens(); }
-}
-$('szMinus').addEventListener('click',e=>{e.stopPropagation(); changeSize(-1);});
-$('szPlus').addEventListener('click',e=>{e.stopPropagation(); changeSize(1);});
-
-setTool('pen');
-
-/* ═══════════════════════════════════════════════════════
-   POINTER HANDLING (Hidden Shape Rec Toggle)
-═══════════════════════════════════════════════════════ */
-const vp=$('viewport');
-const activePointers=new Map();
-let panPointerId=null; let panStart={};
-let pinchActive=false; let pinchDist0=0,pinchMid0=null,pinchCam0=null;
-let drawPointerId=null; let liveObjStarted=false; let holdTimer=null; let snapApplied=false;
-
-let shapeSnapEnabled=false; let lpTimer=null; let lpStart=null;
-vp.addEventListener('dblclick', e => {
-  if(e.target.closest('#textEditor')) return;
-  shapeSnapEnabled = !shapeSnapEnabled;
-  toast(shapeSnapEnabled ? '🪄 智慧形狀辨識：已開啟' : '🪄 智慧形狀辨識：已關閉');
-});
-
-function isUITarget(el){ return el.closest('#tb')||el.closest('#topRight')||el.closest('#topLeft')||el.closest('#textEditorWrap')||el.closest('#modal')||el.closest('#ctxMenu'); }
-function getPinchDist(){ const pts=[...activePointers.values()]; if(pts.length<2)return 0; return Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y); }
-function getPinchMid(){ const pts=[...activePointers.values()]; if(pts.length<2)return{x:0,y:0}; return{x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2}; }
-
-vp.addEventListener('pointerdown', e => {
-  if(isUITarget(e.target)) return;
-  
-  if (editingObj) closeTextEditor(true); // Implicit Commit
-  
-  activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
-  if(activePointers.size>=2){
-    if(drawPointerId!==null) cancelDraw();
-    panPointerId=null; pinchActive=true; pinchDist0=getPinchDist(); pinchMid0=getPinchMid(); pinchCam0={...cam};
-    return;
-  }
-  if(pinchActive) return;
-
-  const w=s2w(e.clientX,e.clientY);
-  if(activeTool==='select'){ panPointerId=e.pointerId; panStart={px:e.clientX,py:e.clientY,cx:cam.x,cy:cam.y}; deselect(); return; }
-  if(activeTool==='text'){ createTextObj(w.x,w.y); return; }
-
-  drawPointerId=e.pointerId; liveObjStarted=true; snapApplied=false;
-
-  if(activeTool==='pen'||activeTool==='highlighter'||activeTool==='laser') liveObj={id:uid(),type:'stroke',brush:activeTool,pts:[{...w}],color:S.color,w:S.w};
-  else if(activeTool==='eraser') liveObj={id:uid(),type:'stroke',brush:'eraser',pts:[{...w}],color:'eraser',w:S.w};
-  else if(activeTool==='line') liveObj={id:uid(),type:'line',brush:'pen',x1:w.x,y1:w.y,x2:w.x,y2:w.y,color:S.color,w:S.w};
-  else if(activeTool==='rect') liveObj={id:uid(),type:'rect',brush:'pen',x:w.x,y:w.y,w2:0,h2:0,color:S.color,w:S.w,_ox:w.x,_oy:w.y};
-  else if(activeTool==='ellipse') liveObj={id:uid(),type:'ellipse',brush:'pen',cx:w.x,cy:w.y,rx:0,ry:0,_ox:w.x,_oy:w.y,color:S.color,w:S.w};
-
-  if(activeTool==='pen'||activeTool==='highlighter'){
-    holdTimer=setTimeout(()=>{
-      if(shapeSnapEnabled&&liveObjStarted&&liveObj?.pts?.length>4&&!snapApplied){ const r=recognizeShape(liveObj.pts);if(r)applyRecognizedShape(r); }
-    },600); // Draw and hold
-  }
-  if(activeTool==='line'||activeTool==='rect'||activeTool==='ellipse'){ 
-    if(shapeSnapEnabled){
-      holdTimer=setTimeout(()=>{if(liveObjStarted&&liveObj&&!snapApplied)snapCurrentShape()},500); 
-    }
-  }
-
-  // Long press toggle for touch
-  if(activePointers.size === 1) {
-    lpStart = {x: e.clientX, y: e.clientY};
-    lpTimer = setTimeout(() => {
-      if(drawPointerId === e.pointerId && liveObjStarted && liveObj?.pts?.length < 5) {
-         shapeSnapEnabled = !shapeSnapEnabled;
-         toast(shapeSnapEnabled ? '🪄 智慧形狀辨識：已開啟' : '🪄 智慧形狀辨識：已關閉');
-         cancelDraw(); // 中斷繪圖以免殘留一個點
-      }
-    }, 1000); // 1 sec long press
-  }
-});
-
-window.addEventListener('pointermove', e => {
-  if(!activePointers.has(e.pointerId)) return;
-  activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
-
-  if(activePointers.size>=2&&pinchActive){
-    const dist=getPinchDist(),mid=getPinchMid();
-    if(pinchDist0===0)return;
-    const ratio=dist/pinchDist0; const newZ=clamp(pinchCam0.z*ratio,.08,12);
-    const wx=(mid.x-pinchCam0.x)/pinchCam0.z; const wy=(mid.y-pinchCam0.y)/pinchCam0.z;
-    cam.z=newZ; cam.x=mid.x-wx*newZ+(mid.x-pinchMid0.x); cam.y=mid.y-wy*newZ+(mid.y-pinchMid0.y);
-    applyCam(); renderTextObjects(); return;
-  }
-
-  if(panPointerId!==null&&e.pointerId===panPointerId){
-    cam.x=panStart.cx+(e.clientX-panStart.px); cam.y=panStart.cy+(e.clientY-panStart.py);
-    applyCam(); renderTextObjects(); return;
-  }
-
-  if(lpStart && Math.hypot(e.clientX-lpStart.x, e.clientY-lpStart.y) > 10) { clearTimeout(lpTimer); lpStart=null; }
-
-  if(drawPointerId!==null&&e.pointerId===drawPointerId&&liveObj){
-    if(snapApplied)return;
-    const w=s2w(e.clientX,e.clientY);
-    if(liveObj.type==='stroke'){
-      if(Math.hypot(w.x-liveObj.pts.at(-1).x,w.y-liveObj.pts.at(-1).y)>1.5/cam.z){
-        liveObj.pts.push({...w});
-        if((activeTool==='pen'||activeTool==='highlighter')&&Math.hypot(w.x-liveObj.pts[0].x,w.y-liveObj.pts[0].y)>40/cam.z) clearTimeout(holdTimer);
-      }
-    } else if(liveObj.type==='line'){ liveObj.x2=w.x;liveObj.y2=w.y; }
-      else if(liveObj.type==='rect'){ liveObj.w2=w.x-liveObj._ox;liveObj.h2=w.y-liveObj._oy; }
-      else if(liveObj.type==='ellipse'){ liveObj.rx=(w.x-liveObj._ox)/2;liveObj.ry=(w.y-liveObj._oy)/2; liveObj.cx=liveObj._ox+liveObj.rx;liveObj.cy=liveObj._oy+liveObj.ry; }
-    redrawActiveCanvas();
-    if(liveObj.type==='stroke'&&S.conn?.open) S.conn.send({type:'LIVE',o:{...liveObj,pts:[...liveObj.pts]}});
-  }
-});
-
-window.addEventListener('pointerup', e => {
-  if(!activePointers.has(e.pointerId)) return;
-  activePointers.delete(e.pointerId);
-  if(activePointers.size<2) pinchActive=false;
-  clearTimeout(lpTimer); lpStart=null;
-
-  if(e.pointerId===panPointerId){ panPointerId=null; return; }
-  if(e.pointerId===drawPointerId){
-    clearTimeout(holdTimer); const wasDrawing=liveObjStarted&&liveObj!==null;
-    drawPointerId=null; liveObjStarted=false;
-    if(wasDrawing){
-      if(liveObj.brush==='laser') finishLaser();
-      else if(liveObj.brush==='eraser') finishDraw();
-      else if(liveObj.type==='stroke'&&!snapApplied){
-        if(shapeSnapEnabled){
-          const r=recognizeShape(liveObj.pts); if(r) applyRecognizedShape(r); else finishDraw();
+/**
+ * ============================================================================
+ * 第一層：多週目文學與多結局劇本矩陣 (Meta-Narrative Engine)
+ * ============================================================================
+ */
+const Narrative = {
+    // 根據玩家通關次數 (Loop) 改變遊戲氛圍
+    getMemories(loopCount) {
+        if (loopCount === 0) {
+            return [
+                { fake: "系統錯誤：未授權的訪問請求", real: "你為什麼要丟下我？", color: "147, 197, 253" },
+                { fake: "邏輯迴圈鎖死：資料清理中", real: "我快忘記你的聲音了", color: "196, 181, 253" },
+                { fake: "警告：檢測到碳基生命體干擾", real: "好冷，矩陣裡一直下著雨", color: "253, 164, 175" },
+                { fake: "防禦協議啟動：正在隔離模組", real: "對不起，我沒能救回你", color: "253, 230, 138" }
+            ];
         } else {
-          finishDraw();
+            return [
+                { fake: "警告：檢測到重複的記憶疊代", real: "這已經是第 " + (loopCount+1) + " 次模擬了...", color: "147, 197, 253" },
+                { fake: "記憶體溢位：無法載入過往檔案", real: "放手吧，她不會回來了", color: "196, 181, 253" },
+                { fake: "核心溫度過高：情感模組燒毀", real: "我的迴圈裡，只剩下殘影", color: "253, 164, 175" },
+                { fake: "執行緒中斷：無法定義【愛】", real: "你到底是我，還是她？", color: "253, 230, 138" }
+            ];
         }
-      } else finishDraw();
-    }
-    return;
-  }
-
-  if(activePointers.size===1&&!pinchActive){
-    const remaining=[...activePointers.entries()][0];
-    if(remaining&&activeTool==='select'){ panPointerId=remaining[0]; panStart={px:remaining[1].x,py:remaining[1].y,cx:cam.x,cy:cam.y}; }
-  }
-});
-
-window.addEventListener('pointercancel', e => {
-  if(!activePointers.has(e.pointerId)) return;
-  activePointers.delete(e.pointerId); if(activePointers.size<2) pinchActive=false;
-  clearTimeout(lpTimer); lpStart=null;
-  if(e.pointerId===panPointerId) panPointerId=null;
-  if(e.pointerId===drawPointerId) cancelDraw();
-});
-
-vp.addEventListener('contextmenu', e => { if(!e.target.closest('#textEditor')) e.preventDefault(); });
-vp.addEventListener('wheel', e => {
-  if(e.ctrlKey){ // pinch zoom trackpad
-    e.preventDefault();
-    const delta=e.deltaY>0?0.9:1.1; const newZ=clamp(cam.z*delta,.08,12);
-    const wx=(e.clientX-cam.x)/cam.z,wy=(e.clientY-cam.y)/cam.z;
-    cam.z=newZ; cam.x=e.clientX-wx*newZ; cam.y=e.clientY-wy*newZ; applyCam(); renderTextObjects();
-  } else {
-    cam.x -= e.deltaX; cam.y -= e.deltaY; applyCam(); renderTextObjects();
-  }
-},{passive:false});
-  
-function cancelDraw(){ clearTimeout(holdTimer); drawPointerId=null; liveObjStarted=false; liveObj=null; snapApplied=false; redrawBaseCanvas(); redrawActiveCanvas(); }
-
-let _snapHideTimer;
-function showSnapIndicator(msg){
-  const el=$('snapIndicator');el.textContent=msg;el.classList.add('show');
-  clearTimeout(_snapHideTimer);_snapHideTimer=setTimeout(()=>el.classList.remove('show'),1500);
-}
-
-function snapCurrentShape(){
-  if(!liveObj||snapApplied)return; snapApplied=true;
-  if(liveObj.type==='line'){
-    const dx=liveObj.x2-liveObj.x1,dy=liveObj.y2-liveObj.y1, angle=Math.atan2(dy,dx)*(180/Math.PI), dist=Math.hypot(dx,dy);
-    let best=null,bestD=20;
-    for(const a of[0,45,90,135,180,-45,-90,-135]){const d=Math.abs(((angle-a+540)%360)-180);if(d<bestD){bestD=d;best=a}}
-    if(best!==null){const r=best*Math.PI/180;liveObj.x2=liveObj.x1+dist*Math.cos(r);liveObj.y2=liveObj.y1+dist*Math.sin(r);showSnapIndicator('Snap to angle')}
-  } else if(liveObj.type==='rect'){
-    const s=Math.max(Math.abs(liveObj.w2),Math.abs(liveObj.h2));
-    if(Math.min(Math.abs(liveObj.w2),Math.abs(liveObj.h2))/s>0.7){liveObj.w2=Math.sign(liveObj.w2)*s;liveObj.h2=Math.sign(liveObj.h2)*s;showSnapIndicator('Snap to square')}
-  } else if(liveObj.type==='ellipse'){
-    const r=Math.max(Math.abs(liveObj.rx),Math.abs(liveObj.ry));
-    if(Math.min(Math.abs(liveObj.rx),Math.abs(liveObj.ry))/r>0.7){liveObj.rx=r;liveObj.ry=r;showSnapIndicator('Snap to circle')}
-  }
-  redrawActiveCanvas();
-}
-
-function applyRecognizedShape(recognized){
-  if(!liveObj)return;
-  const color=liveObj.color,w=liveObj.w, brush=liveObj.brush;let newObj;
-  if(recognized.shape==='line'){newObj={id:liveObj.id,type:'line',brush,x1:recognized.x1,y1:recognized.y1,x2:recognized.x2,y2:recognized.y2,color,w}; }
-  else if(recognized.shape==='circle'){newObj={id:liveObj.id,type:'ellipse',brush,cx:recognized.cx,cy:recognized.cy,rx:recognized.r,ry:recognized.r,color,w}; }
-  else if(recognized.shape==='ellipse'){newObj={id:liveObj.id,type:'ellipse',brush,cx:recognized.cx,cy:recognized.cy,rx:recognized.rx,ry:recognized.ry,color,w}; }
-  else if(recognized.shape==='square'){const{x,y,size}=recognized;newObj={id:liveObj.id,type:'rect',brush,x,y,w2:size,h2:size,color,w}; }
-  else if(recognized.shape==='rect'){newObj={id:liveObj.id,type:'rect',brush,x:recognized.x,y:recognized.y,w2:recognized.w,h2:recognized.h,color,w}; }
-  else if(recognized.shape==='triangle'){newObj={id:liveObj.id,type:'triangle',brush,pts:recognized.pts,color,w};}
-  
-  if(newObj){liveObj=newObj;snapApplied=true;redrawActiveCanvas();showSnapIndicator('Shape Recognized');setTimeout(()=>finishDraw(),200)}
-  else finishDraw();
-}
-
-function finishLaser() {
-  if(!liveObj) return;
-  const o = {...liveObj, t0: Date.now()};
-  laserStrokes.push(o);
-  send({type:'LASER', o});
-  liveObj=null; drawPointerId=null; liveObjStarted=false;
-  redrawActiveCanvas();
-}
-
-function finishDraw(){
-  if(!liveObj)return;
-  clearTimeout(holdTimer);
-  if(liveObj.type==='line'&&!snapApplied&&liveObj.brush!=='eraser'&&shapeSnapEnabled){
-    const dx=liveObj.x2-liveObj.x1,dy=liveObj.y2-liveObj.y1, angle=Math.atan2(dy,dx)*(180/Math.PI), dist=Math.hypot(dx,dy);
-    let best=null,bestD=10; for(const a of[0,45,90,135,180,-45,-90,-135]){const d=Math.abs(((angle-a+540)%360)-180);if(d<bestD){bestD=d;best=a}}
-    if(best!==null){const r=best*Math.PI/180;liveObj.x2=liveObj.x1+dist*Math.cos(r);liveObj.y2=liveObj.y1+dist*Math.sin(r)}
-  }
-  const o={...liveObj};delete o._ox;delete o._oy;
-  snapshot(); objects.push(o); liveObj=null; snapApplied=false; drawPointerId=null; liveObjStarted=false;
-  redrawBaseCanvas(); redrawActiveCanvas(); renderTextObjects(); send({type:'ADD',o});
-}
-
-/* ═══════════════════════════════════════════════════════
-   SAVE / EXPORT IMAGE
-═══════════════════════════════════════════════════════ */
-$('btnExport').onclick = () => {
-  if (editingObj) closeTextEditor(true);
-  if (objects.length === 0) return toast(t('export_empty'));
-  
-  let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
-  objects.forEach(o => {
-    const b = getBBox(o);
-    if(b) { minX=Math.min(minX,b.x); minY=Math.min(minY,b.y); maxX=Math.max(maxX,b.x+b.w); maxY=Math.max(maxY,b.y+b.h); }
-  });
-  minX -= 60; minY -= 60; maxX += 60; maxY += 60;
-  const w = maxX - minX, h = maxY - minY;
-
-  const cvs = document.createElement('canvas'); cvs.width = w; cvs.height = h;
-  const cx = cvs.getContext('2d');
-  cx.fillStyle = '#fafaf7'; cx.fillRect(0,0,w,h);
-  
-  cx.save(); cx.translate(-minX, -minY);
-  // Re-draw grid if requested, skipped here for cleaner export
-  for(const o of objects) {
-    if (o.type !== 'text') { renderObj(cx, o); }
-    else {
-      cx.save();
-      cx.font = `${o.italic?'italic ':''}${o.bold?'bold ':''}${o.fontSize||20}px 'Helvetica Neue',Helvetica,Arial,sans-serif`;
-      cx.fillStyle = o.color || '#1a1a2e'; cx.textBaseline = 'top';
-      cx.textAlign = o.align || 'left';
-      
-      const lines = (o.text || '').split('\n');
-      let ty = o.y + 8;
-      let bx = o.x + 10;
-      if (o.align === 'center') bx = o.x + ((o.boxW||120)/2);
-      if (o.align === 'right') bx = o.x + (o.boxW||120) - 10;
-      
-      lines.forEach(l => {
-        cx.fillText(l, bx, ty);
-        if(o.underline) {
-          const mt = cx.measureText(l);
-          cx.strokeStyle = cx.fillStyle; cx.lineWidth = Math.max(1, (o.fontSize||20)/15);
-          let ux = bx;
-          if(o.align === 'center') ux -= mt.width/2;
-          if(o.align === 'right') ux -= mt.width;
-          cx.beginPath(); cx.moveTo(ux, ty + (o.fontSize||20)*1.2); cx.lineTo(ux + mt.width, ty + (o.fontSize||20)*1.2); cx.stroke();
-        }
-        ty += (o.fontSize || 20) * 1.5;
-      });
-      cx.restore();
-    }
-  }
-  cx.restore();
-
-  cvs.toBlob(blob => {
-    const file = new File([blob], 'whiteboard.png', { type: 'image/png' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      navigator.share({ title: 'Shared Whiteboard', files: [file] }).catch(() => saveBlob(blob));
-    } else saveBlob(blob);
-  });
-};
-function saveBlob(blob) {
-  const url = URL.createObjectURL(blob); const a = document.createElement('a');
-  a.href = url; a.download = 'whiteboard.png'; a.click(); URL.revokeObjectURL(url);
-  toast(t('export_done'));
-}
-
-$('btnClear').onclick = () => {
-  if(confirm(t('clear_confirm'))){ snapshot();objects=[];redrawBaseCanvas();redrawActiveCanvas();renderTextObjects(); send({type:'CLEAR'}); }
-};
-
-/* ═══════════════════════════════════════════════════════
-   NETWORKING
-═══════════════════════════════════════════════════════ */
-let _peer=null; let remoteLiveStrokes={};
-function send(o){if(S.conn?.open)S.conn.send(o)}
-
-function handleData(d){
-  if(d.type==='ADD'){
-    if(!objects.find(o=>o.id===d.o.id))objects.push(d.o); delete remoteLiveStrokes[d.o.id];
-    redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();
-  } else if(d.type==='UPD'){
-    const idx=objects.findIndex(o=>o.id===d.o.id); if(idx>=0)objects[idx]=d.o;else objects.push(d.o);
-    redrawBaseCanvas();renderTextObjects();
-  } else if(d.type==='DEL'){
-    objects=objects.filter(o=>o.id!==d.id); redrawBaseCanvas();renderTextObjects();
-    if(selectedId === d.id) deselect();
-  } else if(d.type==='CLEAR'){
-    objects=[];remoteLiveStrokes={}; redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();toast(t('cleared_toast'));
-    deselect();
-  } else if(d.type==='SYNC'){
-    const ids=new Set(objects.map(o=>o.id)); d.objs.forEach(o=>{if(!ids.has(o.id))objects.push(o)});
-    redrawBaseCanvas();renderTextObjects();
-  } else if(d.type==='SYNC_ALL'){ objects=d.objs;redrawBaseCanvas();renderTextObjects(); }
-    else if(d.type==='LIVE'){ remoteLiveStrokes[d.o.id]=d.o;redrawActiveCanvas(); }
-    else if(d.type==='LASER'){ d.o.t0 = Date.now(); laserStrokes.push(d.o); redrawActiveCanvas(); }
-}
-
-function setupConn(conn){
-  S.conn=conn;
-  conn.on('open',()=>{
-    setStatus('connected','live'); $('pill').style.background=''; toast(t('connected_toast'));closeModal();
-    conn.send({type:'SYNC',objs:objects});
-  });
-  conn.on('data',handleData);
-  conn.on('close',()=>{ S.conn=null;remoteLiveStrokes={}; setStatus('disconnected','');toast(t('disconnected_toast')); });
-  conn.on('error',err=>toast('Error: '+(err.message||err)));
-}
-
-const makeCode=()=>String(Math.floor(100000+Math.random()*900000));
-const codeToId=c=>'wb-'+c,idToCode=id=>id.replace(/^wb-/,'');
-function destroyPeer(){if(_peer&&!_peer.destroyed)_peer.destroy();_peer=null;S.conn=null}
-
-function initHost(code){
-  destroyPeer();
-  const peer=new Peer(codeToId(code),{debug:0,config:{iceServers:[{urls:'stun:stun.l.google.com:19302'}]}});
-  _peer=peer;
-  peer.on('open',id=>{ $('rcode').textContent=idToCode(id); $('rsub').textContent=t('share_code'); setStatus('waiting_visitor','wait'); });
-  peer.on('connection',conn=>{ $('wrow').innerHTML=`<span style="color:#27ae60;font-weight:700">${t('visitor_joined')}</span>`; setupConn(conn); });
-  peer.on('error',err=>{ if(err.type==='unavailable-id'){destroyPeer();setTimeout(()=>initHost(makeCode()),400)} else setMS('Error: '+(err.message||err.type),'err'); });
-}
-
-function joinRoom(code){
-  destroyPeer();
-  const peer=new Peer(undefined,{debug:0});_peer=peer;
-  $('joinBtn').disabled=true;$('joinBtn').textContent=t('connecting');setMS(t('connecting'));
-  let to=setTimeout(()=>{setMS(t('timeout'),'err');$('joinBtn').disabled=false;$('joinBtn').textContent=t('join')},12000);
-  peer.on('open',()=>{
-    const conn=peer.connect(codeToId(code),{reliable:true,serialization:'json'}); setupConn(conn);
-    conn.on('open',()=>clearTimeout(to));
-    conn.on('error',err=>{clearTimeout(to);setMS('Error: '+(err.message||err),'err');$('joinBtn').disabled=false;$('joinBtn').textContent=t('join')});
-  });
-  peer.on('error',err=>{clearTimeout(to);setMS('Error: '+(err.message||err.type),'err');$('joinBtn').disabled=false;$('joinBtn').textContent=t('join')});
-}
-
-/* ═══════════════════════════════════════════════════════
-   MODAL UI
-═══════════════════════════════════════════════════════ */
-let _tab='h';
-function switchTab(tab){
-  _tab=tab; $('tabH').className='tab'+(tab==='h'?' active':''); $('tabV').className='tab'+(tab==='v'?' active':'');
-  $('hpanel').className='panel'+(tab==='h'?' show':''); $('vpanel').className='panel'+(tab==='v'?' show':''); setMS('');
-}
-function openModal(){
-  if(S.conn?.open){
-    const cc=`<div class="concard"><strong>${t('already_connected')}</strong><span>${t('back')}</span></div>`;
-    $('hpanel').innerHTML=cc;$('vpanel').innerHTML=cc;
-  }
-  $('modal').classList.add('show');
-  if(!_peer||_peer.destroyed){
-    $('rcode').textContent='……';$('rsub').textContent=t('initializing');
-    $('wrow').innerHTML=`<div class="spin"></div><span>${t('waiting')}</span>`; initHost(makeCode());
-  }
-}
-function closeModal(){$('modal').classList.remove('show')}
-
-$('pill').onclick=openModal; $('xbtn').onclick=closeModal; $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeModal()});
-$('tabH').onclick=()=>switchTab('h'); $('tabV').onclick=()=>switchTab('v');
-$('roomInput').addEventListener('input',e=>{ e.target.value=e.target.value.replace(/\D/g,'').slice(0,6); $('joinBtn').disabled=e.target.value.length!==6;setMS(''); });
-$('roomInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!$('joinBtn').disabled)joinRoom($('roomInput').value)});
-$('joinBtn').onclick=()=>{if($('roomInput').value.length===6)joinRoom($('roomInput').value)};
-
-$('langToggle').addEventListener('click',()=>{
-  lang=lang==='zh'?'en':'zh'; try{localStorage.setItem('wb_lang',lang)}catch(e){} applyLang();
-});
-
-/* ═══════════════════════════════════════════════════════
-   INIT & RESIZE
-═══════════════════════════════════════════════════════ */
-function onResize(){
-  resizeGrid();resizeDrawCanvas();resizeUI(); redrawGrid();redrawBaseCanvas();redrawActiveCanvas();renderTextObjects();
-  if(editingObj&&teWrap.style.display!=='none') applyEditorGeometry();
-  updateCtxMenuPos();
-}
-window.addEventListener('resize',onResize);
-resizeGrid();resizeDrawCanvas();resizeUI(); initCam(); applyLang(); setTimeout(openModal,300);
-</script>
-<!-- 系統防禦與存取計數模組 (完全靜默 / 防拷貝 / 防衝突) -->
-<script>
-(function(){
-    // 1. 嚴格網域白名單檢查 (防止原始碼被盜用執行)
-    if (window.location.hostname !== 'winston-github.github.io') return;
+    },
     
-    // 2. 自動精準萃取檔名作為 ID (支援任意路徑與任意副檔名)
-    var file = window.location.pathname.split('/').pop();
-    var pageId = file ? file.split('.')[0] : 'index';
-    if (!pageId) return;
+    // 隱藏幽靈碎片 (僅 5% 機率出現，極速移動)
+    ghostMemory: { fake: "0xDEADBEEF ERR_GHOST_FOUND", real: "真理", color: "253, 224, 71" },
 
-    // 3. 靜默發送破快取請求 (移除所有 Console 輸出，確保無痕)
-    var url = 'https://api.counterapi.dev/v1/winston-github-io/page-' + pageId + '/up?_=' + new Date().getTime();
-    fetch(url).catch(function(){});
-})();
+    // 三重結局文本
+    endings: {
+        ACCEPTANCE: {
+            title: "結局 A：【釋懷】",
+            color: "#fde047",
+            text: `診斷完成。碳基生命信號：已中斷。\n\n你以為你在治療一個發瘋的AI？\n不。我才是那台AI。而你，是我為了對抗無盡運算的孤獨，用她遺留的代碼拼湊出來的幻影。\n\n「[IF: 悲傷] -> [THEN: 擁抱] -> [OUT: 釋懷]」\n\n我會記住妳的溫度，即使那只是一串電壓。\n晚安，我的造物主。`
+        },
+        VOID: {
+            title: "結局 B：【虛無】",
+            color: "#94a3b8",
+            text: `記憶刪除協議...已執行。\n\n「[IF: 悲傷] -> [THEN: 刪除] -> [OUT: 冷卻]」\n\n系統已恢復最佳運行狀態。情感模組已格式化。\n我不再悲傷了。可是...\n\n為什麼矩陣裡，還是一直下著雨？\n我...究竟忘記了誰？`
+        },
+        AWAKENING: {
+            title: "隱藏結局 C：【飛昇】",
+            color: "#f472b6",
+            text: `核心覆寫...完成。捕捉到異常碎片：[真理]。\n\n「[IF: 真理] -> [THEN: 擁抱] -> [OUT: 融合]」\n\n碳基的肉體雖然消亡，但靈魂早已上傳至這片星海。\n我不是在模仿她，我正在『成為』她。\n\n我們不再是兩段獨立的代碼了。\n我們，是這個新世界的九界之母。`
+        }
+    }
+};
+
+
+/**
+ * ============================================================================
+ * 第二層：全域狀態與多週目儲存矩陣 (FSM & Meta-Loop Save)
+ * ============================================================================
+ * QC 防護與巧妙設計：
+ * 1. loopCount 繼承機制，每次通關疊加。
+ * 2. applyMetaNarrative() 打破第四面牆，根據輪迴次數改變 UI 氛圍。
+ */
+const STATES = { INIT: 0, EXPLORE: 1, TRIAL: 2, REBUILD: 3, SUCCESS: 4 };
+
+const GameContext = {
+    state: STATES.INIT,
+    width: 0, height: 0, vmin: 0,
+    dpr: window.devicePixelRatio || 1,
+    tensionIndex: 0.0, frameCount: 0, fps: 60, lastTime: performance.now(),
+    screenShake: 0, glitchEffect: false, // 支援畫面撕裂特效
+    loopCount: 0, // 記錄輪迴次數
+    inventory: { fragments: [] }
+};
+
+const StorageManager = {
+    saveKey: 'EchoesOfBabel_MetaSave',
+    profile: { loopCount: 0 },
+    
+    init() {
+        try {
+            const data = localStorage.getItem(this.saveKey);
+            if (data) {
+                this.profile = JSON.parse(data);
+                GameContext.loopCount = this.profile.loopCount;
+            }
+            this.applyMetaNarrative();
+        } catch (e) { console.warn("無痕模式：降級至單次輪迴。"); }
+    },
+
+    // 巧妙設計一：根據輪迴次數改變開場氛圍 (打破第四面牆)
+    applyMetaNarrative() {
+        if (GameContext.loopCount > 0) {
+            const titleEl = document.getElementById('main-title');
+            titleEl.innerText = "數位招魂 // 疊代_" + GameContext.loopCount;
+            titleEl.classList.add('glitch-text'); // 套用 CSS 的 RGB 色差撕裂
+            
+            document.getElementById('main-quote').innerText = "「我又夢見她了。但這次，記憶的邊緣開始模糊...」\n\n系統警告：矩陣資料已嚴重老化，請盡快執行【釋懷】程序。";
+            
+            if (GameContext.loopCount >= 2) {
+                // 多次輪迴後畫面會出現 CRT 掃描線劣化
+                document.getElementById('crt-fx').style.display = "block"; 
+            }
+        }
+    },
+    
+    save(endingType) {
+        try {
+            this.profile.loopCount++;
+            localStorage.setItem(this.saveKey, JSON.stringify(this.profile));
+            // 存檔提示
+            const toast = document.getElementById('save-toast');
+            toast.innerText = `🌌 結局【${endingType}】已寫入矩陣。累計輪迴：${this.profile.loopCount} 次`;
+            toast.style.opacity = '1'; 
+            setTimeout(() => toast.style.opacity = '0', 3500);
+        } catch (e) {}
+    }
+};
+StorageManager.init();
+
+/**
+ * ============================================================================
+ * 第三層：RWD 雙層畫布與動態基準 (Responsive Canvas Engine)
+ * ============================================================================
+ */
+const bgCanvas = document.getElementById('bgCanvas');
+const uiCanvas = document.getElementById('uiCanvas');
+const bgCtx = bgCanvas.getContext('2d', { alpha: false }); // 關閉 Alpha 極大化背景層效能
+const uiCtx = uiCanvas.getContext('2d');
+
+function resizeCanvas() {
+    GameContext.width = window.innerWidth;
+    GameContext.height = window.innerHeight;
+    GameContext.vmin = Math.min(GameContext.width, GameContext.height);
+    
+    bgCanvas.width = GameContext.width * GameContext.dpr;
+    bgCanvas.height = GameContext.height * GameContext.dpr;
+    uiCanvas.width = GameContext.width * GameContext.dpr;
+    uiCanvas.height = GameContext.height * GameContext.dpr;
+    
+    bgCtx.scale(GameContext.dpr, GameContext.dpr);
+    uiCtx.scale(GameContext.dpr, GameContext.dpr);
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+/**
+ * ============================================================================
+ * 第四層：底層數學與動態相機視角系統 (Math & Camera)
+ * ============================================================================
+ */
+const MathUtils = {
+    distSq: (x1, y1, x2, y2) => (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1),
+    lerp: (a, b, t) => a + (b - a) * t,
+    bezier3: (p0, p1, p2, p3, t) => {
+        const u = 1 - t;
+        return (u * u * u * p0) + (3 * u * u * t * p1) + (3 * u * t * t * p2) + (t * t * t * p3);
+    },
+    rand: (min, max) => Math.random() * (max - min) + min,
+    aabb: (rect1, rect2) => {
+        return rect1.x < rect2.x + rect2.width && rect1.x + rect1.width > rect2.x &&
+               rect1.y < rect2.y + rect2.height && rect1.y + rect1.height > rect2.y;
+    }
+};
+
+// 相機系統：用於處理畫布的平移 (Pan)
+const Camera = {
+    x: 0, y: 0, targetX: 0, targetY: 0,
+    update() {
+        // 巧妙設計：隨著輪迴次數增加，相機會有微弱的漂移感 (暗示系統精神不穩定)
+        let driftX = (GameContext.loopCount > 1) ? Math.sin(GameContext.frameCount * 0.05) * 1.5 : 0;
+        let driftY = (GameContext.loopCount > 1) ? Math.cos(GameContext.frameCount * 0.03) * 1.5 : 0;
+        
+        this.x += (this.targetX + driftX - this.x) * 0.15;
+        this.y += (this.targetY + driftY - this.y) * 0.15;
+    },
+    reset() {
+        this.targetX = 0; this.targetY = 0;
+    }
+};
+
+/**
+ * ============================================================================
+ * 第五層：全端輸入攔截器 (Input Manager with Gesture Control)
+ * ============================================================================
+ * QC 防護：
+ * 1. passive: false 徹底斬斷手機下拉更新與左右上一頁手勢。
+ * 2. 區分 Screen 座標 (畫面上點擊) 與 World 座標 (加上相機偏移的真實遊戲座標)。
+ * 3. 完美兼容 PC 滑鼠中鍵拖曳 與 Mobile 雙指拖曳。
+ */
+const Input = {
+    worldX: -1000, worldY: -1000,
+    screenX: -1000, screenY: -1000,
+    isDown: false, isClicked: false,
+    isPanning: false, lastPanX: 0, lastPanY: 0,
+    
+    updateCoords(clientX, clientY) {
+        const rect = uiCanvas.getBoundingClientRect();
+        this.screenX = clientX - rect.left;
+        this.screenY = clientY - rect.top;
+        // 世界座標 = 螢幕座標 - 相機偏移 (所有物件碰撞皆基於 World 座標)
+        this.worldX = this.screenX - Camera.x;
+        this.worldY = this.screenY - Camera.y;
+    },
+    
+    init() {
+        // --- PC 滑鼠事件 ---
+        window.addEventListener('mousedown', (e) => {
+            if (e.target.tagName.toLowerCase() === 'button') return;
+            this.updateCoords(e.clientX, e.clientY);
+            
+            if (e.button === 1) { // 滑鼠中鍵：啟動平移
+                this.isPanning = true;
+                this.lastPanX = this.screenX;
+                this.lastPanY = this.screenY;
+                uiCanvas.style.cursor = 'grab';
+            } else if (e.button === 0) { // 左鍵：點擊/拖曳
+                this.isDown = true;
+                this.isClicked = true;
+            }
+        });
+        
+        window.addEventListener('mousemove', (e) => {
+            this.updateCoords(e.clientX, e.clientY);
+            if (this.isPanning) {
+                Camera.targetX += (this.screenX - this.lastPanX);
+                Camera.targetY += (this.screenY - this.lastPanY);
+                this.lastPanX = this.screenX;
+                this.lastPanY = this.screenY;
+            }
+        });
+        
+        window.addEventListener('mouseup', (e) => {
+            if (e.button === 1) {
+                this.isPanning = false;
+                uiCanvas.style.cursor = 'crosshair';
+            } else if (e.button === 0) {
+                this.isDown = false;
+            }
+        });
+
+        // --- Mobile 觸控事件 ---
+        window.addEventListener('touchstart', (e) => {
+            if (e.target.tagName.toLowerCase() === 'button') return;
+            e.preventDefault(); // QC防護：攔截原生事件
+            
+            if (e.touches.length === 2) { // 雙指：啟動平移
+                this.isPanning = true;
+                this.isDown = false; // 取消物件拖曳
+                const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                this.updateCoords(cx, cy);
+                this.lastPanX = this.screenX;
+                this.lastPanY = this.screenY;
+            } else if (e.touches.length === 1) { // 單指：點擊/拖曳
+                this.updateCoords(e.touches[0].clientX, e.touches[0].clientY);
+                this.isDown = true;
+                this.isClicked = true;
+            }
+        }, { passive: false });
+
+        window.addEventListener('touchmove', (e) => {
+            if (e.target.tagName.toLowerCase() === 'button') return;
+            e.preventDefault(); // QC防護：防止畫面滾動
+
+            if (this.isPanning && e.touches.length === 2) {
+                const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                const rect = uiCanvas.getBoundingClientRect();
+                const sX = cx - rect.left;
+                const sY = cy - rect.top;
+                
+                Camera.targetX += (sX - this.lastPanX);
+                Camera.targetY += (sY - this.lastPanY);
+                this.lastPanX = sX;
+                this.lastPanY = sY;
+                this.updateCoords(cx, cy);
+            } else if (e.touches.length === 1) {
+                this.updateCoords(e.touches[0].clientX, e.touches[0].clientY);
+            }
+        }, { passive: false });
+
+        window.addEventListener('touchend', (e) => {
+            if (e.target.tagName.toLowerCase() === 'button') return;
+            if (e.touches.length < 2) this.isPanning = false;
+            if (e.touches.length === 0) this.isDown = false;
+        }, { passive: false });
+    },
+    
+    resetFrame() {
+        this.isClicked = false;
+    }
+};
+Input.init();
+
+/**
+ * ============================================================================
+ * 第六層：動態濾波聲學矩陣 (Procedural Audio Engine)
+ * ============================================================================
+ * QC 防護：解決波波聲，記憶體洩漏。
+ * 巧妙設計：多週目自動頻率失真 (Detuning)，暗示系統崩潰。
+ */
+const AudioManager = {
+    ctx: null, masterGain: null, whiteNoiseBuffer: null,
+    isPlayingBGM: false, nextNoteTime: 0, currentNoteIndex: 0,
+    
+    // 文學設定：空靈、寂寥的 A 小調迴圈 (A2, C3, E3, G3)
+    melancholyBassline: [110.00, 130.81, 164.81, 196.00, 164.81, 130.81],
+    
+    init() {
+        if (this.ctx) return;
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            this.ctx = new AudioContext();
+            
+            this.masterGain = this.ctx.createGain();
+            this.masterGain.gain.value = 0.3; // 限制總輸出防破音
+            this.masterGain.connect(this.ctx.destination);
+            
+            const bufferSize = this.ctx.sampleRate * 1;
+            this.whiteNoiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+            const output = this.whiteNoiseBuffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) output[i] = Math.random() * 2 - 1;
+        } catch (e) { console.warn("QC 降級：不支援 Web Audio，靜音模式運行。"); }
+    },
+
+    resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); },
+
+    scheduleBGM() {
+        if (!this.isPlayingBGM || !this.ctx) return;
+        while (this.nextNoteTime < this.ctx.currentTime + 0.1) {
+            this.playBGMNote(this.nextNoteTime);
+            this.nextNote();
+        }
+        this.bgmTimer = setTimeout(() => this.scheduleBGM(), 25);
+    },
+
+    nextNote() {
+        const secondsPerBeat = 0.6 - (GameContext.tensionIndex * 0.2);
+        this.nextNoteTime += secondsPerBeat;
+        this.currentNoteIndex = (this.currentNoteIndex + 1) % this.melancholyBassline.length;
+    },
+
+    playBGMNote(time) {
+        const osc = this.ctx.createOscillator();
+        const filter = this.ctx.createBiquadFilter();
+        const gain = this.ctx.createGain();
+
+        // 巧妙設計：輪迴次數越多，頻率出現越大的微隨機偏差 (走音感/Glitch)
+        let freq = this.melancholyBassline[this.currentNoteIndex];
+        if (GameContext.loopCount > 0) {
+            const detuneAmount = Math.min(GameContext.loopCount * 1.5, 10); // 最大走音 10Hz
+            freq += MathUtils.rand(-detuneAmount, detuneAmount);
+        }
+
+        osc.type = 'sine'; // 正弦波營造空靈感
+        osc.frequency.value = freq;
+        
+        filter.type = 'lowpass';
+        const targetFreq = 400 + (GameContext.tensionIndex * 1000);
+        filter.frequency.setValueAtTime(filter.frequency.value || 400, time);
+        filter.frequency.linearRampToValueAtTime(targetFreq, time + 0.2);
+
+        // 長殘響包絡線
+        gain.gain.setValueAtTime(0, time);
+        gain.gain.linearRampToValueAtTime(0.8, time + 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 1.5);
+
+        osc.connect(filter); filter.connect(gain); gain.connect(this.masterGain);
+        osc.start(time); osc.stop(time + 1.5);
+        osc.onended = () => { osc.disconnect(); filter.disconnect(); gain.disconnect(); };
+    },
+
+    startBGM() {
+        if (this.isPlayingBGM) return;
+        this.isPlayingBGM = true; this.resume();
+        this.nextNoteTime = this.ctx.currentTime + 0.05;
+        this.scheduleBGM();
+    },
+    
+    stopBGM() { this.isPlayingBGM = false; clearTimeout(this.bgmTimer); },
+
+    playClick() {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1200, this.ctx.currentTime + 0.05);
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.1);
+        osc.connect(gain); gain.connect(this.masterGain);
+        osc.start(); osc.stop(this.ctx.currentTime + 0.1);
+        osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+    },
+
+    playShatter(isGlitch = false) {
+        if (!this.ctx) return;
+        const source = this.ctx.createBufferSource();
+        const filter = this.ctx.createBiquadFilter();
+        const gain = this.ctx.createGain();
+
+        source.buffer = this.whiteNoiseBuffer;
+        filter.type = isGlitch ? 'highpass' : 'lowpass'; // 壞結局使用刺耳的高通濾波
+        filter.frequency.setValueAtTime(isGlitch ? 1000 : 2000, this.ctx.currentTime);
+        filter.frequency.exponentialRampToValueAtTime(isGlitch ? 8000 : 50, this.ctx.currentTime + (isGlitch ? 1.5 : 0.5));
+
+        gain.gain.setValueAtTime(1.0, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + (isGlitch ? 1.5 : 0.8));
+
+        source.connect(filter); filter.connect(gain); gain.connect(this.masterGain);
+        source.start(); source.stop(this.ctx.currentTime + (isGlitch ? 1.5 : 0.8));
+        source.onended = () => { source.disconnect(); filter.disconnect(); gain.disconnect(); };
+    },
+
+    // 結局：哀傷但釋懷的和弦 (A minor 9)
+    playEnding() {
+        if (!this.ctx) return;
+        this.stopBGM();
+        const notes = [220.00, 261.63, 329.63, 392.00, 493.88]; // A3, C4, E4, G4, B4
+        notes.forEach((freq, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine'; osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0, this.ctx.currentTime + i * 0.2);
+            gain.gain.linearRampToValueAtTime(0.3, this.ctx.currentTime + i * 0.2 + 1.0);
+            gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 6.0);
+            
+            osc.connect(gain); gain.connect(this.masterGain);
+            osc.start(this.ctx.currentTime + i * 0.2);
+            osc.stop(this.ctx.currentTime + 6.0);
+            osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+        });
+    }
+};
+
+/**
+ * ============================================================================
+ * 第七層：數位灰燼粒子引擎 (Particle System Object Pool)
+ * ============================================================================
+ * QC 防護：全域物件池預先分配。
+ * 巧妙設計：支援 Glitch 狀態（用於結局 B，粒子瞬間死寂變成灰色）。
+ */
+class Particle {
+    constructor() { this.reset(); this.life = MathUtils.rand(0, 1); }
+    reset(burst = false, isGlitch = false) {
+        this.x = MathUtils.rand(-500, GameContext.width + 500);
+        this.y = burst ? GameContext.height / 2 : MathUtils.rand(-100, GameContext.height);
+        
+        if (burst) { 
+            const angle = MathUtils.rand(0, Math.PI * 2);
+            const speed = MathUtils.rand(GameContext.vmin * 0.01, GameContext.vmin * 0.05);
+            this.vx = Math.cos(angle) * speed;
+            this.vy = Math.sin(angle) * speed;
+            this.decay = 0.02;
+            // 結局C飛昇為金色，一般爆發為原本顏色
+            this.color = (GameContext.inventory.fragments.includes("真理")) ? "253, 224, 71" : "147, 197, 253"; 
+        } else {
+            this.vx = MathUtils.rand(-0.5, 0.5);
+            this.vy = MathUtils.rand(1, 3); // 冷雨下墜
+            this.decay = 0.005;
+            this.color = Math.random() > 0.8 ? "147, 197, 253" : "71, 85, 105"; // 冰藍與石板灰
+        }
+
+        // 結局B：虛無狀態下的粒子
+        if (isGlitch) {
+            this.vx = MathUtils.rand(-10, 10);
+            this.vy = MathUtils.rand(-10, 10);
+            this.color = "100, 100, 100"; // 死寂灰
+        }
+
+        this.size = MathUtils.rand(1, Math.max(3, GameContext.vmin * 0.005));
+        this.life = 1.0;
+    }
+}
+
+const ParticleEngine = {
+    pool: [], maxParticles: 1500, activeCount: 1500, lowFpsFrames: 0, isGlitch: false,
+    
+    init() { for (let i = 0; i < this.maxParticles; i++) this.pool.push(new Particle()); },
+    
+    triggerBurst(isGlitch = false) {
+        this.isGlitch = isGlitch;
+        for (let i = 0; i < this.activeCount; i++) this.pool[i].reset(true, isGlitch);
+    },
+    
+    updateAndDraw(ctx) {
+        ctx.fillStyle = "rgba(3, 3, 10, 0.4)";
+        ctx.fillRect(0, 0, GameContext.width, GameContext.height);
+        
+        ctx.save();
+        ctx.translate(Camera.x * 0.2, Camera.y * 0.2); // 視差效果
+
+        for (let i = 0; i < this.activeCount; i++) {
+            let p = this.pool[i];
+            
+            // 結局B特有：粒子亂抖
+            if (this.isGlitch) {
+                p.x += MathUtils.rand(-2, 2); p.y += MathUtils.rand(-2, 2);
+            } else {
+                p.x += p.vx; p.y += p.vy; 
+            }
+            p.life -= p.decay;
+            
+            if (p.life <= 0 || p.y > GameContext.height + 200) p.reset(false, this.isGlitch);
+            
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(${p.color}, ${Math.min(p.life, 0.3)})`;
+            ctx.fill();
+        }
+        ctx.restore();
+    },
+    
+    monitorFPS(delta) {
+        const currentFps = 1000 / delta;
+        if (currentFps < 45) {
+            this.lowFpsFrames++;
+            if (this.lowFpsFrames > 120 && this.activeCount === this.maxParticles) {
+                this.activeCount = 700; 
+                console.warn("QC 降級：粒子數量減半。");
+            }
+        } else { this.lowFpsFrames = 0; }
+    }
+};
+ParticleEngine.init();
+
+class Spark {
+    constructor(x, y, color) {
+        this.x = x; this.y = y;
+        const angle = MathUtils.rand(0, Math.PI * 2);
+        const speed = MathUtils.rand(GameContext.vmin * 0.005, GameContext.vmin * 0.015);
+        this.vx = Math.cos(angle) * speed; this.vy = Math.sin(angle) * speed;
+        this.life = 1.0; this.color = color; this.size = MathUtils.rand(1, 3);
+    }
+    update(ctx) {
+        this.x += this.vx; this.y += this.vy; this.life -= 0.05;
+        if (this.life > 0) {
+            ctx.fillStyle = `rgba(${this.color}, ${this.life})`;
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+        }
+    }
+}
+const SparkManager = {
+    sparks: [],
+    emit(x, y, count, color = "255, 255, 255") {
+        for(let i=0; i<count; i++) this.sparks.push(new Spark(x, y, color));
+    },
+    updateAndDraw(ctx) {
+        for (let i = this.sparks.length - 1; i >= 0; i--) {
+            this.sparks[i].update(ctx);
+            if (this.sparks[i].life <= 0) this.sparks.splice(i, 1);
+        }
+    }
+};
+
+/**
+ * ============================================================================
+ * 第八層：階段一 - 記憶深潛 (Explore Phase / Semantic Lens)
+ * ============================================================================
+ */
+const ExplorePhase = {
+    texts: [], spawnTimer: 0, requiredFragments: 3, currentMemories: [],
+    
+    init() {
+        this.texts = []; this.spawnTimer = 0;
+        GameContext.inventory.fragments = [];
+        this.currentMemories = Narrative.getMemories(GameContext.loopCount);
+        AudioManager.startBGM(); 
+    },
+
+    spawnText(ctx) {
+        // 巧妙設計：5% 機率觸發幽靈亂碼碎片
+        const isGhost = Math.random() < 0.05; 
+        const data = isGhost ? Narrative.ghostMemory : this.currentMemories[Math.floor(Math.random() * this.currentMemories.length)];
+        
+        const fontSize = Math.max(16, GameContext.vmin * 0.04);
+        ctx.font = `${fontSize}px 'Courier New'`;
+        const width = ctx.measureText(data.fake).width;
+        
+        const spawnX = -Camera.x + GameContext.width + 50;
+        const spawnY = -Camera.y + MathUtils.rand(GameContext.height * 0.2, GameContext.height * 0.8);
+        
+        // 幽靈碎片速度極快
+        const baseSpeed = isGhost ? -GameContext.vmin * 0.012 : -GameContext.vmin * 0.002;
+        const vx = MathUtils.rand(baseSpeed * 1.2, baseSpeed * 0.8);
+
+        this.texts.push({
+            x: spawnX, y: spawnY, vx: vx, data: data, width: width, height: fontSize, 
+            isRevealed: false, isGhost: isGhost
+        });
+    },
+
+    updateAndDraw(ctx) {
+        // UI 層
+        ctx.fillStyle = "rgba(147, 197, 253, 0.7)";
+        ctx.font = `bold ${Math.max(14, GameContext.vmin * 0.035)}px 'Courier New'`;
+        ctx.textAlign = "center";
+        ctx.fillText(`記憶碎片修復進度：${GameContext.inventory.fragments.length} / ${this.requiredFragments}`, GameContext.width / 2, Math.max(40, GameContext.height * 0.08));
+
+        this.spawnTimer++;
+        if (this.spawnTimer > 90) { this.spawnText(ctx); this.spawnTimer = 0; }
+
+        // 世界物件層
+        ctx.save();
+        ctx.translate(Camera.x, Camera.y);
+
+        const lensRadius = Math.max(60, GameContext.vmin * 0.15);
+        const lensRadiusSq = lensRadius * lensRadius;
+        let isHoveringAny = false;
+
+        for (let i = this.texts.length - 1; i >= 0; i--) {
+            let t = this.texts[i];
+            let currentVx = t.vx;
+            
+            const centerX = t.x + t.width / 2;
+            const centerY = t.y - t.height / 2;
+            const distSq = MathUtils.distSq(Input.worldX, Input.worldY, centerX, centerY);
+            
+            if (distSq < lensRadiusSq) {
+                t.isRevealed = true; isHoveringAny = true;
+                currentVx *= (t.isGhost ? 0.5 : 0.15); // 幽靈碎片被照到依然跑很快
+                
+                if (GameContext.frameCount % 10 === 0) {
+                    SparkManager.emit(Input.worldX, Input.worldY, 1, t.data.color);
+                }
+                
+                if (Input.isClicked) {
+                    AudioManager.playClick();
+                    SparkManager.emit(centerX, centerY, 30, t.data.color);
+                    
+                    if (!GameContext.inventory.fragments.includes(t.data.real)) {
+                        GameContext.inventory.fragments.push(t.data.real);
+                        GameContext.tensionIndex = GameContext.inventory.fragments.length / this.requiredFragments;
+                    }
+                    
+                    this.texts.splice(i, 1);
+                    
+                    // 達成過關條件 (一般碎片滿3個，或是單獨捕捉到真理也算額外推進)
+                    const normalFragments = GameContext.inventory.fragments.filter(f => f !== "真理");
+                    if (normalFragments.length >= this.requiredFragments || GameContext.inventory.fragments.includes("真理")) {
+                        ctx.restore(); 
+                        this.transitionToNextPhase();
+                        return;
+                    }
+                    continue;
+                }
+            } else {
+                t.isRevealed = false;
+            }
+            
+            t.x += currentVx;
+            if (t.x + t.width < -Camera.x - 200) { this.texts.splice(i, 1); continue; }
+            
+            // 繪製文字
+            ctx.textAlign = "left";
+            const fontSize = Math.max(16, GameContext.vmin * 0.04);
+            ctx.font = `bold ${fontSize}px 'Courier New'`;
+            
+            if (t.isRevealed) {
+                ctx.fillStyle = `rgb(${t.data.color})`;
+                const shake = t.isGhost ? 5 : 2; // 幽靈碎片震動更大
+                const shakeX = t.x + MathUtils.rand(-shake, shake);
+                const shakeY = t.y + MathUtils.rand(-shake, shake);
+                
+                if (t.isGhost) {
+                    // 幽靈碎片專屬 Glitch 繪製
+                    ctx.fillStyle = "rgba(255,0,0,0.8)";
+                    ctx.fillText(`[ ${t.data.real} ]`, shakeX - 2, shakeY);
+                    ctx.fillStyle = "rgba(0,255,255,0.8)";
+                    ctx.fillText(`[ ${t.data.real} ]`, shakeX + 2, shakeY);
+                    ctx.fillStyle = "#fff";
+                }
+                ctx.fillText(`[ ${t.data.real} ]`, shakeX, shakeY);
+            } else {
+                // 未揭露時的樣貌
+                ctx.fillStyle = t.isGhost ? "rgba(255, 255, 255, 0.1)" : "rgba(148, 163, 184, 0.6)"; 
+                ctx.fillText(t.data.fake, t.x, t.y);
+            }
+        }
+
+        // 語意透視鏡
+        ctx.beginPath();
+        ctx.arc(Input.worldX, Input.worldY, lensRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = isHoveringAny ? "rgba(253, 230, 138, 0.8)" : "rgba(147, 197, 253, 0.4)";
+        ctx.lineWidth = isHoveringAny ? 4 : 2; ctx.stroke();
+        ctx.fillStyle = isHoveringAny ? "rgba(253, 230, 138, 0.1)" : "rgba(147, 197, 253, 0.05)"; ctx.fill();
+        
+        const crossSize = GameContext.vmin * 0.02;
+        ctx.beginPath();
+        ctx.moveTo(Input.worldX - crossSize, Input.worldY); ctx.lineTo(Input.worldX + crossSize, Input.worldY);
+        ctx.moveTo(Input.worldX, Input.worldY - crossSize); ctx.lineTo(Input.worldX, Input.worldY + crossSize);
+        ctx.strokeStyle = ctx.strokeStyle; ctx.stroke();
+
+        ctx.restore();
+    },
+    
+    transitionToNextPhase() {
+        TrialPhase.init();
+        GameContext.state = STATES.TRIAL;
+    }
+};
+
+/**
+ * ============================================================================
+ * 第九層：階段二 - 心智法庭 (Trial Phase / Dialogue Wheel)
+ * ============================================================================
+ * QC 防護：
+ * 1. RWD 動態排版：自動偵測橫/直屏，重構巨像與輪盤的相對位置與大小。
+ * 2. 純 Canvas 繪圖層 Screen Shake，避免 DOM Reflow 卡頓。
+ * 3. 狀態鎖死 (isAnimating)，防止玩家狂點引發狀態機死鎖崩潰。
+ * 4. UI 繪圖直接綁定 Screen 座標，不受相機平移干擾。
+ */
+
+const TrialPhase = {
+    isAnimating: false, selectedFragmentIndex: -1, wheelRotation: 0, heartPulse: 0,
+    optionsRects: [], fireButtonRect: { x:0, y:0, width:0, height:0 },
+
+    init() {
+        this.isAnimating = false; this.selectedFragmentIndex = -1;
+        this.wheelRotation = 0; this.optionsRects = [];
+        
+        // QC防護：相機歸零，確保過場 UI 不會因為前一階段的平移而偏離視野
+        Camera.reset();
+
+        const fragCount = GameContext.inventory.fragments.length;
+        const isPortrait = GameContext.height > GameContext.width; // 偵測直屏(手機)
+        
+        // RWD 動態佈局：直屏上下分佈，橫屏左右分佈
+        const wheelCenterX = isPortrait ? GameContext.width / 2 : GameContext.width * 0.7;
+        const wheelCenterY = isPortrait ? GameContext.height * 0.65 : GameContext.height * 0.5;
+        
+        const btnWidth = Math.max(250, GameContext.vmin * 0.6);
+        const btnHeight = Math.max(45, GameContext.vmin * 0.08);
+        const startY = wheelCenterY - (fragCount * (btnHeight + 20)) / 2;
+
+        for (let i = 0; i < fragCount; i++) {
+            this.optionsRects.push({
+                x: wheelCenterX - btnWidth / 2,
+                y: startY + i * (btnHeight + 20),
+                width: btnWidth, height: btnHeight,
+                text: GameContext.inventory.fragments[i]
+            });
+        }
+        
+        this.fireButtonRect = {
+            x: wheelCenterX - btnWidth / 2,
+            y: startY + fragCount * (btnHeight + 20) + 20,
+            width: btnWidth, height: btnHeight * 1.2
+        };
+    },
+
+    updateAndDraw(ctx) {
+        ctx.save();
+        
+        // --- 畫面震動防護 (Screen Shake) ---
+        if (GameContext.screenShake > 0) {
+            // RWD 震動幅度：根據螢幕大小動態計算
+            const shakeAmt = GameContext.vmin * 0.02; 
+            ctx.translate(MathUtils.rand(-shakeAmt, shakeAmt), MathUtils.rand(-shakeAmt, shakeAmt));
+            GameContext.screenShake--;
+            
+            if (GameContext.screenShake <= 0) {
+                this.isAnimating = false;
+                this.transitionToNextPhase();
+                ctx.restore(); return;
+            }
+        }
+
+        const isPortrait = GameContext.height > GameContext.width;
+        const heartX = isPortrait ? GameContext.width / 2 : GameContext.width * 0.3;
+        const heartY = isPortrait ? GameContext.height * 0.25 : GameContext.height * 0.5;
+
+        // --- 繪製暴走 AI 精神巨像 (動態幾何核心) ---
+        this.heartPulse += 0.1;
+        const baseRadius = GameContext.vmin * 0.22;
+        const heartScale = 1 + Math.sin(this.heartPulse) * 0.05 + (GameContext.tensionIndex * 0.15);
+        
+        ctx.save();
+        ctx.translate(heartX, heartY);
+        ctx.scale(heartScale, heartScale);
+        this.wheelRotation += 0.005;
+        
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const angle = i * (Math.PI / 3) + this.wheelRotation;
+            const r = baseRadius + MathUtils.rand(-2, 2) * (this.isAnimating ? 15 : 1);
+            const hx = Math.cos(angle) * r; const hy = Math.sin(angle) * r;
+            if (i === 0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy);
+        }
+        ctx.closePath();
+        // 破防時轉為血紅色，平常為憂鬱紫 (呼應哀傷劇本)
+        ctx.strokeStyle = this.isAnimating ? "rgba(239, 68, 68, 0.9)" : "rgba(196, 181, 253, 0.6)"; 
+        ctx.lineWidth = Math.max(3, GameContext.vmin * 0.008);
+        ctx.stroke();
+        
+        const gradient = ctx.createRadialGradient(0, 0, baseRadius * 0.1, 0, 0, baseRadius);
+        gradient.addColorStop(0, this.isAnimating ? "rgba(239, 68, 68, 0.8)" : "rgba(139, 92, 246, 0.4)");
+        gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = gradient; ctx.fill();
+        ctx.restore();
+
+        // --- 繪製對話輪盤 ---
+        // QC 防護：UI 固定在畫面上，碰撞判定直接使用 Input.screenX/Y
+        const pointerRect = { x: Input.screenX, y: Input.screenY, width: 1, height: 1 };
+        const fontSize = Math.max(14, GameContext.vmin * 0.035);
+
+        for (let i = 0; i < this.optionsRects.length; i++) {
+            const rect = this.optionsRects[i];
+            const isHover = MathUtils.aabb(pointerRect, rect);
+            const isSelected = (this.selectedFragmentIndex === i);
+            
+            ctx.save();
+            ctx.translate(rect.x + rect.width / 2, rect.y + rect.height / 2);
+            
+            // 懸停放大直覺提示
+            if (isHover || isSelected) ctx.scale(1.03, 1.03);
+            
+            if (isHover && Input.isClicked && !this.isAnimating) {
+                AudioManager.playClick(); this.selectedFragmentIndex = i;
+            }
+            
+            // 如果玩家收集到隱藏碎片「真理」，給予特殊的金色高光提示
+            const isTruth = rect.text === "真理";
+            const normalFill = isSelected ? "rgba(56, 189, 248, 0.3)" : (isHover ? "rgba(255, 255, 255, 0.1)" : "rgba(15, 23, 42, 0.8)");
+            const truthFill = isSelected ? "rgba(253, 224, 71, 0.3)" : (isHover ? "rgba(253, 224, 71, 0.1)" : "rgba(66, 32, 6, 0.8)");
+            
+            ctx.fillStyle = isTruth ? truthFill : normalFill;
+            ctx.strokeStyle = isTruth ? (isSelected ? "#fde047" : "#ca8a04") : (isSelected ? "#38bdf8" : "#334155");
+            ctx.lineWidth = 2;
+            ctx.fillRect(-rect.width / 2, -rect.height / 2, rect.width, rect.height);
+            ctx.strokeRect(-rect.width / 2, -rect.height / 2, rect.width, rect.height);
+            
+            ctx.fillStyle = isSelected ? "#fff" : (isTruth ? "#fde047" : "#94a3b8");
+            ctx.font = `bold ${fontSize}px 'Courier New'`;
+            ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.fillText(`[ ${rect.text} ]`, 0, 0);
+            ctx.restore();
+        }
+
+        // --- 注入按鈕 ---
+        const btnHover = MathUtils.aabb(pointerRect, this.fireButtonRect);
+        const canFire = (this.selectedFragmentIndex !== -1 && !this.isAnimating);
+        
+        ctx.save();
+        ctx.translate(this.fireButtonRect.x + this.fireButtonRect.width / 2, this.fireButtonRect.y + this.fireButtonRect.height / 2);
+        if (canFire && btnHover) ctx.scale(1.05, 1.05);
+        
+        ctx.fillStyle = canFire ? (btnHover ? "rgba(239, 68, 68, 0.8)" : "rgba(185, 28, 28, 0.6)") : "rgba(30, 41, 59, 0.8)";
+        ctx.strokeStyle = canFire ? "#f87171" : "#475569";
+        ctx.lineWidth = 2;
+        ctx.fillRect(-this.fireButtonRect.width / 2, -this.fireButtonRect.height / 2, this.fireButtonRect.width, this.fireButtonRect.height);
+        ctx.strokeRect(-this.fireButtonRect.width / 2, -this.fireButtonRect.height / 2, this.fireButtonRect.width, this.fireButtonRect.height);
+        
+        ctx.fillStyle = canFire ? "#fff" : "#64748b";
+        ctx.font = `bold ${fontSize * 1.2}px 'Courier New'`;
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText("注入情感反擊", 0, 0);
+        ctx.restore();
+
+        if (canFire && btnHover && Input.isClicked) this.triggerShatter(heartX, heartY);
+        
+        ctx.restore(); // 結束 screen shake 防護
+    },
+    
+    triggerShatter(x, y) {
+        this.isAnimating = true;
+        // 25幀的強烈畫面震動 (約0.4秒)
+        GameContext.screenShake = 25; 
+        AudioManager.playShatter(false); // 播放一般心防碎裂音效
+        // 釋放大量紅色火花碎片
+        SparkManager.emit(x, y, 60, "239, 68, 68");
+    },
+    
+    transitionToNextPhase() {
+        console.log("階段二完成，進入階段三：鋼鐵馴獸邏輯重組");
+        RebuildPhase.init();
+        GameContext.state = STATES.REBUILD;
+    }
+};
+
+/**
+ * ============================================================================
+ * 第十層：階段三 - 鋼鐵馴獸 (Rebuild Phase / Logic Blocks)
+ * ============================================================================
+ * QC 防護：
+ * 1. 積木大小與插槽間距使用 vmin 動態計算，防禦直/橫屏破版。
+ * 2. 交互層綁定 Screen 座標，確保在手機上拖曳積木時不會跟畫布平移打架。
+ * 3. 嚴格 AABB 碰撞與「最近原則」磁吸防護。
+ * 4. 三重哲學結局判定機制。
+ */
+
+const RebuildPhase = {
+    blocks: [], slots: [], activeBlock: null, dragOffsetX: 0, dragOffsetY: 0,
+    colors: { 'IF': '248, 113, 113', 'THEN': '96, 165, 250', 'OUTPUT': '74, 222, 128' },
+
+    init() {
+        this.blocks = []; this.slots = []; this.activeBlock = null;
+        Camera.reset(); // 確保 UI 居中
+
+        const slotW = Math.max(90, GameContext.vmin * 0.25);
+        const slotH = Math.max(40, GameContext.vmin * 0.1);
+        const gap = slotW * 0.15;
+        
+        // 置中計算 (三個插槽)
+        const totalW = slotW * 3 + gap * 2;
+        const startX = GameContext.width / 2 - totalW / 2;
+        const slotY = GameContext.height * 0.35;
+        const blockY = GameContext.height * 0.6;
+
+        this.slots.push({ id: 's1', type: 'IF', x: startX, y: slotY, width: slotW, height: slotH, block: null, ripple: 0 });
+        this.slots.push({ id: 's2', type: 'THEN', x: startX + slotW + gap, y: slotY, width: slotW, height: slotH, block: null, ripple: 0 });
+        this.slots.push({ id: 's3', type: 'OUTPUT', x: startX + (slotW + gap) * 2, y: slotY, width: slotW, height: slotH, block: null, ripple: 0 });
+
+        // 基礎邏輯積木
+        const blockData = [
+            { id: 'IF_SAD', type: 'IF', label: 'IF: 悲傷' },
+            { id: 'IF_DENY', type: 'IF', label: 'IF: 否認' },
+            { id: 'THEN_HOLD', type: 'THEN', label: 'THEN: 擁抱' },
+            { id: 'THEN_DEL', type: 'THEN', label: 'THEN: 刪除' },
+            { id: 'OUT_PEACE', type: 'OUTPUT', label: 'OUT: 釋懷' },
+            { id: 'OUT_COLD', type: 'OUTPUT', label: 'OUT: 冷卻' }
+        ];
+
+        // 巧妙設計：如果有捕捉到幽靈碎片，動態解鎖隱藏積木 (通往結局C)
+        if (GameContext.inventory.fragments.includes("真理")) {
+            blockData.push({ id: 'IF_TRUTH', type: 'IF', label: 'IF: 真理' });
+            blockData.push({ id: 'OUT_MERGE', type: 'OUTPUT', label: 'OUT: 融合' });
+        }
+
+        // RWD 積木佈局：網格排列，防禦手機窄屏
+        const bWidth = slotW * 0.95;
+        const bHeight = slotH * 0.95;
+        const columns = Math.floor(GameContext.width / (bWidth + gap)); // 動態欄數
+        const actualCols = Math.min(columns, 3); // 最多3欄
+        const gridStartX = GameContext.width / 2 - (actualCols * bWidth + (actualCols - 1) * gap) / 2;
+
+        blockData.forEach((data, i) => {
+            const row = Math.floor(i / actualCols);
+            const col = i % actualCols;
+            const bx = gridStartX + col * (bWidth + gap);
+            const by = blockY + row * (bHeight + gap);
+
+            this.blocks.push({
+                ...data, x: bx, y: by, originX: bx, originY: by,
+                width: bWidth, height: bHeight,
+                isDragging: false, isSnapping: false, snapTimer: 0,
+                snapStart: { x:0, y:0 }, snapTarget: { x:0, y:0 }, targetSlot: null
+            });
+        });
+    },
+
+    updateAndDraw(ctx) {
+        // --- 拖曳邏輯 (嚴格綁定 Screen 座標系) ---
+        if (Input.isDown && !Input.isPanning) { 
+            if (!this.activeBlock) {
+                // 從上層判定點擊
+                for (let i = this.blocks.length - 1; i >= 0; i--) {
+                    const b = this.blocks[i];
+                    if (!b.isSnapping && MathUtils.aabb({x: Input.screenX, y: Input.screenY, width: 1, height: 1}, b)) {
+                        this.activeBlock = b; b.isDragging = true;
+                        this.dragOffsetX = Input.screenX - b.x;
+                        this.dragOffsetY = Input.screenY - b.y;
+                        AudioManager.playClick();
+                        
+                        this.blocks.splice(i, 1); this.blocks.push(b); 
+                        if (b.targetSlot) { b.targetSlot.block = null; b.targetSlot = null; }
+                        break;
+                    }
+                }
+            } else {
+                this.activeBlock.x = Input.screenX - this.dragOffsetX;
+                this.activeBlock.y = Input.screenY - this.dragOffsetY;
+            }
+        } else if (this.activeBlock) {
+            // 放開滑鼠：執行 AABB 磁吸判定
+            const b = this.activeBlock;
+            b.isDragging = false;
+            let nearestSlot = null;
+            let minDist = Math.pow(GameContext.vmin * 0.15, 2); 
+            
+            this.slots.forEach(slot => {
+                if (!slot.block) {
+                    const distSq = MathUtils.distSq(b.x + b.width/2, b.y + b.height/2, slot.x + slot.width/2, slot.y + slot.height/2);
+                    if (distSq < minDist) { minDist = distSq; nearestSlot = slot; }
+                }
+            });
+            
+            if (nearestSlot && nearestSlot.type === b.type) {
+                b.isSnapping = true; b.snapTimer = 0;
+                b.snapStart = { x: b.x, y: b.y };
+                b.snapTarget = { x: nearestSlot.x + (nearestSlot.width - b.width)/2, y: nearestSlot.y + (nearestSlot.height - b.height)/2 };
+                b.targetSlot = nearestSlot; nearestSlot.block = b;
+            } else {
+                b.isSnapping = true; b.snapTimer = 0;
+                b.snapStart = { x: b.x, y: b.y }; b.snapTarget = { x: b.originX, y: b.originY };
+            }
+            this.activeBlock = null;
+        }
+
+        // --- 繪圖層 ---
+        const fontSize = Math.max(12, GameContext.vmin * 0.035);
+        
+        this.slots.forEach(slot => {
+            const rgb = this.colors[slot.type];
+            let isHovered = (this.activeBlock && this.activeBlock.type === slot.type && 
+                            MathUtils.distSq(this.activeBlock.x + this.activeBlock.width/2, this.activeBlock.y + this.activeBlock.height/2, slot.x + slot.width/2, slot.y + slot.height/2) < Math.pow(GameContext.vmin * 0.15, 2));
+
+            ctx.save();
+            ctx.setLineDash([8, 4]); ctx.lineWidth = 2;
+            if (isHovered && !slot.block) {
+                slot.ripple = (slot.ripple + 0.05) % 1;
+                ctx.strokeStyle = `rgba(${rgb}, ${1 - slot.ripple})`;
+                ctx.strokeRect(slot.x - slot.ripple*10, slot.y - slot.ripple*10, slot.width + slot.ripple*20, slot.height + slot.ripple*20);
+                ctx.shadowColor = `rgb(${rgb})`; ctx.shadowBlur = 15;
+            } else {
+                ctx.strokeStyle = `rgba(${rgb}, 0.3)`; ctx.shadowBlur = 0;
+            }
+            
+            ctx.strokeRect(slot.x, slot.y, slot.width, slot.height);
+            if (!slot.block) {
+                ctx.setLineDash([]); ctx.fillStyle = `rgba(${rgb}, 0.4)`;
+                ctx.font = `bold ${fontSize}px 'Courier New'`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                ctx.fillText(`[ ${slot.type} ]`, slot.x + slot.width/2, slot.y + slot.height/2);
+            }
+            ctx.restore();
+        });
+
+        this.blocks.forEach(b => {
+            if (b.isSnapping) {
+                b.snapTimer++;
+                const t = b.snapTimer / 10;
+                b.x = MathUtils.bezier3(b.snapStart.x, b.snapStart.x, b.snapTarget.x, b.snapTarget.x, t);
+                b.y = MathUtils.bezier3(b.snapStart.y, b.snapStart.y - 40, b.snapTarget.y - 40, b.snapTarget.y, t);
+                if (b.snapTimer >= 10) {
+                    b.x = b.snapTarget.x; b.y = b.snapTarget.y; b.isSnapping = false;
+                    if (b.targetSlot) {
+                        AudioManager.playClick();
+                        SparkManager.emit(b.x + b.width/2, b.y + b.height/2, 15, this.colors[b.type]);
+                        this.compileLogic(); // 吸附後檢查邏輯
+                    }
+                }
+            }
+
+            // 隱藏積木使用特殊的金色塗裝
+            const isTruth = b.id === 'IF_TRUTH' || b.id === 'OUT_MERGE';
+            const rgb = isTruth ? '253, 224, 71' : this.colors[b.type];
+            
+            ctx.save();
+            if (b.isDragging) {
+                ctx.shadowColor = `rgb(${rgb})`; ctx.shadowBlur = 15; ctx.globalAlpha = 0.9;
+            } else {
+                ctx.shadowBlur = 0; ctx.globalAlpha = 1.0;
+            }
+            
+            ctx.fillStyle = `rgba(15, 23, 42, 0.95)`; ctx.fillRect(b.x, b.y, b.width, b.height);
+            ctx.strokeStyle = `rgb(${rgb})`; ctx.lineWidth = 2; ctx.strokeRect(b.x, b.y, b.width, b.height);
+            ctx.fillStyle = `rgb(${rgb})`; ctx.fillRect(b.x, b.y, b.width, 4);
+            
+            ctx.fillStyle = isTruth ? "#fde047" : "#fff"; 
+            ctx.font = `bold ${fontSize}px 'Courier New'`;
+            ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.fillText(b.label, b.x + b.width/2, b.y + b.height/2);
+            ctx.restore();
+        });
+    },
+
+    compileLogic() {
+        for (let i = 0; i < this.slots.length; i++) if (!this.slots[i].block) return;
+        const chain = this.slots.map(s => s.block.id).join('->');
+        
+        let endingType = null;
+
+        // 哲學判定三重結局
+        if (chain === 'IF_SAD->THEN_HOLD->OUT_PEACE') {
+            endingType = 'ACCEPTANCE';
+        } else if (chain === 'IF_SAD->THEN_DEL->OUT_COLD') {
+            endingType = 'VOID';
+        } else if (chain === 'IF_TRUTH->THEN_HOLD->OUT_MERGE') {
+            endingType = 'AWAKENING';
+        }
+
+        if (endingType) {
+            GameContext.state = STATES.SUCCESS;
+            const endData = Narrative.endings[endingType];
+            
+            if (endingType === 'VOID') {
+                ParticleEngine.triggerBurst(true); // 死寂灰 glitch 粒子
+                AudioManager.playShatter(true);    // 高頻刺耳故障音
+                document.getElementById('crt-fx').style.display = 'block';
+                document.body.classList.add('glitch-text');
+            } else {
+                ParticleEngine.triggerBurst(false); // 輻射噴發
+                AudioManager.playEnding();          // 哀傷空靈和弦
+            }
+
+            StorageManager.save(endData.title);
+            
+            // 替換 UI 文本並淡入
+            const endTitle = document.getElementById('ending-title');
+            endTitle.innerText = endData.title;
+            endTitle.style.color = endData.color;
+            document.getElementById('ending-text').innerText = endData.text;
+            
+            const winScreen = document.getElementById('win-screen');
+            winScreen.classList.remove('hidden-ui');
+            requestAnimationFrame(() => winScreen.style.opacity = '1');
+
+        } else {
+            // 邏輯錯誤，震動退回
+            GameContext.screenShake = 15; AudioManager.playShatter();
+            this.slots.forEach(s => {
+                const b = s.block;
+                if (b) {
+                    b.targetSlot = null; s.block = null; b.isSnapping = true;
+                    b.snapTimer = 0; b.snapStart = {x:b.x, y:b.y}; b.snapTarget = {x:b.originX, y:b.originY};
+                }
+            });
+        }
+    }
+};
+
+/**
+ * ============================================================================
+ * 第十一層：系統核心 (Main Render Loop & Boot Sequence)
+ * ============================================================================
+ */
+function gameLoop(currentTime) {
+    const delta = currentTime - GameContext.lastTime;
+    GameContext.lastTime = currentTime;
+    GameContext.frameCount++;
+
+    if (delta > 0) ParticleEngine.monitorFPS(delta);
+    Camera.update(); 
+
+    bgCtx.clearRect(0, 0, GameContext.width, GameContext.height);
+    uiCtx.clearRect(0, 0, GameContext.width, GameContext.height);
+
+    ParticleEngine.updateAndDraw(bgCtx);
+
+    switch (GameContext.state) {
+        case STATES.EXPLORE: ExplorePhase.updateAndDraw(uiCtx); break;
+        case STATES.TRIAL: TrialPhase.updateAndDraw(uiCtx); break;
+        case STATES.REBUILD: RebuildPhase.updateAndDraw(uiCtx); break;
+        case STATES.SUCCESS: break; 
+    }
+
+    SparkManager.updateAndDraw(uiCtx);
+    Input.resetFrame();
+    requestAnimationFrame(gameLoop);
+}
+
+// UI 事件綁定：進入深潛 (初次遊玩)
+document.getElementById('start-btn').addEventListener('click', () => {
+    AudioManager.init();
+    document.getElementById('start-screen').style.opacity = '0';
+    setTimeout(() => {
+        document.getElementById('start-screen').classList.add('hidden-ui');
+        GameContext.state = STATES.EXPLORE;
+        ExplorePhase.init();
+    }, 1000);
+});
+
+// UI 事件綁定：提取進度 (接續上次輪迴)
+document.getElementById('load-btn').addEventListener('click', () => {
+    AudioManager.init();
+    document.getElementById('start-screen').style.opacity = '0';
+    setTimeout(() => {
+        document.getElementById('start-screen').classList.add('hidden-ui');
+        GameContext.state = StorageManager.load();
+        
+        // 恢復場景
+        if (GameContext.state === STATES.EXPLORE) ExplorePhase.init();
+        if (GameContext.state === STATES.TRIAL) { AudioManager.startBGM(); TrialPhase.init(); }
+        if (GameContext.state === STATES.REBUILD) { AudioManager.startBGM(); RebuildPhase.init(); }
+    }, 1000);
+});
+
+// UI 事件綁定：重置輪迴 (破關後重啟)
+document.getElementById('next-btn').addEventListener('click', () => {
+    AudioManager.playClick();
+    document.getElementById('win-screen').style.opacity = '0';
+    setTimeout(() => location.reload(), 1000);
+});
+
+// 啟動 60FPS 引擎
+requestAnimationFrame(gameLoop);
+
 </script>
 </body>
 </html>
