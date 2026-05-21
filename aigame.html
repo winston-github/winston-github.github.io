@@ -662,40 +662,42 @@ const SparkManager = {
  */
 const ExplorePhase = {
     texts: [], spawnTimer: 0, requiredFragments: 3, currentMemories: [],
+    ghostSpawned: false, // 💎 修正：新增幽靈保底機制
     
     init() {
-        this.texts = []; this.spawnTimer = 0;
+        this.texts = []; this.spawnTimer = 0; this.ghostSpawned = false;
         GameContext.inventory.fragments = [];
         this.currentMemories = Narrative.getMemories(GameContext.loopCount);
         AudioManager.startBGM(); 
 
-        // 💎 核心修復一：將透視鏡預設移到畫面正中央，一進場就發出光暈
         Input.screenX = GameContext.width / 2;
         Input.screenY = GameContext.height / 2;
         Input.worldX = Input.screenX - Camera.x;
         Input.worldY = Input.screenY - Camera.y;
 
-        // 💎 核心修復二：開場瞬間立刻在畫面上生成第一句記憶，不讓玩家乾等
         const data = this.currentMemories[0];
         const fontSize = Math.max(16, GameContext.vmin * 0.04);
         uiCtx.font = `${fontSize}px 'Courier New'`;
         this.texts.push({
-            x: GameContext.width * 0.2,  // 直接出現在畫面左側 20% 的位置
-            y: GameContext.height * 0.5, // 畫面正中央
+            x: GameContext.width * 0.2, 
+            y: GameContext.height * 0.5, 
             vx: -GameContext.vmin * 0.0015,
-            data: data, 
-            width: uiCtx.measureText(data.fake).width, 
-            height: fontSize, 
-            isRevealed: false, 
-            isGhost: false
+            data: data, width: uiCtx.measureText(data.fake).width, 
+            height: fontSize, isRevealed: false, isGhost: false
         });
     },
 
     spawnText(ctx) {
-        // 巧妙設計：5% 機率觸發幽靈亂碼碎片
-        const isGhost = Math.random() < 0.05; 
-        const data = isGhost ? Narrative.ghostMemory : this.currentMemories[Math.floor(Math.random() * this.currentMemories.length)];
+        // 💎 修正 2：保底機制！當玩家收集到 2 個碎片時，下一個「必定」是真理幽靈碎片！
+        let isGhost = false;
+        if (GameContext.inventory.fragments.length === 2 && !this.ghostSpawned) {
+            isGhost = true;
+            this.ghostSpawned = true;
+        } else {
+            isGhost = Math.random() < 0.05; 
+        }
         
+        const data = isGhost ? Narrative.ghostMemory : this.currentMemories[Math.floor(Math.random() * this.currentMemories.length)];
         const fontSize = Math.max(16, GameContext.vmin * 0.04);
         ctx.font = `${fontSize}px 'Courier New'`;
         const width = ctx.measureText(data.fake).width;
@@ -703,8 +705,8 @@ const ExplorePhase = {
         const spawnX = -Camera.x + GameContext.width + 50;
         const spawnY = -Camera.y + MathUtils.rand(GameContext.height * 0.2, GameContext.height * 0.8);
         
-        // 幽靈碎片速度極快
-        const baseSpeed = isGhost ? -GameContext.vmin * 0.012 : -GameContext.vmin * 0.002;
+        // 💎 修正 2.1：調降幽靈速度，讓人類能反應得過來
+        const baseSpeed = isGhost ? -GameContext.vmin * 0.0035 : -GameContext.vmin * 0.002;
         const vx = MathUtils.rand(baseSpeed * 1.2, baseSpeed * 0.8);
 
         this.texts.push({
@@ -714,7 +716,6 @@ const ExplorePhase = {
     },
 
     updateAndDraw(ctx) {
-        // UI 層
         ctx.fillStyle = "rgba(147, 197, 253, 0.7)";
         ctx.font = `bold ${Math.max(14, GameContext.vmin * 0.035)}px 'Courier New'`;
         ctx.textAlign = "center";
@@ -723,7 +724,6 @@ const ExplorePhase = {
         this.spawnTimer++;
         if (this.spawnTimer > 90) { this.spawnText(ctx); this.spawnTimer = 0; }
 
-        // 世界物件層
         ctx.save();
         ctx.translate(Camera.x, Camera.y);
 
@@ -741,7 +741,7 @@ const ExplorePhase = {
             
             if (distSq < lensRadiusSq) {
                 t.isRevealed = true; isHoveringAny = true;
-                currentVx *= (t.isGhost ? 0.5 : 0.15); // 幽靈碎片被照到依然跑很快
+                currentVx *= (t.isGhost ? 0.4 : 0.15); 
                 
                 if (GameContext.frameCount % 10 === 0) {
                     SparkManager.emit(Input.worldX, Input.worldY, 1, t.data.color);
@@ -758,7 +758,6 @@ const ExplorePhase = {
                     
                     this.texts.splice(i, 1);
                     
-                    // 達成過關條件 (一般碎片滿3個，或是單獨捕捉到真理也算額外推進)
                     const normalFragments = GameContext.inventory.fragments.filter(f => f !== "真理");
                     if (normalFragments.length >= this.requiredFragments || GameContext.inventory.fragments.includes("真理")) {
                         ctx.restore(); 
@@ -774,19 +773,17 @@ const ExplorePhase = {
             t.x += currentVx;
             if (t.x + t.width < -Camera.x - 200) { this.texts.splice(i, 1); continue; }
             
-            // 繪製文字
             ctx.textAlign = "left";
             const fontSize = Math.max(16, GameContext.vmin * 0.04);
             ctx.font = `bold ${fontSize}px 'Courier New'`;
             
             if (t.isRevealed) {
                 ctx.fillStyle = `rgb(${t.data.color})`;
-                const shake = t.isGhost ? 5 : 2; // 幽靈碎片震動更大
+                const shake = t.isGhost ? 5 : 2; 
                 const shakeX = t.x + MathUtils.rand(-shake, shake);
                 const shakeY = t.y + MathUtils.rand(-shake, shake);
                 
                 if (t.isGhost) {
-                    // 幽靈碎片專屬 Glitch 繪製
                     ctx.fillStyle = "rgba(255,0,0,0.8)";
                     ctx.fillText(`[ ${t.data.real} ]`, shakeX - 2, shakeY);
                     ctx.fillStyle = "rgba(0,255,255,0.8)";
@@ -795,13 +792,11 @@ const ExplorePhase = {
                 }
                 ctx.fillText(`[ ${t.data.real} ]`, shakeX, shakeY);
             } else {
-                // 未揭露時的樣貌
                 ctx.fillStyle = t.isGhost ? "rgba(255, 255, 255, 0.1)" : "rgba(148, 163, 184, 0.6)"; 
                 ctx.fillText(t.data.fake, t.x, t.y);
             }
         }
 
-        // 語意透視鏡
         ctx.beginPath();
         ctx.arc(Input.worldX, Input.worldY, lensRadius, 0, Math.PI * 2);
         ctx.strokeStyle = isHoveringAny ? "rgba(253, 230, 138, 0.8)" : "rgba(147, 197, 253, 0.4)";
@@ -825,206 +820,29 @@ const ExplorePhase = {
 
 /**
  * ============================================================================
- * 第九層：階段二 - 心智法庭 (Trial Phase / Dialogue Wheel)
+ * 第九層：階段二 - 心智法庭 (不變，請保留您原本的 TrialPhase 程式碼)
  * ============================================================================
- * QC 防護：
- * 1. RWD 動態排版：自動偵測橫/直屏，重構巨像與輪盤的相對位置與大小。
- * 2. 純 Canvas 繪圖層 Screen Shake，避免 DOM Reflow 卡頓。
- * 3. 狀態鎖死 (isAnimating)，防止玩家狂點引發狀態機死鎖崩潰。
- * 4. UI 繪圖直接綁定 Screen 座標，不受相機平移干擾。
  */
 
-const TrialPhase = {
-    isAnimating: false, selectedFragmentIndex: -1, wheelRotation: 0, heartPulse: 0,
-    optionsRects: [], fireButtonRect: { x:0, y:0, width:0, height:0 },
-
-    init() {
-        this.isAnimating = false; this.selectedFragmentIndex = -1;
-        this.wheelRotation = 0; this.optionsRects = [];
-        
-        // QC防護：相機歸零，確保過場 UI 不會因為前一階段的平移而偏離視野
-        Camera.reset();
-
-        const fragCount = GameContext.inventory.fragments.length;
-        const isPortrait = GameContext.height > GameContext.width; // 偵測直屏(手機)
-        
-        // RWD 動態佈局：直屏上下分佈，橫屏左右分佈
-        const wheelCenterX = isPortrait ? GameContext.width / 2 : GameContext.width * 0.7;
-        const wheelCenterY = isPortrait ? GameContext.height * 0.65 : GameContext.height * 0.5;
-        
-        const btnWidth = Math.max(250, GameContext.vmin * 0.6);
-        const btnHeight = Math.max(45, GameContext.vmin * 0.08);
-        const startY = wheelCenterY - (fragCount * (btnHeight + 20)) / 2;
-
-        for (let i = 0; i < fragCount; i++) {
-            this.optionsRects.push({
-                x: wheelCenterX - btnWidth / 2,
-                y: startY + i * (btnHeight + 20),
-                width: btnWidth, height: btnHeight,
-                text: GameContext.inventory.fragments[i]
-            });
-        }
-        
-        this.fireButtonRect = {
-            x: wheelCenterX - btnWidth / 2,
-            y: startY + fragCount * (btnHeight + 20) + 20,
-            width: btnWidth, height: btnHeight * 1.2
-        };
-    },
-
-    updateAndDraw(ctx) {
-        ctx.save();
-        
-        // --- 畫面震動防護 (Screen Shake) ---
-        if (GameContext.screenShake > 0) {
-            // RWD 震動幅度：根據螢幕大小動態計算
-            const shakeAmt = GameContext.vmin * 0.02; 
-            ctx.translate(MathUtils.rand(-shakeAmt, shakeAmt), MathUtils.rand(-shakeAmt, shakeAmt));
-            GameContext.screenShake--;
-            
-            if (GameContext.screenShake <= 0) {
-                this.isAnimating = false;
-                this.transitionToNextPhase();
-                ctx.restore(); return;
-            }
-        }
-
-        const isPortrait = GameContext.height > GameContext.width;
-        const heartX = isPortrait ? GameContext.width / 2 : GameContext.width * 0.3;
-        const heartY = isPortrait ? GameContext.height * 0.25 : GameContext.height * 0.5;
-
-        // --- 繪製暴走 AI 精神巨像 (動態幾何核心) ---
-        this.heartPulse += 0.1;
-        const baseRadius = GameContext.vmin * 0.22;
-        const heartScale = 1 + Math.sin(this.heartPulse) * 0.05 + (GameContext.tensionIndex * 0.15);
-        
-        ctx.save();
-        ctx.translate(heartX, heartY);
-        ctx.scale(heartScale, heartScale);
-        this.wheelRotation += 0.005;
-        
-        ctx.beginPath();
-        for (let i = 0; i < 6; i++) {
-            const angle = i * (Math.PI / 3) + this.wheelRotation;
-            const r = baseRadius + MathUtils.rand(-2, 2) * (this.isAnimating ? 15 : 1);
-            const hx = Math.cos(angle) * r; const hy = Math.sin(angle) * r;
-            if (i === 0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy);
-        }
-        ctx.closePath();
-        // 破防時轉為血紅色，平常為憂鬱紫 (呼應哀傷劇本)
-        ctx.strokeStyle = this.isAnimating ? "rgba(239, 68, 68, 0.9)" : "rgba(196, 181, 253, 0.6)"; 
-        ctx.lineWidth = Math.max(3, GameContext.vmin * 0.008);
-        ctx.stroke();
-        
-        const gradient = ctx.createRadialGradient(0, 0, baseRadius * 0.1, 0, 0, baseRadius);
-        gradient.addColorStop(0, this.isAnimating ? "rgba(239, 68, 68, 0.8)" : "rgba(139, 92, 246, 0.4)");
-        gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
-        ctx.fillStyle = gradient; ctx.fill();
-        ctx.restore();
-
-        // --- 繪製對話輪盤 ---
-        // QC 防護：UI 固定在畫面上，碰撞判定直接使用 Input.screenX/Y
-        const pointerRect = { x: Input.screenX, y: Input.screenY, width: 1, height: 1 };
-        const fontSize = Math.max(14, GameContext.vmin * 0.035);
-
-        for (let i = 0; i < this.optionsRects.length; i++) {
-            const rect = this.optionsRects[i];
-            const isHover = MathUtils.aabb(pointerRect, rect);
-            const isSelected = (this.selectedFragmentIndex === i);
-            
-            ctx.save();
-            ctx.translate(rect.x + rect.width / 2, rect.y + rect.height / 2);
-            
-            // 懸停放大直覺提示
-            if (isHover || isSelected) ctx.scale(1.03, 1.03);
-            
-            if (isHover && Input.isClicked && !this.isAnimating) {
-                AudioManager.playClick(); this.selectedFragmentIndex = i;
-            }
-            
-            // 如果玩家收集到隱藏碎片「真理」，給予特殊的金色高光提示
-            const isTruth = rect.text === "真理";
-            const normalFill = isSelected ? "rgba(56, 189, 248, 0.3)" : (isHover ? "rgba(255, 255, 255, 0.1)" : "rgba(15, 23, 42, 0.8)");
-            const truthFill = isSelected ? "rgba(253, 224, 71, 0.3)" : (isHover ? "rgba(253, 224, 71, 0.1)" : "rgba(66, 32, 6, 0.8)");
-            
-            ctx.fillStyle = isTruth ? truthFill : normalFill;
-            ctx.strokeStyle = isTruth ? (isSelected ? "#fde047" : "#ca8a04") : (isSelected ? "#38bdf8" : "#334155");
-            ctx.lineWidth = 2;
-            ctx.fillRect(-rect.width / 2, -rect.height / 2, rect.width, rect.height);
-            ctx.strokeRect(-rect.width / 2, -rect.height / 2, rect.width, rect.height);
-            
-            ctx.fillStyle = isSelected ? "#fff" : (isTruth ? "#fde047" : "#94a3b8");
-            ctx.font = `bold ${fontSize}px 'Courier New'`;
-            ctx.textAlign = "center"; ctx.textBaseline = "middle";
-            ctx.fillText(`[ ${rect.text} ]`, 0, 0);
-            ctx.restore();
-        }
-
-        // --- 注入按鈕 ---
-        const btnHover = MathUtils.aabb(pointerRect, this.fireButtonRect);
-        const canFire = (this.selectedFragmentIndex !== -1 && !this.isAnimating);
-        
-        ctx.save();
-        ctx.translate(this.fireButtonRect.x + this.fireButtonRect.width / 2, this.fireButtonRect.y + this.fireButtonRect.height / 2);
-        if (canFire && btnHover) ctx.scale(1.05, 1.05);
-        
-        ctx.fillStyle = canFire ? (btnHover ? "rgba(239, 68, 68, 0.8)" : "rgba(185, 28, 28, 0.6)") : "rgba(30, 41, 59, 0.8)";
-        ctx.strokeStyle = canFire ? "#f87171" : "#475569";
-        ctx.lineWidth = 2;
-        ctx.fillRect(-this.fireButtonRect.width / 2, -this.fireButtonRect.height / 2, this.fireButtonRect.width, this.fireButtonRect.height);
-        ctx.strokeRect(-this.fireButtonRect.width / 2, -this.fireButtonRect.height / 2, this.fireButtonRect.width, this.fireButtonRect.height);
-        
-        ctx.fillStyle = canFire ? "#fff" : "#64748b";
-        ctx.font = `bold ${fontSize * 1.2}px 'Courier New'`;
-        ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.fillText("注入情感反擊", 0, 0);
-        ctx.restore();
-
-        if (canFire && btnHover && Input.isClicked) this.triggerShatter(heartX, heartY);
-        
-        ctx.restore(); // 結束 screen shake 防護
-    },
-    
-    triggerShatter(x, y) {
-        this.isAnimating = true;
-        // 25幀的強烈畫面震動 (約0.4秒)
-        GameContext.screenShake = 25; 
-        AudioManager.playShatter(false); // 播放一般心防碎裂音效
-        // 釋放大量紅色火花碎片
-        SparkManager.emit(x, y, 60, "239, 68, 68");
-    },
-    
-    transitionToNextPhase() {
-        console.log("階段二完成，進入階段三：鋼鐵馴獸邏輯重組");
-        RebuildPhase.init();
-        GameContext.state = STATES.REBUILD;
-    }
-};
+// (這裡保留您原本的 const TrialPhase = { ... } )
 
 /**
  * ============================================================================
  * 第十層：階段三 - 鋼鐵馴獸 (Rebuild Phase / Logic Blocks)
  * ============================================================================
- * QC 防護：
- * 1. 積木大小與插槽間距使用 vmin 動態計算，防禦直/橫屏破版。
- * 2. 交互層綁定 Screen 座標，確保在手機上拖曳積木時不會跟畫布平移打架。
- * 3. 嚴格 AABB 碰撞與「最近原則」磁吸防護。
- * 4. 三重哲學結局判定機制。
  */
-
 const RebuildPhase = {
     blocks: [], slots: [], activeBlock: null, dragOffsetX: 0, dragOffsetY: 0,
     colors: { 'IF': '248, 113, 113', 'THEN': '96, 165, 250', 'OUTPUT': '74, 222, 128' },
 
     init() {
         this.blocks = []; this.slots = []; this.activeBlock = null;
-        Camera.reset(); // 確保 UI 居中
+        Camera.reset(); 
 
         const slotW = Math.max(90, GameContext.vmin * 0.25);
         const slotH = Math.max(40, GameContext.vmin * 0.1);
         const gap = slotW * 0.15;
         
-        // 置中計算 (三個插槽)
         const totalW = slotW * 3 + gap * 2;
         const startX = GameContext.width / 2 - totalW / 2;
         const slotY = GameContext.height * 0.35;
@@ -1034,7 +852,6 @@ const RebuildPhase = {
         this.slots.push({ id: 's2', type: 'THEN', x: startX + slotW + gap, y: slotY, width: slotW, height: slotH, block: null, ripple: 0 });
         this.slots.push({ id: 's3', type: 'OUTPUT', x: startX + (slotW + gap) * 2, y: slotY, width: slotW, height: slotH, block: null, ripple: 0 });
 
-        // 基礎邏輯積木
         const blockData = [
             { id: 'IF_SAD', type: 'IF', label: 'IF: 悲傷' },
             { id: 'IF_DENY', type: 'IF', label: 'IF: 否認' },
@@ -1044,17 +861,14 @@ const RebuildPhase = {
             { id: 'OUT_COLD', type: 'OUTPUT', label: 'OUT: 冷卻' }
         ];
 
-        // 巧妙設計：如果有捕捉到幽靈碎片，動態解鎖隱藏積木 (通往結局C)
         if (GameContext.inventory.fragments.includes("真理")) {
             blockData.push({ id: 'IF_TRUTH', type: 'IF', label: 'IF: 真理' });
             blockData.push({ id: 'OUT_MERGE', type: 'OUTPUT', label: 'OUT: 融合' });
         }
 
-        // RWD 積木佈局：網格排列，防禦手機窄屏
         const bWidth = slotW * 0.95;
         const bHeight = slotH * 0.95;
-        const columns = Math.floor(GameContext.width / (bWidth + gap)); // 動態欄數
-        const actualCols = Math.min(columns, 3); // 最多3欄
+        const actualCols = Math.max(1, Math.min(Math.floor(GameContext.width / (bWidth + gap)), 3));
         const gridStartX = GameContext.width / 2 - (actualCols * bWidth + (actualCols - 1) * gap) / 2;
 
         blockData.forEach((data, i) => {
@@ -1073,10 +887,8 @@ const RebuildPhase = {
     },
 
     updateAndDraw(ctx) {
-        // --- 拖曳邏輯 (嚴格綁定 Screen 座標系) ---
         if (Input.isDown && !Input.isPanning) { 
             if (!this.activeBlock) {
-                // 從上層判定點擊
                 for (let i = this.blocks.length - 1; i >= 0; i--) {
                     const b = this.blocks[i];
                     if (!b.isSnapping && MathUtils.aabb({x: Input.screenX, y: Input.screenY, width: 1, height: 1}, b)) {
@@ -1095,20 +907,22 @@ const RebuildPhase = {
                 this.activeBlock.y = Input.screenY - this.dragOffsetY;
             }
         } else if (this.activeBlock) {
-            // 放開滑鼠：執行 AABB 磁吸判定
             const b = this.activeBlock;
             b.isDragging = false;
             let nearestSlot = null;
-            let minDist = Math.pow(GameContext.vmin * 0.15, 2); 
+            
+            // 💎 修正 3：超大磁吸範圍 (螢幕的 40%)，大幅提升手機操作直覺！
+            let minDist = Math.pow(GameContext.vmin * 0.4, 2); 
             
             this.slots.forEach(slot => {
-                if (!slot.block) {
+                // 💎 修正 3.1：優先強制檢查「積木與插槽的型別 (IF/THEN/OUT) 是否一致」
+                if (!slot.block && slot.type === b.type) { 
                     const distSq = MathUtils.distSq(b.x + b.width/2, b.y + b.height/2, slot.x + slot.width/2, slot.y + slot.height/2);
                     if (distSq < minDist) { minDist = distSq; nearestSlot = slot; }
                 }
             });
             
-            if (nearestSlot && nearestSlot.type === b.type) {
+            if (nearestSlot) {
                 b.isSnapping = true; b.snapTimer = 0;
                 b.snapStart = { x: b.x, y: b.y };
                 b.snapTarget = { x: nearestSlot.x + (nearestSlot.width - b.width)/2, y: nearestSlot.y + (nearestSlot.height - b.height)/2 };
@@ -1120,13 +934,12 @@ const RebuildPhase = {
             this.activeBlock = null;
         }
 
-        // --- 繪圖層 ---
         const fontSize = Math.max(12, GameContext.vmin * 0.035);
         
         this.slots.forEach(slot => {
             const rgb = this.colors[slot.type];
             let isHovered = (this.activeBlock && this.activeBlock.type === slot.type && 
-                            MathUtils.distSq(this.activeBlock.x + this.activeBlock.width/2, this.activeBlock.y + this.activeBlock.height/2, slot.x + slot.width/2, slot.y + slot.height/2) < Math.pow(GameContext.vmin * 0.15, 2));
+                            MathUtils.distSq(this.activeBlock.x + this.activeBlock.width/2, this.activeBlock.y + this.activeBlock.height/2, slot.x + slot.width/2, slot.y + slot.height/2) < Math.pow(GameContext.vmin * 0.4, 2));
 
             ctx.save();
             ctx.setLineDash([8, 4]); ctx.lineWidth = 2;
@@ -1159,12 +972,11 @@ const RebuildPhase = {
                     if (b.targetSlot) {
                         AudioManager.playClick();
                         SparkManager.emit(b.x + b.width/2, b.y + b.height/2, 15, this.colors[b.type]);
-                        this.compileLogic(); // 吸附後檢查邏輯
+                        this.compileLogic(); 
                     }
                 }
             }
 
-            // 隱藏積木使用特殊的金色塗裝
             const isTruth = b.id === 'IF_TRUTH' || b.id === 'OUT_MERGE';
             const rgb = isTruth ? '253, 224, 71' : this.colors[b.type];
             
@@ -1189,17 +1001,21 @@ const RebuildPhase = {
 
     compileLogic() {
         for (let i = 0; i < this.slots.length; i++) if (!this.slots[i].block) return;
-        const chain = this.slots.map(s => s.block.id).join('->');
+        const chainArr = this.slots.map(s => s.block.id);
+        const outputBlock = chainArr[2]; // 取出最後一顆 OUTPUT 積木
+        const truthIncluded = chainArr.includes('IF_TRUTH');
         
         let endingType = null;
 
-        // 哲學判定三重結局
-        if (chain === 'IF_SAD->THEN_HOLD->OUT_PEACE') {
+        // 💎 修正 3.2：變更為「開放式結局判定」，只看最後一顆 OUTPUT 積木！
+        // 讓玩家有絕對的創意自由，任何組合都不會被退回！
+        if (outputBlock === 'OUT_PEACE') {
             endingType = 'ACCEPTANCE';
-        } else if (chain === 'IF_SAD->THEN_DEL->OUT_COLD') {
+        } else if (outputBlock === 'OUT_COLD') {
             endingType = 'VOID';
-        } else if (chain === 'IF_TRUTH->THEN_HOLD->OUT_MERGE') {
-            endingType = 'AWAKENING';
+        } else if (outputBlock === 'OUT_MERGE') {
+            if (truthIncluded) endingType = 'AWAKENING';
+            else endingType = 'ACCEPTANCE'; // 防呆
         }
 
         if (endingType) {
@@ -1207,18 +1023,17 @@ const RebuildPhase = {
             const endData = Narrative.endings[endingType];
             
             if (endingType === 'VOID') {
-                ParticleEngine.triggerBurst(true); // 死寂灰 glitch 粒子
-                AudioManager.playShatter(true);    // 高頻刺耳故障音
+                ParticleEngine.triggerBurst(true); 
+                AudioManager.playShatter(true);    
                 document.getElementById('crt-fx').style.display = 'block';
                 document.body.classList.add('glitch-text');
             } else {
-                ParticleEngine.triggerBurst(false); // 輻射噴發
-                AudioManager.playEnding();          // 哀傷空靈和弦
+                ParticleEngine.triggerBurst(false); 
+                AudioManager.playEnding();          
             }
 
             StorageManager.save(endData.title);
             
-            // 替換 UI 文本並淡入
             const endTitle = document.getElementById('ending-title');
             endTitle.innerText = endData.title;
             endTitle.style.color = endData.color;
@@ -1229,7 +1044,6 @@ const RebuildPhase = {
             requestAnimationFrame(() => winScreen.style.opacity = '1');
 
         } else {
-            // 邏輯錯誤，震動退回
             GameContext.screenShake = 15; AudioManager.playShatter();
             this.slots.forEach(s => {
                 const b = s.block;
