@@ -227,10 +227,17 @@ function resizeCanvas() {
     GameContext.height = window.innerHeight;
     GameContext.vmin = Math.min(GameContext.width, GameContext.height);
     
+    // 高解析度渲染
     bgCanvas.width = GameContext.width * GameContext.dpr;
     bgCanvas.height = GameContext.height * GameContext.dpr;
     uiCanvas.width = GameContext.width * GameContext.dpr;
     uiCanvas.height = GameContext.height * GameContext.dpr;
+    
+    // 💎 核心修復：強制設定 Canvas 的 CSS 實體尺寸，防止手機高 DPI 放大出界
+    bgCanvas.style.width = GameContext.width + 'px';
+    bgCanvas.style.height = GameContext.height + 'px';
+    uiCanvas.style.width = GameContext.width + 'px';
+    uiCanvas.style.height = GameContext.height + 'px';
     
     bgCtx.scale(GameContext.dpr, GameContext.dpr);
     uiCtx.scale(GameContext.dpr, GameContext.dpr);
@@ -661,6 +668,27 @@ const ExplorePhase = {
         GameContext.inventory.fragments = [];
         this.currentMemories = Narrative.getMemories(GameContext.loopCount);
         AudioManager.startBGM(); 
+
+        // 💎 核心修復一：將透視鏡預設移到畫面正中央，一進場就發出光暈
+        Input.screenX = GameContext.width / 2;
+        Input.screenY = GameContext.height / 2;
+        Input.worldX = Input.screenX - Camera.x;
+        Input.worldY = Input.screenY - Camera.y;
+
+        // 💎 核心修復二：開場瞬間立刻在畫面上生成第一句記憶，不讓玩家乾等
+        const data = this.currentMemories[0];
+        const fontSize = Math.max(16, GameContext.vmin * 0.04);
+        uiCtx.font = `${fontSize}px 'Courier New'`;
+        this.texts.push({
+            x: GameContext.width * 0.2,  // 直接出現在畫面左側 20% 的位置
+            y: GameContext.height * 0.5, // 畫面正中央
+            vx: -GameContext.vmin * 0.0015,
+            data: data, 
+            width: uiCtx.measureText(data.fake).width, 
+            height: fontSize, 
+            isRevealed: false, 
+            isGhost: false
+        });
     },
 
     spawnText(ctx) {
