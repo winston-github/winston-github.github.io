@@ -324,14 +324,18 @@
             letter-spacing: 2px;
         }
 
-        /* 常駐右上角同步狀態燈號 */
+        /* 常駐右上角同步狀態燈號 (升級為可點擊按鈕) */
         #sync-status-badge {
             font-size: 11px; background: rgba(0,0,0,0.6);
             padding: 4px 8px; border-radius: 12px;
             display: flex; align-items: center; gap: 5px;
             color: var(--text-sub); border: 1px solid rgba(255,255,255,0.1);
             transition: all 0.3s;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
         }
+        #sync-status-badge:active { transform: scale(0.95); }
+        
         #sync-status-badge.syncing { color: var(--accent-gold); border-color: var(--accent-gold); }
         #sync-status-badge.success { color: #10b981; border-color: #10b981; }
         #sync-status-badge.error { color: var(--accent-red); border-color: var(--accent-red); }
@@ -1300,8 +1304,10 @@
             <div class="profile-container" id="profile-list">
                 <!-- 頭像將由 JS 動態生成 -->
             </div>
-            <!-- 右上角同步狀態燈號 -->
-            <div id="sync-status-badge">☁️ 雲端待命</div>
+            
+             <!-- 右上角同步狀態燈號 -->
+            <div id="sync-status-badge" onclick="SyncMenuManager.open()">☁️ 雲端待命</div>
+            
         </header>
         <!-- 隱藏的次級角色抽屜 -->
         
@@ -2339,127 +2345,148 @@
         };
 
         // ==========================================
-        // 13. 主線狀態機與初始化流程 (CoreManager)
+        // 13. 同步儀表板 (SyncMenuManager)
+        // ==========================================
+        const SyncMenuManager = {
+            open: function() {
+                const modal = document.getElementById('dynamic-modal');
+                let pendingPhotos = 0;
+                STATE.data.users.forEach(u => { if (u.avatarId && u.avatarId.startsWith('local_img_')) pendingPhotos++; });
+                STATE.data.cards.forEach(c => { if (c.imgId && c.imgId.startsWith('local_img_')) pendingPhotos++; });
+
+                const lastSyncDate = STATE.cloud.lastSyncTime ? new Date(STATE.cloud.lastSyncTime).toLocaleString() : '從未同步';
+
+                modal.innerHTML = `
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <div class="modal-title">☁️ 雲端同步中心</div>
+                            <button class="modal-close" onclick="document.getElementById('dynamic-modal').classList.remove('open')">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:12px; margin-bottom:15px;">
+                                <div style="margin-bottom:8px; color:var(--text-sub); font-size:13px;">網路狀態：<strong style="color:${STATE.cloud.isOffline ? 'var(--accent-red)' : '#10b981'}">${STATE.cloud.isOffline ? '離線' : '連線中'}</strong></div>
+                                <div style="margin-bottom:8px; color:var(--text-sub); font-size:13px;">最後雲端備份：<strong style="color:#fff;">${lastSyncDate}</strong></div>
+                                <div style="color:var(--text-sub); font-size:13px;">待上傳新照片：<strong style="color:var(--accent-gold);">${pendingPhotos} 張</strong></div>
+                            </div>
+                            
+                            <button class="btn btn-primary" id="btn-force-sync" style="width:100%; margin-bottom:10px; padding:15px; font-size:16px;">🚀 立即完整上傳至雲端</button>
+                            <button class="btn btn-outline" onclick="document.getElementById('dynamic-modal').classList.remove('open')" style="width:100%;">關閉</button>
+                        </div>
+                    </div>
+                `;
+                modal.classList.add('open');
+
+                document.getElementById('btn-force-sync').onclick = () => {
+                    document.getElementById('dynamic-modal').classList.remove('open');
+                    CoreManager.performFullSync();
+                };
+            }
+        };
+
+        // ==========================================
+        // 13.5 主線狀態機與初始化流程 (CoreManager)
         // ==========================================
         const CoreManager = {
             init: function() {
                 UIManager.init();
                 
-                // 綁定入口介面按鈕
+                // 智慧離線喚醒 (Auto-boot)：只要本機有資料，直接秒開，免去點擊 Restore 的麻煩！
+                const localDataStr = localStorage.getItem('points_sys_data');
+                if (localDataStr) {
+                    try {
+                        STATE.data = JSON.parse(localDataStr);
+                        const cloudStr = localStorage.getItem('points_sys_cloud');
+                        if (cloudStr) {
+                            const c = JSON.parse(cloudStr);
+                            STATE.cloud.folderId = c.folderId; STATE.cloud.fileId = c.fileId; STATE.cloud.lastSyncTime = c.lastSyncTime;
+                        }
+                        
+                        document.getElementById('auth-overlay').classList.remove('active');
+                        this.enterReadonlyMode();
+                        this.updateSyncUI('error', '⚠️ 本機模式 (請點擊同步)');
+                        
+                        // 背景靜默載入圖片快取
+                        LocalDB.init().then(() => {
+                            STATE.images = {};
+                            const allImgIds = new Set();
+                            STATE.data.users.forEach(u => { if(u.avatarId) allImgIds.add(u.avatarId); });
+                            STATE.data.cards.forEach(c => { if(c.imgId) allImgIds.add(c.imgId); });
+                            for (let id of allImgIds) {
+                                LocalDB.get(id).then(b64 => { 
+                                    if(b64) {
+                                        STATE.images[id] = b64;
+                                        UIManager.renderProfiles(); // 圖片載入完成後刷新
+                                        if(typeof CardManager !== 'undefined') CardManager.renderStage();
+                                        if(typeof BackpackManager !== 'undefined') BackpackManager.render();
+                                    } 
+                                });
+                            }
+                        });
+                        return; // 完成智慧喚醒，跳過授權頁
+                    } catch(e) {}
+                }
+
                 document.getElementById('btn-new').onclick = () => this.handleNewFlow();
                 document.getElementById('btn-restore').onclick = () => this.handleRestoreFlow();
             },
 
-            /**
-             * 流程一：全新建立 (New)
-             */
             handleNewFlow: async function() {
                 try {
-                    // 1. Google SSO 授權
-                    await new Promise((resolve, reject) => {
-                        CloudManager.authorize(() => resolve());
-                    });
-
-                    // 2. 選擇雲端儲存資料夾
+                    await new Promise((resolve) => CloudManager.authorize(() => resolve()));
                     const folder = await DriveUI.showSelector();
                     STATE.cloud.folderId = folder.id;
 
-                    // 3. 設定初始家長與數字密碼
                     const pwd = await PinLock.open("設定核心金鑰", "請輸入 4~16 位數字密碼 (此金鑰將用於加密，遺失無法救援！)");
                     if (!pwd) return showToast("已取消建立");
-
-                    // 4. 驗證密碼確認
                     const pwdConfirm = await PinLock.open("確認核心金鑰", "請再次輸入相同的數字密碼");
                     if (pwd !== pwdConfirm) return showToast("兩次密碼不一致，建立失敗");
 
-                    showToast("正在初始化系統...", false);
+                    localStorage.setItem('sys_pin_cache', pwd); // 【金鑰快取】實作免密碼背景儲存
 
-                    // 5. 建立創世預設資料結構
-                    STATE.data = {
-                        users: [],
-                        cards: [],
-                        bullets: [],
-                        logs: [],
-                        last_update: Date.now()
-                    };
+                    showToast("正在初始化系統...", false);
+                    await LocalDB.init(); STATE.images = {};
+                    STATE.data = { users: [], cards: [], bullets: [], logs: [], last_update: Date.now() };
                     
-                    // 進入天神模式，強制要求建立第一位家長與孩子
                     document.getElementById('auth-overlay').classList.remove('active');
-                    STATE.currentUser = 'admin'; // 暫時身分
-                    STATE.isGodMode = true;
+                    STATE.currentUser = 'admin'; STATE.isGodMode = true; document.body.classList.add('god-mode');
                     
-                    // TODO: 觸發建立角色 UI (將於後續模組實作)
-                    showToast("請點擊下方 ⚙️ 設定建立家庭成員", false);
-                    
-                    // 6. 首次加密存檔與上傳
-                    await this.saveAndSync(pwd);
-                    
-                } catch (e) {
-                    console.error(e);
-                    showToast(e.message || "建立流程發生異常");
-                }
+                    await this.performFullSync();
+                } catch (e) { showToast(e.message || "建立發生異常"); }
             },
 
-            /**
-             * 流程二：載入進度 (Restore)
-             */
             handleRestoreFlow: async function() {
                 try {
-                    // 1. Google SSO 授權
-                    await new Promise((resolve, reject) => {
-                        CloudManager.authorize(() => resolve());
-                    });
-
-                    // 2. 選擇雲端儲存資料夾
+                    await new Promise((resolve) => CloudManager.authorize(() => resolve()));
                     const folder = await DriveUI.showSelector();
                     STATE.cloud.folderId = folder.id;
 
                     showToast("尋找備份存檔中...", false);
-                    
-                    // 3. 搜尋資料夾內最新的 .json
                     const q = encodeURIComponent(`parents in '${folder.id}' and mimeType='application/json' and trashed=false`);
                     const urlList = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc&pageSize=1`;
                     const res = await DriveAPI.fetch(urlList);
                     const data = await res.json();
 
-                    if (!data.files || data.files.length === 0) {
-                        if (confirm("偵測到此雲端路徑內無任何備份存檔！是否要在此路徑直接初始化為全新的系統？")) {
-                            return this.handleNewFlow();
-                        } else {
-                            return showToast("還原中斷");
-                        }
-                    }
+                    if (!data.files || data.files.length === 0) return showToast("偵測到此路徑無備份存檔，還原中斷");
 
                     const backupFile = data.files[0];
                     STATE.cloud.fileId = backupFile.id;
 
-                    // 4. 下載加密備份檔
-                    const urlGet = `https://www.googleapis.com/drive/v3/files/${backupFile.id}?alt=media`;
-                    const fileRes = await DriveAPI.fetch(urlGet);
+                    const fileRes = await DriveAPI.fetch(`https://www.googleapis.com/drive/v3/files/${backupFile.id}?alt=media`);
                     const encryptedCompressedStr = await fileRes.text();
 
-                    // 5. 攔截：要求輸入家長解密密碼
                     const pwd = await PinLock.open("解密備份存檔", "請輸入家長數字密碼以解鎖檔案");
                     if (!pwd) return showToast("已取消還原");
 
-                    // 6. 解密與解壓縮
                     const compressedStr = await CryptoEngine.decrypt(encryptedCompressedStr, pwd);
-                    if (!compressedStr) {
-                        return showToast("密碼錯誤！解密失敗，系統維持鎖定");
-                    }
+                    if (!compressedStr) return showToast("密碼錯誤！解密失敗");
                     
-                    const jsonStr = DataCompressor.decompress(compressedStr);
-                    if (!jsonStr) {
-                        return showToast("檔案資料損毀解壓縮失敗");
-                    }
+                    localStorage.setItem('sys_pin_cache', pwd); // 【金鑰快取】實作免密碼背景儲存
 
-                    // 7. 異步防禦：合併本機幽靈點數與離線行為
+                    const jsonStr = DataCompressor.decompress(compressedStr);
                     STATE.data = SyncEngine.mergeCloudWithLocal(jsonStr);
                     STATE.cloud.lastSyncTime = new Date(backupFile.modifiedTime).getTime();
 
-                    // 新增：啟動圖片快取庫，背景靜默下載缺失的照片
-                    await LocalDB.init();
-                    STATE.images = {};
+                    await LocalDB.init(); STATE.images = {};
                     this.updateSyncUI('syncing', '載入雲端照片...');
                     const allImgIds = new Set();
                     STATE.data.users.forEach(u => { if(u.avatarId) allImgIds.add(u.avatarId); });
@@ -2467,80 +2494,39 @@
                     
                     for (let id of allImgIds) {
                         let b64 = await LocalDB.get(id);
-                        if (!b64) {
-                            try { b64 = await CloudManager.downloadImage(id); if(b64) await LocalDB.save(id, b64); } catch(e) {}
-                        }
+                        if (!b64) { try { b64 = await CloudManager.downloadImage(id); if(b64) await LocalDB.save(id, b64); } catch(e) {} }
                         if(b64) STATE.images[id] = b64;
                     }
-                    this.updateSyncUI('success', '系統就緒');
 
-                    // 8. 成功還原，寫入本機並啟動 UI
-                    
                     this.persistToLocal();
                     document.getElementById('auth-overlay').classList.remove('active');
-                    showToast("還原成功！系統已啟動", false);
-                    
-                    // 預設進入孩子唯讀模式
+                    this.updateSyncUI('success', "系統就緒！");
                     this.enterReadonlyMode();
-
-                } catch (e) {
-                    console.error(e);
-                    showToast("載入進度失敗");
-                }
+                } catch (e) { showToast("載入進度失敗"); }
             },
 
-            /**
-             * 進入唯讀模式 (狀態 2：任何人＋未輸入家長手勢)
-             */
             enterReadonlyMode: function() {
-                STATE.isGodMode = false;
-                STATE.isReadonly = true;
-                STATE.currentUser = null;
-                
-                // 預設選擇第一個孩子為受益人
+                STATE.isGodMode = false; STATE.isReadonly = true; STATE.currentUser = null;
                 const children = STATE.data.users.filter(u => u.role === 'child');
-                if (children.length > 0 && !STATE.currentBeneficiary) {
-                    STATE.currentBeneficiary = children[0].id;
-                }
-
-                UIManager.renderProfiles();
-                UIManager.renderMarquee();
-                
-                // 觸發卡片渲染 (將在後續模組實作)
+                if (children.length > 0 && !STATE.currentBeneficiary) STATE.currentBeneficiary = children[0].id;
+                UIManager.renderProfiles(); UIManager.renderMarquee();
                 if(typeof CardManager !== 'undefined') CardManager.renderStage();
             },
 
-            /**
-             * 請求切換為家長天神模式 (狀態 3)
-             */
-
-requestGodMode: async function(parentUser) {
+            requestGodMode: async function(parentUser) {
                 const pwd = await PinLock.open("家長權限認證", `請輸入密碼以切換為 ${parentUser.name}`);
                 if (!pwd) return;
-
-                STATE.isGodMode = true;
-                STATE.isReadonly = false;
-                STATE.currentUser = parentUser.id;
-                document.body.classList.add('god-mode'); // 啟用專屬按鈕
-                
-                showToast(`已切換為 ${parentUser.name} (天神模式)`, false);
-                UIManager.renderProfiles();
-                UIManager.renderMarquee();
+                STATE.isGodMode = true; STATE.isReadonly = false; STATE.currentUser = parentUser.id;
+                document.body.classList.add('god-mode');
+                showToast(`已切換為 ${parentUser.name}`, false);
+                UIManager.renderProfiles(); UIManager.renderMarquee();
                 document.getElementById('backpack-drawer').classList.remove('open');
             },
 
             switchBeneficiary: function(childId) {
-                STATE.currentBeneficiary = childId;
-                STATE.currentUser = childId;
-                
-                // 切換為孩子視角時，如果沒有家長登入，就關閉神模式
-                if (!STATE.isGodMode) {
-                    STATE.isReadonly = false; 
-                    document.body.classList.remove('god-mode'); // 隱藏家長專屬按鈕
-                }
-                
-                UIManager.renderProfiles();
-                UIManager.renderMarquee();
+                STATE.currentBeneficiary = childId; STATE.currentUser = childId;
+                if (!STATE.isGodMode) { STATE.isReadonly = false; document.body.classList.remove('god-mode'); }
+                UIManager.renderProfiles(); UIManager.renderMarquee();
                 if(typeof CardManager !== 'undefined') CardManager.renderStage();
                 if(typeof BackpackManager !== 'undefined') BackpackManager.render();
             },
@@ -2550,60 +2536,98 @@ requestGodMode: async function(parentUser) {
                 badge.className = statusStr;
                 if(statusStr === 'syncing') badge.innerHTML = `☁️ ⏳ 同步中...`;
                 else if(statusStr === 'success') badge.innerHTML = `☁️ ✅ 已同步`;
-                else if(statusStr === 'error') badge.innerHTML = `☁️ ❌ 錯誤`;
+                else if(statusStr === 'error') badge.innerHTML = `☁️ ⚠️ 待上傳`;
                 else badge.innerHTML = `☁️ 待命`;
                 if(msg) showToast(msg, statusStr === 'error');
             },
 
-            saveAndSync: async function() {
+            // 取代舊的 saveAndSync，永遠只花 0.01 秒存在本機，把上傳決定權還給使用者！
+            saveLocal: function() {
+                if (!TimeGuard.verify() || !StorageGuard.check()) return;
+                STATE.data.last_update = Date.now();
+                this.persistToLocal();
+                this.updateSyncUI('error', ''); // 亮起橘色燈號，提示使用者有資料待上傳
+            },
+
+            persistToLocal: function() {
+                localStorage.setItem('points_sys_data', JSON.stringify(STATE.data));
+                localStorage.setItem('points_sys_cloud', JSON.stringify({
+                    folderId: STATE.cloud.folderId, fileId: STATE.cloud.fileId, lastSyncTime: STATE.cloud.lastSyncTime
+                }));
+            },
+
+            // 真正的雲端完整同步引擎 (由使用者手動點擊觸發)
+            performFullSync: async function() {
                 try {
-                    if (!TimeGuard.verify() || !StorageGuard.check()) return;
+                    if (STATE.cloud.isOffline) return showToast("目前處於離線狀態，無法同步");
+                    if (!STATE.cloud.accessToken) return CloudManager.authorize(() => this.performFullSync());
+
+                    let pwd = localStorage.getItem('sys_pin_cache');
+                    if (!pwd) {
+                        pwd = await PinLock.open("授權雲端同步", "請輸入您的數字密碼以加密備份至雲端");
+                        if (pwd) localStorage.setItem('sys_pin_cache', pwd);
+                        else return this.updateSyncUI('error', "未提供密碼，取消同步");
+                    }
+
+                    this.updateSyncUI('syncing', '正在上傳照片至雲端...');
+
+                    // 1. 抓出所有本地端照片，上傳為實體檔案
+                    for (let u of STATE.data.users) {
+                        if (u.avatarId && u.avatarId.startsWith('local_img_')) {
+                            const b64 = await LocalDB.get(u.avatarId);
+                            if (b64) {
+                                const newId = await CloudManager.uploadImage(b64, STATE.cloud.folderId, `Avatar_${u.name}.jpg`);
+                                if (newId) { await LocalDB.save(newId, b64); STATE.images[newId] = b64; u.avatarId = newId; }
+                            }
+                        }
+                    }
+                    for (let c of STATE.data.cards) {
+                        if (c.imgId && c.imgId.startsWith('local_img_')) {
+                            const b64 = await LocalDB.get(c.imgId);
+                            if (b64) {
+                                const newId = await CloudManager.uploadImage(b64, STATE.cloud.folderId, `Card_${c.cardName}.jpg`);
+                                if (newId) { await LocalDB.save(newId, b64); STATE.images[newId] = b64; c.imgId = newId; }
+                            }
+                        }
+                    }
+
+                    this.updateSyncUI('syncing', '正在備份加密資料庫...');
+
+                    if (STATE.cloud.fileId) {
+                        const isConflict = await CloudManager.checkVersionConflict(STATE.cloud.fileId);
+                        if (isConflict) return showToast("雲端有新進度！為防覆蓋，請先重新載入網頁並選擇 Restore", true);
+                    }
 
                     STATE.data.last_update = Date.now();
-                    this.persistToLocal();
-
-                    if (STATE.cloud.isOffline) return this.updateSyncUI('error', "離線狀態，已自動暫存於手機本機");
-
-                    // 檢查密碼是否存在 (沒有密碼無法加密)
-                    const pwd = prompt("請輸入您的手勢密碼數字(例如 1234)以授權雲端加密備份\n(未來版本將實作 Hash 免密碼背景儲存)");
-                    if(!pwd) return this.updateSyncUI('error', "未提供加密金鑰，僅儲存於本機");
-
-                    this.updateSyncUI('syncing');
-                    const isConflict = await CloudManager.checkVersionConflict(STATE.cloud.fileId);
-                    if (isConflict) return this.updateSyncUI('error', "雲端檔案較新，請先執行 Restore 防止覆蓋");
-
+                    this.persistToLocal(); 
+                    
                     const jsonStr = JSON.stringify(STATE.data);
                     const compressedStr = DataCompressor.compress(jsonStr);
                     const encryptedStr = await CryptoEngine.encrypt(compressedStr, pwd);
                     
-                    if(!encryptedStr) throw new Error("加密失敗，可能是密碼錯誤");
-
                     const fileName = `PointsBackup_${new Date().toISOString().split('T')[0]}.json`;
-                    
                     const success = await CloudManager.resumableUpload(STATE.cloud.fileId, STATE.cloud.folderId, fileName, encryptedStr);
-                    if(success) this.updateSyncUI('success', "資料已安全同步至 Google 雲端！");
-                    else this.updateSyncUI('error', "上傳失敗，已暫存本機");
+                    
+                    if (success) this.updateSyncUI('success', "完整同步成功！所有照片與資料已上傳");
+                    else this.updateSyncUI('error', "上傳失敗，已存本機");
 
                 } catch (e) {
-                    console.error("Save Error:", e);
-                    this.updateSyncUI('error', `儲存發生異常: ${e.message}`);
+                    console.error(e);
+                    this.updateSyncUI('error', `同步異常`);
                 }
-            },
-            
-            persistToLocal: function() {
-                localStorage.setItem('points_sys_data', JSON.stringify(STATE.data));
             }
         };
 
         // 監聽離線狀態
         window.addEventListener('offline', () => {
             STATE.cloud.isOffline = true;
-            showToast("網路已斷開，進入離線緩衝沙盒模式");
+            this.updateSyncUI('error', '網路已斷開，改為本機模式');
         });
         window.addEventListener('online', () => {
             STATE.cloud.isOffline = false;
-            showToast("網路已恢復，等待觸發背景同步", false);
+            this.updateSyncUI('error', '網路已恢復，點擊此處可上傳');
         });
+        
 // ==========================================
         // 14. 彈藥背包與雙模擊發系統 (BackpackManager)
         // ==========================================
@@ -2861,7 +2885,7 @@ requestGodMode: async function(parentUser) {
                 }
 
                 // 儲存進度 (防作弊機制包含在內)
-                CoreManager.saveAndSync();
+                CoreManager.saveLocal();
             },
 
             triggerParticles: function(cellEl, colorVar, isFullHit) {
@@ -3033,7 +3057,7 @@ requestGodMode: async function(parentUser) {
                 STATE.data.logs = STATE.data.logs.filter(l => l.cardId !== cardId);
                 if(card.status === 'archived') card.status = 'active';
 
-                CoreManager.saveAndSync();
+                CoreManager.saveLocal();
                 this.renderStage();
                 BackpackManager.render();
                 showToast("點數已全數收回背包！", false);
@@ -3137,7 +3161,7 @@ requestGodMode: async function(parentUser) {
                         else if (archivedCount === 10) child.titleBadge = '傳說大滿貫';
                     }
                     
-                    CoreManager.saveAndSync();
+                    CoreManager.saveLocal();
                     this.renderStage();
                     UIManager.renderProfiles();
                 };
@@ -3361,35 +3385,27 @@ requestGodMode: async function(parentUser) {
                     if (!name) return showToast("請輸入名稱");
                     if (!this.tempAvatar) return showToast("請拍攝一張大頭貼");
                     
-                    const btn = document.getElementById('btn-save-user');
-                    btn.innerText = "上傳照片中..."; btn.disabled = true;
-                    CoreManager.updateSyncUI('syncing', '上傳照片至雲端...');
+                    // 秒存本機：不再等待雲端，直接產生 Local UUID
+                    const localId = 'local_img_' + generateUUID();
+                    await LocalDB.save(localId, this.tempAvatar);
+                    STATE.images[localId] = this.tempAvatar;
 
-                    try {
-                        const fileId = await CloudManager.uploadImage(this.tempAvatar, STATE.cloud.folderId, `Avatar_${name}.jpg`);
-                        await LocalDB.save(fileId, this.tempAvatar);
-                        STATE.images[fileId] = this.tempAvatar;
-
-                        const newUser = {
-                            id: generateUUID(), name: name, role: role,
-                            avatarId: fileId, titleBadge: role === 'child' ? '新手' : ''
-                        };
-                        STATE.data.users.push(newUser);
-                        await CoreManager.saveAndSync();
-                        
-                        this.renderUserList();
-                        UIManager.renderProfiles();
-                        
-                        document.getElementById('new-user-name').value = '';
-                        this.tempAvatar = null;
-                        document.getElementById('preview-avatar').style.display = 'none';
-                        showToast(`已新增成員: ${name}`, false);
-                    } catch (e) {
-                        showToast("上傳照片失敗，請檢查網路");
-                    } finally {
-                        btn.innerText = "儲存並新增成員"; btn.disabled = false;
-                    }
+                    const newUser = {
+                        id: generateUUID(), name: name, role: role,
+                        avatarId: localId, titleBadge: role === 'child' ? '新手' : ''
+                    };
+                    STATE.data.users.push(newUser);
+                    CoreManager.saveLocal(); // 只呼叫秒存
+                    
+                    this.renderUserList();
+                    UIManager.renderProfiles();
+                    
+                    document.getElementById('new-user-name').value = '';
+                    this.tempAvatar = null;
+                    document.getElementById('preview-avatar').style.display = 'none';
+                    showToast(`已新增成員: ${name}`, false);
                 };
+                
             },
 
             renderUserList: function() {
@@ -3485,7 +3501,7 @@ requestGodMode: async function(parentUser) {
                     };
 
                     STATE.data.bullets.push(newBullet);
-                    CoreManager.saveAndSync();
+                    CoreManager.saveLocal();
                     document.getElementById('dynamic-modal').classList.remove('open');
                     showToast("點數已成功發送！", false);
                     if(STATE.currentBeneficiary === childId) BackpackManager.render();
@@ -3558,44 +3574,36 @@ requestGodMode: async function(parentUser) {
 
                     if(!this.tempToyImg) return showToast("請務必拍攝一張禮物照片！");
 
-                    const btn = document.getElementById('btn-save-card');
-                    btn.innerText = "上傳照片中..."; btn.disabled = true;
-                    CoreManager.updateSyncUI('syncing', '上傳照片至雲端...');
+                    // 秒存本機：產生 Local UUID
+                    const localId = 'local_img_' + generateUUID();
+                    await LocalDB.save(localId, this.tempToyImg);
+                    STATE.images[localId] = this.tempToyImg;
 
-                    try {
-                        const fileId = await CloudManager.uploadImage(this.tempToyImg, STATE.cloud.folderId, `Card_${cardName}.jpg`);
-                        await LocalDB.save(fileId, this.tempToyImg);
-                        STATE.images[fileId] = this.tempToyImg;
-
-                        const grids = [];
-                        for(let y=0; y<rows; y++){
-                            for(let x=0; x<cols; x++){
-                                grids.push({ x: x, y: y, status: 0, bulletId: null });
-                            }
+                    const grids = [];
+                    for(let y=0; y<rows; y++){
+                        for(let x=0; x<cols; x++){
+                            grids.push({ x: x, y: y, status: 0, bulletId: null });
                         }
-
-                        let creatorId = STATE.currentUser;
-                        if(creatorId === 'admin') creatorId = parents[0].id;
-
-                        const newCard = {
-                            id: generateUUID(), beneficiaryId: childId, creatorId: creatorId,
-                            imgId: fileId, cardName: cardName,
-                            cols: cols, rows: rows, grids: grids, status: 'active'
-                        };
-                        
-                        STATE.data.cards.unshift(newCard); // 最新卡片排第一
-                        STATE.ui.activeCardIndex = 0; 
-                        
-                        await CoreManager.saveAndSync();
-                        document.getElementById('dynamic-modal').classList.remove('open');
-                        showToast("集點卡建立成功！", false);
-                        CoreManager.switchBeneficiary(childId);
-                    } catch (e) {
-                        showToast("上傳照片失敗，請檢查網路");
-                    } finally {
-                        btn.innerText = "發行集點卡"; btn.disabled = false;
                     }
+
+                    let creatorId = STATE.currentUser;
+                    if(creatorId === 'admin') creatorId = parents[0].id;
+
+                    const newCard = {
+                        id: generateUUID(), beneficiaryId: childId, creatorId: creatorId,
+                        imgId: localId, cardName: cardName,
+                        cols: cols, rows: rows, grids: grids, status: 'active'
+                    };
+                    
+                    STATE.data.cards.unshift(newCard);
+                    STATE.ui.activeCardIndex = 0; 
+                    
+                    CoreManager.saveLocal(); // 只呼叫秒存
+                    document.getElementById('dynamic-modal').classList.remove('open');
+                    showToast("集點卡建立成功，已存於本機！", false);
+                    CoreManager.switchBeneficiary(childId);
                 };
+                
             }
         };
         // ==========================================
