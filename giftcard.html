@@ -662,11 +662,14 @@
         /* ==========================================
            9. 雙模式硬體相機與圖庫 (弱光環境補償)
            ========================================== */
+        /* ==========================================
+           9. 雙模式硬體相機與圖庫 (弱光環境補償)
+           ========================================== */
         #camera-modal {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
             background: #000;
-            z-index: 10000; /* 最高層級，覆蓋所有 */
+            z-index: 10010; /* 修正：提高層級超越設定表單的 10005，徹底解決相機被擋在後面的問題 */
             display: flex;
             flex-direction: column;
             transform: translateY(100%);
@@ -839,13 +842,13 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.5);
         }
 
-        /* 背包抽屜 (向上彈出) */
+        /* 背包抽屜：改為熱門遊戲風格的底部水平 Dock 停靠列 */
         #backpack-drawer {
             position: absolute;
             bottom: calc(80px + env(safe-area-inset-bottom, 10px));
-            right: 20px;
-            width: 280px;
-            height: 350px;
+            left: 10px; right: 10px; /* 滿寬度置底 */
+            width: auto;
+            height: 140px; /* 壓縮高度，不再遮擋卡片 */
             background: rgba(30, 41, 59, 0.95);
             backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.15);
@@ -855,7 +858,7 @@
             display: flex;
             flex-direction: column;
             z-index: 50;
-            transform: translateY(120%) scale(0.9);
+            transform: translateY(150%) scale(0.9);
             opacity: 0;
             pointer-events: none;
             transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -877,18 +880,20 @@
 
         .bullet-grid {
             flex: 1;
-            overflow-y: auto;
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            padding-bottom: 10px;
-            align-content: start;
+            overflow-x: auto; /* 改為橫向捲動 */
+            overflow-y: hidden;
+            display: flex;
+            flex-direction: row;
+            gap: 15px;
+            padding-bottom: 5px;
+            align-items: center;
+            -webkit-overflow-scrolling: touch;
         }
 
         /* 子彈本體設計 */
         .bullet-item {
-            width: 100%;
-            aspect-ratio: 1;
+            flex-shrink: 0;
+            width: 65px; height: 65px;
             border-radius: 50%;
             background: #000;
             border: 2px solid rgba(255,255,255,0.2);
@@ -1298,11 +1303,14 @@
             <div id="marquee-container">
                 <div class="marquee-text" id="marquee-text">歡迎使用！差一點點就可以得到新禮物囉！</div>
             </div>
+
             <div class="control-btn-group hide-in-readonly">
                 <!-- 家長後台/神模式切換 -->
                 <button class="action-btn" id="btn-parent-mode">⚙️</button>
                 <!-- 新增卡片 -->
                 <button class="action-btn" id="btn-add-card">➕</button>
+                <!-- 塗抹連發模式 -->
+                <button class="action-btn" id="btn-smear-mode" style="background:rgba(59, 130, 246, 0.2); border-color:#3b82f6;">🖌️</button>
             </div>
             <!-- 背包開關 -->
             <button class="action-btn hide-in-readonly" id="backpack-toggle">
@@ -1310,7 +1318,11 @@
             </button>
         </footer>
 
+        <!-- 塗抹模式時的浮動提示氣泡 -->
+        <div id="smear-tooltip" style="position:fixed; pointer-events:none; z-index:99999; background:rgba(0,0,0,0.85); color:var(--accent-gold); padding:8px 12px; border-radius:10px; display:none; font-weight:bold; font-size:14px; box-shadow:0 4px 15px rgba(0,0,0,0.6); white-space:nowrap;"></div>
+
         <!-- 背包抽屜 (由下往上彈) -->
+        
         <div id="backpack-drawer">
             <div class="backpack-header">
                 <span>彈藥庫</span>
@@ -2206,7 +2218,24 @@
                     AdminManager.openActionMenu(); // 開啟新增集點卡與發點數選單
                 });
 
+                // 塗抹連發模式開關
+                STATE.ui.isSmearMode = false;
+                document.getElementById('btn-smear-mode').addEventListener('click', function() {
+                    STATE.ui.isSmearMode = !STATE.ui.isSmearMode;
+                    if(STATE.ui.isSmearMode) {
+                        this.style.background = 'rgba(251, 191, 36, 0.5)';
+                        this.style.borderColor = 'var(--accent-gold)';
+                        showToast("🖌️ 塗抹模式已開啟！請直接在卡片上自由滑動", false);
+                        document.getElementById('backpack-drawer').classList.remove('open');
+                    } else {
+                        this.style.background = 'rgba(59, 130, 246, 0.2)';
+                        this.style.borderColor = '#3b82f6';
+                        showToast("已關閉塗抹模式", false);
+                    }
+                });
+
                 // 點擊空白處關閉各種抽屜
+
                 document.addEventListener('click', (e) => {
                     const profileDrawer = document.getElementById('profile-drawer');
                     if (profileDrawer.classList.contains('open') && !e.target.closest('#profile-drawer') && !e.target.closest('.overflow-capsule')) {
@@ -2648,6 +2677,7 @@ SSS
         // ==========================================
         const CardManager = {
             filteredCards: [],
+            lastHitCell: null, // 記錄塗抹模式防重複擊發
             
             renderStage: function() {
                 const track = document.getElementById('card-track');
@@ -2661,10 +2691,7 @@ SSS
                     return;
                 }
 
-                // 確保 activeIndex 不越界
-                if (STATE.ui.activeCardIndex >= this.filteredCards.length) {
-                    STATE.ui.activeCardIndex = Math.max(0, this.filteredCards.length - 1);
-                }
+                if (STATE.ui.activeCardIndex >= this.filteredCards.length) STATE.ui.activeCardIndex = Math.max(0, this.filteredCards.length - 1);
 
                 this.filteredCards.forEach((card, index) => {
                     const wrapper = document.createElement('div');
@@ -2674,9 +2701,19 @@ SSS
                     else if (index < STATE.ui.activeCardIndex) wrapper.classList.add('prev');
                     else wrapper.classList.add('next');
 
+                    // 加入「一鍵收回」按鈕 (僅家長模式可見)
+                    let recallBtnHtml = '';
+                    if (STATE.isGodMode) {
+                        recallBtnHtml = `<button class="btn btn-danger" style="position:absolute; top:10px; right:10px; z-index:20; padding:8px 12px; font-size:12px; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,0.5);" onclick="CardManager.recallBullets('${card.id}')">🔄 收回點數</button>`;
+                    }
+
                     wrapper.innerHTML = `
+                        ${recallBtnHtml}
                         <div class="card-inner">
                             <img src="${card.imgBase64}" class="toy-image" id="toy-img-${card.id}">
+
+
+                            
                             <div class="silver-coating">
                                 <div class="silver-progress-text" id="progress-${card.id}">0%</div>
                             </div>
@@ -2842,7 +2879,7 @@ SSS
             },
 
             /**
-             * 2D 十字雙軸滑動與手指角度鎖定防禦 (Directional Lock)
+             * 支援塗抹模式與原本的雙軸滑動
              */
             bindGestures: function() {
                 const track = document.getElementById('card-track');
@@ -2850,92 +2887,134 @@ SSS
                 let startX = 0, startY = 0;
                 let isLockX = false, isLockY = false, hasLocked = false;
                 
-                // 重置狀態
                 stage.classList.remove('show-audit');
                 STATE.ui.isAuditWallOpen = false;
 
-                // 筆電端：滾輪行為重定向 (垂直滾輪轉為卡片左右切換)
                 if (STATE.ui.currentDevice === 'mouse') {
                     stage.onwheel = (e) => {
-                        if (STATE.ui.isAuditWallOpen) return; // 稽核牆開啟時，允許正常垂直滾動
+                        if (STATE.ui.isAuditWallOpen) return;
                         e.preventDefault();
                         if (e.deltaY > 0) this.switchCard('next');
                         else if (e.deltaY < 0) this.switchCard('prev');
                     };
                 }
 
-                // 觸控端滑動判斷
                 track.ontouchstart = (e) => {
-                    startX = e.touches[0].clientX;
-                    startY = e.touches[0].clientY;
+                    if(STATE.ui.isSmearMode) { e.preventDefault(); this.lastHitCell = null; this.handleSmear(e); return; }
+                    startX = e.touches[0].clientX; startY = e.touches[0].clientY;
                     isLockX = false; isLockY = false; hasLocked = false;
-                    track.style.transition = 'none'; // 移除動畫以跟隨手指
+                    track.style.transition = 'none';
                 };
 
                 track.ontouchmove = (e) => {
+                    if(STATE.ui.isSmearMode) { e.preventDefault(); this.handleSmear(e); return; }
                     if (!startX || !startY) return;
-                    let dx = e.touches[0].clientX - startX;
-                    let dy = e.touches[0].clientY - startY;
-
-                    // 當移動超過 10px 時進行三角函數角度鎖定
+                    let dx = e.touches[0].clientX - startX; let dy = e.touches[0].clientY - startY;
                     if (!hasLocked && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
                         let angle = Math.abs(Math.atan2(dy, dx) * 180 / Math.PI);
-                        // 夾角 +-30度：左右滑動 (X軸鎖定)
                         if (angle < 30 || angle > 150) isLockX = true;
-                        // 夾角 60-120度：上下滑動 (Y軸鎖定)
                         else if (angle > 60 && angle < 120) isLockY = true;
-                        
                         hasLocked = true;
                     }
-
                     if (hasLocked) {
                         if (isLockX) {
-                            e.preventDefault(); // 阻止原生滾動
-                            // 卡片邊界反彈（Rubber-banding）阻尼感
-                            if ((STATE.ui.activeCardIndex === 0 && dx > 0) || 
-                                (STATE.ui.activeCardIndex === this.filteredCards.length - 1 && dx < 0)) {
-                                dx = dx * 0.25; // 強阻尼
-                            }
-                            // 只移動當前 active 卡片與相鄰卡片
+                            e.preventDefault();
+                            if ((STATE.ui.activeCardIndex === 0 && dx > 0) || (STATE.ui.activeCardIndex === this.filteredCards.length - 1 && dx < 0)) dx = dx * 0.25;
                             const activeCard = track.querySelector('.card-wrapper.active');
                             if (activeCard) activeCard.style.transform = `translateX(${dx}px) scale(1)`;
                         }
                         if (isLockY && dy < -30 && !STATE.ui.isAuditWallOpen) {
-                            // 向上滑動觸發進入稽核牆
-                            e.preventDefault();
-                            stage.classList.add('show-audit');
-                            STATE.ui.isAuditWallOpen = true;
+                            e.preventDefault(); stage.classList.add('show-audit'); STATE.ui.isAuditWallOpen = true;
                         }
                     }
                 };
 
                 track.ontouchend = (e) => {
+                    if(STATE.ui.isSmearMode) { e.preventDefault(); document.getElementById('smear-tooltip').style.display = 'none'; return; }
                     if (!hasLocked) return;
                     const dx = e.changedTouches[0].clientX - startX;
                     track.style.transition = 'transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
-                    
                     if (isLockX) {
-                        // 復原 inline style，交給 class 管理
                         Array.from(track.children).forEach(c => c.style.transform = '');
-                        if (Math.abs(dx) > 80) {
-                            if (dx > 0) this.switchCard('prev');
-                            else this.switchCard('next');
-                        }
+                        if (Math.abs(dx) > 80) dx > 0 ? this.switchCard('prev') : this.switchCard('next');
                     }
                     startX = 0; startY = 0;
                 };
 
-                // 稽核牆向下滑動返回
                 const wallHeader = document.getElementById('audit-header');
                 let wallStartY = 0;
                 wallHeader.ontouchstart = (e) => wallStartY = e.touches[0].clientY;
                 wallHeader.ontouchmove = (e) => {
-                    const dy = e.touches[0].clientY - wallStartY;
-                    if (dy > 50) {
-                        stage.classList.remove('show-audit');
-                        STATE.ui.isAuditWallOpen = false;
+                    if (e.touches[0].clientY - wallStartY > 50) {
+                        stage.classList.remove('show-audit'); STATE.ui.isAuditWallOpen = false;
                     }
                 };
+            },
+
+            /**
+             * 塗抹連發引擎
+             */
+            handleSmear: function(e) {
+                if(STATE.isReadonly) return;
+                const touch = e.touches[0];
+                const targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
+                if (targetEl && targetEl.closest('.grid-cell')) {
+                    const cell = targetEl.closest('.grid-cell');
+                    if (cell !== this.lastHitCell) {
+                        this.lastHitCell = cell;
+                        const cx = parseInt(cell.dataset.x); const cy = parseInt(cell.dataset.y); const cardId = cell.dataset.cardId;
+                        const card = STATE.data.cards.find(c => c.id === cardId);
+                        const grid = card.grids.find(g => g.x === cx && g.y === cy);
+                        
+                        if (grid && grid.status < 1.0) {
+                            const myBullets = STATE.data.bullets.filter(b => b.ownerId === STATE.currentBeneficiary);
+                            if (myBullets.length > 0) {
+                                const bullet = myBullets[0]; // 自動取用第一顆子彈
+                                
+                                // 更新浮動提示氣泡
+                                const tooltip = document.getElementById('smear-tooltip');
+                                tooltip.innerText = `🎁 獎勵: ${bullet.reason}`;
+                                tooltip.style.left = Math.min(touch.clientX + 15, window.innerWidth - 150) + 'px';
+                                tooltip.style.top = (touch.clientY - 45) + 'px';
+                                tooltip.style.display = 'block';
+                                
+                                this.executeHit(cardId, cx, cy, bullet.id);
+                            }
+                        }
+                    }
+                }
+            },
+
+            /**
+             * 一鍵收回整張卡的點數到背包
+             */
+            recallBullets: function(cardId) {
+                if(!confirm("確定要收回這張卡片上的所有點數到背包嗎？")) return;
+                const card = STATE.data.cards.find(c => c.id === cardId);
+                if(!card) return;
+
+                let hasRecalled = false;
+                card.grids.forEach(g => {
+                    if (g.status > 0 && g.bulletId) {
+                        const log = STATE.data.logs.find(l => l.bulletId === g.bulletId);
+                        if (log && log.bulletCache) {
+                            const existing = STATE.data.bullets.find(b => b.id === log.bulletCache.id);
+                            if(!existing) STATE.data.bullets.push({...log.bulletCache});
+                            hasRecalled = true;
+                        }
+                        g.status = 0; g.bulletId = null;
+                    }
+                });
+
+                if (!hasRecalled) return showToast("這張卡片上沒有可以收回的點數");
+
+                STATE.data.logs = STATE.data.logs.filter(l => l.cardId !== cardId);
+                if(card.status === 'archived') card.status = 'active';
+
+                CoreManager.saveAndSync();
+                this.renderStage();
+                BackpackManager.render();
+                showToast("點數已全數收回背包！", false);
             },
 
             switchCard: function(dir) {
@@ -3145,25 +3224,35 @@ SSS
                         return;
                     }
 
-                    // Canvas 渲染去 EXIF 壓縮
+                    // 完美裁切不變形演算法 (1:1 大頭貼 vs 4:3 卡片)
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
                     
                     const maxSize = targetType === 'avatar' ? 128 : 480;
-                    const quality = targetType === 'avatar' ? 0.7 : 0.65;
+                    const quality = targetType === 'avatar' ? 0.7 : 0.8;
+                    const targetRatio = targetType === 'avatar' ? 1 : 4/3;
                     
                     let w = video.videoWidth;
                     let h = video.videoHeight;
-                    if (w > h) { if (w > maxSize) { h *= maxSize/w; w = maxSize; } } 
-                    else { if (h > maxSize) { w *= maxSize/h; h = maxSize; } }
+                    let sx = 0, sy = 0, sWidth = w, sHeight = h;
+
+                    if (w / h > targetRatio) {
+                        sWidth = h * targetRatio;
+                        sx = (w - sWidth) / 2; // 裁切左右保留中間
+                    } else {
+                        sHeight = w / targetRatio;
+                        sy = (h - sHeight) / 2; // 裁切上下保留中間
+                    }
                     
-                    canvas.width = w; canvas.height = h;
+                    canvas.width = maxSize;
+                    canvas.height = maxSize / targetRatio;
 
                     if (this.facingMode === 'user') {
-                        ctx.translate(w, 0);
+                        ctx.translate(canvas.width, 0);
                         ctx.scale(-1, 1);
                     }
-                    ctx.drawImage(video, 0, 0, w, h);
+                    // 將擷取的範圍繪製滿版至 canvas，保證絕無白邊且不變形
+                    ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
                     
                     const base64 = canvas.toDataURL('image/jpeg', quality);
                     this.close();
@@ -3391,14 +3480,14 @@ SSS
                                 <label class="form-label">禮物價值 ($)</label>
                                 <input type="number" id="card-price" class="form-input" placeholder="例如: 500">
                             </div>
+
                             <div class="form-group">
-                                <label class="form-label">難度 (格子數量)</label>
-                                <select id="card-grids" class="form-input">
-                                    <option value="3,3">⭐ 3x3 (9格)</option>
-                                    <option value="4,3">⭐⭐ 4x3 (12格)</option>
-                                    <option value="4,4">⭐⭐⭐ 4x4 (16格)</option>
-                                    <option value="5,4">⭐⭐⭐⭐ 5x4 (20格)</option>
-                                </select>
+                                <label class="form-label" style="display:flex; justify-content:space-between;">行數 (左右長度) <strong id="col-val" style="color:var(--accent-gold);">4</strong></label>
+                                <input type="range" id="card-cols" class="sync-slider" min="3" max="10" value="4" oninput="document.getElementById('col-val').innerText=this.value">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" style="display:flex; justify-content:space-between;">列數 (上下高度) <strong id="row-val" style="color:var(--accent-gold);">3</strong></label>
+                                <input type="range" id="card-rows" class="sync-slider" min="3" max="10" value="3" oninput="document.getElementById('row-val').innerText=this.value">
                             </div>
                             <button class="btn btn-success" id="btn-save-card" style="width:100%;">發行集點卡</button>
                         </div>
@@ -3421,9 +3510,8 @@ SSS
                 document.getElementById('btn-save-card').onclick = () => {
                     const childId = document.getElementById('card-child').value;
                     const price = parseInt(document.getElementById('card-price').value || 0);
-                    const gridStr = document.getElementById('card-grids').value.split(',');
-                    const cols = parseInt(gridStr[0]);
-                    const rows = parseInt(gridStr[1]);
+                    const cols = parseInt(document.getElementById('card-cols').value);
+                    const rows = parseInt(document.getElementById('card-rows').value);
 
                     if(price <= 0) return showToast("請輸入正確的禮物價格");
                     const defaultToy = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzQ3NTU2OSIvPjx0ZXh0IHg9IjIwMCIgeT0iMTUwIiBmb250LXNpemU9IjUwIiBmaWxsPSIjZmZmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj7npLznianlnJY8L3RleHQ+PC9zdmc+";
