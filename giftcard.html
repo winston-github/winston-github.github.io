@@ -235,78 +235,74 @@
         }
 
         /* ==========================================
-           4. 九宮格 1-9 手勢密碼鎖核心 UI (原子化防錯)
-           支援觸控連線與筆電端實體鍵盤對應
+           4. 數字鍵盤密碼鎖核心 UI (iOS 撥號風格)
            ========================================== */
-        #pattern-lock-container {
+        #pin-lock-container {
             width: 280px;
-            height: 280px;
-            margin: 0 auto 20px;
-            position: relative;
+            margin: 0 auto 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
-        .pattern-grid {
+        #pin-display {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 25px;
+            min-height: 14px;
+            max-width: 260px;
+        }
+        .pin-dot {
+            width: 14px; height: 14px;
+            border-radius: 50%;
+            border: 2px solid var(--text-sub);
+            transition: all 0.2s;
+        }
+        .pin-dot.filled {
+            background: var(--accent-gold);
+            border-color: var(--accent-gold);
+            box-shadow: 0 0 8px var(--accent-gold);
+        }
+        .pin-dot.error {
+            background: var(--accent-red);
+            border-color: var(--accent-red);
+            box-shadow: 0 0 8px var(--accent-red);
+        }
+        .pin-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            grid-template-rows: repeat(3, 1fr);
-            width: 100%;
-            height: 100%;
-            gap: 15px;
-            position: absolute;
-            z-index: 2;
+            gap: 15px 25px;
         }
-        .pattern-node {
-            width: 100%;
-            height: 100%;
+        .pin-btn {
+            width: 70px; height: 70px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.05);
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             cursor: pointer;
-            /* 擴大感應區域 */
-            border-radius: 50%;
+            transition: background 0.1s, transform 0.1s;
+            color: #fff;
+            user-select: none;
         }
-        .pattern-dot {
-            width: 18px;
-            height: 18px;
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 50%;
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
+        .pin-btn:active {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(0.95);
         }
-        .pattern-node.active .pattern-dot {
-            background: var(--accent-gold);
-            box-shadow: 0 0 20px var(--accent-gold);
-            transform: scale(1.6);
+        .pin-num {
+            font-size: 32px;
+            font-weight: 300;
+            line-height: 1.1;
         }
-        .pattern-node.error .pattern-dot {
-            background: var(--accent-red);
-            box-shadow: 0 0 20px var(--accent-red);
-        }
-        
-        /* 桌面版實體鍵盤輔助文字：僅在具備精確指標 (滑鼠) 時顯示 */
-        @media (pointer: fine) {
-            .pattern-dot::after {
-                content: attr(data-num);
-                position: absolute;
-                top: 50%; left: 50%;
-                transform: translate(-50%, -50%);
-                font-size: 11px;
-                color: #000;
-                font-weight: 900;
-                opacity: 0;
-                transition: opacity 0.2s;
-            }
-            .pattern-node:hover .pattern-dot {
-                background: rgba(255, 255, 255, 0.4);
-            }
-            .pattern-node.active .pattern-dot::after { opacity: 1; }
-        }
-        
-        #pattern-canvas {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            z-index: 1;
-            pointer-events: none;
+        .pin-alpha {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: var(--text-sub);
+            height: 12px;
         }
 
         /* ==========================================
@@ -1392,18 +1388,18 @@
             <button class="shield-btn" id="btn-claim-reward">收下禮物</button>
         </div>
         
-        <!-- 九宮格手勢解鎖 / 驗證遮罩 -->
-        <div id="pattern-lock-overlay" class="glass-overlay">
+        <!-- 數字鍵盤密碼鎖 / 驗證遮罩 -->
+        <div id="pin-lock-overlay" class="glass-overlay">
             <div class="glass-dialog">
-                <div class="dialog-title" id="pattern-title">家長權限驗證</div>
-                <div class="dialog-desc" id="pattern-desc">請輸入 1-9 軌跡密碼 (或使用鍵盤數字鍵)</div>
-                <div id="pattern-lock-container">
-                    <canvas id="pattern-canvas"></canvas>
-                    <div class="pattern-grid" id="pattern-grid">
-                        <!-- 9 個節點將由 JS 動態產生，綁定 data-num="1"~"9" -->
+                <div class="dialog-title" id="pin-title">家長權限驗證</div>
+                <div class="dialog-desc" id="pin-desc">請輸入 4~16 位數字密碼</div>
+                <div id="pin-lock-container">
+                    <div id="pin-display"></div>
+                    <div class="pin-grid" id="pin-grid">
+                        <!-- 按鈕將由 JS 動態產生 -->
                     </div>
                 </div>
-                <button class="btn btn-outline" id="btn-pattern-cancel" style="width: 100%;">取消</button>
+                <button class="btn btn-outline" id="btn-pin-cancel" style="width: 100%; margin-top: 15px;">取消</button>
             </div>
         </div>
         
@@ -1858,209 +1854,120 @@
         };
 
         // ==========================================
-        // 10. 1-9 九宮格手勢解鎖 UI 與邏輯 (跨平台支援)
+        // 10. iOS 風格數字鍵盤密碼鎖 UI 與邏輯
         // ==========================================
-        const PatternLock = {
-            nodes: [],
-            pattern: [],
-            isDrawing: false,
-            canvasCtx: null,
+        const PinLock = {
+            pin: '',
             resolveCallback: null,
             
             init: function() {
-                const grid = document.getElementById('pattern-grid');
+                const grid = document.getElementById('pin-grid');
                 grid.innerHTML = '';
-                this.nodes = [];
                 
-                // 動態生成 9 個節點
-                for (let i = 1; i <= 9; i++) {
-                    const node = document.createElement('div');
-                    node.className = 'pattern-node';
-                    node.dataset.num = i;
-                    node.innerHTML = `<div class="pattern-dot" data-num="${i}"></div>`;
-                    grid.appendChild(node);
-                    this.nodes.push(node);
+                // 完美模擬 iPhone 撥號鍵盤配置 (* 和 # 對應刪除與確認)
+                const layout = [
+                    { n: '1', a: '' }, { n: '2', a: 'ABC' }, { n: '3', a: 'DEF' },
+                    { n: '4', a: 'GHI' }, { n: '5', a: 'JKL' }, { n: '6', a: 'MNO' },
+                    { n: '7', a: 'PQRS' }, { n: '8', a: 'TUV' }, { n: '9', a: 'WXYZ' },
+                    { n: '*', a: 'DEL', val: 'del' }, { n: '0', a: '+' }, { n: '#', a: 'OK', val: 'submit' }
+                ];
+
+                layout.forEach(k => {
+                    const btn = document.createElement('div');
+                    btn.className = 'pin-btn';
+                    btn.innerHTML = `<div class="pin-num">${k.n}</div><div class="pin-alpha">${k.a}</div>`;
                     
-                    // 滑鼠端：支援單點擊連線 (無需按住拖曳)
-                    node.addEventListener('click', (e) => this.handleNodeClick(i));
-                }
+                    // onpointerdown 同時支援高反應速度的滑鼠與觸控
+                    btn.onpointerdown = (e) => {
+                        e.preventDefault(); 
+                        this.handleKey(k.val || k.n);
+                    };
+                    
+                    grid.appendChild(btn);
+                });
 
-                // 畫布設定
-                const canvas = document.getElementById('pattern-canvas');
-                this.canvasCtx = canvas.getContext('2d');
-                this.resizeCanvas();
-
-                // 觸控端：支援手指滑動連線
-                grid.addEventListener('touchstart', (e) => this.handleTouchStart(e), {passive: false});
-                grid.addEventListener('touchmove', (e) => this.handleTouchMove(e), {passive: false});
-                grid.addEventListener('touchend', (e) => this.handleTouchEnd(e));
-                
-                // 鍵盤端支援 (數字鍵 1-9)
                 window.addEventListener('keydown', (e) => {
-                    // 只有當密碼視窗開啟時才攔截
-                    if (document.getElementById('pattern-lock-overlay').classList.contains('active')) {
-                        if (e.key >= '1' && e.key <= '9') {
-                            this.handleNodeClick(parseInt(e.key, 10));
-                        } else if (e.key === 'Enter') {
-                            this.submitPattern();
-                        } else if (e.key === 'Escape' || e.key === 'Backspace') {
-                            this.reset();
-                        }
+                    if (document.getElementById('pin-lock-overlay').classList.contains('active')) {
+                        if (e.key >= '0' && e.key <= '9') this.handleKey(e.key);
+                        else if (e.key === 'Backspace') this.handleKey('del');
+                        else if (e.key === 'Enter') this.handleKey('submit');
+                        else if (e.key === 'Escape') { this.close(); if(this.resolveCallback) this.resolveCallback(null); }
                     }
                 });
 
-                document.getElementById('btn-pattern-cancel').addEventListener('click', () => {
+                document.getElementById('btn-pin-cancel').addEventListener('click', () => {
                     this.close();
                     if(this.resolveCallback) this.resolveCallback(null);
                 });
             },
 
-            resizeCanvas: function() {
-                const container = document.getElementById('pattern-lock-container');
-                const canvas = document.getElementById('pattern-canvas');
-                canvas.width = container.offsetWidth;
-                canvas.height = container.offsetHeight;
-            },
-
-            // 取得節點在 Canvas 上的中心座標
-            getNodeCenter: function(num) {
-                const node = this.nodes[num - 1];
-                const rect = node.getBoundingClientRect();
-                const containerRect = document.getElementById('pattern-lock-container').getBoundingClientRect();
-                return {
-                    x: rect.left - containerRect.left + rect.width / 2,
-                    y: rect.top - containerRect.top + rect.height / 2
-                };
-            },
-
-            drawLines: function(currentX = null, currentY = null) {
-                const ctx = this.canvasCtx;
-                ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-                if (this.pattern.length === 0) return;
-
-                ctx.beginPath();
-                ctx.lineWidth = 4;
-                ctx.strokeStyle = '#fbbf24'; // var(--accent-gold)
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-
-                const start = this.getNodeCenter(this.pattern[0]);
-                ctx.moveTo(start.x, start.y);
-
-                for (let i = 1; i < this.pattern.length; i++) {
-                    const pt = this.getNodeCenter(this.pattern[i]);
-                    ctx.lineTo(pt.x, pt.y);
+            handleKey: function(key) {
+                if (key === 'del') {
+                    this.pin = this.pin.slice(0, -1);
+                } else if (key === 'submit') {
+                    this.submitPin();
+                } else {
+                    if (this.pin.length < 16) this.pin += key;
                 }
-
-                if (currentX !== null && currentY !== null) {
-                    ctx.lineTo(currentX, currentY);
-                }
-                ctx.stroke();
-            },
-
-            handleNodeClick: function(num) {
-                if (this.pattern.includes(num)) return;
-                this.pattern.push(num);
-                this.nodes[num - 1].classList.add('active');
-                
-                // 震動回饋
                 if(navigator.vibrate) navigator.vibrate(20);
-                this.drawLines();
-                
-                // 筆電點擊模式下，若畫了至少 4 個點，且使用者停頓 1.5 秒無動作，視為輸入完畢
-                if (STATE.ui.currentDevice === 'mouse') {
-                    clearTimeout(this.submitTimer);
-                    if (this.pattern.length >= 4) {
-                        this.submitTimer = setTimeout(() => this.submitPattern(), 1200);
-                    }
+                this.updateDisplay();
+            },
+
+            updateDisplay: function() {
+                const display = document.getElementById('pin-display');
+                display.innerHTML = '';
+                // 預設顯示 4 個空心圓，隨著輸入增長
+                const totalDots = Math.max(4, this.pin.length + 1);
+                for (let i = 0; i < totalDots; i++) {
+                    if (i > 15) break;
+                    const dot = document.createElement('div');
+                    dot.className = 'pin-dot';
+                    if (i < this.pin.length) dot.classList.add('filled');
+                    display.appendChild(dot);
                 }
             },
 
-            handleTouchStart: function(e) {
-                e.preventDefault();
-                this.isDrawing = true;
-                this.reset();
-                this.handleTouchMove(e);
-            },
-
-            handleTouchMove: function(e) {
-                if (!this.isDrawing) return;
-                e.preventDefault();
-                const touch = e.touches[0];
-                const target = document.elementFromPoint(touch.clientX, touch.clientY);
-                
-                if (target && target.classList.contains('pattern-dot')) {
-                    const num = parseInt(target.getAttribute('data-num'), 10);
-                    if (!this.pattern.includes(num)) {
-                        this.pattern.push(num);
-                        this.nodes[num - 1].classList.add('active');
-                        if(navigator.vibrate) navigator.vibrate(20);
-                    }
-                }
-
-                // 繪製跟隨手指的線條
-                const containerRect = document.getElementById('pattern-lock-container').getBoundingClientRect();
-                const x = touch.clientX - containerRect.left;
-                const y = touch.clientY - containerRect.top;
-                this.drawLines(x, y);
-            },
-
-            handleTouchEnd: function(e) {
-                if (!this.isDrawing) return;
-                this.isDrawing = false;
-                this.drawLines(); // 收起跟隨線條
-                this.submitPattern();
-            },
-
-            submitPattern: function() {
-                if (this.pattern.length < 4) {
+            submitPin: function() {
+                if (this.pin.length < 4 || this.pin.length > 16) {
                     this.showError();
-                    setTimeout(() => this.reset(), 800);
                     return;
                 }
-                const pwd = this.pattern.join('');
                 if (this.resolveCallback) {
-                    const callback = this.resolveCallback; // 先暫存回呼函數
-                    this.close(); // 修正重點：輸入成功後，立刻關閉九宮格 UI 視窗
-                    callback(pwd); // 將密碼交給主系統繼續後續流程
+                    const callback = this.resolveCallback;
+                    this.close();
+                    callback(this.pin);
                 }
             },
 
             showError: function() {
-                this.nodes.forEach(n => {
-                    if (n.classList.contains('active')) n.classList.add('error');
-                });
-                this.canvasCtx.strokeStyle = '#ef4444'; // var(--accent-red)
-                this.canvasCtx.stroke();
+                const dots = document.querySelectorAll('.pin-dot.filled');
+                dots.forEach(d => d.classList.add('error'));
                 if(navigator.vibrate) navigator.vibrate([50, 50, 50]);
+                setTimeout(() => {
+                    this.pin = '';
+                    this.updateDisplay();
+                }, 400);
             },
 
-            reset: function() {
-                this.pattern = [];
-                this.nodes.forEach(n => {
-                    n.classList.remove('active', 'error');
-                });
-                this.canvasCtx.clearRect(0, 0, this.canvasCtx.canvas.width, this.canvasCtx.canvas.height);
-            },
-
-            open: function(title = "家長權限驗證", desc = "請輸入密碼以解密或授權 (至少4個點)") {
+            open: function(title = "家長權限驗證", desc = "請輸入 4~16 位數字密碼") {
                 return new Promise(resolve => {
-                    document.getElementById('pattern-title').innerText = title;
-                    document.getElementById('pattern-desc').innerText = desc;
-                    document.getElementById('pattern-lock-overlay').classList.add('active');
-                    this.resizeCanvas();
-                    this.reset();
+                    document.getElementById('pin-title').innerText = title;
+                    document.getElementById('pin-desc').innerText = desc;
+                    document.getElementById('pin-lock-overlay').classList.add('active');
+                    this.pin = '';
+                    this.updateDisplay();
                     this.resolveCallback = resolve;
                 });
             },
 
             close: function() {
-                document.getElementById('pattern-lock-overlay').classList.remove('active');
+                document.getElementById('pin-lock-overlay').classList.remove('active');
                 this.resolveCallback = null;
             }
         };
-        // 系統啟動時初始化九宮格
-        PatternLock.init();
+        // 系統啟動時初始化數字鍵盤
+        PinLock.init();
+        
 // ==========================================
         // 11. Google Drive 樹狀資料夾選擇器 (Drive Tree UI)
         // ==========================================
@@ -2391,12 +2298,12 @@
                     const folder = await DriveUI.showSelector();
                     STATE.cloud.folderId = folder.id;
 
-                    // 3. 設定初始家長與手勢密碼
-                    const pwd = await PatternLock.open("設定核心金鑰", "請繪製初始手勢密碼 (此金鑰將用於檔案加密，遺失無法救援！)");
+                    // 3. 設定初始家長與數字密碼
+                    const pwd = await PinLock.open("設定核心金鑰", "請輸入 4~16 位數字密碼 (此金鑰將用於加密，遺失無法救援！)");
                     if (!pwd) return showToast("已取消建立");
 
                     // 4. 驗證密碼確認
-                    const pwdConfirm = await PatternLock.open("確認核心金鑰", "請再次繪製相同的手勢密碼");
+                    const pwdConfirm = await PinLock.open("確認核心金鑰", "請再次輸入相同的數字密碼");
                     if (pwd !== pwdConfirm) return showToast("兩次密碼不一致，建立失敗");
 
                     showToast("正在初始化系統...", false);
@@ -2465,8 +2372,8 @@
                     const fileRes = await DriveAPI.fetch(urlGet);
                     const encryptedCompressedStr = await fileRes.text();
 
-                    // 5. 攔截：要求輸入家長解密手勢
-                    const pwd = await PatternLock.open("解密備份存檔", "請輸入家長手勢密碼以解鎖檔案");
+                    // 5. 攔截：要求輸入家長解密密碼
+                    const pwd = await PinLock.open("解密備份存檔", "請輸入家長數字密碼以解鎖檔案");
                     if (!pwd) return showToast("已取消還原");
 
                     // 6. 解密與解壓縮
@@ -2524,7 +2431,7 @@
              */
 
 requestGodMode: async function(parentUser) {
-                const pwd = await PatternLock.open("家長權限認證", `請輸入密碼以切換為 ${parentUser.name}`);
+                const pwd = await PinLock.open("家長權限認證", `請輸入密碼以切換為 ${parentUser.name}`);
                 if (!pwd) return;
 
                 STATE.isGodMode = true;
