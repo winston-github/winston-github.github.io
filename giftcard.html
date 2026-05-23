@@ -687,19 +687,17 @@
         /* ==========================================
            9. 雙模式硬體相機與圖庫 (弱光環境補償)
            ========================================== */
-        /* ==========================================
-           9. 雙模式硬體相機與圖庫 (弱光環境補償)
-           ========================================== */
         #camera-modal {
-            position: absolute;
+            position: fixed; /* 使用 fixed 突破父容器限制 */
             top: 0; left: 0; right: 0; bottom: 0;
             background: #000;
-            z-index: 10010; /* 修正：提高層級超越設定表單的 10005，徹底解決相機被擋在後面的問題 */
+            z-index: 999999; /* 絕對最高層級，無條件覆蓋所有表單 */
             display: flex;
             flex-direction: column;
             transform: translateY(100%);
             transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
         }
+        
         #camera-modal.open {
             transform: translateY(0);
         }
@@ -1518,7 +1516,39 @@
 
         function generateUUID() { return crypto.randomUUID ? crypto.randomUUID() : 'id-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now(); }
 
+        // 本機 IndexedDB 圖片快取，突破 localStorage 5MB 限制
+        const LocalDB = {
+            db: null,
+            init: function() {
+                return new Promise((resolve) => {
+                    const req = indexedDB.open('PointsSysDB', 1);
+                    req.onupgradeneeded = e => { e.target.result.createObjectStore('images', {keyPath: 'id'}); };
+                    req.onsuccess = e => { this.db = e.target.result; resolve(); };
+                    req.onerror = () => resolve();
+                });
+            },
+            save: function(id, base64) {
+                if(this.db) this.db.transaction('images', 'readwrite').objectStore('images').put({id: id, base64: base64});
+            },
+            get: function(id) {
+                return new Promise(resolve => {
+                    if(!this.db) return resolve(null);
+                    const req = this.db.transaction('images').objectStore('images').get(id);
+                    req.onsuccess = () => resolve(req.result ? req.result.base64 : null);
+                    req.onerror = () => resolve(null);
+                });
+            }
+        };
+
+        // 全域圖片取得器 (支援舊版 Base64 與新版 Google Drive FileID)
+        function getImg(idOrB64) {
+            if (!idOrB64) return "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjgiIGhlaWdodD0iMTI4Ij48cmVjdCB3aWR0aD0iMTI4IiBoZWlnaHQ9IjEyOCIgZmlsbD0iIzMzNDE1NSIvPjx0ZXh0IHg9IjY0IiB5PSI3NCIgZm9udC1zaXplPSI0MCIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+PzwvdGV4dD48L3N2Zz4=";
+            if (idOrB64.startsWith('data:')) return idOrB64;
+            return STATE.images[idOrB64] || "data:image/svg+xml;base64,..."; // 如果還沒載入完先給空白
+        }
+
         function detectPointerType() {
+            
             const hasCoarse = window.matchMedia("(pointer: coarse)").matches;
             STATE.ui.currentDevice = hasCoarse ? 'touch' : 'mouse';
             document.body.classList.toggle('device-touch', hasCoarse);
@@ -1654,7 +1684,42 @@
                 } catch (e) { return false; }
             },
 
+            uploadImage: async function(base64, folderId, fileName) {
+                // 1. 建立空檔案與 Metadata
+                const metaRes = await DriveAPI.fetch('https://www.googleapis.com/drive/v3/files?fields=id', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: fileName, parents: [folderId], mimeType: 'image/jpeg' })
+                });
+                const meta = await metaRes.json();
+                
+                // 2. 將 Base64 轉回二進位實體檔案上傳至 Google Drive
+                const b64Data = base64.split(',')[1];
+                const byteChar = atob(b64Data);
+                const byteArr = new Uint8Array(byteChar.length);
+                for (let i = 0; i < byteChar.length; i++) byteArr[i] = byteChar.charCodeAt(i);
+                const blob = new Blob([byteArr], {type: 'image/jpeg'});
+
+                await DriveAPI.fetch(`https://upload.googleapis.com/upload/drive/v3/files/${meta.id}?uploadType=media`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'image/jpeg' },
+                    body: blob
+                });
+                return meta.id; // 回傳 Google Drive 的實體 File ID
+            },
+
+            downloadImage: async function(fileId) {
+                const res = await DriveAPI.fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`);
+                const blob = await res.blob();
+                return new Promise(resolve => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.readAsDataURL(blob);
+                });
+            },
+
             resumableUpload: async function(fileId, folderId, fileName, encryptedDataStr) {
+            
                 const mimeType = 'application/json';
                 const fileMetadata = fileId ? {} : { name: fileName, parents: [folderId] };
                 
@@ -2205,7 +2270,8 @@
                     const wrap = document.createElement('div');
                     wrap.className = `avatar-wrap ${isActive ? 'active' : ''}`;
                     wrap.title = user.name;
-                    wrap.innerHTML = `<img src="${user.avatarBase64}" alt="${user.name}">`;
+                    
+                    wrap.innerHTML = `<img src="${getImg(user.avatarId || user.avatarBase64)}" alt="${user.name}">`;
                     
                     if (user.titleBadge) {
                         const badge = document.createElement('div');
@@ -2391,7 +2457,25 @@
                     STATE.data = SyncEngine.mergeCloudWithLocal(jsonStr);
                     STATE.cloud.lastSyncTime = new Date(backupFile.modifiedTime).getTime();
 
+                    // 新增：啟動圖片快取庫，背景靜默下載缺失的照片
+                    await LocalDB.init();
+                    STATE.images = {};
+                    this.updateSyncUI('syncing', '載入雲端照片...');
+                    const allImgIds = new Set();
+                    STATE.data.users.forEach(u => { if(u.avatarId) allImgIds.add(u.avatarId); });
+                    STATE.data.cards.forEach(c => { if(c.imgId) allImgIds.add(c.imgId); });
+                    
+                    for (let id of allImgIds) {
+                        let b64 = await LocalDB.get(id);
+                        if (!b64) {
+                            try { b64 = await CloudManager.downloadImage(id); if(b64) await LocalDB.save(id, b64); } catch(e) {}
+                        }
+                        if(b64) STATE.images[id] = b64;
+                    }
+                    this.updateSyncUI('success', '系統就緒');
+
                     // 8. 成功還原，寫入本機並啟動 UI
+                    
                     this.persistToLocal();
                     document.getElementById('auth-overlay').classList.remove('active');
                     showToast("還原成功！系統已啟動", false);
@@ -2543,7 +2627,9 @@ requestGodMode: async function(parentUser) {
                     // 中間顯示家長大頭貼縮圖
                     const parent = STATE.data.users.find(u => u.id === bullet.creatorId);
                     if (parent) {
-                        el.innerHTML = `<img src="${parent.avatarBase64}" style="width:70%;height:70%;border-radius:50%;object-fit:cover;">`;
+                        
+                        el.innerHTML = `<img src="${getImg(parent.avatarId || parent.avatarBase64)}" style="width:70%;height:70%;border-radius:50%;object-fit:cover;">`;
+                        
                     }
 
                     // 筆電端 (滑鼠)：Click-to-Aim 點擊選取機制
@@ -2646,7 +2732,9 @@ requestGodMode: async function(parentUser) {
                         ${recallBtnHtml}
                         <div class="card-inner">
                             <div class="card-title-overlay">${card.cardName || '專屬禮物卡'}</div>
-                            <img src="${card.imgBase64}" class="toy-image" id="toy-img-${card.id}">
+                            
+                            <img src="${getImg(card.imgId || card.imgBase64)}" class="toy-image" id="toy-img-${card.id}">
+                            
                             <div class="silver-coating">
                                 <div class="silver-progress-text" id="progress-${card.id}">0%</div>
                             </div>
@@ -2688,7 +2776,7 @@ requestGodMode: async function(parentUser) {
                         if (bullet) {
                             const parent = STATE.data.users.find(u => u.id === bullet.creatorId);
                             if (parent) {
-                                cell.innerHTML = `<img src="${parent.avatarBase64}" class="bullet-stamp">`;
+                                cell.innerHTML = `<img src="${getImg(parent.avatarId || parent.avatarBase64)}" class="bullet-stamp">`;
                             }
                         }
                     }
@@ -2759,7 +2847,7 @@ requestGodMode: async function(parentUser) {
                     if (newStatus === 1.0) cell.classList.add('hit-full');
                     
                     const parent = STATE.data.users.find(u => u.id === bullet.creatorId);
-                    if (parent) cell.innerHTML = `<img src="${parent.avatarBase64}" class="bullet-stamp">`;
+                    if (parent) cell.innerHTML = `<img src="${getImg(parent.avatarId || parent.avatarBase64)}" class="bullet-stamp">`;
                     
                     this.triggerParticles(cell, bullet.colorVar, newStatus === 1.0);
                 }
@@ -3207,7 +3295,6 @@ requestGodMode: async function(parentUser) {
         document.getElementById('btn-cam-close').onclick = () => CameraEngine.close();
         document.getElementById('btn-cam-flip').onclick = () => CameraEngine.flip();
         // btn-shutter 的 onclick 將會在實際建立表單流程中動態綁定並接收 Promise
-
 // ==========================================
         // 16.5 後台管理與表單生成引擎 (AdminManager)
         // ==========================================
@@ -3260,6 +3347,7 @@ requestGodMode: async function(parentUser) {
                     CameraEngine.open();
                     document.getElementById('btn-shutter').onclick = async () => {
                         const base64 = await CameraEngine.capture('avatar');
+                        if(!base64) return;
                         this.tempAvatar = base64;
                         const preview = document.getElementById('preview-avatar');
                         preview.src = base64;
@@ -3267,27 +3355,40 @@ requestGodMode: async function(parentUser) {
                     };
                 };
 
-                document.getElementById('btn-save-user').onclick = () => {
+                document.getElementById('btn-save-user').onclick = async () => {
                     const name = document.getElementById('new-user-name').value.trim();
                     const role = document.getElementById('new-user-role').value;
                     if (!name) return showToast("請輸入名稱");
+                    if (!this.tempAvatar) return showToast("請拍攝一張大頭貼");
                     
-                    const defaultAvatar = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjgiIGhlaWdodD0iMTI4Ij48cmVjdCB3aWR0aD0iMTI4IiBoZWlnaHQ9IjEyOCIgZmlsbD0iIzMzNDE1NSIvPjx0ZXh0IHg9IjY0IiB5PSI3NCIgZm9udC1zaXplPSI0MCIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+PzwvdGV4dD48L3N2Zz4=";
+                    const btn = document.getElementById('btn-save-user');
+                    btn.innerText = "上傳照片中..."; btn.disabled = true;
+                    CoreManager.updateSyncUI('syncing', '上傳照片至雲端...');
 
-                    const newUser = {
-                        id: generateUUID(), name: name, role: role,
-                        avatarBase64: this.tempAvatar || defaultAvatar,
-                        titleBadge: role === 'child' ? '新手' : ''
-                    };
-                    STATE.data.users.push(newUser);
-                    CoreManager.saveAndSync();
-                    this.renderUserList();
-                    UIManager.renderProfiles();
-                    
-                    document.getElementById('new-user-name').value = '';
-                    this.tempAvatar = null;
-                    document.getElementById('preview-avatar').style.display = 'none';
-                    showToast(`已新增成員: ${name}`, false);
+                    try {
+                        const fileId = await CloudManager.uploadImage(this.tempAvatar, STATE.cloud.folderId, `Avatar_${name}.jpg`);
+                        await LocalDB.save(fileId, this.tempAvatar);
+                        STATE.images[fileId] = this.tempAvatar;
+
+                        const newUser = {
+                            id: generateUUID(), name: name, role: role,
+                            avatarId: fileId, titleBadge: role === 'child' ? '新手' : ''
+                        };
+                        STATE.data.users.push(newUser);
+                        await CoreManager.saveAndSync();
+                        
+                        this.renderUserList();
+                        UIManager.renderProfiles();
+                        
+                        document.getElementById('new-user-name').value = '';
+                        this.tempAvatar = null;
+                        document.getElementById('preview-avatar').style.display = 'none';
+                        showToast(`已新增成員: ${name}`, false);
+                    } catch (e) {
+                        showToast("上傳照片失敗，請檢查網路");
+                    } finally {
+                        btn.innerText = "儲存並新增成員"; btn.disabled = false;
+                    }
                 };
             },
 
@@ -3300,7 +3401,7 @@ requestGodMode: async function(parentUser) {
                 STATE.data.users.forEach(u => {
                     const tag = document.createElement('span');
                     tag.style.cssText = "background:rgba(255,255,255,0.1); padding:5px 10px; border-radius:15px; font-size:12px; display:flex; align-items:center; gap:5px;";
-                    tag.innerHTML = `<img src="${u.avatarBase64}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;"> ${u.role === 'parent' ? '👑' : ''} ${u.name}`;
+                    tag.innerHTML = `<img src="${getImg(u.avatarId || u.avatarBase64)}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;"> ${u.role === 'parent' ? '👑' : ''} ${u.name}`;
                     list.appendChild(tag);
                 });
             },
@@ -3420,13 +3521,16 @@ requestGodMode: async function(parentUser) {
                             </div>
                             <div class="form-group">
                                 <label class="form-label">禮物卡名稱</label>
-                                <input type="text" id="card-name" class="form-input" placeholder="例如: 迪士尼樂園門票、Switch 遊戲片">
+                                <input type="text" id="card-name" class="form-input" placeholder="例如: 迪士尼樂園門票、Switch 遊戲">
                             </div>
                             <div class="form-group">
                                 <label class="form-label" style="display:flex; justify-content:space-between;">行數 (左右長度) <strong id="col-val" style="color:var(--accent-gold);">4</strong></label>
                                 <input type="range" id="card-cols" class="sync-slider" min="3" max="10" value="4" oninput="document.getElementById('col-val').innerText=this.value">
                             </div>
-                            
+                            <div class="form-group">
+                                <label class="form-label" style="display:flex; justify-content:space-between;">列數 (上下高度) <strong id="row-val" style="color:var(--accent-gold);">3</strong></label>
+                                <input type="range" id="card-rows" class="sync-slider" min="3" max="10" value="3" oninput="document.getElementById('row-val').innerText=this.value">
+                            </div>
                             <button class="btn btn-success" id="btn-save-card" style="width:100%;">發行集點卡</button>
                         </div>
                     </div>
@@ -3438,6 +3542,7 @@ requestGodMode: async function(parentUser) {
                     CameraEngine.open();
                     document.getElementById('btn-shutter').onclick = async () => {
                         const base64 = await CameraEngine.capture('card');
+                        if(!base64) return;
                         this.tempToyImg = base64;
                         const preview = document.getElementById('preview-toy');
                         preview.src = base64;
@@ -3445,7 +3550,7 @@ requestGodMode: async function(parentUser) {
                     };
                 };
 
-                document.getElementById('btn-save-card').onclick = () => {
+                document.getElementById('btn-save-card').onclick = async () => {
                     const childId = document.getElementById('card-child').value;
                     const cardName = document.getElementById('card-name').value.trim() || '神秘禮物';
                     const cols = parseInt(document.getElementById('card-cols').value);
@@ -3453,37 +3558,46 @@ requestGodMode: async function(parentUser) {
 
                     if(!this.tempToyImg) return showToast("請務必拍攝一張禮物照片！");
 
-                    const grids = [];
-                    for(let y=0; y<rows; y++){
-                        for(let x=0; x<cols; x++){
-                            grids.push({ x: x, y: y, status: 0, bulletId: null });
+                    const btn = document.getElementById('btn-save-card');
+                    btn.innerText = "上傳照片中..."; btn.disabled = true;
+                    CoreManager.updateSyncUI('syncing', '上傳照片至雲端...');
+
+                    try {
+                        const fileId = await CloudManager.uploadImage(this.tempToyImg, STATE.cloud.folderId, `Card_${cardName}.jpg`);
+                        await LocalDB.save(fileId, this.tempToyImg);
+                        STATE.images[fileId] = this.tempToyImg;
+
+                        const grids = [];
+                        for(let y=0; y<rows; y++){
+                            for(let x=0; x<cols; x++){
+                                grids.push({ x: x, y: y, status: 0, bulletId: null });
+                            }
                         }
+
+                        let creatorId = STATE.currentUser;
+                        if(creatorId === 'admin') creatorId = parents[0].id;
+
+                        const newCard = {
+                            id: generateUUID(), beneficiaryId: childId, creatorId: creatorId,
+                            imgId: fileId, cardName: cardName,
+                            cols: cols, rows: rows, grids: grids, status: 'active'
+                        };
+                        
+                        STATE.data.cards.unshift(newCard); // 最新卡片排第一
+                        STATE.ui.activeCardIndex = 0; 
+                        
+                        await CoreManager.saveAndSync();
+                        document.getElementById('dynamic-modal').classList.remove('open');
+                        showToast("集點卡建立成功！", false);
+                        CoreManager.switchBeneficiary(childId);
+                    } catch (e) {
+                        showToast("上傳照片失敗，請檢查網路");
+                    } finally {
+                        btn.innerText = "發行集點卡"; btn.disabled = false;
                     }
-
-                    let creatorId = STATE.currentUser;
-                    if(creatorId === 'admin') creatorId = parents[0].id;
-
-                    const newCard = {
-                        id: generateUUID(), beneficiaryId: childId, creatorId: creatorId,
-                        imgBase64: this.tempToyImg, cardName: cardName,
-                        cols: cols, rows: rows, grids: grids, status: 'active'
-                    };
-                    
-                    // 使用 unshift 將新卡片插入到陣列最前面
-                    STATE.data.cards.unshift(newCard);
-                    STATE.ui.activeCardIndex = 0; // 強制聚焦到第一張 (最新建立)
-
-                    CoreManager.saveAndSync();
-                    document.getElementById('dynamic-modal').classList.remove('open');
-                    showToast("集點卡建立成功！", false);
-                    
-                    // 強制切換到該孩子視角並重新渲染舞台
-                    CoreManager.switchBeneficiary(childId);
                 };
-                
             }
         };
-
         // ==========================================
         // 17. 系統啟動與高度動態校正 (DOM Ready)
         // ==========================================
