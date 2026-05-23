@@ -1294,8 +1294,10 @@
             </div>
 
             <div class="control-btn-group">
-                <!-- 家長後台/神模式切換 (移出隱藏名單，確保永遠可見！) -->
-                <button class="action-btn" id="btn-parent-mode">⚙️</button>
+                
+                <!-- 家長後台/神模式切換 (唯讀模式下隱藏防孩子誤觸) -->
+                <button class="action-btn hide-in-readonly" id="btn-parent-mode">⚙️</button>
+                
                 <!-- 新增卡片與發點數 (加上 hide-in-readonly 只有攻擊模式能用) -->
                 <button class="action-btn god-mode-only hide-in-readonly" id="btn-add-card">➕</button>
                 <!-- 塗抹連發模式 -->
@@ -1431,7 +1433,7 @@
 
 // Google OAuth 參數
         const GOOGLE_CLIENT_ID = '1044593447138-vvt8s9pubntng9vs557no1b57v82mbnh.apps.googleusercontent.com';
-        const SCOPES = "https://www.googleapis.com/auth/drive.file";
+        const SCOPES = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile";
 
         let tokenClient;
         let gisInited = false;
@@ -1636,19 +1638,34 @@
         };
 
         const CloudManager = {
-            authorize: function(callback) {
+            
+            authorize: function(callback, forcePrompt = false) {
                 if (!gisInited) return showToast("授權模組載入中，請稍候", true);
                 
-                if (!STATE.cloud.accessToken) {
+                if (!STATE.cloud.accessToken || forcePrompt) {
                     tokenClient.callback = async (resp) => {
                         if (resp.error !== undefined) {
                             showToast("授權失敗，系統保持鎖定");
                             throw resp;
                         }
                         STATE.cloud.accessToken = resp.access_token;
+                        
+                        // 嘗試取得 Google 帳號資訊並直接套用家長頭像
+                        try {
+                            const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: `Bearer ${resp.access_token}` }});
+                            STATE.cloud.googleUser = await userInfoRes.json();
+                            const parent = STATE.data?.users?.find(u => u.role === 'parent');
+                            if (parent && STATE.cloud.googleUser?.picture) {
+                                parent.avatarBase64 = STATE.cloud.googleUser.picture;
+                                parent.avatarId = null; // 強制使用 Google 雲端頭像
+                                if (typeof CoreManager !== 'undefined') CoreManager.saveLocal();
+                                if (typeof UIManager !== 'undefined') UIManager.renderProfiles();
+                            }
+                        } catch(e) { console.warn("Google Profile 讀取失敗", e); }
+                        
                         callback();
                     };
-                    tokenClient.requestAccessToken({prompt: 'consent'});
+                    tokenClient.requestAccessToken({prompt: forcePrompt ? 'select_account' : 'consent'});
                 } else {
                     callback();
                 }
@@ -2190,14 +2207,12 @@
                 
                 // 綁定底部左側主控按鈕 (家長設定 & 新增選單)
                 document.getElementById('btn-parent-mode').addEventListener('click', () => {
-                    if (!STATE.isGodMode) {
-                        const parents = STATE.data.users.filter(u => u.role === 'parent');
-                        if (parents.length > 0) CoreManager.requestGodMode(parents[0]);
-                        else showToast("請先建立家長帳號");
-                    } else {
+                    // 因為唯讀模式下此按鈕已被隱藏，點擊時必定是 God Mode，直接開啟設定即可
+                    if (STATE.isGodMode) {
                         AdminManager.openSettings(); // 開啟家庭成員設定
                     }
                 });
+                
 
                 document.getElementById('btn-add-card').addEventListener('click', () => {
                     if (!STATE.isGodMode) return showToast("唯讀模式！只有家長可以執行此操作");
@@ -2261,6 +2276,19 @@
                 // 1. 頂部只顯示當前操作者，點擊展開抽屜
                 const activeAvatar = createAvatar(activeUser, true);
                 activeAvatar.onclick = (e) => { e.stopPropagation(); drawer.classList.toggle('open'); };
+                
+                // 加入「長按」隱密機制，取代礙眼的右下角按鈕
+                let pressTimer;
+                activeAvatar.ontouchstart = activeAvatar.onmousedown = () => {
+                    pressTimer = setTimeout(() => {
+                        if (STATE.isReadonly) {
+                            const parent = STATE.data.users.find(u => u.role === 'parent');
+                            if (parent) CoreManager.requestGodMode(parent);
+                        }
+                    }, 2000);
+                };
+                activeAvatar.ontouchend = activeAvatar.onmouseup = activeAvatar.onmouseleave = () => clearTimeout(pressTimer);
+
                 container.appendChild(activeAvatar);
 
                 // 2. 抽屜顯示「其他所有」使用者，供點擊切換
@@ -2306,7 +2334,7 @@
             open: function() {
                 const modal = document.getElementById('dynamic-modal');
                 let pendingPhotos = 0;
-                STATE.data.users.forEach(u => { if (u.avatarId && u.avatarId.startsWith('local_img_')) pendingPhotos++; });
+                STATE.data.users.forEach(u => { i_')) pendingPhotos++; });
                 STATE.data.cards.forEach(c => { if (c.imgId && c.imgId.startsWith('local_img_')) pendingPhotos++; });
 
                 const lastSyncDate = STATE.cloud.lastSyncTime ? new Date(STATE.cloud.lastSyncTime).toLocaleString() : '從未同步';
@@ -2325,8 +2353,11 @@
                             </div>
                             
                             <button class="btn btn-primary" id="btn-force-sync" style="width:100%; margin-bottom:10px; padding:15px; font-size:16px;">🚀 立即完整上傳至雲端</button>
+                            
                             <button class="btn btn-outline" onclick="document.getElementById('dynamic-modal').classList.remove('open')" style="width:100%; margin-bottom:15px;">關閉</button>
+                            <button class="btn" id="btn-switch-account" style="width:100%; background:transparent; border:1px solid #3b82f6; color:#3b82f6; font-size:14px; margin-bottom:10px;">🔄 切換 Google 帳號與雲端資料夾</button>
                             <button class="btn" id="btn-logout" style="width:100%; background:transparent; border:1px solid var(--accent-red); color:var(--accent-red); font-size:14px;">登出 / 捨棄本機資料</button>
+                            
                         </div>
                     </div>
                 `;
@@ -2337,7 +2368,20 @@
                     CoreManager.performFullSync();
                 };
 
+                document.getElementById('btn-switch-account').onclick = () => {
+                    document.getElementById('dynamic-modal').classList.remove('open');
+                    CloudManager.authorize(async () => {
+                        try {
+                            const folder = await DriveUI.showSelector();
+                            STATE.cloud.folderId = folder.id;
+                            CoreManager.saveLocal();
+                            showToast("已成功切換雲端備份路徑", false);
+                        } catch(e) { showToast("取消切換"); }
+                    }, true);
+                };
+
                 document.getElementById('btn-logout').onclick = () => {
+                    
                     if(confirm("確定要登出並清除手機上的暫存資料嗎？\n(若有尚未上傳雲端的資料將會遺失！)")) {
                         localStorage.clear();
                         window.location.reload();
@@ -2417,10 +2461,21 @@
 
                     showToast("正在初始化系統...", false);
                     await LocalDB.init(); STATE.images = {};
-                    STATE.data = { users: [], cards: [], bullets: [], logs: [], last_update: Date.now() };
                     
+                    STATE.data = { 
+                        users: [], cards: [], bullets: [], logs: [], 
+                        last_update: Date.now(),
+                        behaviors: Array.from({length:25}, (_, i) => ({ color: `c${i+1}`, reason: `好表現 ${i+1}`, enabled: i < 6 }))
+                    };
+                    
+                    // 自動建立唯一家長 (綁定 Google 資訊)
+                    const adminName = STATE.cloud.googleUser?.name || '家長';
+                    const adminAvatar = STATE.cloud.googleUser?.picture || null;
+                    const adminId = 'admin_' + generateUUID();
+                    STATE.data.users.push({ id: adminId, name: adminName, role: 'parent', avatarBase64: adminAvatar });
+
                     document.getElementById('auth-overlay').classList.remove('active');
-                    STATE.currentUser = 'admin'; STATE.isGodMode = true; document.body.classList.add('god-mode');
+                    STATE.currentUser = adminId; STATE.isGodMode = true; document.body.classList.add('god-mode');
                     
                     await this.performFullSync();
                 } catch (e) { showToast(e.message || "建立發生異常"); }
@@ -2549,14 +2604,16 @@
 
                     // 1. 抓出所有本地端照片，上傳為實體檔案
                     for (let u of STATE.data.users) {
+
                         if (u.avatarId && u.avatarId.startsWith('local_img_')) {
                             const b64 = await LocalDB.get(u.avatarId);
                             if (b64) {
-                                const fileName = generateFileName('Avatar', name);
-                        const fileId = await CloudManager.uploadImage(this.tempAvatar, STATE.cloud.folderId, fileName);
-                                if (newId) { await LocalDB.save(newId, b64); STATE.images[newId] = b64; u.avatarId = newId; }
+                                const fileName = generateFileName('Avatar', u.name);
+                                const fileId = await CloudManager.uploadImage(b64, STATE.cloud.folderId, fileName);
+                                if (fileId) { await LocalDB.save(fileId, b64); STATE.images[fileId] = b64; u.avatarId = fileId; }
                             }
                         }
+                        
                     }
                     for (let c of STATE.data.cards) {
                         if (c.imgId && c.imgId.startsWith('local_img_')) {
@@ -3326,13 +3383,9 @@
                                 <label class="form-label">稱呼 (如: 爸爸、小明)</label>
                                 <input type="text" id="new-user-name" class="form-input" placeholder="輸入名稱">
                             </div>
-                            <div class="form-group">
-                                <label class="form-label">角色身分</label>
-                                <select id="new-user-role" class="form-input">
-                                    <option value="parent">👨👩 家長 (發點數的人)</option>
-                                    <option value="child">👦👧 孩子 (集點數的人)</option>
-                                </select>
-                            </div>
+                            
+                            <input type="hidden" id="new-user-role" value="child">
+                            
                             <button class="btn btn-primary" id="btn-save-user" style="width:100%;">儲存並新增成員</button>
                         </div>
                     </div>
@@ -3413,6 +3466,29 @@
                 modal.classList.add('open');
             },
 
+            editBehaviors: function() {
+                const modal = document.getElementById('dynamic-modal');
+                modal.innerHTML = `
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <div class="modal-title">✏️ 編輯好表現項目</div>
+                            <button class="modal-close" onclick="AdminManager.openGivePoint()">&times;</button>
+                        </div>
+                        <div class="modal-body" style="padding:10px;">
+                            ${STATE.data.behaviors.map((b, i) => `
+                                <div style="display:flex; gap:10px; margin-bottom:10px; align-items:center;">
+                                    <div style="width:24px; height:24px; border-radius:50%; background:rgb(var(--${b.color})); box-shadow:0 0 8px rgba(var(--${b.color}),0.5); flex-shrink:0;"></div>
+                                    <input type="text" class="form-input" style="flex:1; padding:8px; font-size:14px;" value="${b.reason}" onchange="STATE.data.behaviors[${i}].reason=this.value; CoreManager.saveLocal();">
+                                    <label style="display:flex; align-items:center; gap:5px; color:var(--text-sub); font-size:12px; flex-shrink:0;">
+                                        <input type="checkbox" ${b.enabled ? 'checked' : ''} onchange="STATE.data.behaviors[${i}].enabled=this.checked; CoreManager.saveLocal();"> 啟用
+                                    </label>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            },
+
             openGivePoint: function() {
                 const children = STATE.data.users.filter(u => u.role === 'child');
                 if (children.length === 0) return showToast("請先至 ⚙️ 設定新增「孩子」");
@@ -3438,16 +3514,23 @@
                                     <option value="0.5">0.5 點 (小子彈，需兩發才能擊碎)</option>
                                 </select>
                             </div>
+                            
                             <div class="form-group">
-                                <label class="form-label">選擇點數顏色 (25種光影)</label>
-                                <div class="color-picker-grid" id="color-grid">
-                                    ${Array.from({length:25}, (_, i) => `<div class="color-swatch ${i===2?'selected':''}" data-color="c${i+1}" style="background:rgb(var(--c${i+1})); box-shadow: 0 0 10px rgba(var(--c${i+1}), 0.8);"></div>`).join('')}
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                                    <label class="form-label" style="margin:0;">選擇好表現項目</label>
+                                    <button class="btn btn-outline" onclick="AdminManager.editBehaviors()" style="padding:4px 8px; font-size:12px; border-radius:8px;">✏️ 編輯項目</button>
+                                </div>
+                                <div class="color-picker-grid" id="color-grid" style="grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                                    ${(() => {
+                                        if(!STATE.data.behaviors) STATE.data.behaviors = Array.from({length:25}, (_, i) => ({ color: `c${i+1}`, reason: `好表現 ${i+1}`, enabled: i < 6 }));
+                                        return STATE.data.behaviors.filter(b => b.enabled).map((b, i) => 
+                                            `<div class="behavior-btn ${i===0?'selected':''}" data-color="${b.color}" data-reason="${b.reason}" style="background:rgba(var(--${b.color}), 0.2); border:2px solid ${i===0? '#fff' : 'transparent'}; color:rgb(var(--${b.color})); border-radius:8px; padding:10px 5px; text-align:center; font-size:13px; font-weight:bold; cursor:pointer;" onclick="document.querySelectorAll('.behavior-btn').forEach(el=>{el.style.borderColor='transparent';el.classList.remove('selected')}); this.style.borderColor='#fff'; this.classList.add('selected'); document.getElementById('point-reason').value=this.dataset.reason;">${b.reason}</div>`
+                                        ).join('');
+                                    })()}
                                 </div>
                             </div>
-                            <div class="form-group">
-                                <label class="form-label">好表現事由 (選填)</label>
-                                <input type="text" id="point-reason" class="form-input" placeholder="例如: 自動自發寫作業">
-                            </div>
+                            <input type="hidden" id="point-reason" value="${STATE.data.behaviors?.find(b=>b.enabled)?.reason || ''}">
+                            
                             <button class="btn btn-primary" id="btn-send-point" style="width:100%;">發送到孩子背包</button>
                         </div>
                     </div>
@@ -3463,8 +3546,12 @@
                 document.getElementById('btn-send-point').onclick = () => {
                     const childId = document.getElementById('point-child').value;
                     const size = parseFloat(document.getElementById('point-size').value);
+                    
+                    const selectedBehavior = document.querySelector('.behavior-btn.selected');
+                    if (!selectedBehavior) return showToast("請選擇一個項目");
                     const reason = document.getElementById('point-reason').value.trim() || '好表現獎勵';
-                    const colorVar = document.querySelector('.color-swatch.selected').dataset.color;
+                    const colorVar = selectedBehavior.dataset.color;
+                    
 
                     let creatorId = STATE.currentUser;
                     if(creatorId === 'admin') creatorId = STATE.data.users.find(u=>u.role==='parent').id;
