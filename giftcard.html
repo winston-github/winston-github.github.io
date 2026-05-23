@@ -2190,11 +2190,25 @@
                     document.getElementById('backpack-drawer').classList.remove('open');
                 });
                 
+                // 綁定底部左側主控按鈕 (家長設定 & 新增選單)
+                document.getElementById('btn-parent-mode').addEventListener('click', () => {
+                    if (!STATE.isGodMode) {
+                        const parents = STATE.data.users.filter(u => u.role === 'parent');
+                        if (parents.length > 0) CoreManager.requestGodMode(parents[0]);
+                        else showToast("請先建立家長帳號");
+                    } else {
+                        AdminManager.openSettings(); // 開啟家庭成員設定
+                    }
+                });
+
+                document.getElementById('btn-add-card').addEventListener('click', () => {
+                    if (!STATE.isGodMode) return showToast("唯讀模式！只有家長可以執行此操作");
+                    AdminManager.openActionMenu(); // 開啟新增集點卡與發點數選單
+                });
+
                 // 點擊空白處關閉各種抽屜
                 document.addEventListener('click', (e) => {
                     const profileDrawer = document.getElementById('profile-drawer');
-                    const bpDrawer = document.getElementById('backpack-drawer');
-                    
                     if (profileDrawer.classList.contains('open') && !e.target.closest('#profile-drawer') && !e.target.closest('.overflow-capsule')) {
                         profileDrawer.classList.remove('open');
                     }
@@ -3163,10 +3177,289 @@ SSS
         document.getElementById('btn-cam-flip').onclick = () => CameraEngine.flip();
         // btn-shutter 的 onclick 將會在實際建立表單流程中動態綁定並接收 Promise
 
+// ==========================================
+        // 16.5 後台管理與表單生成引擎 (AdminManager)
+        // ==========================================
+        const AdminManager = {
+            tempAvatar: null,
+            tempToyImg: null,
+
+            openSettings: function() {
+                this.tempAvatar = null;
+                const modal = document.getElementById('dynamic-modal');
+                modal.innerHTML = `
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <div class="modal-title">⚙️ 家庭成員設定</div>
+                            <button class="modal-close" onclick="document.getElementById('dynamic-modal').classList.remove('open')">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <div style="margin-bottom: 15px;">
+                                <h4 style="color:var(--accent-gold); margin-bottom:10px;">目前成員</h4>
+                                <div id="settings-user-list" style="display:flex; gap:10px; flex-wrap:wrap;"></div>
+                            </div>
+                            <hr style="border-color:rgba(255,255,255,0.1); margin-bottom:15px;">
+                            <h4 style="color:var(--text-main); margin-bottom:10px;">新增成員</h4>
+                            
+                            <div style="text-align:center;">
+                                <img id="preview-avatar" style="width:80px; height:80px; border-radius:50%; object-fit:cover; display:none; margin: 0 auto 10px; border: 2px solid var(--accent-gold);">
+                                <button class="btn btn-outline" id="btn-take-avatar" style="width:100%; margin-bottom:15px; padding: 10px;">📸 拍攝大頭貼</button>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">稱呼 (如: 爸爸、小明)</label>
+                                <input type="text" id="new-user-name" class="form-input" placeholder="輸入名稱">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">角色身分</label>
+                                <select id="new-user-role" class="form-input">
+                                    <option value="parent">👨👩 家長 (發點數的人)</option>
+                                    <option value="child">👦👧 孩子 (集點數的人)</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-primary" id="btn-save-user" style="width:100%;">儲存並新增成員</button>
+                        </div>
+                    </div>
+                `;
+                modal.classList.add('open');
+                this.renderUserList();
+
+                // 綁定硬體相機
+                document.getElementById('btn-take-avatar').onclick = () => {
+                    CameraEngine.open();
+                    document.getElementById('btn-shutter').onclick = async () => {
+                        const base64 = await CameraEngine.capture('avatar');
+                        this.tempAvatar = base64;
+                        const preview = document.getElementById('preview-avatar');
+                        preview.src = base64;
+                        preview.style.display = 'block';
+                    };
+                };
+
+                document.getElementById('btn-save-user').onclick = () => {
+                    const name = document.getElementById('new-user-name').value.trim();
+                    const role = document.getElementById('new-user-role').value;
+                    if (!name) return showToast("請輸入名稱");
+                    
+                    const defaultAvatar = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjgiIGhlaWdodD0iMTI4Ij48cmVjdCB3aWR0aD0iMTI4IiBoZWlnaHQ9IjEyOCIgZmlsbD0iIzMzNDE1NSIvPjx0ZXh0IHg9IjY0IiB5PSI3NCIgZm9udC1zaXplPSI0MCIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+PzwvdGV4dD48L3N2Zz4=";
+
+                    const newUser = {
+                        id: generateUUID(), name: name, role: role,
+                        avatarBase64: this.tempAvatar || defaultAvatar,
+                        titleBadge: role === 'child' ? '新手' : ''
+                    };
+                    STATE.data.users.push(newUser);
+                    CoreManager.saveAndSync();
+                    this.renderUserList();
+                    UIManager.renderProfiles();
+                    
+                    document.getElementById('new-user-name').value = '';
+                    this.tempAvatar = null;
+                    document.getElementById('preview-avatar').style.display = 'none';
+                    showToast(`已新增成員: ${name}`, false);
+                };
+            },
+
+            renderUserList: function() {
+                const list = document.getElementById('settings-user-list');
+                if(!list) return;
+                list.innerHTML = '';
+                if(STATE.data.users.length === 0) list.innerHTML = '<span style="color:var(--text-sub); font-size:12px;">尚無成員，請從下方新增</span>';
+                
+                STATE.data.users.forEach(u => {
+                    const tag = document.createElement('span');
+                    tag.style.cssText = "background:rgba(255,255,255,0.1); padding:5px 10px; border-radius:15px; font-size:12px; display:flex; align-items:center; gap:5px;";
+                    tag.innerHTML = `<img src="${u.avatarBase64}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;"> ${u.role === 'parent' ? '👑' : ''} ${u.name}`;
+                    list.appendChild(tag);
+                });
+            },
+
+            openActionMenu: function() {
+                const modal = document.getElementById('dynamic-modal');
+                modal.innerHTML = `
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <div class="modal-title">🛠️ 家長操作中心</div>
+                            <button class="modal-close" onclick="document.getElementById('dynamic-modal').classList.remove('open')">&times;</button>
+                        </div>
+                        <div class="modal-body" style="display:flex; flex-direction:column; gap:15px;">
+                            <button class="btn btn-primary" onclick="AdminManager.openGivePoint()" style="padding:20px; font-size:18px;">🎯 發放點數給孩子</button>
+                            <button class="btn btn-success" onclick="AdminManager.openAddCard()" style="padding:20px; font-size:18px;">➕ 建立新集點卡</button>
+                        </div>
+                    </div>
+                `;
+                modal.classList.add('open');
+            },
+
+            openGivePoint: function() {
+                const children = STATE.data.users.filter(u => u.role === 'child');
+                if (children.length === 0) return showToast("請先至 ⚙️ 設定新增「孩子」");
+
+                const modal = document.getElementById('dynamic-modal');
+                modal.innerHTML = `
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <div class="modal-title">🎯 發放點數 (給彈藥)</div>
+                            <button class="modal-close" onclick="document.getElementById('dynamic-modal').classList.remove('open')">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="form-group">
+                                <label class="form-label">發放給哪位孩子</label>
+                                <select id="point-child" class="form-input">
+                                    ${children.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">點數大小 (火力)</label>
+                                <select id="point-size" class="form-input">
+                                    <option value="1.0">1.0 點 (大子彈，直接擊碎一格)</option>
+                                    <option value="0.5">0.5 點 (小子彈，需兩發才能擊碎)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">選擇點數顏色 (25種光影)</label>
+                                <div class="color-picker-grid" id="color-grid">
+                                    ${Array.from({length:25}, (_, i) => `<div class="color-swatch ${i===2?'selected':''}" data-color="c${i+1}" style="background:rgb(var(--c${i+1})); box-shadow: 0 0 10px rgba(var(--c${i+1}), 0.8);"></div>`).join('')}
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">好表現事由 (選填)</label>
+                                <input type="text" id="point-reason" class="form-input" placeholder="例如: 自動自發寫作業">
+                            </div>
+                            <button class="btn btn-primary" id="btn-send-point" style="width:100%;">發送到孩子背包</button>
+                        </div>
+                    </div>
+                `;
+                
+                document.querySelectorAll('.color-swatch').forEach(el => {
+                    el.onclick = (e) => {
+                        document.querySelectorAll('.color-swatch').forEach(n => n.classList.remove('selected'));
+                        e.target.classList.add('selected');
+                    };
+                });
+
+                document.getElementById('btn-send-point').onclick = () => {
+                    const childId = document.getElementById('point-child').value;
+                    const size = parseFloat(document.getElementById('point-size').value);
+                    const reason = document.getElementById('point-reason').value.trim() || '好表現獎勵';
+                    const colorVar = document.querySelector('.color-swatch.selected').dataset.color;
+
+                    let creatorId = STATE.currentUser;
+                    if(creatorId === 'admin') creatorId = STATE.data.users.find(u=>u.role==='parent').id;
+
+                    const newBullet = {
+                        id: generateUUID(), ownerId: childId, creatorId: creatorId,
+                        size: size, colorVar: colorVar, reason: reason, createdAt: Date.now()
+                    };
+
+                    STATE.data.bullets.push(newBullet);
+                    CoreManager.saveAndSync();
+                    document.getElementById('dynamic-modal').classList.remove('open');
+                    showToast("點數已成功發送！", false);
+                    if(STATE.currentBeneficiary === childId) BackpackManager.render();
+                };
+            },
+
+            openAddCard: function() {
+                this.tempToyImg = null;
+                const children = STATE.data.users.filter(u => u.role === 'child');
+                const parents = STATE.data.users.filter(u => u.role === 'parent');
+                
+                if (children.length === 0) return showToast("請先點擊 ⚙️ 設定新增「孩子」帳號！");
+                if (parents.length === 0) return showToast("請先點擊 ⚙️ 設定新增「家長」帳號！");
+
+                const modal = document.getElementById('dynamic-modal');
+                modal.innerHTML = `
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <div class="modal-title">➕ 建立新集點卡</div>
+                            <button class="modal-close" onclick="document.getElementById('dynamic-modal').classList.remove('open')">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <div style="text-align:center;">
+                                <img id="preview-toy" style="width:100%; aspect-ratio:4/3; object-fit:cover; display:none; margin-bottom:10px; border-radius:12px; border: 2px solid rgba(255,255,255,0.2);">
+                                <button class="btn btn-outline" id="btn-take-toy" style="width:100%; margin-bottom:15px; padding: 10px;">📸 拍攝禮物照片</button>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">選擇專屬孩子</label>
+                                <select id="card-child" class="form-input">
+                                    ${children.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">禮物價值 ($)</label>
+                                <input type="number" id="card-price" class="form-input" placeholder="例如: 500">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">難度 (格子數量)</label>
+                                <select id="card-grids" class="form-input">
+                                    <option value="3,3">⭐ 3x3 (9格)</option>
+                                    <option value="4,3">⭐⭐ 4x3 (12格)</option>
+                                    <option value="4,4">⭐⭐⭐ 4x4 (16格)</option>
+                                    <option value="5,4">⭐⭐⭐⭐ 5x4 (20格)</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-success" id="btn-save-card" style="width:100%;">發行集點卡</button>
+                        </div>
+                    </div>
+                `;
+                modal.classList.add('open');
+
+                // 綁定硬體相機拍攝玩具
+                document.getElementById('btn-take-toy').onclick = () => {
+                    CameraEngine.open();
+                    document.getElementById('btn-shutter').onclick = async () => {
+                        const base64 = await CameraEngine.capture('card');
+                        this.tempToyImg = base64;
+                        const preview = document.getElementById('preview-toy');
+                        preview.src = base64;
+                        preview.style.display = 'block';
+                    };
+                };
+
+                document.getElementById('btn-save-card').onclick = () => {
+                    const childId = document.getElementById('card-child').value;
+                    const price = parseInt(document.getElementById('card-price').value || 0);
+                    const gridStr = document.getElementById('card-grids').value.split(',');
+                    const cols = parseInt(gridStr[0]);
+                    const rows = parseInt(gridStr[1]);
+
+                    if(price <= 0) return showToast("請輸入正確的禮物價格");
+                    const defaultToy = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzQ3NTU2OSIvPjx0ZXh0IHg9IjIwMCIgeT0iMTUwIiBmb250LXNpemU9IjUwIiBmaWxsPSIjZmZmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj7npLznianlnJY8L3RleHQ+PC9zdmc+";
+
+                    const grids = [];
+                    for(let y=0; y<rows; y++){
+                        for(let x=0; x<cols; x++){
+                            grids.push({ x: x, y: y, status: 0, bulletId: null });
+                        }
+                    }
+
+                    let creatorId = STATE.currentUser;
+                    if(creatorId === 'admin') creatorId = parents[0].id;
+
+                    const newCard = {
+                        id: generateUUID(), beneficiaryId: childId, creatorId: creatorId,
+                        imgBase64: this.tempToyImg || defaultToy, totalAmount: price,
+                        cols: cols, rows: rows, grids: grids, status: 'active'
+                    };
+                    
+                    STATE.data.cards.push(newCard);
+                    CoreManager.saveAndSync();
+                    document.getElementById('dynamic-modal').classList.remove('open');
+                    showToast("集點卡建立成功！", false);
+                    
+                    // 強制切換到該孩子視角並重新渲染舞台
+                    CoreManager.switchBeneficiary(childId);
+                };
+            }
+        };
 
         // ==========================================
         // 17. 系統啟動與高度動態校正 (DOM Ready)
         // ==========================================
+        
+        
         function setDynamicViewport() {
             let vh = window.innerHeight * 0.01;
             document.documentElement.style.setProperty('--vh', `${vh}px`);
