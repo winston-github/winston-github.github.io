@@ -1413,7 +1413,8 @@
                 fileId: null,
                 lastSyncTime: 0,
                 isOffline: !navigator.onLine,
-                dirtyQueue: []       // 完全斷網下的離線極限緩衝行為
+                dirtyQueue: [],      // 完全斷網下的離線極限緩衝行為
+                accessToken: null    // 存放 Google OAuth 通行證
             },
 
             // 效能與防作弊
@@ -1425,64 +1426,34 @@
             lastSystemTime: Date.now() // 本機時鐘倒流熔斷機制比對用
         };
 
-        // Google Drive API 參數 (待替換為正式環境設定)
-        const GOOGLE_CLIENT_ID = '1044593447138-vvt8s9pubntng9vs557no1b57v82mbnh.apps.googleusercontent.com'; // 替換為實際 Client ID
-        const GOOGLE_API_KEY = 'AIzaSyBjjvZaI6QKN8cr5cJsUIztheg0yFnNL0Y'; // 替換為實際 API Key
-        const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
+
+// Google OAuth 參數
+        const GOOGLE_CLIENT_ID = '1044593447138-vvt8s9pubntng9vs557no1b57v82mbnh.apps.googleusercontent.com';
         const SCOPES = "https://www.googleapis.com/auth/drive.file";
 
         let tokenClient;
-        let gapiInited = false;
         let gisInited = false;
 
         // ==========================================
         // 2. 跨瀏覽器孤島脫逃與單一分頁控制鎖
         // ==========================================
-        
-        /**
-         * 偵測 LINE/FB 等 In-App Browser 沙盒
-         * 若偵測到，立刻觸發第一道防線，顯示全螢幕脫逃遮罩
-         */
         function checkInAppBrowser() {
             const ua = navigator.userAgent || navigator.vendor || window.opera;
-            const isLine = (ua.indexOf("Line") > -1);
-            const isFb = (ua.indexOf("FBAV") > -1 || ua.indexOf("FBAN") > -1);
-            const isWechat = (ua.indexOf("MicroMessenger") > -1);
-            const isIG = (ua.indexOf("Instagram") > -1);
-
-            if (isLine || isFb || isWechat || isIG) {
+            if (ua.indexOf("Line") > -1 || ua.indexOf("FBAV") > -1 || ua.indexOf("FBAN") > -1 || ua.indexOf("MicroMessenger") > -1 || ua.indexOf("Instagram") > -1) {
                 document.getElementById('inapp-escape-overlay').style.display = 'flex';
-                // 停止後續所有系統初始化
-                throw new Error("Sandbox Isolation Detected. System Halted.");
+                throw new Error("Sandbox Isolation Detected.");
             }
         }
-        checkInAppBrowser(); // 網頁載入第一毫秒執行
+        checkInAppBrowser();
 
-        /**
-         * 單一分頁控制鎖 (Tab Mutex Lock)
-         * 防止家長開多個分頁導致本機與雲端資料覆蓋災難
-         */
         const sysChannel = new BroadcastChannel('points_sys_channel');
         const TAB_ID = crypto.randomUUID();
-
-        // 啟動時發送廣播，詢問是否已有主控分頁
         sysChannel.postMessage({ type: 'CHECK_MASTER', sender: TAB_ID });
-
         sysChannel.onmessage = (event) => {
-            if (event.data.type === 'CHECK_MASTER' && event.data.sender !== TAB_ID) {
-                // 我是已存在的分頁，告訴新分頁我還活著
-                sysChannel.postMessage({ type: 'I_AM_MASTER', sender: TAB_ID });
-            }
+            if (event.data.type === 'CHECK_MASTER' && event.data.sender !== TAB_ID) sysChannel.postMessage({ type: 'I_AM_MASTER', sender: TAB_ID });
             if (event.data.type === 'I_AM_MASTER' && event.data.sender !== TAB_ID) {
-                // 發現另一個分頁才是主控，立刻自鎖
-                document.body.innerHTML = `
-                    <div style="height:100vh;display:flex;justify-content:center;align-items:center;background:#000;color:#fff;text-align:center;padding:20px;">
-                        <div>
-                            <h2 style="color:#ef4444;margin-bottom:15px;">⚠️ 系統安全鎖定</h2>
-                            <p>本系統已在另一個分頁開啟！<br>為保障雲端資料一致性，此分頁已自動停用。<br>請回到原分頁操作或關閉此分頁。</p>
-                        </div>
-                    </div>`;
-                throw new Error("Multiple Tabs Detected. System Halted.");
+                document.body.innerHTML = `<div style="height:100vh;display:flex;justify-content:center;align-items:center;background:#000;color:#fff;text-align:center;padding:20px;"><div><h2 style="color:#ef4444;margin-bottom:15px;">⚠️ 系統安全鎖定</h2><p>本系統已在另一個分頁開啟！<br>請關閉此分頁。</p></div></div>`;
+                throw new Error("Multiple Tabs Detected.");
             }
         };
 
@@ -1496,88 +1467,61 @@
             toast.style.background = isError ? 'rgba(220, 38, 38, 0.95)' : 'rgba(16, 185, 129, 0.95)';
             toast.innerText = msg;
             container.appendChild(toast);
-            
-            // 手機震動反饋 (若支援)
             if (navigator.vibrate) navigator.vibrate(isError ? [50, 50, 50] : 50);
-
             setTimeout(() => {
                 toast.style.opacity = '0';
                 toast.style.transform = 'translateY(-30px)';
-                toast.style.transition = 'all 0.4s';
                 setTimeout(() => toast.remove(), 400);
             }, 3000);
         }
 
-        function generateUUID() {
-            // 使用 crypto API 保證唯一性
-            return crypto.randomUUID ? crypto.randomUUID() : 'id-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now();
-        }
+        function generateUUID() { return crypto.randomUUID ? crypto.randomUUID() : 'id-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now(); }
 
-        // 設備主動識別 (觸控 vs 滑鼠)
         function detectPointerType() {
             const hasCoarse = window.matchMedia("(pointer: coarse)").matches;
             STATE.ui.currentDevice = hasCoarse ? 'touch' : 'mouse';
-            // 添加 css class 以利樣式判定
             document.body.classList.toggle('device-touch', hasCoarse);
             document.body.classList.toggle('device-mouse', !hasCoarse);
         }
         detectPointerType();
         window.matchMedia("(pointer: coarse)").addEventListener('change', detectPointerType);
-// ==========================================
-        // 4. 無損壓縮演算法 (前端原生 LZW，替代 Gzip 避免外部依賴)
-        // 確保單張縮圖 Base64 與巨量資料能被極限壓縮
+
+        // ==========================================
+        // 4. 無損壓縮演算法 (前端原生 LZW)
         // ==========================================
         const DataCompressor = {
             compress: function (uncompressed) {
                 if (!uncompressed) return uncompressed;
                 let dictionary = {}, c, wc, w = "", result = [], dictSize = 256;
                 for (let i = 0; i < 256; i += 1) dictionary[String.fromCharCode(i)] = i;
-                
                 for (let i = 0; i < uncompressed.length; i += 1) {
-                    c = uncompressed.charAt(i);
-                    wc = w + c;
-                    if (dictionary.hasOwnProperty(wc)) {
-                        w = wc;
-                    } else {
-                        result.push(dictionary[w]);
-                        dictionary[wc] = dictSize++;
-                        w = String(c);
-                    }
+                    c = uncompressed.charAt(i); wc = w + c;
+                    if (dictionary.hasOwnProperty(wc)) w = wc;
+                    else { result.push(dictionary[w]); dictionary[wc] = dictSize++; w = String(c); }
                 }
                 if (w !== "") result.push(dictionary[w]);
-                // 將數字陣列轉換為 Base64 字串儲存
                 return btoa(String.fromCharCode.apply(null, new Uint16Array(result).buffer));
             },
-            
             decompress: function (compressedStr) {
                 if (!compressedStr) return compressedStr;
                 try {
                     let binaryStr = atob(compressedStr);
                     let compressed = new Uint16Array(new ArrayBuffer(binaryStr.length));
                     for (let i = 0; i < binaryStr.length; i++) compressed[i] = binaryStr.charCodeAt(i);
-
                     let dictionary = [], w, result, k, entry = "", dictSize = 256;
                     for (let i = 0; i < 256; i += 1) dictionary[i] = String.fromCharCode(i);
-
-                    w = String.fromCharCode(compressed[0]);
-                    result = w;
+                    w = String.fromCharCode(compressed[0]); result = w;
                     for (let i = 1; i < compressed.length; i += 1) {
                         k = compressed[i];
-                        if (dictionary[k]) {
-                            entry = dictionary[k];
-                        } else {
+                        if (dictionary[k]) entry = dictionary[k];
+                        else {
                             if (k === dictSize) entry = w + w.charAt(0);
-                            else return null; // 檔案損毀
+                            else return null;
                         }
-                        result += entry;
-                        dictionary[dictSize++] = w + entry.charAt(0);
-                        w = entry;
+                        result += entry; dictionary[dictSize++] = w + entry.charAt(0); w = entry;
                     }
                     return result;
-                } catch (e) {
-                    console.error("解壓縮失敗", e);
-                    return null;
-                }
+                } catch (e) { return null; }
             }
         };
 
@@ -1585,127 +1529,71 @@
         // 5. 雲端異步合併與幽靈點數防禦 (Delta Sync)
         // ==========================================
         const SyncEngine = {
-            /**
-             * 合併雲端與本機資料，保護「未上傳的家長恩賜點數」不被覆蓋
-             */
             mergeCloudWithLocal: function(cloudDataStr) {
                 try {
                     const cloudData = JSON.parse(cloudDataStr);
                     const localDataStr = localStorage.getItem('points_sys_data');
-                    
-                    if (!localDataStr) {
-                        // 本機完全無資料，直接寫入雲端資料
-                        return cloudData;
-                    }
-
+                    if (!localDataStr) return cloudData;
                     const localData = JSON.parse(localDataStr);
-                    
-                    // 1. 幽靈點數提取：找出本機有，但雲端沒有的「點數 (bullets)」
                     const cloudBulletIds = new Set(cloudData.bullets.map(b => b.id));
                     const ghostBullets = localData.bullets.filter(b => !cloudBulletIds.has(b.id));
-
-                    // 2. 離線日誌佇列提取 (Dirty Log Queue)
                     const offlineLogs = STATE.cloud.dirtyQueue;
 
-                    // 3. 安全合併：將幽靈點數塞回雲端快照中
-                    if (ghostBullets.length > 0) {
-                        cloudData.bullets = [...cloudData.bullets, ...ghostBullets];
-                        console.log(`[Delta Sync] 成功救援 ${ghostBullets.length} 顆幽靈點數！`);
-                    }
-
-                    // 4. 重演離線行為 (Replay Offline Actions)
+                    if (ghostBullets.length > 0) cloudData.bullets = [...cloudData.bullets, ...ghostBullets];
                     if (offlineLogs.length > 0) {
                         offlineLogs.forEach(log => {
-                            // 若是擊發行為，需在雲端資料庫中更新對應格子的狀態與消耗子彈
                             if (log.action === 'hit' && log.cardId && log.bulletId) {
                                 const targetCard = cloudData.cards.find(c => c.id === log.cardId);
                                 if (targetCard && targetCard.grids) {
-                                    // 找到對應座標的格子
                                     const grid = targetCard.grids.find(g => g.x === log.x && g.y === log.y);
-                                    if (grid) {
-                                        grid.status = log.hitLevel; // 0.5 或是 1.0
-                                        grid.bulletId = log.bulletId;
-                                    }
+                                    if (grid) { grid.status = log.hitLevel; grid.bulletId = log.bulletId; }
                                 }
-                                // 從背包移除已擊發子彈
                                 cloudData.bullets = cloudData.bullets.filter(b => b.id !== log.bulletId);
                             }
                         });
-                        console.log(`[Offline Replay] 成功重演 ${offlineLogs.length} 筆離線操作！`);
-                        // 清空離線緩衝列
                         STATE.cloud.dirtyQueue = [];
                         localStorage.setItem('points_sys_dirty_queue', '[]');
                     }
-
-                    // 以 Google 伺服器時間為基準更新本機時間防線
                     STATE.lastSystemTime = Math.max(STATE.lastSystemTime, cloudData.last_update || 0);
-
                     return cloudData;
-                } catch (e) {
-                    console.error("資料合併失敗，退回雲端版本", e);
-                    return JSON.parse(cloudDataStr);
-                }
+                } catch (e) { return JSON.parse(cloudDataStr); }
             }
         };
 
         // ==========================================
-        // 6. Google Drive API 對接與斷點續傳 (Resumable Uploads)
+        // 6. 原生 Fetch 雲端對接引擎 (徹底捨棄 gapi，免疫 API Key 限制)
         // ==========================================
-        
-        // 啟動載入 Drive API
-        function gapiLoaded() {
-            gapi.load('client', initializeGapiClient);
-        }
-
-        async function initializeGapiClient() {
-            try {
-                // 修正重點：移除 apiKey 參數。純粹依賴 OAuth2 Token 授權，避免被 GCP 嚴格的 API 限制卡死
-                await gapi.client.init({
-                    discoveryDocs: DISCOVERY_DOCS,
-                });
-                gapiInited = true;
-                checkReadyState();
-            } catch (err) {
-                console.error("GAPI 初始化失敗:", err);
-                showToast("Google API 載入失敗，請確認網路狀態", true);
-            }
-        }
-
-        // 啟動載入 GSI (Google Sign-In)
         function gisLoaded() {
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: GOOGLE_CLIENT_ID,
                 scope: SCOPES,
-                callback: '', // 會在觸發授權時覆寫
+                callback: '',
             });
             gisInited = true;
-            checkReadyState();
+            console.log("Google 授權模組就緒");
         }
 
-        function checkReadyState() {
-            if (gapiInited && gisInited) {
-                // UI 啟動就緒
-                console.log("Google API 就緒");
+        const DriveAPI = {
+            fetch: async function(url, options = {}) {
+                if (!options.headers) options.headers = {};
+                options.headers['Authorization'] = `Bearer ${STATE.cloud.accessToken}`;
+                const res = await fetch(url, options);
+                if (!res.ok) throw new Error(`Google API 錯誤狀態碼: ${res.status}`);
+                return res;
             }
-        }
+        };
 
         const CloudManager = {
-            /**
-             * 處理 Google 帳號授權
-             */
             authorize: function(callback) {
-                // 修正重點：補上安全鎖，確保背景模組正確載入後才允許進行登入
-                if (!gapiInited) {
-                    showToast("系統尚未準備完成，請重新整理網頁", true);
-                    throw new Error("GAPI not ready");
-                }
+                if (!gisInited) return showToast("授權模組載入中，請稍候", true);
                 
-                if (gapi.client.getToken() === null) {
+                if (!STATE.cloud.accessToken) {
                     tokenClient.callback = async (resp) => {
                         if (resp.error !== undefined) {
                             showToast("授權失敗，系統保持鎖定");
-                            throw (resp);
+                            throw resp;
                         }
+                        STATE.cloud.accessToken = resp.access_token;
                         callback();
                     };
                     tokenClient.requestAccessToken({prompt: 'consent'});
@@ -1714,36 +1602,21 @@
                 }
             },
 
-            /**
-             * 併發控制與防賽跑覆蓋 (Check ETag/ModifiedTime)
-             */
             checkVersionConflict: async function(fileId) {
                 if (!fileId) return false;
                 try {
-                    const response = await gapi.client.drive.files.get({
-                        fileId: fileId,
-                        fields: 'modifiedTime'
-                    });
-                    const cloudTime = new Date(response.result.modifiedTime).getTime();
-                    // 若雲端時間晚於本機紀錄的最後同步時間，代表被其他裝置更新過
-                    if (cloudTime > STATE.cloud.lastSyncTime) {
-                        return true; 
-                    }
+                    const url = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`;
+                    const res = await DriveAPI.fetch(url);
+                    const data = await res.json();
+                    if (new Date(data.modifiedTime).getTime() > STATE.cloud.lastSyncTime) return true; 
                     return false;
-                } catch (e) {
-                    return false;
-                }
+                } catch (e) { return false; }
             },
 
-            /**
-             * 斷點續傳機制 (Resumable Upload) 處理 256KB Chunking
-             */
             resumableUpload: async function(fileId, folderId, fileName, encryptedDataStr) {
                 const mimeType = 'application/json';
                 const fileMetadata = fileId ? {} : { name: fileName, parents: [folderId] };
-                const token = gapi.client.getToken().access_token;
                 
-                // 1. 初始化 Resumable Session
                 const initMethod = fileId ? 'PATCH' : 'POST';
                 const initUrl = fileId 
                     ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=resumable`
@@ -1753,7 +1626,7 @@
                     const initRes = await fetch(initUrl, {
                         method: initMethod,
                         headers: {
-                            'Authorization': `Bearer ${token}`,
+                            'Authorization': `Bearer ${STATE.cloud.accessToken}`,
                             'Content-Type': 'application/json',
                             'X-Upload-Content-Type': mimeType
                         },
@@ -1763,77 +1636,59 @@
                     if (!initRes.ok) throw new Error('初始化上傳失敗');
                     const uploadUrl = initRes.headers.get('Location');
 
-                    // 2. 指數型退避重試與分塊上傳 (防行動網路不穩)
                     const blob = new Blob([encryptedDataStr], { type: mimeType });
-                    const chunkSize = 256 * 1024; // 256 KB 區塊
+                    const chunkSize = 256 * 1024;
                     const fileSize = blob.size;
                     let start = 0;
 
                     while (start < fileSize) {
                         const end = Math.min(start + chunkSize, fileSize);
                         const chunk = blob.slice(start, end);
+                        let retries = 0; let chunkSuccess = false;
                         
-                        let retries = 0;
-                        let chunkSuccess = false;
-                        
-                        // 嘗試上傳區塊，最多重試 3 次 (指數退避)
                         while (!chunkSuccess && retries < 3) {
                             try {
                                 const uploadRes = await fetch(uploadUrl, {
                                     method: 'PUT',
-                                    headers: {
-                                        'Content-Range': `bytes ${start}-${end - 1}/${fileSize}`
-                                    },
+                                    headers: { 'Content-Range': `bytes ${start}-${end - 1}/${fileSize}` },
                                     body: chunk
                                 });
 
-                                if (uploadRes.status === 308 || uploadRes.status === 200 || uploadRes.status === 201) {
+                                if ([200, 201, 308].includes(uploadRes.status)) {
                                     chunkSuccess = true;
                                     if (uploadRes.status === 200 || uploadRes.status === 201) {
                                         const result = await uploadRes.json();
                                         STATE.cloud.fileId = result.id;
-                                        // 更新最後同步時間為 Google 核發的絕對時間
                                         STATE.cloud.lastSyncTime = Date.now(); 
                                     }
-                                } else {
-                                    throw new Error(`Upload returned status ${uploadRes.status}`);
-                                }
+                                } else throw new Error();
                             } catch (err) {
                                 retries++;
                                 await new Promise(r => setTimeout(r, Math.pow(2, retries) * 1000));
                             }
                         }
-                        
-                        if (!chunkSuccess) {
-                            throw new Error('網路極度不穩，上傳中斷。將暫存於本機緩衝。');
-                        }
+                        if (!chunkSuccess) throw new Error('網路極度不穩，上傳中斷。將暫存於本機緩衝。');
                         start = end;
                     }
-                    
                     showToast("雲端同步完成！", false);
                     return true;
-
                 } catch (error) {
-                    console.error("斷點續傳發生錯誤:", error);
                     showToast("雲端同步失敗，已轉入本機離線緩衝佇列");
                     return false;
                 }
             }
         };
 
-        // 載入 Google 函式庫 (在此注入 JS 標籤)
         function loadGoogleScripts() {
-            const gapiScript = document.createElement('script');
-            gapiScript.src = "https://apis.google.com/js/api.js";
-            gapiScript.onload = gapiLoaded;
-            document.head.appendChild(gapiScript);
-
             const gsiScript = document.createElement('script');
             gsiScript.src = "https://accounts.google.com/gsi/client";
             gsiScript.onload = gisLoaded;
             document.head.appendChild(gsiScript);
         }
         loadGoogleScripts();
+
+        
+        
 // ==========================================
         // 7. 本機容量滿載熔斷預警系統 (Storage Meltdown Guard)
         // ==========================================
@@ -2169,13 +2024,11 @@
             fetchFolders: async function() {
                 try {
                     showToast("正在讀取雲端目錄...", false);
-                    const response = await gapi.client.drive.files.list({
-                        q: "mimeType='application/vnd.google-apps.folder' and trashed=false",
-                        fields: "files(id, name, parents)",
-                        pageSize: 1000
-                    });
-                    
-                    const files = response.result.files;
+                    const q = encodeURIComponent("mimeType='application/vnd.google-apps.folder' and trashed=false");
+                    const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,parents)&pageSize=1000`;
+                    const response = await DriveAPI.fetch(url);
+                    const data = await response.json();
+                    const files = data.files || [];
                     const folderMap = {};
                     const roots = [];
 
@@ -2216,11 +2069,12 @@
                 };
                 if (parentId) metadata.parents = [parentId];
 
-                const res = await gapi.client.drive.files.create({
-                    resource: metadata,
-                    fields: 'id, name'
+                const res = await DriveAPI.fetch('https://www.googleapis.com/drive/v3/files?fields=id,name', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(metadata)
                 });
-                return res.result;
+                return await res.json();
             },
 
             /**
@@ -2510,16 +2364,15 @@
                     STATE.cloud.folderId = folder.id;
 
                     showToast("尋找備份存檔中...", false);
-
+SSS
+                    
                     // 3. 搜尋資料夾內最新的 .json
-                    const res = await gapi.client.drive.files.list({
-                        q: `parents in '${folder.id}' and mimeType='application/json' and trashed=false`,
-                        fields: "files(id, name, modifiedTime)",
-                        orderBy: "modifiedTime desc",
-                        pageSize: 1
-                    });
+                    const q = encodeURIComponent(`parents in '${folder.id}' and mimeType='application/json' and trashed=false`);
+                    const urlList = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc&pageSize=1`;
+                    const res = await DriveAPI.fetch(urlList);
+                    const data = await res.json();
 
-                    if (!res.result.files || res.result.files.length === 0) {
+                    if (!data.files || data.files.length === 0) {
                         if (confirm("偵測到此雲端路徑內無任何備份存檔！是否要在此路徑直接初始化為全新的系統？")) {
                             return this.handleNewFlow();
                         } else {
@@ -2527,17 +2380,13 @@
                         }
                     }
 
-                    const backupFile = res.result.files[0];
+                    const backupFile = data.files[0];
                     STATE.cloud.fileId = backupFile.id;
 
                     // 4. 下載加密備份檔
-                    const fileRes = await gapi.client.drive.files.get({
-                        fileId: backupFile.id,
-                        alt: 'media'
-                    });
-                    
-                    // API 回傳字串，有可能被瀏覽器自動解讀為 object，需確保為 string
-                    const encryptedCompressedStr = typeof fileRes.result === 'string' ? fileRes.result : JSON.stringify(fileRes.result);
+                    const urlGet = `https://www.googleapis.com/drive/v3/files/${backupFile.id}?alt=media`;
+                    const fileRes = await DriveAPI.fetch(urlGet);
+                    const encryptedCompressedStr = await fileRes.text();
 
                     // 5. 攔截：要求輸入家長解密手勢
                     const pwd = await PatternLock.open("解密備份存檔", "請輸入家長手勢密碼以解鎖檔案");
