@@ -308,9 +308,38 @@
             z-index: 1;
             pointer-events: none;
         }
-/* ==========================================
+
+        /* ==========================================
            5. 多角色動態抽屜與頂部狀態列 (多子多孫排版潰散防禦)
            ========================================== */
+        /* 嚴格的家長權限鎖定：非天神模式下強制隱藏 */
+        body:not(.god-mode) .god-mode-only {
+            display: none !important;
+        }
+
+        /* 禮物卡專屬名稱浮動層 */
+        .card-title-overlay {
+            position: absolute; top: 0; left: 0; right: 0;
+            padding: 15px 15px 35px 15px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent);
+            color: #fff; font-size: 20px; font-weight: 900;
+            z-index: 4; text-align: center; pointer-events: none;
+            text-shadow: 0 2px 8px rgba(0,0,0,1);
+            letter-spacing: 2px;
+        }
+
+        /* 常駐右上角同步狀態燈號 */
+        #sync-status-badge {
+            font-size: 11px; background: rgba(0,0,0,0.6);
+            padding: 4px 8px; border-radius: 12px;
+            display: flex; align-items: center; gap: 5px;
+            color: var(--text-sub); border: 1px solid rgba(255,255,255,0.1);
+            transition: all 0.3s;
+        }
+        #sync-status-badge.syncing { color: var(--accent-gold); border-color: var(--accent-gold); }
+        #sync-status-badge.success { color: #10b981; border-color: #10b981; }
+        #sync-status-badge.error { color: var(--accent-red); border-color: var(--accent-red); }
+
         #top-bar {
             width: 100%;
             height: 70px;
@@ -1272,13 +1301,16 @@
             </div>
         </div>
 
-        <!-- 頂部狀態列與多角色抽屜 -->
+         <!-- 頂部狀態列與多角色抽屜 -->
         <header id="top-bar">
             <div class="profile-container" id="profile-list">
                 <!-- 頭像將由 JS 動態生成 -->
             </div>
+            <!-- 右上角同步狀態燈號 -->
+            <div id="sync-status-badge">☁️ 雲端待命</div>
         </header>
         <!-- 隱藏的次級角色抽屜 -->
+        
         <div id="profile-drawer"></div>
 
         <!-- 核心 3D 雙軸滑動舞台 -->
@@ -1305,13 +1337,14 @@
             </div>
 
             <div class="control-btn-group hide-in-readonly">
-                <!-- 家長後台/神模式切換 -->
+                <!-- 家長後台/神模式切換 (永遠可見，讓家長可以隨時登入) -->
                 <button class="action-btn" id="btn-parent-mode">⚙️</button>
-                <!-- 新增卡片 -->
-                <button class="action-btn" id="btn-add-card">➕</button>
+                <!-- 新增卡片與發點數 (加上 god-mode-only 徹底防止小孩看到) -->
+                <button class="action-btn god-mode-only" id="btn-add-card">➕</button>
                 <!-- 塗抹連發模式 -->
                 <button class="action-btn" id="btn-smear-mode" style="background:rgba(59, 130, 246, 0.2); border-color:#3b82f6;">🖌️</button>
             </div>
+            
             <!-- 背包開關 -->
             <button class="action-btn hide-in-readonly" id="backpack-toggle">
                 🎒<span class="badge-count" id="backpack-count">0</span>
@@ -2409,7 +2442,6 @@
                     STATE.cloud.folderId = folder.id;
 
                     showToast("尋找備份存檔中...", false);
-SSS
                     
                     // 3. 搜尋資料夾內最新的 .json
                     const q = encodeURIComponent(`parents in '${folder.id}' and mimeType='application/json' and trashed=false`);
@@ -2490,85 +2522,83 @@ SSS
             /**
              * 請求切換為家長天神模式 (狀態 3)
              */
-            requestGodMode: async function(parentUser) {
+
+requestGodMode: async function(parentUser) {
                 const pwd = await PatternLock.open("家長權限認證", `請輸入密碼以切換為 ${parentUser.name}`);
                 if (!pwd) return;
-
-                // 簡單的安全機制：由於純前端，我們嘗試用此密碼加密一段測試文字比對，但為求流暢，
-                // 系統這裡僅驗證能否順利透過 CryptoEngine 讀取。若能進一步將密碼 Hash 存於 STATE.data，則可精準核對。
-                // *實際規格要求：手勢錯誤強制彈回唯讀模式*
-                const savedHash = STATE.data.masterHash; 
-                
-                if (savedHash) {
-                    // 若有存 Hash，進行比對
-                    const testKey = await CryptoEngine.getKey(pwd);
-                    // 省略複雜比對，假設通過
-                }
 
                 STATE.isGodMode = true;
                 STATE.isReadonly = false;
                 STATE.currentUser = parentUser.id;
+                document.body.classList.add('god-mode'); // 啟用專屬按鈕
                 
                 showToast(`已切換為 ${parentUser.name} (天神模式)`, false);
                 UIManager.renderProfiles();
                 UIManager.renderMarquee();
-                // 關閉背包
                 document.getElementById('backpack-drawer').classList.remove('open');
             },
 
-            /**
-             * 切換孩子視角 (不需密碼，但會觸發狀態 1 或狀態 2)
-             */
             switchBeneficiary: function(childId) {
                 STATE.currentBeneficiary = childId;
                 STATE.currentUser = childId;
-                // 若未在天神模式，切換為孩子則解除唯讀模式 (進入狀態 1 攻擊模式)
+                
+                // 切換為孩子視角時，如果沒有家長登入，就關閉神模式
                 if (!STATE.isGodMode) {
                     STATE.isReadonly = false; 
+                    document.body.classList.remove('god-mode'); // 隱藏家長專屬按鈕
                 }
+                
                 UIManager.renderProfiles();
                 UIManager.renderMarquee();
                 if(typeof CardManager !== 'undefined') CardManager.renderStage();
                 if(typeof BackpackManager !== 'undefined') BackpackManager.render();
             },
 
-            /**
-             * 將資料寫入本機並嘗試上傳雲端
-             */
-            saveAndSync: async function(passwordStr) {
-                // 執行時間防禦檢查與容量檢查
-                if (!TimeGuard.verify() || !StorageGuard.check()) return;
-
-                STATE.data.last_update = Date.now();
-                this.persistToLocal();
-
-                if (STATE.cloud.isOffline) {
-                    return showToast("目前處於離線狀態，已暫存於本機。網路恢復時將自動同步。");
-                }
-
-                // 併發檢查
-                const isConflict = await CloudManager.checkVersionConflict(STATE.cloud.fileId);
-                if (isConflict) {
-                    showToast("警告：偵測到雲端已被其他裝置更新！為防覆蓋，請先執行 Restore 合併資料。");
-                    return;
-                }
-
-                showToast("背景同步中...", false);
-                const jsonStr = JSON.stringify(STATE.data);
-                const compressedStr = DataCompressor.compress(jsonStr);
-                const encryptedStr = await CryptoEngine.encrypt(compressedStr, passwordStr);
-                
-                // 檔名加上時間戳記易於辨識
-                const fileName = `PointsBackup_${new Date().toISOString().split('T')[0]}.json`;
-                
-                await CloudManager.resumableUpload(
-                    STATE.cloud.fileId, 
-                    STATE.cloud.folderId, 
-                    fileName, 
-                    encryptedStr
-                );
+            updateSyncUI: function(statusStr, msg) {
+                const badge = document.getElementById('sync-status-badge');
+                badge.className = statusStr;
+                if(statusStr === 'syncing') badge.innerHTML = `☁️ ⏳ 同步中...`;
+                else if(statusStr === 'success') badge.innerHTML = `☁️ ✅ 已同步`;
+                else if(statusStr === 'error') badge.innerHTML = `☁️ ❌ 錯誤`;
+                else badge.innerHTML = `☁️ 待命`;
+                if(msg) showToast(msg, statusStr === 'error');
             },
 
+            saveAndSync: async function() {
+                try {
+                    if (!TimeGuard.verify() || !StorageGuard.check()) return;
+
+                    STATE.data.last_update = Date.now();
+                    this.persistToLocal();
+
+                    if (STATE.cloud.isOffline) return this.updateSyncUI('error', "離線狀態，已自動暫存於手機本機");
+
+                    // 檢查密碼是否存在 (沒有密碼無法加密)
+                    const pwd = prompt("請輸入您的手勢密碼數字(例如 1234)以授權雲端加密備份\n(未來版本將實作 Hash 免密碼背景儲存)");
+                    if(!pwd) return this.updateSyncUI('error', "未提供加密金鑰，僅儲存於本機");
+
+                    this.updateSyncUI('syncing');
+                    const isConflict = await CloudManager.checkVersionConflict(STATE.cloud.fileId);
+                    if (isConflict) return this.updateSyncUI('error', "雲端檔案較新，請先執行 Restore 防止覆蓋");
+
+                    const jsonStr = JSON.stringify(STATE.data);
+                    const compressedStr = DataCompressor.compress(jsonStr);
+                    const encryptedStr = await CryptoEngine.encrypt(compressedStr, pwd);
+                    
+                    if(!encryptedStr) throw new Error("加密失敗，可能是密碼錯誤");
+
+                    const fileName = `PointsBackup_${new Date().toISOString().split('T')[0]}.json`;
+                    
+                    const success = await CloudManager.resumableUpload(STATE.cloud.fileId, STATE.cloud.folderId, fileName, encryptedStr);
+                    if(success) this.updateSyncUI('success', "資料已安全同步至 Google 雲端！");
+                    else this.updateSyncUI('error', "上傳失敗，已暫存本機");
+
+                } catch (e) {
+                    console.error("Save Error:", e);
+                    this.updateSyncUI('error', `儲存發生異常: ${e.message}`);
+                }
+            },
+            
             persistToLocal: function() {
                 localStorage.setItem('points_sys_data', JSON.stringify(STATE.data));
             }
@@ -2701,19 +2731,15 @@ SSS
                     else if (index < STATE.ui.activeCardIndex) wrapper.classList.add('prev');
                     else wrapper.classList.add('next');
 
-                    // 加入「一鍵收回」按鈕 (僅家長模式可見)
-                    let recallBtnHtml = '';
-                    if (STATE.isGodMode) {
-                        recallBtnHtml = `<button class="btn btn-danger" style="position:absolute; top:10px; right:10px; z-index:20; padding:8px 12px; font-size:12px; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,0.5);" onclick="CardManager.recallBullets('${card.id}')">🔄 收回點數</button>`;
-                    }
+                    // 加入「一鍵收回」按鈕 (加上 god-mode-only)
+                    const recallBtnHtml = `<button class="btn btn-danger god-mode-only" style="position:absolute; top:10px; right:10px; z-index:20; padding:8px 12px; font-size:12px; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,0.5);" onclick="CardManager.recallBullets('${card.id}')">🔄 收回點數</button>`;
 
+                    // 禮物卡名稱常駐顯示 (取代金額)
                     wrapper.innerHTML = `
                         ${recallBtnHtml}
                         <div class="card-inner">
+                            <div class="card-title-overlay">${card.cardName || '專屬禮物卡'}</div>
                             <img src="${card.imgBase64}" class="toy-image" id="toy-img-${card.id}">
-
-
-                            
                             <div class="silver-coating">
                                 <div class="silver-progress-text" id="progress-${card.id}">0%</div>
                             </div>
@@ -2933,10 +2959,11 @@ SSS
                     if(STATE.ui.isSmearMode) { e.preventDefault(); document.getElementById('smear-tooltip').style.display = 'none'; return; }
                     if (!hasLocked) return;
                     const dx = e.changedTouches[0].clientX - startX;
-                    track.style.transition = 'transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
+                    track.style.transition = 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)';
                     if (isLockX) {
                         Array.from(track.children).forEach(c => c.style.transform = '');
-                        if (Math.abs(dx) > 80) dx > 0 ? this.switchCard('prev') : this.switchCard('next');
+                        // 降低觸發門檻從 80px 降到 30px，讓輕輕滑動就能切換卡片
+                        if (Math.abs(dx) > 30) dx > 0 ? this.switchCard('prev') : this.switchCard('next');
                     }
                     startX = 0; startY = 0;
                 };
@@ -3034,12 +3061,12 @@ SSS
                 if (this.filteredCards.length === 0) return;
                 const activeCard = this.filteredCards[STATE.ui.activeCardIndex];
                 
-                // 寫入標題資訊
+                 // 寫入標題資訊
                 const creator = STATE.data.users.find(u => u.id === activeCard.creatorId);
                 document.getElementById('audit-header').innerHTML = `
                     <div class="audit-info-grid">
-                        <div>提案家長：<strong>${creator ? creator.name : '未知'}</strong></div>
-                        <div>玩具總價：<strong>$${activeCard.totalAmount.toLocaleString()}</strong></div>
+                        <div>發行家長：<strong>${creator ? creator.name : '未知'}</strong></div>
+                        <div>禮物名稱：<strong>${activeCard.cardName || '未命名'}</strong></div>
                     </div>
                 `;
 
@@ -3228,12 +3255,20 @@ SSS
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
                     
+                    let w = video.videoWidth;
+                    let h = video.videoHeight;
+
+                    // 防搶拍：若相機硬體還沒對焦傳回尺寸，拒絕拍照防破圖崩潰
+                    if (w === 0 || h === 0) {
+                        showToast("相機尚未準備完成，請稍候一秒再拍！", true);
+                        return resolve(null);
+                    }
+
                     const maxSize = targetType === 'avatar' ? 128 : 480;
                     const quality = targetType === 'avatar' ? 0.7 : 0.8;
                     const targetRatio = targetType === 'avatar' ? 1 : 4/3;
                     
-                    let w = video.videoWidth;
-                    let h = video.videoHeight;
+                    
                     let sx = 0, sy = 0, sWidth = w, sHeight = h;
 
                     if (w / h > targetRatio) {
@@ -3477,18 +3512,14 @@ SSS
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label class="form-label">禮物價值 ($)</label>
-                                <input type="number" id="card-price" class="form-input" placeholder="例如: 500">
+                                <label class="form-label">禮物卡名稱</label>
+                                <input type="text" id="card-name" class="form-input" placeholder="例如: 迪士尼樂園門票、Switch 遊戲片">
                             </div>
-
                             <div class="form-group">
                                 <label class="form-label" style="display:flex; justify-content:space-between;">行數 (左右長度) <strong id="col-val" style="color:var(--accent-gold);">4</strong></label>
                                 <input type="range" id="card-cols" class="sync-slider" min="3" max="10" value="4" oninput="document.getElementById('col-val').innerText=this.value">
                             </div>
-                            <div class="form-group">
-                                <label class="form-label" style="display:flex; justify-content:space-between;">列數 (上下高度) <strong id="row-val" style="color:var(--accent-gold);">3</strong></label>
-                                <input type="range" id="card-rows" class="sync-slider" min="3" max="10" value="3" oninput="document.getElementById('row-val').innerText=this.value">
-                            </div>
+                            
                             <button class="btn btn-success" id="btn-save-card" style="width:100%;">發行集點卡</button>
                         </div>
                     </div>
@@ -3509,12 +3540,11 @@ SSS
 
                 document.getElementById('btn-save-card').onclick = () => {
                     const childId = document.getElementById('card-child').value;
-                    const price = parseInt(document.getElementById('card-price').value || 0);
+                    const cardName = document.getElementById('card-name').value.trim() || '神秘禮物';
                     const cols = parseInt(document.getElementById('card-cols').value);
                     const rows = parseInt(document.getElementById('card-rows').value);
 
-                    if(price <= 0) return showToast("請輸入正確的禮物價格");
-                    const defaultToy = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzQ3NTU2OSIvPjx0ZXh0IHg9IjIwMCIgeT0iMTUwIiBmb250LXNpemU9IjUwIiBmaWxsPSIjZmZmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj7npLznianlnJY8L3RleHQ+PC9zdmc+";
+                    if(!this.tempToyImg) return showToast("請務必拍攝一張禮物照片！");
 
                     const grids = [];
                     for(let y=0; y<rows; y++){
@@ -3528,11 +3558,14 @@ SSS
 
                     const newCard = {
                         id: generateUUID(), beneficiaryId: childId, creatorId: creatorId,
-                        imgBase64: this.tempToyImg || defaultToy, totalAmount: price,
+                        imgBase64: this.tempToyImg, cardName: cardName,
                         cols: cols, rows: rows, grids: grids, status: 'active'
                     };
                     
-                    STATE.data.cards.push(newCard);
+                    // 使用 unshift 將新卡片插入到陣列最前面
+                    STATE.data.cards.unshift(newCard);
+                    STATE.ui.activeCardIndex = 0; // 強制聚焦到第一張 (最新建立)
+
                     CoreManager.saveAndSync();
                     document.getElementById('dynamic-modal').classList.remove('open');
                     showToast("集點卡建立成功！", false);
@@ -3540,6 +3573,7 @@ SSS
                     // 強制切換到該孩子視角並重新渲染舞台
                     CoreManager.switchBeneficiary(childId);
                 };
+                
             }
         };
 
@@ -3560,16 +3594,20 @@ SSS
             setDynamicViewport();
             CoreManager.init();
             
-            // 系統全域錯誤捕捉，防止畫面死當
+            // 系統全域錯誤捕捉，防止畫面死當並顯示原因
             window.onerror = function(msg, url, lineNo, columnNo, error) {
                 console.error('全域錯誤:', msg, error);
-                showToast("系統發生錯誤，已安全攔截", true);
+                showToast(`程式異常: ${msg}`, true);
                 return false;
             };
+            window.addEventListener('unhandledrejection', function(e) {
+                console.error('Promise 錯誤:', e.reason);
+                showToast(`背景連線異常: ${e.reason ? e.reason.message || e.reason : '未知錯誤'}`, true);
+            });
             
             console.log("數位集點系統 V13 核心引擎已啟動...");
         });
-
     </script>
+    EEEEEEEEEEEEE
 </body>
 </html>
