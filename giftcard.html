@@ -263,13 +263,16 @@
                     🎒<span class="badge-count" id="backpack-count">0</span>
                 </button>
             </div>
+
             <!-- 家長模式: 專屬管理工具列 (解除隱藏+選單) -->
             <div id="parent-toolbar" style="display:none; width:100%; justify-content:space-between; gap:10px;">
                 <button class="btn btn-primary" style="flex:1; padding:12px 5px; font-size:15px;" onclick="window.AdminManager.openGivePoint()">🎯 發點數</button>
                 <button class="btn btn-success" style="flex:1; padding:12px 5px; font-size:15px;" onclick="window.AdminManager.openAddCard()">➕ 新卡片</button>
                 <button class="btn btn-outline" style="width:50px; padding:0; display:flex; justify-content:center; align-items:center;" onclick="window.AdminManager.openSettings()">⚙️</button>
                 <button class="btn btn-outline" id="btn-smear-mode" style="width:50px; padding:0; display:flex; justify-content:center; align-items:center;">🖌️</button>
+                <button class="btn btn-outline" style="width:50px; padding:0; display:flex; justify-content:center; align-items:center; border-color: var(--accent-red); color: var(--accent-red);" onclick="CoreManager.enterReadonlyMode(); showToast('🔒 系統已鎖定，回到孩子模式', false);">🔒</button>
             </div>
+            
         </footer>
 
         <div id="smear-tooltip" style="position:fixed; pointer-events:none; z-index:99999; background:rgba(0,0,0,0.85); color:var(--accent-gold); padding:8px 12px; border-radius:10px; display:none; font-weight:bold; font-size:14px; box-shadow:0 4px 15px rgba(0,0,0,0.6); white-space:nowrap;"></div>
@@ -509,13 +512,12 @@
                     const res = await fetch(url, options);
                     if (!res.ok) {
                         const errText = await res.text().catch(e=>"無法讀取詳細內容");
-                        throw new Error(`Google API [${res.status}]: ${errText}`);
+                        throw new Error(`[Google HTTP ${res.status}] URL: ${url}\nResponse: ${errText}`);
                     }
                     return res;
                 } catch (e) {
-                    // 若 Safari 再次發生 Load failed，直接印出是哪條網址被阻擋，方便追蹤
                     if (e.message && (e.message.includes('Load failed') || e.message.includes('Failed to fetch'))) {
-                        throw new Error(`Safari 阻擋了請求 (CORS 或網路異常): ${url}`);
+                        throw new Error(`[網路層阻擋] 可能是 CORS、阻擋廣告插件或無網路連線。\nTarget URL: ${url}\nOriginal Error: ${e.message}`);
                     }
                     throw e;
                 }
@@ -1117,18 +1119,18 @@
                 localStorage.setItem('points_sys_cloud', JSON.stringify({ folderId: STATE.cloud.folderId, fileId: STATE.cloud.fileId, lastSyncTime: STATE.cloud.lastSyncTime }));
             },
 
-            performFullSync: async function() {
+            performFullSync: async function(forceOverwrite = false) {
                 let debugStep = "初始化同步";
                 try {
                     debugStep = "檢查網路與通行證";
-                    if (STATE.cloud.isOffline) return showToast("目前處於離線狀態，無法同步");
-                    if (!STATE.cloud.accessToken) return CloudManager.authorize(() => this.performFullSync());
+                    if (STATE.cloud.isOffline) { this.updateSyncUI('error', '處於離線狀態'); return showToast("目前處於離線狀態，無法同步"); }
+                    if (!STATE.cloud.accessToken) { this.updateSyncUI('error', '等待授權'); return CloudManager.authorize(() => this.performFullSync(forceOverwrite)); }
 
                     debugStep = "驗證加密金鑰";
                     let pwd = localStorage.getItem('sys_pin_cache');
                     if (!pwd) {
                         pwd = await PinLock.open("授權雲端同步", "請輸入您的數字密碼以加密備份");
-                        if (pwd) localStorage.setItem('sys_pin_cache', pwd); else return this.updateSyncUI('error', "未提供密碼，取消同步");
+                        if (pwd) localStorage.setItem('sys_pin_cache', pwd); else { this.updateSyncUI('error', "未輸入密碼"); return; }
                     }
 
                     this.updateSyncUI('syncing', '正在上傳照片至雲端...');
@@ -1157,9 +1159,17 @@
 
                     this.updateSyncUI('syncing', '正在備份加密資料庫...');
                     debugStep = "檢查 Google Drive 檔案衝突";
-                    if (STATE.cloud.fileId) {
+                    if (STATE.cloud.fileId && !forceOverwrite) {
                         const isConflict = await CloudManager.checkVersionConflict(STATE.cloud.fileId);
-                        if (isConflict) return showToast("雲端有新進度！為防覆蓋，請重新載入網頁並選擇 Restore", true);
+                        if (isConflict) {
+                            this.updateSyncUI('error', '檔案版本衝突');
+                            const userChoice = confirm("⚠️ 版本衝突警告\n\n系統偵測到「雲端硬碟」上的存檔比您這台手機還要新！（可能您在別台裝置發過點數）\n\n按【確定】👉 強制用這台手機的舊資料覆蓋雲端。\n按【取消】👉 停止上傳。您可以重新整理網頁並點擊 Restore 載入最新進度。");
+                            if (userChoice) {
+                                return this.performFullSync(true); // 帶入 forceOverwrite 重試
+                            } else {
+                                return; // 放棄同步
+                            }
+                        }
                     }
 
                     debugStep = "資料庫壓縮與 AES 加密";
@@ -1170,13 +1180,30 @@
                     
                     debugStep = "呼叫 Resumable Upload 寫入雲端";
                     const success = await CloudManager.resumableUpload(STATE.cloud.fileId, STATE.cloud.folderId, fileName, encryptedStr);
-                    if (success) this.updateSyncUI('success', "完整同步成功！所有資料已上傳"); else throw new Error("Resumable Upload 回傳失敗");
+                    if (success) {
+                        this.updateSyncUI('success', "完整同步成功！所有資料已上傳");
+                    } else {
+                        throw new Error("Resumable Upload 回傳失敗 (回傳值為 false)");
+                    }
                 } catch (e) {
-                    console.error("同步異常詳細資訊:", e);
-                    const errStr = e.message ? e.message : JSON.stringify(e);
-                    const diag = `==== 系統診斷報告 ====\n[斷點] ${debugStep}\n[錯誤] ${errStr}\n[Token] ${STATE.cloud.accessToken ? 'OK' : 'MISSING'}\n[FolderID] ${STATE.cloud.folderId || 'NULL'}\n[FileID] ${STATE.cloud.fileId || 'NULL'}`;
-                    alert(diag + "\n\n請截圖此畫面提供除錯。");
-                    this.updateSyncUI('error', `同步異常: ${extractErrorMsg(e)}`);
+                    console.error("同步異常:", e);
+                    this.updateSyncUI('error', `同步異常`);
+                    
+                    // 終極除錯彈窗 (UX 改善：給開發者截圖用的專屬介面)
+                    const errStr = e.stack || e.message || JSON.stringify(e);
+                    const diag = `==== 系統診斷報告 ====\n[時間] ${new Date().toLocaleString()}\n[斷點] ${debugStep}\n[錯誤] ${errStr}\n[Token] ${STATE.cloud.accessToken ? 'OK' : 'MISSING'}\n[FolderID] ${STATE.cloud.folderId || 'NULL'}\n[FileID] ${STATE.cloud.fileId || 'NULL'}`;
+                    
+                    const modal = document.getElementById('dynamic-modal');
+                    modal.innerHTML = `
+                        <div class="modal-content" style="max-width:95%;">
+                            <div class="modal-header"><div class="modal-title" style="color:var(--accent-red);">❌ 同步崩潰</div><button class="modal-close" onclick="document.getElementById('dynamic-modal').classList.remove('open')">&times;</button></div>
+                            <div class="modal-body">
+                                <p style="font-size:14px; margin-bottom:10px;">程式執行時發生未預期的錯誤，請截圖下方紅框內容提供給開發者：</p>
+                                <textarea style="width:100%; height:200px; background:#111; color:#ef4444; border:1px solid #ef4444; padding:10px; font-family:monospace; font-size:11px;" readonly>${diag}</textarea>
+                                <button class="btn btn-outline" onclick="document.getElementById('dynamic-modal').classList.remove('open')" style="width:100%; margin-top:15px;">關閉</button>
+                            </div>
+                        </div>`;
+                    modal.classList.add('open');
                 }
             }
         
