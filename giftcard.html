@@ -254,17 +254,22 @@
         </main>
 
         <footer id="bottom-bar">
-            <div id="marquee-container">
-                <div class="marquee-text" id="marquee-text">歡迎使用！差一點點就可以得到新禮物囉！</div>
+            <!-- 孩子模式: 跑馬燈與背包 -->
+            <div id="child-toolbar" style="width:100%; display:flex; justify-content:space-between; align-items:center;">
+                <div id="marquee-container" style="flex:1; overflow:hidden; position:relative; height:40px; margin-right:15px; background:rgba(0,0,0,0.6); border-radius:20px; display:flex; align-items:center; border: 1px solid rgba(255,255,255,0.1);">
+                    <div class="marquee-text" id="marquee-text">歡迎使用！差一點點就可以得到新禮物囉！</div>
+                </div>
+                <button class="action-btn" id="backpack-toggle">
+                    🎒<span class="badge-count" id="backpack-count">0</span>
+                </button>
             </div>
-            <div class="control-btn-group">
-                <button class="action-btn hide-in-readonly" id="btn-parent-mode">⚙️</button>
-                <button class="action-btn god-mode-only hide-in-readonly" id="btn-add-card">➕</button>
-                <button class="action-btn hide-in-readonly" id="btn-smear-mode" style="background:rgba(59, 130, 246, 0.2); border-color:#3b82f6;">🖌️</button>
+            <!-- 家長模式: 專屬管理工具列 (解除隱藏+選單) -->
+            <div id="parent-toolbar" style="display:none; width:100%; justify-content:space-between; gap:10px;">
+                <button class="btn btn-primary" style="flex:1; padding:12px 5px; font-size:15px;" onclick="window.AdminManager.openGivePoint()">🎯 發點數</button>
+                <button class="btn btn-success" style="flex:1; padding:12px 5px; font-size:15px;" onclick="window.AdminManager.openAddCard()">➕ 新卡片</button>
+                <button class="btn btn-outline" style="width:50px; padding:0; display:flex; justify-content:center; align-items:center;" onclick="window.AdminManager.openSettings()">⚙️</button>
+                <button class="btn btn-outline" id="btn-smear-mode" style="width:50px; padding:0; display:flex; justify-content:center; align-items:center;">🖌️</button>
             </div>
-            <button class="action-btn hide-in-readonly" id="backpack-toggle">
-                🎒<span class="badge-count" id="backpack-count">0</span>
-            </button>
         </footer>
 
         <div id="smear-tooltip" style="position:fixed; pointer-events:none; z-index:99999; background:rgba(0,0,0,0.85); color:var(--accent-gold); padding:8px 12px; border-radius:10px; display:none; font-weight:bold; font-size:14px; box-shadow:0 4px 15px rgba(0,0,0,0.6); white-space:nowrap;"></div>
@@ -750,7 +755,7 @@
         };
         PinLock.init();
 
-        const DriveUI = {
+        window.DriveUI = {
             fetchFolders: async function() {
                 try {
                     showToast("正在讀取雲端目錄...", false);
@@ -796,6 +801,26 @@
                                 const nameSpan = document.createElement('span'); nameSpan.innerHTML = `📁 ${f.name}`; nameSpan.style.cssText = 'color: #fff; font-weight: bold;';
                                 const selectBtn = document.createElement('button'); selectBtn.innerText = "選擇"; selectBtn.className = "btn btn-success"; selectBtn.style.cssText = "padding: 6px 12px; border-radius: 8px; font-size: 12px;";
                                 item.appendChild(nameSpan); item.appendChild(selectBtn);
+                                
+                                // 隱藏功能：長按「選擇」按鈕出現刪除按鈕
+                                let pressTimer;
+                                selectBtn.ontouchstart = selectBtn.onmousedown = () => {
+                                    pressTimer = setTimeout(() => {
+                                        if(item.querySelector('.del-btn')) return;
+                                        const delBtn = document.createElement('button'); delBtn.innerText = "🗑️ 刪除"; delBtn.className = "btn btn-danger del-btn"; delBtn.style.cssText = "padding: 6px 12px; border-radius: 8px; font-size: 12px; margin-right: 5px;";
+                                        delBtn.onclick = async (e) => {
+                                            e.stopPropagation();
+                                            if(confirm(`警告：將把「${f.name}」與內容移至雲端硬碟垃圾桶！確定刪除？`)){
+                                                showToast("刪除中...", false);
+                                                await DriveAPI.fetch(`https://www.googleapis.com/drive/v3/files/${f.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }) });
+                                                item.remove(); showToast("已移至垃圾桶", false);
+                                            }
+                                        };
+                                        item.insertBefore(delBtn, selectBtn);
+                                        if(navigator.vibrate) navigator.vibrate(50);
+                                    }, 1500);
+                                };
+                                selectBtn.ontouchend = selectBtn.onmouseup = selectBtn.onmouseleave = () => clearTimeout(pressTimer);
                                 selectBtn.onclick = () => { modal.classList.remove('open'); resolve(f); };
                                 container.appendChild(item);
                                 if (f.children && f.children.length > 0) { const childContainer = document.createElement('div'); renderTree(f.children, childContainer, level + 1); container.appendChild(childContainer); }
@@ -1049,7 +1074,10 @@
                 const children = STATE.data.users.filter(u => u.role === 'child');
                 if (children.length > 0 && !STATE.currentBeneficiary) STATE.currentBeneficiary = children[0].id;
                 UIManager.renderProfiles(); UIManager.renderMarquee();
-                if(typeof CardManager !== 'undefined') CardManager.renderStage();
+                
+                document.getElementById('child-toolbar').style.display = 'flex';
+                document.getElementById('parent-toolbar').style.display = 'none';
+                if(typeof window.CardManager !== 'undefined') window.CardManager.renderStage();
             },
 
             requestGodMode: async function(parentUser) {
@@ -1059,6 +1087,9 @@
                 document.body.classList.add('god-mode');
                 showToast(`已切換為家長模式`, false);
                 UIManager.renderProfiles(); UIManager.renderMarquee();
+                
+                document.getElementById('child-toolbar').style.display = 'none';
+                document.getElementById('parent-toolbar').style.display = 'flex';
                 document.getElementById('backpack-drawer').classList.remove('open');
             },
 
@@ -1193,7 +1224,7 @@
             }
         };
 
-        const CardManager = {
+        window.CardManager = {
             filteredCards: [], lastHitCell: null,
             renderStage: function() {
                 const track = document.getElementById('card-track'); track.innerHTML = '';
@@ -1204,14 +1235,10 @@
                 this.filteredCards.forEach((card, index) => {
                     const wrapper = document.createElement('div'); wrapper.className = 'card-wrapper';
                     if (index === STATE.ui.activeCardIndex) wrapper.classList.add('active'); else if (index < STATE.ui.activeCardIndex) wrapper.classList.add('prev'); else wrapper.classList.add('next');
-
                     const aspectStr = `${card.cols} / ${card.rows}`;
-                    const recallBtnHtml = STATE.isGodMode ? `<button class="btn btn-danger" style="padding:8px 16px; font-size:14px; border-radius:20px;" onclick="CardManager.recallBullets('${card.id}')">🔄 收回整張點數</button>` : '';
+                    const recallBtnHtml = STATE.isGodMode ? `<button class="btn btn-danger" style="padding:8px 16px; font-size:14px; border-radius:20px; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);" onclick="window.CardManager.recallBullets('${card.id}')">🔄 收回整張點數</button>` : '';
 
-                    wrapper.innerHTML = `
-                        <div class="card-header-title">${card.cardName || '專屬禮物卡'} (<span id="progress-${card.id}">0%</span>)</div>
-                        <div class="card-inner" style="aspect-ratio: ${aspectStr};"><img src="${getImg(card.imgId || card.imgBase64)}" class="toy-image" id="toy-img-${card.id}"><div class="grid-container" id="grid-${card.id}" style="grid-template-columns: repeat(${card.cols}, 1fr); grid-template-rows: repeat(${card.rows}, 1fr);"></div></div>
-                        <div class="card-footer-action">${recallBtnHtml}</div>`;
+                    wrapper.innerHTML = `<div class="card-header-title">${card.cardName || '專屬禮物卡'} (<span id="progress-${card.id}">0%</span>)</div><div class="card-inner" style="aspect-ratio: ${aspectStr};"><img src="${getImg(card.imgId || card.imgBase64)}" class="toy-image" id="toy-img-${card.id}"><div class="grid-container" id="grid-${card.id}" style="grid-template-columns: repeat(${card.cols}, 1fr); grid-template-rows: repeat(${card.rows}, 1fr);"></div></div><div class="card-footer-action">${recallBtnHtml}</div>`;
                     track.appendChild(wrapper); this.renderGrids(card); this.updateProgress(card);
                 });
                 this.bindGestures(); this.renderAuditWall();
@@ -1221,17 +1248,12 @@
                 card.grids.forEach(gridData => {
                     const cell = document.createElement('div'); cell.className = 'grid-cell'; cell.dataset.cardId = card.id; cell.dataset.x = gridData.x; cell.dataset.y = gridData.y;
                     if (gridData.status === 0.5) cell.classList.add('hit-half');
-                    if (gridData.status === 1.0) { cell.classList.add('hit-full'); document.getElementById(`toy-img-${card.id}`).classList.add('sharp'); }
+                    if (gridData.status === 1.0) { cell.classList.add('hit-full'); document.getElementById(`toy-img-${card.id}`)?.classList.add('sharp'); }
                     if (gridData.bulletId) {
                         const bullet = STATE.data.bullets.find(b => b.id === gridData.bulletId) || STATE.data.logs.find(l => l.bulletId === gridData.bulletId)?.bulletCache;
                         if (bullet) { const parent = STATE.data.users.find(u => u.id === bullet.creatorId); if (parent) cell.innerHTML = `<img src="${getImg(parent.avatarId || parent.avatarBase64)}" class="bullet-stamp">`; }
                     }
-                    if (STATE.ui.currentDevice === 'mouse') {
-                        cell.onclick = (e) => {
-                            if (STATE.isReadonly || STATE.isGodMode) return;
-                            if (STATE.ui.selectedBulletId) { this.executeHit(card.id, gridData.x, gridData.y, STATE.ui.selectedBulletId); STATE.ui.selectedBulletId = null; document.querySelectorAll('.bullet-item').forEach(n => n.classList.remove('selected-for-aim')); }
-                        };
-                    }
+                    if (STATE.ui.currentDevice === 'mouse') { cell.onclick = (e) => { if (STATE.isReadonly || STATE.isGodMode) return; if (STATE.ui.selectedBulletId) { this.executeHit(card.id, gridData.x, gridData.y, STATE.ui.selectedBulletId); STATE.ui.selectedBulletId = null; document.querySelectorAll('.bullet-item').forEach(n => n.classList.remove('selected-for-aim')); } }; }
                     container.appendChild(cell);
                 });
             },
@@ -1258,7 +1280,7 @@
                     if (parent) cell.innerHTML = `<img src="${getImg(parent.avatarId || parent.avatarBase64)}" class="bullet-stamp">`;
                     this.triggerParticles(cell, bullet.colorVar, newStatus === 1.0);
                 }
-                BackpackManager.render(); this.updateProgress(card);
+                if(typeof BackpackManager !== 'undefined') BackpackManager.render(); this.updateProgress(card);
                 if (card.grids.every(g => g.status === 1.0)) setTimeout(() => this.triggerGrandSlam(card), 1000);
                 CoreManager.saveLocal();
             },
@@ -1282,12 +1304,12 @@
                 let startX = 0, startY = 0; let isLockX = false, isLockY = false, hasLocked = false;
                 stage.classList.remove('show-audit'); STATE.ui.isAuditWallOpen = false;
 
-                if (STATE.ui.currentDevice === 'mouse') {
-                    stage.onwheel = (e) => { if (STATE.ui.isAuditWallOpen) return; e.preventDefault(); if (e.deltaY > 0) this.switchCard('next'); else if (e.deltaY < 0) this.switchCard('prev'); };
-                }
-                track.ontouchstart = (e) => { if(STATE.ui.isSmearMode) { e.preventDefault(); this.lastHitCell = null; this.handleSmear(e); return; } startX = e.touches[0].clientX; startY = e.touches[0].clientY; isLockX = false; isLockY = false; hasLocked = false; track.style.transition = 'none'; };
+                if (STATE.ui.currentDevice === 'mouse') { stage.onwheel = (e) => { if (STATE.ui.isAuditWallOpen) return; e.preventDefault(); if (e.deltaY > 0) this.switchCard('next'); else if (e.deltaY < 0) this.switchCard('prev'); }; }
+                
+                // 修復：如果使用者按在按鈕上，不應觸發滑動，否則按鈕的 onclick 會被吞掉
+                track.ontouchstart = (e) => { if(e.target.closest('button')) return; if(STATE.ui.isSmearMode) { e.preventDefault(); this.lastHitCell = null; this.handleSmear(e); return; } startX = e.touches[0].clientX; startY = e.touches[0].clientY; isLockX = false; isLockY = false; hasLocked = false; track.style.transition = 'none'; };
                 track.ontouchmove = (e) => {
-                    if(STATE.ui.isSmearMode) { e.preventDefault(); this.handleSmear(e); return; }
+                    if(e.target.closest('button')) return; if(STATE.ui.isSmearMode) { e.preventDefault(); this.handleSmear(e); return; }
                     if (!startX || !startY) return;
                     let dx = e.touches[0].clientX - startX; let dy = e.touches[0].clientY - startY;
                     if (!hasLocked && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) { let angle = Math.abs(Math.atan2(dy, dx) * 180 / Math.PI); if (angle < 30 || angle > 150) isLockX = true; else if (angle > 60 && angle < 120) isLockY = true; hasLocked = true; }
@@ -1297,7 +1319,7 @@
                     }
                 };
                 track.ontouchend = (e) => {
-                    if(STATE.ui.isSmearMode) { e.preventDefault(); document.getElementById('smear-tooltip').style.display = 'none'; return; }
+                    if(e.target.closest('button')) return; if(STATE.ui.isSmearMode) { e.preventDefault(); document.getElementById('smear-tooltip').style.display = 'none'; return; }
                     if (!hasLocked) return;
                     const dx = e.changedTouches[0].clientX - startX; track.style.transition = 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)';
                     if (isLockX) { Array.from(track.children).forEach(c => c.style.transform = ''); if (Math.abs(dx) > 30) dx > 0 ? this.switchCard('prev') : this.switchCard('next'); }
@@ -1341,7 +1363,7 @@
                 if (!hasRecalled) return showToast("這張卡片上沒有可以收回的點數");
                 STATE.data.logs = STATE.data.logs.filter(l => l.cardId !== cardId);
                 if(card.status === 'archived') card.status = 'active';
-                CoreManager.saveLocal(); this.renderStage(); BackpackManager.render(); showToast("點數已全數收回背包！", false);
+                CoreManager.saveLocal(); this.renderStage(); if(typeof BackpackManager !== 'undefined') BackpackManager.render(); showToast("點數已全數收回背包！", false);
             },
             switchCard: function(dir) {
                 if (dir === 'next' && STATE.ui.activeCardIndex < this.filteredCards.length - 1) STATE.ui.activeCardIndex++;
@@ -1427,51 +1449,77 @@
         document.getElementById('btn-cam-close').onclick = () => CameraEngine.close();
         document.getElementById('btn-cam-flip').onclick = () => CameraEngine.flip();
 
-        const AdminManager = {
+        // 匯入相片引擎 (支援手機相簿)
+        window.FileEngine = {
+            importImage: function(targetType, callback) {
+                const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*';
+                input.onchange = (e) => {
+                    const file = e.target.files[0]; if(!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (re) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
+                            const maxSize = targetType === 'avatar' ? 128 : 480; const targetRatio = targetType === 'avatar' ? 1 : 4/3;
+                            let w = img.width, h = img.height; let sx = 0, sy = 0, sWidth = w, sHeight = h;
+                            if (w / h > targetRatio) { sWidth = h * targetRatio; sx = (w - sWidth) / 2; } else { sHeight = w / targetRatio; sy = (h - sHeight) / 2; }
+                            canvas.width = maxSize; canvas.height = maxSize / targetRatio;
+                            ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
+                            callback(canvas.toDataURL('image/jpeg', 0.8));
+                        };
+                        img.src = re.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                };
+                input.click();
+            }
+        };
+
+        window.AdminManager = {
             tempAvatar: null, tempToyImg: null,
             openSettings: function() {
-                this.tempAvatar = null;
-                const modal = document.getElementById('dynamic-modal');
+                this.tempAvatar = null; const modal = document.getElementById('dynamic-modal');
                 modal.innerHTML = `
                     <div class="modal-content">
                         <div class="modal-header"><div class="modal-title">⚙️ 家庭成員設定</div><button class="modal-close" onclick="document.getElementById('dynamic-modal').classList.remove('open')">&times;</button></div>
                         <div class="modal-body">
                             <div style="margin-bottom: 15px;"><h4 style="color:var(--accent-gold); margin-bottom:10px;">目前成員</h4><div id="settings-user-list" style="display:flex; gap:10px; flex-wrap:wrap;"></div></div>
                             <hr style="border-color:rgba(255,255,255,0.1); margin-bottom:15px;"><h4 style="color:var(--text-main); margin-bottom:10px;">新增孩子帳號</h4>
-                            <div style="text-align:center;"><img id="preview-avatar" style="width:80px; height:80px; border-radius:50%; object-fit:cover; display:none; margin: 0 auto 10px; border: 2px solid var(--accent-gold);"><button class="btn btn-outline" id="btn-take-avatar" style="width:100%; margin-bottom:15px; padding: 10px;">📸 拍攝大頭貼</button></div>
+                            <div style="text-align:center;">
+                                <img id="preview-avatar" style="width:80px; height:80px; border-radius:50%; object-fit:cover; display:none; margin: 0 auto 10px; border: 2px solid var(--accent-gold);">
+                                <div style="display:flex; gap:10px; margin-bottom:15px;">
+                                    <button class="btn btn-outline" id="btn-take-avatar" style="flex:1; padding:10px;">📸 拍照</button>
+                                    <button class="btn btn-outline" id="btn-upload-avatar" style="flex:1; padding:10px;">🖼️ 相簿</button>
+                                </div>
+                            </div>
                             <div class="form-group"><label class="form-label">孩子稱呼 (如: 小明)</label><input type="text" id="new-user-name" class="form-input" placeholder="輸入名稱"><input type="hidden" id="new-user-role" value="child"></div>
                             <button class="btn btn-primary" id="btn-save-user" style="width:100%;">儲存並新增</button>
                         </div>
                     </div>`;
                 modal.classList.add('open'); this.renderUserList();
 
-                document.getElementById('btn-take-avatar').onclick = () => {
-                    CameraEngine.open();
-                    document.getElementById('btn-shutter').onclick = async () => { const base64 = await CameraEngine.capture('avatar'); if(!base64) return; this.tempAvatar = base64; const preview = document.getElementById('preview-avatar'); preview.src = base64; preview.style.display = 'block'; };
-                };
+                const setAvatar = (b64) => { this.tempAvatar = b64; const p = document.getElementById('preview-avatar'); p.src = b64; p.style.display = 'block'; };
+                document.getElementById('btn-take-avatar').onclick = () => { CameraEngine.open(); document.getElementById('btn-shutter').onclick = async () => { const b64 = await CameraEngine.capture('avatar'); if(b64) setAvatar(b64); }; };
+                document.getElementById('btn-upload-avatar').onclick = () => { window.FileEngine.importImage('avatar', setAvatar); };
+                
                 document.getElementById('btn-save-user').onclick = async () => {
                     const name = document.getElementById('new-user-name').value.trim(); const role = document.getElementById('new-user-role').value;
-                    if (!name) return showToast("請輸入名稱"); if (!this.tempAvatar) return showToast("請拍攝一張大頭貼");
+                    if (!name) return showToast("請輸入名稱"); if (!this.tempAvatar) return showToast("請提供大頭貼");
                     const localId = 'local_img_' + generateUUID(); await LocalDB.save(localId, this.tempAvatar); STATE.images[localId] = this.tempAvatar;
                     const newUser = { id: generateUUID(), name: name, role: role, avatarId: localId, titleBadge: '新手' };
                     STATE.data.users.push(newUser); CoreManager.saveLocal(); 
                     this.renderUserList(); UIManager.renderProfiles();
-                    document.getElementById('new-user-name').value = ''; this.tempAvatar = null; document.getElementById('preview-avatar').style.display = 'none'; showToast(`已新增成員: ${name}`, false);
+                    document.getElementById('new-user-name').value = ''; this.tempAvatar = null; document.getElementById('preview-avatar').style.display = 'none'; showToast(`已新增: ${name}`, false);
                 };
             },
             renderUserList: function() {
                 const list = document.getElementById('settings-user-list'); if(!list) return; list.innerHTML = '';
-                if(STATE.data.users.length === 0) list.innerHTML = '<span style="color:var(--text-sub); font-size:12px;">尚無成員，請從下方新增</span>';
+                if(STATE.data.users.length === 0) list.innerHTML = '<span style="color:var(--text-sub); font-size:12px;">尚無成員</span>';
                 STATE.data.users.forEach(u => {
                     const tag = document.createElement('span'); tag.style.cssText = "background:rgba(255,255,255,0.1); padding:5px 10px; border-radius:15px; font-size:12px; display:flex; align-items:center; gap:5px;";
                     tag.innerHTML = `<img src="${getImg(u.avatarId || u.avatarBase64)}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;"> ${u.role === 'parent' ? '👑' : ''} ${u.name}`;
                     list.appendChild(tag);
                 });
-            },
-            openActionMenu: function() {
-                const modal = document.getElementById('dynamic-modal');
-                modal.innerHTML = `<div class="modal-content"><div class="modal-header"><div class="modal-title">🛠️ 家長操作中心</div><button class="modal-close" onclick="document.getElementById('dynamic-modal').classList.remove('open')">&times;</button></div><div class="modal-body" style="display:flex; flex-direction:column; gap:15px;"><button class="btn btn-primary" onclick="AdminManager.openGivePoint()" style="padding:20px; font-size:18px;">🎯 發放點數給孩子</button><button class="btn btn-success" onclick="AdminManager.openAddCard()" style="padding:20px; font-size:18px;">➕ 建立新集點卡</button></div></div>`;
-                modal.classList.add('open');
             },
             editBehaviors: function() {
                 const modal = document.getElementById('dynamic-modal');
@@ -1479,50 +1527,40 @@
                     const safeReason = b.reason.replace(/"/g, '&quot;');
                     return `<div style="display:flex; gap:10px; margin-bottom:10px; align-items:center;"><div style="width:24px; height:24px; border-radius:50%; background:rgb(var(--${b.color})); box-shadow:0 0 8px rgba(var(--${b.color}),0.5); flex-shrink:0;"></div><input type="text" class="form-input" style="flex:1; padding:8px; font-size:14px;" value="${safeReason}" onchange="STATE.data.behaviors[${i}].reason=this.value; CoreManager.saveLocal();"><label style="display:flex; align-items:center; gap:5px; color:var(--text-sub); font-size:12px; flex-shrink:0;"><input type="checkbox" ${b.enabled ? 'checked' : ''} onchange="STATE.data.behaviors[${i}].enabled=this.checked; CoreManager.saveLocal();"> 啟用</label></div>`;
                 }).join('');
-
-                modal.innerHTML = `<div class="modal-content"><div class="modal-header"><div class="modal-title">✏️ 編輯好表現項目</div><button class="modal-close" onclick="AdminManager.openGivePoint()">&times;</button></div><div class="modal-body" style="padding:10px;">${listHtml}</div></div>`;
+                modal.innerHTML = `<div class="modal-content"><div class="modal-header"><div class="modal-title">✏️ 編輯好表現項目</div><button class="modal-close" onclick="window.AdminManager.openGivePoint()">&times;</button></div><div class="modal-body" style="padding:10px;">${listHtml}</div></div>`;
                 modal.classList.add('open');
             },
             openGivePoint: function() {
                 const children = STATE.data.users.filter(u => u.role === 'child');
-                if (children.length === 0) return showToast("請先長按頭像解鎖，並至 ⚙️ 設定新增「孩子」");
-
+                if (children.length === 0) return showToast("請先至 ⚙️ 設定新增「孩子」");
                 if(!STATE.data.behaviors) STATE.data.behaviors = Array.from({length:25}, (_, i) => ({ color: `c${i+1}`, reason: `好表現 ${i+1}`, enabled: i < 6 }));
-
                 const behaviorHtml = STATE.data.behaviors.filter(b => b.enabled).map((b, i) => {
-                    const safeReason = b.reason.replace(/"/g, '&quot;').replace(/</g, '&lt;');
-                    const isSel = i === 0;
+                    const safeReason = b.reason.replace(/"/g, '&quot;').replace(/</g, '&lt;'); const isSel = i === 0;
                     return `<div class="behavior-btn ${isSel?'selected':''}" data-color="${b.color}" data-reason="${safeReason}" style="background:rgba(var(--${b.color}), 0.2); border:2px solid ${isSel? '#fff' : 'transparent'}; color:rgb(var(--${b.color})); border-radius:8px; padding:10px 5px; text-align:center; font-size:13px; font-weight:bold; cursor:pointer;" onclick="document.querySelectorAll('.behavior-btn').forEach(el=>{el.style.borderColor='transparent';el.classList.remove('selected')}); this.style.borderColor='#fff'; this.classList.add('selected'); document.getElementById('point-reason').value=this.dataset.reason;">${safeReason}</div>`;
                 }).join('');
-
                 const modal = document.getElementById('dynamic-modal');
                 modal.innerHTML = `
                     <div class="modal-content">
                         <div class="modal-header"><div class="modal-title">🎯 發放點數 (給彈藥)</div><button class="modal-close" onclick="document.getElementById('dynamic-modal').classList.remove('open')">&times;</button></div>
                         <div class="modal-body">
                             <div class="form-group"><label class="form-label">發放給哪位孩子</label><select id="point-child" class="form-input">${children.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}</select></div>
-                            <div class="form-group"><label class="form-label">點數大小 (火力)</label><select id="point-size" class="form-input"><option value="1.0">1.0 點 (大子彈，直接擊碎一格)</option><option value="0.5">0.5 點 (小子彈，需兩發才能擊碎)</option></select></div>
-                            <div class="form-group">
-                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;"><label class="form-label" style="margin:0;">選擇好表現項目</label><button class="btn btn-outline" onclick="AdminManager.editBehaviors()" style="padding:4px 8px; font-size:12px; border-radius:8px;">✏️ 編輯項目</button></div>
-                                <div class="color-picker-grid" id="color-grid" style="grid-template-columns: repeat(3, 1fr); gap: 10px;">
-                                    ${behaviorHtml}
-                                </div>
+                            <div class="form-group"><label class="form-label">點數大小 (火力)</label><select id="point-size" class="form-input"><option value="1.0">1.0 點 (直接擊碎)</option><option value="0.5">0.5 點 (需兩發才能擊碎)</option></select></div>
+                            <div class="form-group"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;"><label class="form-label" style="margin:0;">好表現項目</label><button class="btn btn-outline" onclick="window.AdminManager.editBehaviors()" style="padding:4px 8px; font-size:12px; border-radius:8px;">✏️ 編輯</button></div>
+                                <div class="color-picker-grid" id="color-grid" style="grid-template-columns: repeat(3, 1fr); gap: 10px;">${behaviorHtml}</div>
                             </div>
                             <input type="hidden" id="point-reason" value="${STATE.data.behaviors.find(b=>b.enabled)?.reason || ''}">
                             <button class="btn btn-primary" id="btn-send-point" style="width:100%;">發送到孩子背包</button>
                         </div>
                     </div>`;
                 modal.classList.add('open');
-
                 document.getElementById('btn-send-point').onclick = () => {
                     const childId = document.getElementById('point-child').value; const size = parseFloat(document.getElementById('point-size').value);
-                    const selectedBehavior = document.querySelector('.behavior-btn.selected');
-                    if (!selectedBehavior) return showToast("請選擇一個項目");
+                    const selectedBehavior = document.querySelector('.behavior-btn.selected'); if (!selectedBehavior) return showToast("請選擇一個項目");
                     const reason = document.getElementById('point-reason').value.trim() || '好表現獎勵'; const colorVar = selectedBehavior.dataset.color;
                     let creatorId = STATE.currentUser; if(!STATE.data.users.find(u=>u.id===creatorId && u.role==='parent')) creatorId = STATE.data.users.find(u=>u.role==='parent').id;
-                    const newBullet = { id: generateUUID(), ownerId: childId, creatorId: creatorId, size: size, colorVar: colorVar, reason: reason, createdAt: Date.now() };
-                    STATE.data.bullets.push(newBullet); CoreManager.saveLocal(); document.getElementById('dynamic-modal').classList.remove('open'); showToast("點數已成功發送！", false);
-                    if(STATE.currentBeneficiary === childId) BackpackManager.render();
+                    STATE.data.bullets.push({ id: generateUUID(), ownerId: childId, creatorId: creatorId, size: size, colorVar: colorVar, reason: reason, createdAt: Date.now() });
+                    CoreManager.saveLocal(); document.getElementById('dynamic-modal').classList.remove('open'); showToast("點數已發送！", false);
+                    if(STATE.currentBeneficiary === childId && typeof BackpackManager !== 'undefined') BackpackManager.render();
                 };
             },
             openAddCard: function() {
@@ -1533,29 +1571,35 @@
                     <div class="modal-content">
                         <div class="modal-header"><div class="modal-title">➕ 建立新集點卡</div><button class="modal-close" onclick="document.getElementById('dynamic-modal').classList.remove('open')">&times;</button></div>
                         <div class="modal-body">
-                            <div style="text-align:center;"><img id="preview-toy" style="width:100%; aspect-ratio:4/3; object-fit:cover; display:none; margin-bottom:10px; border-radius:12px; border: 2px solid rgba(255,255,255,0.2);"><button class="btn btn-outline" id="btn-take-toy" style="width:100%; margin-bottom:15px; padding: 10px;">📸 拍攝禮物照片</button></div>
+                            <div style="text-align:center;">
+                                <img id="preview-toy" style="width:100%; aspect-ratio:4/3; object-fit:cover; display:none; margin-bottom:10px; border-radius:12px; border: 2px solid rgba(255,255,255,0.2);">
+                                <div style="display:flex; gap:10px; margin-bottom:15px;">
+                                    <button class="btn btn-outline" id="btn-take-toy" style="flex:1; padding:10px;">📸 拍照</button>
+                                    <button class="btn btn-outline" id="btn-upload-toy" style="flex:1; padding:10px;">🖼️ 相簿</button>
+                                </div>
+                            </div>
                             <div class="form-group"><label class="form-label">選擇專屬孩子</label><select id="card-child" class="form-input">${children.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}</select></div>
-                            <div class="form-group"><label class="form-label">禮物卡名稱</label><input type="text" id="card-name" class="form-input" placeholder="例如: 迪士尼樂園門票、Switch 遊戲"></div>
-                            <div class="form-group"><label class="form-label" style="display:flex; justify-content:space-between;">行數 (左右長度) <strong id="col-val" style="color:var(--accent-gold);">4</strong></label><input type="range" id="card-cols" class="sync-slider" min="3" max="10" value="4" oninput="document.getElementById('col-val').innerText=this.value"></div>
-                            <div class="form-group"><label class="form-label" style="display:flex; justify-content:space-between;">列數 (上下高度) <strong id="row-val" style="color:var(--accent-gold);">3</strong></label><input type="range" id="card-rows" class="sync-slider" min="3" max="10" value="3" oninput="document.getElementById('row-val').innerText=this.value"></div>
+                            <div class="form-group"><label class="form-label">禮物卡名稱</label><input type="text" id="card-name" class="form-input" placeholder="例如: 迪士尼門票"></div>
+                            <div class="form-group"><label class="form-label" style="display:flex; justify-content:space-between;">行數 <strong id="col-val" style="color:var(--accent-gold);">4</strong></label><input type="range" id="card-cols" class="sync-slider" min="3" max="10" value="4" oninput="document.getElementById('col-val').innerText=this.value"></div>
+                            <div class="form-group"><label class="form-label" style="display:flex; justify-content:space-between;">列數 <strong id="row-val" style="color:var(--accent-gold);">3</strong></label><input type="range" id="card-rows" class="sync-slider" min="3" max="10" value="3" oninput="document.getElementById('row-val').innerText=this.value"></div>
                             <button class="btn btn-success" id="btn-save-card" style="width:100%;">發行集點卡</button>
                         </div>
                     </div>`;
                 modal.classList.add('open');
 
-                document.getElementById('btn-take-toy').onclick = () => {
-                    CameraEngine.open();
-                    document.getElementById('btn-shutter').onclick = async () => { const base64 = await CameraEngine.capture('card'); if(!base64) return; this.tempToyImg = base64; const preview = document.getElementById('preview-toy'); preview.src = base64; preview.style.display = 'block'; };
-                };
+                const setToy = (b64) => { this.tempToyImg = b64; const p = document.getElementById('preview-toy'); p.src = b64; p.style.display = 'block'; };
+                document.getElementById('btn-take-toy').onclick = () => { CameraEngine.open(); document.getElementById('btn-shutter').onclick = async () => { const b64 = await CameraEngine.capture('card'); if(b64) setToy(b64); }; };
+                document.getElementById('btn-upload-toy').onclick = () => { window.FileEngine.importImage('card', setToy); };
+                
                 document.getElementById('btn-save-card').onclick = async () => {
                     const childId = document.getElementById('card-child').value; const cardName = document.getElementById('card-name').value.trim() || '神秘禮物'; const cols = parseInt(document.getElementById('card-cols').value); const rows = parseInt(document.getElementById('card-rows').value);
-                    if(!this.tempToyImg) return showToast("請務必拍攝一張禮物照片！");
+                    if(!this.tempToyImg) return showToast("請務必提供一張禮物照片！");
                     const localId = 'local_img_' + generateUUID(); await LocalDB.save(localId, this.tempToyImg); STATE.images[localId] = this.tempToyImg;
                     const grids = []; for(let y=0; y<rows; y++){ for(let x=0; x<cols; x++){ grids.push({ x: x, y: y, status: 0, bulletId: null }); } }
                     let creatorId = STATE.currentUser; if(!STATE.data.users.find(u=>u.id===creatorId && u.role==='parent')) creatorId = parents[0].id;
                     const newCard = { id: generateUUID(), beneficiaryId: childId, creatorId: creatorId, imgId: localId, cardName: cardName, cols: cols, rows: rows, grids: grids, status: 'active' };
                     STATE.data.cards.unshift(newCard); STATE.ui.activeCardIndex = 0; 
-                    CoreManager.saveLocal(); document.getElementById('dynamic-modal').classList.remove('open'); showToast("集點卡建立成功，已存於本機！", false); CoreManager.switchBeneficiary(childId);
+                    CoreManager.saveLocal(); document.getElementById('dynamic-modal').classList.remove('open'); showToast("建立成功！", false); CoreManager.switchBeneficiary(childId);
                 };
             }
         };
