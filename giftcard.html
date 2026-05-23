@@ -503,95 +503,52 @@
         /* ==========================================
            7. 刮刮樂視覺機制與網格打擊 (無聲視覺化特效)
            ========================================== */
+        
+        /* 新版卡片佈局：名稱在上、卡片在中、按鈕在下 */
+        .card-wrapper {
+            position: absolute; width: 85%; max-width: 380px;
+            transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .card-header-title {
+            font-size: 22px; font-weight: 900; color: #fff; margin-bottom: 12px;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.8); letter-spacing: 1px; text-align: center;
+        }
         .card-inner {
             width: 100%;
-            height: 100%;
-            position: relative;
-            border-radius: 24px;
-            overflow: hidden;
-            background: #000;
+            /* 關鍵修復：JS 將動態設定 aspect-ratio，保證格子絕對是完美正方形 1x1 */
+            position: relative; border-radius: 12px; overflow: hidden;
+            background: #111; box-shadow: 0 10px 40px rgba(0,0,0,0.7);
+            border: 2px solid rgba(255,255,255,0.1);
         }
-
+        .card-footer-action { margin-top: 15px; height: 40px; }
+        
         .toy-image {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            position: absolute;
-            top: 0; left: 0;
-            z-index: 1;
-            /* 1.0 點擊穿時的高銳利度展現由 JS 切換 class 控制 */
-            filter: blur(0px) brightness(1);
-            transition: filter 0.3s;
+            width: 100%; height: 100%; object-fit: cover;
+            position: absolute; top: 0; left: 0; z-index: 1;
         }
-        .toy-image.sharp {
-            filter: brightness(1.1) contrast(1.1);
-        }
-
-        /* 雙層刮刮樂視覺：不透明銀漆 (SVG 星星或網格營造金屬光澤顆粒感) */
-        .silver-coating {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            z-index: 2;
-            background-color: #c0c0c0;
-            background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h20v20H0V0zm10 10l5-5H5l5 5z' fill='%23a3a3a3' fill-opacity='0.4' fill-rule='evenodd'/%3E%3C/svg%3E");
-            /* 數據化面罩：未輸入手勢的唯讀模式時顯示進度 */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        /* 銀漆上的數據化面罩文字 (例如 50%) */
-        .silver-progress-text {
-            font-size: 60px;
-            font-weight: 900;
-            color: rgba(255, 255, 255, 0.4);
-            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-        /* 唯讀模式下顯現 */
-        body.readonly-mode .silver-progress-text {
-            opacity: 1;
-        }
-
         .grid-container {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            z-index: 3;
-            display: grid;
-            /* Grid 的行列數會由 JS 動態注入 style="grid-template-columns: repeat(X, 1fr);" */
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 3; display: grid;
         }
-
+        
+        /* 關鍵修復：將銀漆直接塗在每一格上，打碎就直接露出底圖，徹底解決圖片被遮擋問題 */
         .grid-cell {
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            position: relative;
-            cursor: crosshair;
-            overflow: hidden;
-            /* 防止子元素事件干擾 */
+            border: 1px solid rgba(0, 0, 0, 0.3); /* 加深網格線，視覺更立體 */
+            position: relative; cursor: crosshair; overflow: hidden;
+            background-color: #cbd5e1;
+            /* 高質感金屬顆粒雜訊底漆 */
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.3'/%3E%3C/svg%3E");
         }
-
-        /* 0.5 點擊穿：鈍刀入肉黏滯感 */
-        .grid-cell.hit-half {
-            /* JS 將觸發向內縮小並擴散溶解動畫 */
-            animation: melt-effect 0.5s forwards;
-        }
+        .grid-cell.hit-half { animation: melt-effect 0.5s forwards; }
         @keyframes melt-effect {
-            0% { transform: scale(1); opacity: 1; border-radius: 0; }
-            50% { transform: scale(0.95); opacity: 0.8; border-radius: 10px; }
-            100% { transform: scale(1); opacity: 0.5; border-radius: 0; background: transparent; backdrop-filter: none; }
+            0% { transform: scale(1); border-radius: 0; }
+            100% { transform: scale(0.95); opacity: 0.8; border-radius: 8px; background-color: rgba(255,255,255,0.6); }
         }
-
-        /* 1.0 全擊穿：玻璃碎裂清脆感 */
-        .grid-cell.hit-full {
-            /* 白光閃爍動畫 */
-            animation: glass-shatter 0.4s forwards;
-            border: none;
-        }
+        /* 擊碎後徹底變透明，露出底圖 */
+        .grid-cell.hit-full { animation: glass-shatter 0.4s forwards; border-color: rgba(255,255,255,0.1); }
         @keyframes glass-shatter {
-            0% { background: #fff; opacity: 1; }
-            10% { background: #fff; opacity: 1; }
-            100% { background: transparent; opacity: 0; }
+            0% { background-color: #fff; opacity: 1; }
+            100% { background: transparent !important; opacity: 0; }
         }
 
         /* 擊中後留下的家長大頭貼印章 */
@@ -1522,7 +1479,25 @@
 
         function generateUUID() { return crypto.randomUUID ? crypto.randomUUID() : 'id-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now(); }
 
+        // 統一檔案命名規範 (YYYYMMDDHHmmss_hash4_名稱)
+        function generateFileName(prefix, name) {
+            const d = new Date();
+            const pad = n => n.toString().padStart(2, '0');
+            const ymdhms = `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+            const hash = generateUUID().split('-')[0].substring(0,4);
+            return `${ymdhms}_${hash}_${prefix}_${name}.jpg`;
+        }
+
+        // 強化解析 Google API 或 Fetch 錯誤
+        function extractErrorMsg(e) {
+            if (!e) return "未知錯誤";
+            if (e.message) return e.message;
+            if (e.result && e.result.error && e.result.error.message) return e.result.error.message;
+            try { return JSON.stringify(e); } catch(err) { return String(e); }
+        }
+
         // 本機 IndexedDB 圖片快取，突破 localStorage 5MB 限制
+        
         const LocalDB = {
             db: null,
             init: function() {
@@ -2258,68 +2233,48 @@
             /**
              * 渲染頂部角色列 (動態抽屜式彈性佈局)
              */
+            
             renderProfiles: function() {
                 const container = document.getElementById('profile-list');
                 const drawer = document.getElementById('profile-drawer');
-                container.innerHTML = '';
-                drawer.innerHTML = '';
-                drawer.classList.remove('open');
+                container.innerHTML = ''; drawer.innerHTML = ''; drawer.classList.remove('open');
 
                 if (STATE.data.users.length === 0) return;
 
-                const maxDisplay = 3;
-                const displayUsers = STATE.data.users.slice(0, maxDisplay);
-                const hiddenUsers = STATE.data.users.slice(maxDisplay);
+                // 找出當前視角的使用者
+                let activeId = STATE.isGodMode ? STATE.currentUser : STATE.currentBeneficiary;
+                let activeUser = STATE.data.users.find(u => u.id === activeId) || STATE.data.users[0];
 
-                // 建立角色頭像的 Helper 函數
                 const createAvatar = (user, isActive) => {
                     const wrap = document.createElement('div');
                     wrap.className = `avatar-wrap ${isActive ? 'active' : ''}`;
-                    wrap.title = user.name;
-                    
                     wrap.innerHTML = `<img src="${getImg(user.avatarId || user.avatarBase64)}" alt="${user.name}">`;
-                    
                     if (user.titleBadge) {
                         const badge = document.createElement('div');
                         badge.className = 'title-badge';
                         badge.innerText = user.titleBadge;
                         wrap.appendChild(badge);
                     }
-
-                    wrap.onclick = () => {
-                        // 點擊角色切換視角
-                        if (user.role === 'parent') {
-                            CoreManager.requestGodMode(user);
-                        } else {
-                            CoreManager.switchBeneficiary(user.id);
-                        }
-                    };
                     return wrap;
                 };
 
-                // 渲染顯示區
-                displayUsers.forEach(u => {
-                    const isActive = (STATE.currentBeneficiary === u.id || STATE.currentUser === u.id);
-                    container.appendChild(createAvatar(u, isActive));
+                // 1. 頂部只顯示當前操作者，點擊展開抽屜
+                const activeAvatar = createAvatar(activeUser, true);
+                activeAvatar.onclick = (e) => { e.stopPropagation(); drawer.classList.toggle('open'); };
+                container.appendChild(activeAvatar);
+
+                // 2. 抽屜顯示「其他所有」使用者，供點擊切換
+                STATE.data.users.forEach(u => {
+                    if (u.id !== activeUser.id) {
+                        const drawerAvatar = createAvatar(u, false);
+                        drawerAvatar.onclick = () => {
+                            drawer.classList.remove('open');
+                            if (u.role === 'parent') CoreManager.requestGodMode(u);
+                            else CoreManager.switchBeneficiary(u.id);
+                        };
+                        drawer.appendChild(drawerAvatar);
+                    }
                 });
-
-                // 渲染溢出膠囊 (+N)
-                if (hiddenUsers.length > 0) {
-                    const capsule = document.createElement('div');
-                    capsule.className = 'overflow-capsule';
-                    capsule.innerText = `+${hiddenUsers.length}`;
-                    capsule.onclick = (e) => {
-                        e.stopPropagation();
-                        drawer.classList.toggle('open');
-                    };
-                    container.appendChild(capsule);
-
-                    // 填充次級抽屜
-                    hiddenUsers.forEach(u => {
-                        const isActive = (STATE.currentBeneficiary === u.id || STATE.currentUser === u.id);
-                        drawer.appendChild(createAvatar(u, isActive));
-                    });
-                }
             },
 
             renderMarquee: function() {
@@ -2597,7 +2552,8 @@
                         if (u.avatarId && u.avatarId.startsWith('local_img_')) {
                             const b64 = await LocalDB.get(u.avatarId);
                             if (b64) {
-                                const newId = await CloudManager.uploadImage(b64, STATE.cloud.folderId, `Avatar_${u.name}.jpg`);
+                                const fileName = generateFileName('Avatar', name);
+                        const fileId = await CloudManager.uploadImage(this.tempAvatar, STATE.cloud.folderId, fileName);
                                 if (newId) { await LocalDB.save(newId, b64); STATE.images[newId] = b64; u.avatarId = newId; }
                             }
                         }
@@ -2606,7 +2562,8 @@
                         if (c.imgId && c.imgId.startsWith('local_img_')) {
                             const b64 = await LocalDB.get(c.imgId);
                             if (b64) {
-                                const newId = await CloudManager.uploadImage(b64, STATE.cloud.folderId, `Card_${c.cardName}.jpg`);
+                                const fileName = generateFileName('Card', c.cardName);
+                                const newId = await CloudManager.uploadImage(b64, STATE.cloud.folderId, fileName);
                                 if (newId) { await LocalDB.save(newId, b64); STATE.images[newId] = b64; c.imgId = newId; }
                             }
                         }
@@ -2633,9 +2590,10 @@
                     else this.updateSyncUI('error', "上傳失敗，已存本機");
 
                 } catch (e) {
-                    console.error(e);
-                    this.updateSyncUI('error', `同步異常`);
+                    console.error("同步異常詳細資訊:", e);
+                    this.updateSyncUI('error', `同步異常: ${extractErrorMsg(e)}`);
                 }
+                
             }
         };
 
@@ -2769,22 +2727,17 @@
                     else if (index < STATE.ui.activeCardIndex) wrapper.classList.add('prev');
                     else wrapper.classList.add('next');
 
-                    // 加入「一鍵收回」按鈕 (加上 god-mode-only)
-                    const recallBtnHtml = `<button class="btn btn-danger god-mode-only" style="position:absolute; top:10px; right:10px; z-index:20; padding:8px 12px; font-size:12px; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,0.5);" onclick="CardManager.recallBullets('${card.id}')">🔄 收回點數</button>`;
+                    // 完美 1x1 正方格機制：利用 aspect-ratio 動態限制卡片外框比例
+                    const aspectStr = `${card.cols} / ${card.rows}`;
+                    const recallBtnHtml = STATE.isGodMode ? `<button class="btn btn-danger" style="padding:8px 16px; font-size:14px; border-radius:20px;" onclick="CardManager.recallBullets('${card.id}')">🔄 收回整張點數</button>` : '';
 
-                    // 禮物卡名稱常駐顯示 (取代金額)
                     wrapper.innerHTML = `
-                        ${recallBtnHtml}
-                        <div class="card-inner">
-                            <div class="card-title-overlay">${card.cardName || '專屬禮物卡'}</div>
-                            
+                        <div class="card-header-title">${card.cardName || '專屬禮物卡'} (<span id="progress-${card.id}">0%</span>)</div>
+                        <div class="card-inner" style="aspect-ratio: ${aspectStr};">
                             <img src="${getImg(card.imgId || card.imgBase64)}" class="toy-image" id="toy-img-${card.id}">
-                            
-                            <div class="silver-coating">
-                                <div class="silver-progress-text" id="progress-${card.id}">0%</div>
-                            </div>
                             <div class="grid-container" id="grid-${card.id}" style="grid-template-columns: repeat(${card.cols}, 1fr); grid-template-rows: repeat(${card.rows}, 1fr);"></div>
                         </div>
+                        <div class="card-footer-action">${recallBtnHtml}</div>
                     `;
                     track.appendChild(wrapper);
 
@@ -3652,7 +3605,7 @@
             };
             window.addEventListener('unhandledrejection', function(e) {
                 console.error('Promise 錯誤:', e.reason);
-                showToast(`背景連線異常: ${e.reason ? e.reason.message || e.reason : '未知錯誤'}`, true);
+                showToast(`背景連線異常: ${extractErrorMsg(e.reason)}`, true);
             });
             
             console.log("數位集點系統 V13 核心引擎已啟動...");
