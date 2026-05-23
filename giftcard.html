@@ -1659,14 +1659,15 @@
 
         async function initializeGapiClient() {
             try {
+                // 修正重點：移除 apiKey 參數。純粹依賴 OAuth2 Token 授權，避免被 GCP 嚴格的 API 限制卡死
                 await gapi.client.init({
-                    apiKey: GOOGLE_API_KEY,
                     discoveryDocs: DISCOVERY_DOCS,
                 });
                 gapiInited = true;
                 checkReadyState();
             } catch (err) {
-                showToast("Google API 載入失敗，可能處於離線狀態");
+                console.error("GAPI 初始化失敗:", err);
+                showToast("Google API 載入失敗，請確認網路狀態", true);
             }
         }
 
@@ -1693,6 +1694,12 @@
              * 處理 Google 帳號授權
              */
             authorize: function(callback) {
+                // 修正重點：補上安全鎖，確保背景模組正確載入後才允許進行登入
+                if (!gapiInited) {
+                    showToast("系統尚未準備完成，請重新整理網頁", true);
+                    throw new Error("GAPI not ready");
+                }
+                
                 if (gapi.client.getToken() === null) {
                     tokenClient.callback = async (resp) => {
                         if (resp.error !== undefined) {
