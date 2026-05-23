@@ -500,12 +500,20 @@
             fetch: async function(url, options = {}) {
                 if (!options.headers) options.headers = {};
                 options.headers['Authorization'] = `Bearer ${STATE.cloud.accessToken}`;
-                const res = await fetch(url, options);
-                if (!res.ok) {
-                    const errText = await res.text().catch(e=>"無法讀取詳細內容");
-                    throw new Error(`Google API [${res.status}]: ${errText}`);
+                try {
+                    const res = await fetch(url, options);
+                    if (!res.ok) {
+                        const errText = await res.text().catch(e=>"無法讀取詳細內容");
+                        throw new Error(`Google API [${res.status}]: ${errText}`);
+                    }
+                    return res;
+                } catch (e) {
+                    // 若 Safari 再次發生 Load failed，直接印出是哪條網址被阻擋，方便追蹤
+                    if (e.message && (e.message.includes('Load failed') || e.message.includes('Failed to fetch'))) {
+                        throw new Error(`Safari 阻擋了請求 (CORS 或網路異常): ${url}`);
+                    }
+                    throw e;
                 }
-                return res;
             }
         };
 
@@ -547,25 +555,37 @@
             },
 
             uploadImage: async function(base64, folderId, fileName) {
-                const metaRes = await DriveAPI.fetch('https://www.googleapis.com/drive/v3/files?fields=id', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: fileName, parents: [folderId], mimeType: 'image/jpeg' })
-                });
-                const meta = await metaRes.json();
-                
-                let b64Data = base64.includes(',') ? base64.split(',')[1] : base64;
-                // 防禦：自動補齊 Base64 padding，防止 atob 崩潰
-                while (b64Data.length % 4 !== 0) b64Data += '=';
-                
-                const byteChar = atob(b64Data); const byteArr = new Uint8Array(byteChar.length);
-                for (let i = 0; i < byteChar.length; i++) byteArr[i] = byteChar.charCodeAt(i);
-                const blob = new Blob([byteArr], {type: 'image/jpeg'});
+                // 蘋果 iOS Safari 專武：改用 Google Multipart Upload，一次請求同時夾帶 Metadata 與 Base64
+                // 完美避開 Safari 兩段式上傳造成的 CORS (Load failed) 以及 Blob 記憶體崩潰
+                const boundary = '-------314159265358979323846';
+                const delimiter = "\r\n--" + boundary + "\r\n";
+                const close_delim = "\r\n--" + boundary + "--";
 
-                const uploadRes = await DriveAPI.fetch(`https://upload.googleapis.com/upload/drive/v3/files/${meta.id}?uploadType=media`, {
-                    method: 'PATCH', headers: { 'Content-Type': 'image/jpeg' }, body: blob
+                const metadata = { name: fileName, parents: [folderId], mimeType: 'image/jpeg' };
+                const b64Data = base64.includes(',') ? base64.split(',')[1] : base64;
+
+                const multipartRequestBody =
+                    delimiter +
+                    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+                    JSON.stringify(metadata) +
+                    delimiter +
+                    'Content-Type: image/jpeg\r\n' +
+                    'Content-Transfer-Encoding: base64\r\n\r\n' +
+                    b64Data +
+                    close_delim;
+
+                const uploadRes = await DriveAPI.fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'multipart/related; boundary=' + boundary },
+                    body: multipartRequestBody
                 });
-                if (!uploadRes.ok) throw new Error("寫入相片實體失敗");
-                return meta.id;
+
+                if (!uploadRes.ok) {
+                    const errText = await uploadRes.text().catch(e=>"無法讀取");
+                    throw new Error(`Multipart 相片上傳失敗 [${uploadRes.status}]: ${errText}`);
+                }
+                const data = await uploadRes.json();
+                return data.id; // 回傳成功建立的檔案 ID
             },
 
             downloadImage: async function(fileId) {
