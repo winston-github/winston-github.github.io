@@ -1336,13 +1336,13 @@
                 <div class="marquee-text" id="marquee-text">歡迎使用！差一點點就可以得到新禮物囉！</div>
             </div>
 
-            <div class="control-btn-group hide-in-readonly">
-                <!-- 家長後台/神模式切換 (永遠可見，讓家長可以隨時登入) -->
+            <div class="control-btn-group">
+                <!-- 家長後台/神模式切換 (移出隱藏名單，確保永遠可見！) -->
                 <button class="action-btn" id="btn-parent-mode">⚙️</button>
-                <!-- 新增卡片與發點數 (加上 god-mode-only 徹底防止小孩看到) -->
-                <button class="action-btn god-mode-only" id="btn-add-card">➕</button>
+                <!-- 新增卡片與發點數 (加上 hide-in-readonly 只有攻擊模式能用) -->
+                <button class="action-btn god-mode-only hide-in-readonly" id="btn-add-card">➕</button>
                 <!-- 塗抹連發模式 -->
-                <button class="action-btn" id="btn-smear-mode" style="background:rgba(59, 130, 246, 0.2); border-color:#3b82f6;">🖌️</button>
+                <button class="action-btn hide-in-readonly" id="btn-smear-mode" style="background:rgba(59, 130, 246, 0.2); border-color:#3b82f6;">🖌️</button>
             </div>
             
             <!-- 背包開關 -->
@@ -2370,7 +2370,8 @@
                             </div>
                             
                             <button class="btn btn-primary" id="btn-force-sync" style="width:100%; margin-bottom:10px; padding:15px; font-size:16px;">🚀 立即完整上傳至雲端</button>
-                            <button class="btn btn-outline" onclick="document.getElementById('dynamic-modal').classList.remove('open')" style="width:100%;">關閉</button>
+                            <button class="btn btn-outline" onclick="document.getElementById('dynamic-modal').classList.remove('open')" style="width:100%; margin-bottom:15px;">關閉</button>
+                            <button class="btn" id="btn-logout" style="width:100%; background:transparent; border:1px solid var(--accent-red); color:var(--accent-red); font-size:14px;">登出 / 捨棄本機資料</button>
                         </div>
                     </div>
                 `;
@@ -2380,7 +2381,15 @@
                     document.getElementById('dynamic-modal').classList.remove('open');
                     CoreManager.performFullSync();
                 };
+
+                document.getElementById('btn-logout').onclick = () => {
+                    if(confirm("確定要登出並清除手機上的暫存資料嗎？\n(若有尚未上傳雲端的資料將會遺失！)")) {
+                        localStorage.clear();
+                        window.location.reload();
+                    }
+                };
             }
+            
         };
 
         // ==========================================
@@ -2402,27 +2411,35 @@
                         }
                         
                         document.getElementById('auth-overlay').classList.remove('active');
+                        
+                        // 修正：進入本機模式時，不要跳出煩人的紅色 Toast，只亮起右上角燈號
+                        const badge = document.getElementById('sync-status-badge');
+                        badge.className = 'error'; badge.innerHTML = `☁️ ⚠️ 待上傳`;
+                        
                         this.enterReadonlyMode();
-                        this.updateSyncUI('error', '⚠️ 本機模式 (請點擊同步)');
+                        
+                        // 修正：無論圖片有沒有載入成功，先強制把頂部頭像與背景畫出來！
+                        UIManager.renderProfiles();
+                        if(typeof CardManager !== 'undefined') CardManager.renderStage();
                         
                         // 背景靜默載入圖片快取
-                        LocalDB.init().then(() => {
+                        LocalDB.init().then(async () => {
                             STATE.images = {};
                             const allImgIds = new Set();
                             STATE.data.users.forEach(u => { if(u.avatarId) allImgIds.add(u.avatarId); });
                             STATE.data.cards.forEach(c => { if(c.imgId) allImgIds.add(c.imgId); });
+                            
                             for (let id of allImgIds) {
-                                LocalDB.get(id).then(b64 => { 
-                                    if(b64) {
-                                        STATE.images[id] = b64;
-                                        UIManager.renderProfiles(); // 圖片載入完成後刷新
-                                        if(typeof CardManager !== 'undefined') CardManager.renderStage();
-                                        if(typeof BackpackManager !== 'undefined') BackpackManager.render();
-                                    } 
-                                });
+                                const b64 = await LocalDB.get(id);
+                                if (b64) STATE.images[id] = b64;
                             }
+                            // 所有圖片快取拉取完畢後，再次刷新畫面套用真實圖片
+                            UIManager.renderProfiles(); 
+                            if(typeof CardManager !== 'undefined') CardManager.renderStage();
+                            if(typeof BackpackManager !== 'undefined') BackpackManager.render();
                         });
                         return; // 完成智慧喚醒，跳過授權頁
+                        
                     } catch(e) {}
                 }
 
@@ -2538,7 +2555,11 @@
                 else if(statusStr === 'success') badge.innerHTML = `☁️ ✅ 已同步`;
                 else if(statusStr === 'error') badge.innerHTML = `☁️ ⚠️ 待上傳`;
                 else badge.innerHTML = `☁️ 待命`;
-                if(msg) showToast(msg, statusStr === 'error');
+                
+                // 修正：同步中的過程不要跳出煩人的 Toast 蓋住畫面，只有發生錯誤或成功時才提示
+                if(msg && statusStr !== 'syncing') {
+                    showToast(msg, statusStr === 'error');
+                }
             },
 
             // 取代舊的 saveAndSync，永遠只花 0.01 秒存在本機，把上傳決定權還給使用者！
