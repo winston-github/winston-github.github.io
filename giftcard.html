@@ -1406,9 +1406,19 @@
                     if (Date.now() - lastMoveProcess < 60) return; // 效能優化：限制每秒最高 16 次 elementFromPoint
                     lastMoveProcess = Date.now();
 
-                    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                    // 嚴謹的座標讀取：防範 touchend 時 touches 為空導致的 undefined 崩潰
+                    let clientX = e.clientX;
+                    let clientY = e.clientY;
+                    if (e.touches && e.touches.length > 0) {
+                        clientX = e.touches[0].clientX;
+                        clientY = e.touches[0].clientY;
+                    } else if (e.changedTouches && e.changedTouches.length > 0) {
+                        clientX = e.changedTouches[0].clientX;
+                        clientY = e.changedTouches[0].clientY;
+                    }
+
                     const targetEl = document.elementFromPoint(clientX, clientY);
+                    
                     if (targetEl && targetEl.closest('.grid-cell')) {
                         
                         const cell = targetEl.closest('.grid-cell');
