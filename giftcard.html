@@ -90,9 +90,10 @@
         .marquee-text { white-space: nowrap; color: var(--accent-main); font-size: 13px; font-weight: bold; position: absolute; animation: marquee-anim 15s linear infinite; display:flex; align-items:center; gap:5px;}
         @keyframes marquee-anim { 0% { left: 100%; } 100% { left: -150%; } }
 
-        #stage-container { flex: 1; width: 100%; position: relative; perspective: 1200px; overflow: hidden; display: flex; align-items: center; justify-content: center; z-index: 10; }
-        .carousel-track { position: absolute; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; transform-style: preserve-3d; transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); touch-action: none; }
-        .card-wrapper { position: absolute; width: 85%; max-width: 450px; transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #stage-container { flex: 1; width: 100%; position: relative; perspective: 1200px; overflow: hidden; display: flex; align-items: center; justify-content: center; z-index: 10; padding-top: 30px; }
+        .carousel-track { position: absolute; width: 100%; height: calc(100% - 30px); top: 30px; display: flex; align-items: center; justify-content: center; transform-style: preserve-3d; transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); touch-action: none; }
+        .card-wrapper { position: absolute; width: 85%; max-width: 450px; max-height: 68vh; transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1); display: flex; flex-direction: column; align-items: center; justify-content: center; margin-top: -5vh; }
+        
         .card-wrapper.active { transform: translateX(0) scale(1) translateZ(0); opacity: 1; z-index: 10; }
         .card-wrapper.prev { transform: translateX(-110%) scale(0.8) translateZ(-100px); opacity: 0.4; z-index: 5; pointer-events: none; }
         .card-wrapper.next { transform: translateX(110%) scale(0.8) translateZ(-100px); opacity: 0.4; z-index: 5; pointer-events: none; }
@@ -815,20 +816,24 @@
             }
         };
     const UIManager = {
-            openSyncMenu: function() {
+
+        openSyncMenu: function() {
                 const modal = document.getElementById('dynamic-modal');
                 modal.innerHTML = `
                     <div class="modal-content">
                         <div class="modal-header"><div class="modal-title" style="display:flex; align-items:center; gap:8px;"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg> 雲端同步中心</div><button class="modal-close" onclick="document.getElementById('dynamic-modal').classList.remove('open')">&times;</button></div>
                         <div class="modal-body" style="display:flex; flex-direction:column; gap:15px;">
                             <button class="btn btn-primary" onclick="CoreManager.performFullSync(); document.getElementById('dynamic-modal').classList.remove('open');"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> 立刻備份同步</button>
+                            <button class="btn btn-outline" onclick="CloudManager.switchFolder(); document.getElementById('dynamic-modal').classList.remove('open');"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> 備份資料夾管理</button>
                             <button class="btn btn-outline" style="border-color:var(--accent-gold); color:var(--accent-gold);" onclick="CoreManager.runDeepDiagnosticsAndSync(); document.getElementById('dynamic-modal').classList.remove('open');"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg> 深度體檢與遺失照片救援</button>
                             <button class="btn btn-outline" onclick="CloudManager.switchAccount(); document.getElementById('dynamic-modal').classList.remove('open');"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> 切換 Google 帳號</button>
-                            <button class="btn btn-outline" onclick="CloudManager.switchFolder(); document.getElementById('dynamic-modal').classList.remove('open');"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> 備份資料夾管理</button>
+                            <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin: 5px 0;">
+                            <button class="btn btn-danger" style="border-radius:12px; font-size:14px;" onclick="CoreManager.syncAndWipeAndClose();"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg> 備份同步後清空瀏覽器資料</button>
                         </div>
                     </div>`;
                 modal.classList.add('open');
             },
+        
             updateSyncUI: function(statusStr, msg) {
                 const badge = document.getElementById('sync-status-badge');
                 if(!badge) return;
@@ -1151,8 +1156,11 @@
                 modal.innerHTML = `
                     <div class="modal-content" style="max-height:90vh; overflow-y:auto;">
                         <div class="modal-header"><div class="modal-title" style="display:flex; align-items:center; gap:8px;"><svg class="svg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg> 發放點數</div><button class="modal-close" onclick="document.getElementById('dynamic-modal').classList.remove('open')"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+
                         <div class="modal-body">
-                            <div class="form-group"><label class="form-label">發放對象</label><select id="point-child" class="form-input">${children.map(c => `<option value="${c.id}" ${c.id===STATE.currentBeneficiary?'selected':''}>${c.name}</option>`).join('')}</select></div>
+                            <div class="form-group"><label class="form-label">發放對象</label><select id="point-child" class="form-input" onchange="CoreManager.switchBeneficiary(this.value)">${children.map(c => `<option value="${c.id}" ${c.id===STATE.currentBeneficiary?'selected':''}>${c.name}</option>`).join('')}</select></div>
+
+                            
                             <div class="form-group"><label class="form-label">點數威力</label><select id="point-size" class="form-input"><option value="1.0">1.0 點 (直接蓋滿一格)</option><option value="0.5">0.5 點 (只蓋半格)</option></select></div>
                             
                             <div class="form-group">
@@ -1222,7 +1230,9 @@
                                     <button class="btn btn-outline" style="flex:1;" onclick="window.FileEngine.importImage('card', (b64)=>{ AdminManager.tempImg=b64; document.getElementById('preview-toy').src=b64; document.getElementById('preview-toy').style.display='block'; });"><svg class="svg-icon" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg> 相簿</button>
                                 </div>
                             </div>
-                            <div class="form-group"><label class="form-label">選擇專屬孩子</label><select id="card-child" class="form-input">${children.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}</select></div>
+
+                            <div class="form-group"><label class="form-label">選擇專屬孩子</label><select id="card-child" class="form-input" onchange="CoreManager.switchBeneficiary(this.value)">${children.map(c => `<option value="${c.id}" ${c.id===STATE.currentBeneficiary?'selected':''}>${c.name}</option>`).join('')}</select></div>
+                            
                             <div class="form-group"><label class="form-label">禮物卡名稱</label><input type="text" id="card-name" class="form-input" placeholder="例如: 迪士尼門票"></div>
                             <div class="form-group"><label class="form-label" style="display:flex; justify-content:space-between;">行數 <strong id="col-val" style="color:var(--accent-gold);">4</strong></label><input type="range" id="card-cols" style="width:100%;" min="3" max="10" value="4" oninput="document.getElementById('col-val').innerText=this.value"></div>
                             <div class="form-group"><label class="form-label" style="display:flex; justify-content:space-between;">列數 <strong id="row-val" style="color:var(--accent-gold);">3</strong></label><input type="range" id="card-rows" style="width:100%;" min="3" max="10" value="3" oninput="document.getElementById('row-val').innerText=this.value"></div>
@@ -1410,28 +1420,37 @@
                 
                 const parents = STATE.data.users.filter(u => u.role === 'parent');
                 const parentOptions = parents.map(p => `<option value="${p.id}" ${card.creatorId===p.id?'selected':''}>${p.name}</option>`).join('');
+                
+                const children = STATE.data.users.filter(u => u.role === 'child');
+                const childOptions = children.map(c => `<option value="${c.id}" ${card.beneficiaryId===c.id?'selected':''}>${c.name}</option>`).join('');
 
                 const modal = document.getElementById('dynamic-modal');
                 modal.innerHTML = `
                     <div class="modal-content">
-                        <div class="modal-header"><div class="modal-title" style="display:flex; align-items:center; gap:8px;"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> 編輯卡片</div><button class="modal-close" onclick="document.getElementById('dynamic-modal').classList.remove('open')"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+                        <div class="modal-header"><div class="modal-title" style="display:flex; align-items:center; gap:8px;"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> 編輯卡片</div><button class="modal-close" onclick="document.getElementById('dynamic-modal').classList.remove('open')">&times;</button></div>
                         <div class="modal-body">
                             <div class="form-group"><label class="form-label">卡片名稱</label><input type="text" id="edit-card-name" class="form-input" value="${card.cardName}"></div>
+                            <div class="form-group"><label class="form-label">卡片專屬孩子 (變更將退回已蓋點數)</label><select id="edit-card-child" class="form-input">${childOptions}</select></div>
                             <div class="form-group"><label class="form-label">卡片提供者 (家長)</label><select id="edit-card-creator" class="form-input">${parentOptions}</select></div>
                             
-                            <div class="form-group"><label class="form-label">行數 (目前: ${card.cols}) / 列數 (目前: ${card.rows})</label>
-                                <p style="font-size:12px; color:var(--accent-gold); margin-top:5px; display:flex; gap:5px;"><svg class="svg-icon" style="width:14px;height:14px;flex-shrink:0;" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> 編輯版面大小尚未開放，以防蓋章座標錯亂，請刪除重建。</p>
-                            </div>
-                            <button class="btn btn-primary" id="btn-save-edit-card" style="width:100%; margin-bottom:25px; padding:15px;"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> 儲存名稱</button>
+                            <button class="btn btn-primary" id="btn-save-edit-card" style="width:100%; margin-bottom:25px; padding:15px;"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> 儲存更新</button>
                             <button class="btn btn-danger" id="btn-del-card" style="width:100%; background:transparent; border:2px solid var(--accent-red); color:var(--accent-red);"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> 刪除這張卡片</button>
                         </div>
                     </div>`;
                 modal.classList.add('open');
-
+                
                 document.getElementById('btn-save-edit-card').onclick = () => {
+                    const newChildId = document.getElementById('edit-card-child').value;
+                    if (newChildId !== card.beneficiaryId) {
+                        this.recallBullets(card.id, true); // true 代表強制退還不需確認框
+                        card.beneficiaryId = newChildId;
+                    }
                     card.cardName = document.getElementById('edit-card-name').value;
                     card.creatorId = document.getElementById('edit-card-creator').value;
-                    CoreManager.saveLocal(); this.renderStage(); modal.classList.remove('open'); showToast("卡片已更新", false);
+                    CoreManager.saveLocal(); 
+                    CoreManager.switchBeneficiary(newChildId); // 自動跳轉視角到該孩子
+                    modal.classList.remove('open'); 
+                    showToast("卡片已更新", false);
                 };
                 
                 document.getElementById('btn-del-card').onclick = () => {
@@ -2195,6 +2214,7 @@
                         appendLog(`[成功] 本機資料已成功上傳覆寫雲端。`);
                         UIManager.updateSyncUI('success'); 
                         showToast("雲端同步成功！", false); 
+                        return true;
                     } else {
                         throw new Error("Resumable Upload Failed: API未回傳成功代碼");
                     }
@@ -2207,6 +2227,22 @@
                     UIManager.updateSyncUI('error', '同步失敗');
                     showToast("同步失敗，已自動開啟偵錯面板", true);
                     setTimeout(() => document.getElementById('debug-console').classList.add('active'), 1000); 
+                    return false;
+                }
+            },
+            
+            syncAndWipeAndClose: async function() {
+                showToast("準備備份並清除...", false);
+                document.getElementById('dynamic-modal').classList.remove('open');
+                
+                const isSuccess = await this.performFullSync(true); // 強制上傳確保雲端最新
+                if (isSuccess) {
+                    localStorage.removeItem('points_sys_data'); // 核心要求：清空記憶體
+                    showToast("資料已清除，準備關閉", false);
+                    setTimeout(() => {
+                        window.close(); // 嘗試關閉分頁
+                        location.href = 'about:blank'; // 備用跳轉
+                    }, 1000);
                 }
             },
             
@@ -2226,7 +2262,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             let lastActiveTime = Date.now();
             document.addEventListener('pointerdown', () => {
-                if (Date.now() - lastActiveTime > 10000) { // 閒置大於10秒
+                if (Date.now() - lastActiveTime > 10000) { 
                     CoreManager.silentSyncCheck();
                 }
                 lastActiveTime = Date.now();
@@ -2236,6 +2272,26 @@
             window.addEventListener('offline', () => STATE.cloud.isOffline = true);
             window.addEventListener('online', () => STATE.cloud.isOffline = false);
         });
+        
+        // 需求 1：刷新警告與防呆保護機制
+        window.addEventListener('beforeunload', function (e) {
+            // 如果用戶按了「取消」留在原頁面，500ms 後觸發立刻同步
+            setTimeout(() => {
+                if (!STATE.cloud.isOffline && STATE.cloud.accessToken) {
+                    CoreManager.performFullSync();
+                }
+            }, 500);
+            
+            e.preventDefault();
+            e.returnValue = '警告：重新整理將會清空本機記憶體！如果取消，系統將立刻為您執行同步。';
+            return e.returnValue;
+        });
+
+        window.addEventListener('unload', function () {
+            // 用戶執意刷新或關閉頁面，徹底銷毀記憶體避免舊資料污染
+            localStorage.removeItem('points_sys_data');
+        });
+        
     </script>
 </body>
 </html>
