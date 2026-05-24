@@ -33,7 +33,7 @@
         body.theme-forest { --bg-dark: #022c22; --bg-panel: rgba(6, 78, 59, 0.9); --text-main: #ecfdf5; --text-sub: #34d399; --accent-main: #10b981; }
         body.theme-coffee { --bg-dark: #451a03; --bg-panel: rgba(120, 53, 15, 0.9); --text-main: #fef3c7; --text-sub: #d97706; --accent-main: #d97706; }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-font-smoothing: antialiased; }
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-font-smoothing: antialiased; touch-action: manipulation; }
         html, body { width: 100%; height: calc(var(--vh, 1vh) * 100); background-color: var(--bg-dark); color: var(--text-main); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; position: fixed; top: 0; left: 0; right: 0; bottom: 0; touch-action: none; transition: background-color 0.5s; }
         
         #app-wrapper { position: relative; width: 100%; height: 100%; margin: 0 auto; display: flex; flex-direction: column; overflow: hidden; }
@@ -139,8 +139,8 @@
 
         #camera-modal { position: fixed; inset: 0; background: #000; z-index: 999999; display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); }
         #camera-modal.open { transform: translateY(0); }
-        #camera-feed { flex: 1; width: 100%; height: 100%; object-fit: cover; }
-        .cam-controls { height: 120px; background: #000; display: flex; align-items: center; justify-content: space-around; padding-bottom: env(safe-area-inset-bottom, 20px); }
+        #camera-feed { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+        .cam-controls { position: absolute; bottom: 0; left: 0; width: 100%; height: 120px; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); display: flex; align-items: center; justify-content: space-around; padding-bottom: env(safe-area-inset-bottom, 20px); z-index: 10; }
 
         #pin-lock-container { width: 280px; margin: 0 auto 15px; display: flex; flex-direction: column; align-items: center; }
         #pin-display { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-bottom: 25px; min-height: 14px; }
@@ -159,10 +159,12 @@
     <div id="app-wrapper">
         <!-- 透過 display: contents 讓 sidebar-left 裡的 header 和 footer 可以自由排版 -->
         <div id="sidebar-left">
+            
             <header id="top-bar">
                 <div class="profile-container" id="profile-list"></div>
-                <div id="sync-status-badge">☁️ 待命</div>
+                <div id="sync-status-badge" onclick="CoreManager.performFullSync()" style="cursor:pointer;">☁️ 待命</div>
             </header>
+            
             <div id="profile-drawer"></div>
             
             <div class="mobile-only" style="padding: 0 20px;">
@@ -341,11 +343,19 @@
         }
 
         const ThemeManager = {
-            apply: function(themeName) { document.body.className = `theme-${themeName}`; STATE.data.theme = themeName; CoreManager.saveLocal(); },
+            apply: function(themeName) { 
+                document.body.className = `theme-${themeName}`; 
+                let activeId = STATE.isGodMode ? STATE.currentUser : STATE.currentBeneficiary;
+                let activeUser = STATE.data.users.find(u => u.id === activeId);
+                if (activeUser) { activeUser.theme = themeName; CoreManager.saveLocal(); }
+            },
             renderPicker: function(containerId) {
+                let activeId = STATE.isGodMode ? STATE.currentUser : STATE.currentBeneficiary;
+                let activeUser = STATE.data.users.find(u => u.id === activeId);
+                let currentTheme = activeUser && activeUser.theme ? activeUser.theme : 'tech';
                 const themes = [ { id: 'tech', color: '#0f172a' }, { id: 'pink', color: '#fdf2f8' }, { id: 'greek', color: '#f0f9ff' }, { id: 'forest', color: '#022c22' }, { id: 'coffee', color: '#451a03' } ];
-                document.getElementById(containerId).innerHTML = `<div class="form-group"><label class="form-label">選擇佈景主題</label><div class="theme-grid">` + 
-                    themes.map(t => `<div class="theme-btn ${STATE.data.theme === t.id ? 'active' : ''}" style="background:${t.color}" onclick="ThemeManager.apply('${t.id}'); document.querySelectorAll('.theme-btn').forEach(btn=>btn.classList.remove('active')); this.classList.add('active');"></div>`).join('') + `</div></div>`;
+                document.getElementById(containerId).innerHTML = `<div class="form-group"><label class="form-label">為此成員選擇專屬佈景主題</label><div class="theme-grid">` + 
+                    themes.map(t => `<div class="theme-btn ${currentTheme === t.id ? 'active' : ''}" style="background:${t.color}" onclick="ThemeManager.apply('${t.id}'); document.querySelectorAll('.theme-btn').forEach(btn=>btn.classList.remove('active')); this.classList.add('active');"></div>`).join('') + `</div></div>`;
             }
         };
 
@@ -738,7 +748,17 @@
 
         window.AdminManager = {
             tempImg: null,
+            editBehaviors: function() {
+                const modal = document.getElementById('dynamic-modal');
+                const listHtml = STATE.data.behaviors.map((b, i) => {
+                    const safeReason = b.reason.replace(/"/g, '&quot;');
+                    return `<div style="display:flex; gap:10px; margin-bottom:10px; align-items:center;"><div style="width:24px; height:24px; border-radius:50%; background:rgb(var(--${b.color})); box-shadow:0 0 8px rgba(var(--${b.color}),0.5); flex-shrink:0;"></div><input type="text" class="form-input" style="flex:1; padding:8px; font-size:14px;" value="${safeReason}" onchange="STATE.data.behaviors[${i}].reason=this.value; CoreManager.saveLocal();"><label style="display:flex; align-items:center; gap:5px; color:var(--text-sub); font-size:12px; flex-shrink:0;"><input type="checkbox" ${b.enabled ? 'checked' : ''} onchange="STATE.data.behaviors[${i}].enabled=this.checked; CoreManager.saveLocal();"> 顯示</label></div>`;
+                }).join('');
+                modal.innerHTML = `<div class="modal-content"><div class="modal-header"><div class="modal-title">✏️ 編輯好表現項目</div><button class="modal-close" onclick="AdminManager.openGivePoint()">&times;</button></div><div class="modal-body" style="padding:10px;">${listHtml}</div></div>`;
+                modal.classList.add('open');
+            },
             openSettings: function() {
+                
                 const modal = document.getElementById('dynamic-modal');
                 modal.innerHTML = `
                     <div class="modal-content">
@@ -838,9 +858,11 @@
                                 </div>
                             </div>
 
-                            <div class="form-group"><label class="form-label">選擇好表現</label>
+                            <div class="form-group">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;"><label class="form-label" style="margin:0;">選擇好表現</label><button class="btn btn-outline" onclick="AdminManager.editBehaviors()" style="padding:4px 8px; font-size:12px; border-radius:8px;">✏️ 編輯</button></div>
                                 <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">${behaviorHtml}</div>
                             </div>
+                            
                             <input type="hidden" id="point-reason" value="${STATE.data.behaviors.find(b=>b.enabled)?.reason || ''}">
                             <button class="btn btn-primary" id="btn-send-point" style="width:100%; padding:15px;">發送到孩子背包</button>
                         </div>
@@ -1249,9 +1271,11 @@
                     localStorage.setItem('sys_pin_cache', pwd);
                     
                     await LocalDB.init(); STATE.images = {};
-                    STATE.data = { users: [], cards: [], bullets: [], logs: [], behaviors: [], theme: 'tech' };
+
+                    STATE.data = { users: [], cards: [], bullets: [], logs: [], behaviors: [] };
                     const adminId = 'admin_' + generateUUID();
-                    STATE.data.users.push({ id: adminId, name: STATE.cloud.googleUser?.name || '家長', role: 'parent', avatarBase64: STATE.cloud.googleUser?.picture });
+                    STATE.data.users.push({ id: adminId, name: STATE.cloud.googleUser?.name || '家長', role: 'parent', avatarBase64: STATE.cloud.googleUser?.picture, theme: 'tech' });
+                    document.body.className = `theme-tech`;
                     
                     STATE.currentUser = adminId; STATE.isGodMode = true;
                     document.getElementById('dynamic-modal').classList.remove('open');
@@ -1297,9 +1321,12 @@
                     }
                     this.persistToLocal(); document.getElementById('dynamic-modal').classList.remove('open');
                     this.enterReadonlyMode(); showToast("載入成功！", false);
+
                 } catch (e) { 
-                    logDebug("Restore Flow", e.stack || e.message);
-                    showToast("載入失敗，請查看診斷報告");
+                    const errMsg = e.message || "無訊息"; const errStack = e.stack || "無 Stack";
+                    const diag = `==== 系統診斷報告 ====\n[時間] ${new Date().toLocaleString()}\n[功能] 載入進度 (Restore)\n[死因] ${errMsg}\n\n[Safari追蹤]\n${errStack}`;
+                    logDebug("Restore Crash", diag);
+                    showToast("載入失敗，請查看診斷面板", true);
                 }
             },
             enterReadonlyMode: function() {
@@ -1307,6 +1334,9 @@
                 const children = STATE.data.users.filter(u => u.role === 'child');
                 if (children.length > 0 && !STATE.currentBeneficiary) STATE.currentBeneficiary = children[0].id;
                 
+                let activeUser = STATE.data.users.find(u => u.id === STATE.currentBeneficiary);
+                if (activeUser && activeUser.theme) document.body.className = `theme-${activeUser.theme}`; else document.body.className = `theme-tech`;
+
                 document.getElementById('child-toolbar').style.display = 'flex';
                 document.getElementById('parent-toolbar').style.display = 'none';
                 UIManager.renderProfiles(); UIManager.renderMarquee(); CardManager.renderStage(); BackpackManager.render();
@@ -1315,6 +1345,9 @@
                 const pwd = await PinLock.open("家長權限認證", `請輸入密碼解鎖家長模式`);
                 if (!pwd) return;
                 STATE.isGodMode = true; STATE.isReadonly = false; STATE.currentUser = parentUser.id;
+                
+                if (parentUser && parentUser.theme) document.body.className = `theme-${parentUser.theme}`; else document.body.className = `theme-tech`;
+
                 document.getElementById('child-toolbar').style.display = 'none';
                 document.getElementById('parent-toolbar').style.display = 'flex';
                 UIManager.renderProfiles(); showToast("已切換為家長模式", false);
@@ -1322,8 +1355,13 @@
             switchBeneficiary: function(childId) {
                 STATE.currentBeneficiary = childId; STATE.currentUser = childId;
                 if (!STATE.isGodMode) STATE.isReadonly = false;
+                
+                let activeUser = STATE.data.users.find(u => u.id === childId);
+                if (activeUser && activeUser.theme) document.body.className = `theme-${activeUser.theme}`; else document.body.className = `theme-tech`;
+
                 UIManager.renderProfiles(); CardManager.renderStage(); BackpackManager.render();
             },
+            
             saveLocal: function() { STATE.data.last_update = Date.now(); this.persistToLocal(); },
             persistToLocal: function() {
                 localStorage.setItem('points_sys_data', JSON.stringify(STATE.data));
