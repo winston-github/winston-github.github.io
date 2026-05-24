@@ -2107,16 +2107,52 @@ EEEEEEEEEEEEEEEEEEEE
                         appendLog(`[時間比對] 本機更新時間: ${new Date(localTime).toLocaleString()}`);
                         
                         if (cloudTime > localTime + 3000) { 
+
                             // 雲端比較新 (給予 3 秒容錯緩衝)
                             debugStep = "下載並載入雲端較新資料";
                             appendLog(`[同步決策] 雲端資料較新，系統將自動下載並覆寫本機...`);
                             const fileRes = await DriveAPI.fetch(`https://www.googleapis.com/drive/v3/files/${STATE.cloud.fileId}?alt=media`);
-                            const encryptedCompressedStr = await fileRes.text();
-                            const compressedStr = await CryptoEngine.decrypt(encryptedCompressedStr, pwd);
-                            const decompressed = DataCompressor.decompress(compressedStr);
-                            const parsedCloudData = JSON.parse(decompressed);
+                            const encryptedStr = await fileRes.text();
                             
-                            STATE.data = SyncEngine.mergeCloudWithLocal(parsedCloudData);
+                            let parsedCloudData = null;
+                            try {
+                                const decStr = await CryptoEngine.decrypt(encryptedStr, pwd);
+                                // 智慧判斷：如果開頭是 { 代表是新版無壓縮的純 JSON，否則嘗試用舊版解壓縮
+                                if (decStr.trim().startsWith('{')) {
+                                    parsedCloudData = JSON.parse(decStr);
+                                } else {
+                                    const decompressed = DataCompressor.decompress(decStr);
+                                    if (!decompressed) throw new Error("解壓縮失敗");
+                                    parsedCloudData = JSON.parse(decompressed);
+                                }
+                            } catch (parseErr) {
+                                appendLog(`[嚴重警告] 雲端檔案解析失敗: ${parseErr.message}`);
+                                appendLog(`[修復啟動] 系統判斷雲端存檔已損毀，將強制把本機現有資料上傳覆蓋！`);
+                                parsedCloudData = null; // 標記為 null 觸發強制上傳
+                            }
+                            
+                            if (parsedCloudData) {
+                                STATE.data = SyncEngine.mergeCloudWithLocal(parsedCloudData);
+                                STATE.cloud.lastSyncTime = cloudTime;
+                                STATE.data.last_update = cloudTime; // 對齊時間防止重複下載
+                                this.persistToLocal();
+                                appendLog(`[成功] 已將最新雲端資料同步至本機。`);
+                                
+                                let actUser = STATE.data.users.find(u => u.id === (STATE.isGodMode ? STATE.currentUser : STATE.currentBeneficiary));
+                                if (actUser && actUser.theme) ThemeManager.apply(actUser.theme);
+                                UIManager.renderProfiles();
+                                UIManager.renderMarquee();
+                                CardManager.renderStage();
+                                if(typeof BackpackManager !== 'undefined') BackpackManager.render();
+                                
+                                UIManager.updateSyncUI('success');
+                                showToast("已從雲端載入最新進度！", false);
+                                return; // 流程結束
+                            } else {
+                                debugStep = "強制上傳覆寫損毀檔案";
+                                appendLog(`[執行] 準備強制覆寫損毀的雲端存檔...`);
+                            }
+                            
                             STATE.cloud.lastSyncTime = cloudTime;
                             STATE.data.last_update = cloudTime; // 對齊時間防止重複下載
                             this.persistToLocal();
@@ -2147,8 +2183,13 @@ EEEEEEEEEEEEEEEEEEEE
                     debugStep = "加密與上傳";
                     if(!STATE.data.last_update) STATE.data.last_update = Date.now();
                     this.persistToLocal(); 
-                    const encryptedStr = await CryptoEngine.encrypt(DataCompressor.compress(JSON.stringify(STATE.data)), pwd);
-                    const success = await CloudManager.resumableUpload(STATE.cloud.fileId, STATE.cloud.folderId, `PointsBackup_${new Date().toISOString().split('T')[0]}.json`, encryptedStr);
+                    
+                    // 完全拋棄會破壞中文的 DataCompressor，直接加密最乾淨的 JSON
+                    const rawJsonStr = JSON.stringify(STATE.data);
+                    const finalEncryptedStr = await CryptoEngine.encrypt(rawJsonStr, pwd);
+                    
+                    const success = await CloudManager.resumableUpload(STATE.cloud.fileId, STATE.cloud.folderId, `PointsBackup_${new Date().toISOString().split('T')[0]}.json`, finalEncryptedStr);
+                    
                     
                     if (success) { 
                         appendLog(`[成功] 本機資料已成功上傳覆寫雲端。`);
