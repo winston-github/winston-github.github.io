@@ -264,9 +264,12 @@
     <div id="debug-console">
         <h2 style="color:#ef4444; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
             <span style="display:flex; align-items:center; gap:8px;"><svg class="svg-icon" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> 系統診斷</span>
-            <button onclick="document.getElementById('debug-console').classList.remove('active')" style="padding:6px 12px; background:#fff; color:#000; border:none; border-radius:8px; font-weight:bold;">關閉</button>
+            <div style="display:flex; gap:10px;">
+                <button id="btn-copy-debug" onclick="CoreManager.copyDebugLog()" style="padding:6px 12px; background:var(--accent-main); color:#fff; border:none; border-radius:8px; font-weight:bold; display:flex; align-items:center; gap:4px;"><svg class="svg-icon" style="width:16px;height:16px;" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg> 複製報告</button>
+                <button onclick="document.getElementById('debug-console').classList.remove('active')" style="padding:6px 12px; background:#fff; color:#000; border:none; border-radius:8px; font-weight:bold;">關閉</button>
+            </div>
         </h2>
-        <p style="color:#fff; font-size:13px; margin-bottom:10px;">請截圖以下完整內容提供給開發者分析：</p>
+        <p style="color:#fff; font-size:13px; margin-bottom:10px;">請點擊複製並將內容提供給開發者分析：</p>
         <textarea id="debug-body" readonly></textarea>
     </div>
 <!-- 核心 JS 引擎 -->
@@ -299,8 +302,13 @@
 
         function logDebug(title, message) {
             console.error(`[${title}]`, message);
-            document.getElementById('debug-console').classList.add('active');
-            document.getElementById('debug-body').innerHTML += `\n\n==== [${title}] ====\n${message}`;
+            const consoleEl = document.getElementById('debug-console');
+            const bodyEl = document.getElementById('debug-body');
+            if(consoleEl && bodyEl) {
+                consoleEl.classList.add('active');
+                bodyEl.value += `\n\n==== [${title}] ====\n${message}`;
+                bodyEl.scrollTop = bodyEl.scrollHeight;
+            }
         }
 
         function showToast(msg, isError = true) {
@@ -723,10 +731,13 @@
                     <div class="modal-content">
                         <div class="modal-header"><div class="modal-title" style="display:flex; align-items:center; gap:8px;"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg> 雲端同步中心</div><button class="modal-close" onclick="document.getElementById('dynamic-modal').classList.remove('open')">&times;</button></div>
                         <div class="modal-body" style="display:flex; flex-direction:column; gap:15px;">
+
                             <button class="btn btn-primary" onclick="CoreManager.performFullSync(); document.getElementById('dynamic-modal').classList.remove('open');"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg> 立刻手動同步</button>
+                            <button class="btn btn-outline" style="border-color:var(--accent-gold); color:var(--accent-gold);" onclick="CoreManager.runDeepDiagnosticsAndSync(); document.getElementById('dynamic-modal').classList.remove('open');"><svg class="svg-icon" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> 深度體檢與強制修復同步</button>
                             <button class="btn btn-outline" onclick="CloudManager.switchAccount(); document.getElementById('dynamic-modal').classList.remove('open');"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> 切換 Google 帳號</button>
                             <button class="btn btn-outline" onclick="CloudManager.switchFolder(); document.getElementById('dynamic-modal').classList.remove('open');"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> 切換備份資料夾</button>
                         </div>
+                        
                     </div>`;
                 modal.classList.add('open');
             },
@@ -1492,8 +1503,109 @@ renderSettingsUserList: function() {
                 localStorage.setItem('points_sys_data', JSON.stringify(STATE.data));
                 localStorage.setItem('points_sys_cloud', JSON.stringify({ folderId: STATE.cloud.folderId, fileId: STATE.cloud.fileId, lastSyncTime: STATE.cloud.lastSyncTime }));
             },
+            
+            copyDebugLog: function() {
+                const text = document.getElementById('debug-body').value;
+                if(navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(() => {
+                        const btn = document.getElementById('btn-copy-debug');
+                        btn.innerHTML = '<svg class="svg-icon" style="width:16px;height:16px;" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> 已複製';
+                        setTimeout(() => btn.innerHTML = '<svg class="svg-icon" style="width:16px;height:16px;" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg> 複製報告', 2000);
+                        showToast("偵錯報告已複製到剪貼簿", false);
+                    }).catch(() => showToast("複製失敗，請手動全選複製"));
+                } else {
+                    const textarea = document.getElementById('debug-body');
+                    textarea.select();
+                    try { document.execCommand('copy'); showToast("偵錯報告已複製", false); } 
+                    catch (err) { showToast("複製失敗，請手動複製"); }
+                }
+            },
+            runDeepDiagnosticsAndSync: async function() {
+                const debugTextarea = document.getElementById('debug-body');
+                debugTextarea.value = "啟動深度體檢...\n";
+                document.getElementById('debug-console').classList.add('active');
+
+                let appendLog = (msg) => {
+                    debugTextarea.value += msg + "\n";
+                    debugTextarea.scrollTop = debugTextarea.scrollHeight;
+                };
+
+                appendLog(`==== 系統深度診斷與強制同步報告 ====`);
+                appendLog(`[時間] ${new Date().toLocaleString()} (V16.1)`);
+                appendLog(`[裝置] ${navigator.userAgent}`);
+
+                try {
+                    // 1. UI 檢查與重置
+                    appendLog(`\n[1/4] 檢查並重置 UI 元件...`);
+                    const els = {
+                        profile: document.getElementById('profile-list'),
+                        stage: document.getElementById('stage-container'),
+                        track: document.getElementById('card-track'),
+                        backpack: document.getElementById('backpack-list')
+                    };
+                    for(const [k, v] of Object.entries(els)) {
+                        if(!v) appendLog(`[錯誤] 找不到元件 DOM 節點: ${k}`);
+                    }
+
+                    // 強制關閉卡住的全螢幕彈窗
+                    document.querySelectorAll('.glass-overlay.active, .modal-overlay.open').forEach(el => {
+                        if(el.id !== 'debug-console' && el.id !== 'toast-container') {
+                            el.classList.remove('active', 'open');
+                            appendLog(`[修復] 強制關閉卡住的圖層: ${el.id}`);
+                        }
+                    });
+
+                    // 強制重繪所有畫面
+                    if (typeof setDynamicViewport === 'function') setDynamicViewport();
+                    if (STATE.data.theme) ThemeManager.apply(STATE.data.theme);
+                    UIManager.renderProfiles();
+                    UIManager.renderMarquee();
+                    CardManager.renderStage();
+                    if(typeof BackpackManager !== 'undefined') BackpackManager.render();
+                    
+                    if (STATE.isGodMode) {
+                        document.getElementById('child-toolbar').style.display = 'none';
+                        document.getElementById('parent-toolbar').style.display = 'flex';
+                    } else {
+                        document.getElementById('child-toolbar').style.display = 'flex';
+                        document.getElementById('parent-toolbar').style.display = 'none';
+                    }
+                    appendLog(`[成功] UI 元件強制歸位 (模式: ${STATE.isGodMode ? '家長' : '孩子'})`);
+
+                    // 2. 資料庫檢查
+                    appendLog(`\n[2/4] 檢查本地資料與圖片關聯...`);
+                    appendLog(`- Users: ${STATE.data.users?.length || 0}`);
+                    appendLog(`- Cards: ${STATE.data.cards?.length || 0}`);
+                    appendLog(`- Bullets: ${STATE.data.bullets?.length || 0}`);
+                    
+                    let missingImages = [];
+                    STATE.data.users.forEach(u => { if(u.avatarId && !STATE.images[u.avatarId]) missingImages.push(`User:${u.name}`); });
+                    STATE.data.cards.forEach(c => { if(c.imgId && !STATE.images[c.imgId]) missingImages.push(`Card:${c.cardName}`); });
+                    STATE.data.bullets.forEach(b => { if(b.imgId && !STATE.images[b.imgId]) missingImages.push(`Bullet:${b.reason}`); });
+                    
+                    if(missingImages.length > 0) appendLog(`[警告] 發現遺失的圖片參照: ${missingImages.join(', ')}`);
+                    else appendLog(`[成功] 本地所有圖片參照完整無缺 (${Object.keys(STATE.images).length} files)`);
+
+                    // 3. 雲端狀態檢查
+                    appendLog(`\n[3/4] 檢查網路與通行證狀態...`);
+                    appendLog(`- 網路連線: ${navigator.onLine ? 'Online' : 'Offline'}`);
+                    appendLog(`- API Token: ${STATE.cloud.accessToken ? '已取得' : '未取得/過期'}`);
+                    appendLog(`- Folder ID: ${STATE.cloud.folderId || '未設定'}`);
+                    appendLog(`- File ID: ${STATE.cloud.fileId || '未設定'}`);
+
+                    // 4. 執行同步
+                    appendLog(`\n[4/4] 觸發強制同步 (Perform Full Sync)...`);
+                    await this.performFullSync(true);
+                    
+                    appendLog(`\n🎉 [體檢結束] 如果看到「雲端同步成功」，代表系統健康無虞！`);
+                    appendLog(`如有其他異常，請點擊上方【複製報告】提供給開發者。`);
+                } catch(e) {
+                    appendLog(`\n❌ [致命錯誤] 體檢或同步中斷: ${e.message}\n${e.stack}`);
+                }
+            },
             performFullSync: async function(forceOverwrite = false) {
                 let debugStep = "初始化同步";
+            
                 try {
                     debugStep = "檢查網路與通行證";
                     if (STATE.cloud.isOffline) { UIManager.updateSyncUI('error', '處於離線狀態'); return; }
