@@ -1544,10 +1544,12 @@
                 
                 STATE.data.bullets.splice(bulletIndex, 1);
                 
-                this.renderGrids(card); this.updateProgress(card);
+                this.renderGrids(card); this.updateProgress(card); 
+                this.renderAuditWall(); // 核心修復：蓋章後立刻重繪隱藏在下方的歷史牆
                 if(typeof BackpackManager !== 'undefined') BackpackManager.render();
                 
                 if (grid.status >= 1.0) {
+                    
                     const cell = document.querySelector(`.grid-cell[data-card-id="${cardId}"][data-x="${x}"][data-y="${y}"]`);
                     if(cell) this.triggerParticles(cell, bullet.colorVar);
                 }
@@ -1901,7 +1903,8 @@
                     let dlCount = 0;
                     for (let id of allImgIds) {
                         let b64 = await LocalDB.get(id);
-                        if (!b64) {
+                        // 核心修復：不要去嘗試下載 local_img_ 開頭的檔案
+                        if (!b64 && !id.startsWith('local_img_')) { 
                             try {
                                 b64 = await CloudManager.downloadImage(id);
                                 if(b64) { await LocalDB.save(id, b64); dlCount++; }
@@ -1980,14 +1983,21 @@
                 document.getElementById('parent-toolbar').style.display = 'flex';
                 UIManager.renderProfiles(); showToast("已切換為家長模式", false);
             },
+
             switchBeneficiary: function(childId) {
-                STATE.currentBeneficiary = childId; STATE.currentUser = childId;
-                if (!STATE.isGodMode) STATE.isReadonly = false;
+                STATE.currentBeneficiary = childId; 
+                // 核心修復：只有在孩子模式下，才允許將當前操作者 (currentUser) 變成孩子。家長模式必須保持家長身分！
+                if (!STATE.isGodMode) {
+                    STATE.currentUser = childId; 
+                    STATE.isReadonly = false;
+                }
                 
                 let activeUser = STATE.data.users.find(u => u.id === childId);
+                // 切換視角時只改畫面樣式，絕對不要呼叫 ThemeManager.apply() 以免覆寫資料庫
                 if (activeUser && activeUser.theme) document.body.className = `theme-${activeUser.theme}`; else document.body.className = `theme-tech`;
 
-                UIManager.renderProfiles(); CardManager.renderStage(); BackpackManager.render();
+                UIManager.renderProfiles(); CardManager.renderStage(); 
+                if(typeof BackpackManager !== 'undefined') BackpackManager.render();
             },
             
             saveLocal: function() { STATE.data.last_update = Date.now(); this.persistToLocal(); },
@@ -2083,7 +2093,11 @@
                         if (!STATE.images[id]) {
                             missingCount++;
                             appendLog(`[遺失] 偵測到照片遺失: ${id}`);
-                            if (!STATE.cloud.isOffline && STATE.cloud.accessToken) {
+                            
+                            // 核心修復：若是 local_img_ 代表是本機尚未上傳成功的殘影，不要去雲端抓！
+                            if (id.startsWith('local_img_')) {
+                                appendLog(`  -> 這是本地暫存檔遺失，無法從雲端救援，將標記為空缺。`);
+                            } else if (!STATE.cloud.isOffline && STATE.cloud.accessToken) {
                                 try {
                                     appendLog(`  -> 嘗試從 Google Drive 救援...`);
                                     let b64 = await CloudManager.downloadImage(id);
@@ -2093,7 +2107,9 @@
                                         recoveredCount++;
                                         appendLog(`  -> 救援成功！`);
                                     }
-                                } catch(e) { appendLog(`  -> 救援失敗: ${e.message}`); }
+                                } catch(e) { 
+                                    appendLog(`  -> 救援失敗: 雲端無此檔案 (可能已被刪除)。`); 
+                                }
                             } else {
                                 appendLog(`  -> 未連線至雲端，暫時無法救援。`);
                             }
