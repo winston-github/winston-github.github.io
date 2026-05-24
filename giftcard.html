@@ -1834,58 +1834,104 @@
                     if(!STATE.data.users || STATE.data.users.length === 0) CoreManager.init();
                 }
             },
+
             handleRestoreFlow: async function() {
+                let debugStep = "初始化載入流程";
+                let appendLog = (msg) => {
+                    const debugTextarea = document.getElementById('debug-body');
+                    if(debugTextarea) {
+                        debugTextarea.value += msg + "\n";
+                        debugTextarea.scrollTop = debugTextarea.scrollHeight;
+                    }
+                };
+
                 try {
+                    document.getElementById('dynamic-modal').classList.remove('open');
+                    UIManager.updateSyncUI('syncing', '準備載入中...');
+                    appendLog(`\n--- 開始手動載入雲端進度 [${new Date().toLocaleString()}] ---`);
+
+                    debugStep = "Google 授權與選擇資料夾";
                     await new Promise((resolve) => CloudManager.authorize(() => resolve()));
                     const folder = await DriveUI.showSelector(); STATE.cloud.folderId = folder.id;
-                    
+                    appendLog(`[成功] 已選擇資料夾: ${folder.name}`);
+
+                    debugStep = "搜尋雲端存檔";
                     const q = encodeURIComponent(`parents in '${folder.id}' and mimeType='application/json' and trashed=false`);
                     const res = await DriveAPI.fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,modifiedTime)&orderBy=modifiedTime desc&pageSize=1`);
                     const data = await res.json();
-                    if (!data.files || data.files.length === 0) return showToast("無備份存檔");
+                    if (!data.files || data.files.length === 0) throw new Error("無備份存檔，請確認資料夾內是否有備份檔。");
                     STATE.cloud.fileId = data.files[0].id;
-                    
-                    const pwd = await PinLock.open("解密備份存檔", "請輸入當初設定的數字密碼");
-                    if (!pwd) throw new Error("取消");
-                    
-                    const fileRes = await DriveAPI.fetch(`https://www.googleapis.com/drive/v3/files/${STATE.cloud.fileId}?alt=media`);
-                    const encryptedCompressedStr = await fileRes.text();
-                    const compressedStr = await CryptoEngine.decrypt(encryptedCompressedStr, pwd);
-                    
-                    localStorage.setItem('sys_pin_cache', pwd);
-                    const decompressed = DataCompressor.decompress(compressedStr);
-                    if (!decompressed || typeof decompressed !== 'string' || decompressed.trim() === '') throw new Error("解密後的存檔為空，檔案可能已損毀");
-                    
-                    let parsedCloudData;
-                    try { parsedCloudData = JSON.parse(decompressed); } catch(e) { throw new Error("存檔格式解析失敗 (非JSON格式)"); }
+                    appendLog(`[成功] 找到最新存檔: ${STATE.cloud.fileId}`);
 
+                    debugStep = "密碼鎖驗證";
+                    const pwd = await PinLock.open("解密備份存檔", "請輸入當初設定的數字密碼");
+                    if (!pwd) throw new Error("使用者取消密碼輸入");
+                    appendLog(`[成功] 已取得解密金鑰`);
+
+                    debugStep = "下載與解密資料";
+                    const fileRes = await DriveAPI.fetch(`https://www.googleapis.com/drive/v3/files/${STATE.cloud.fileId}?alt=media`);
+                    const encryptedStr = await fileRes.text();
+                    const decryptedStr = await CryptoEngine.decrypt(encryptedStr, pwd);
+                    localStorage.setItem('sys_pin_cache', pwd);
+
+                    debugStep = "解析 JSON (智慧相容新舊版)";
+                    let parsedCloudData = null;
+                    if (decryptedStr.trim().startsWith('{')) {
+                        parsedCloudData = JSON.parse(decryptedStr);
+                        appendLog(`[解析] 使用新版無壓縮格式讀取成功。`);
+                    } else {
+                        const decompressed = DataCompressor.decompress(decryptedStr);
+                        if (!decompressed) throw new Error("舊版解壓縮失敗，檔案可能損毀");
+                        parsedCloudData = JSON.parse(decompressed);
+                        appendLog(`[解析] 使用舊版壓縮格式讀取成功。`);
+                    }
+
+                    debugStep = "合併並寫入記憶體";
                     STATE.data = SyncEngine.mergeCloudWithLocal(parsedCloudData);
                     STATE.cloud.lastSyncTime = new Date(data.files[0].modifiedTime).getTime();
-                    
+
+                    debugStep = "補齊遺失的照片";
                     await LocalDB.init(); STATE.images = {};
                     const allImgIds = new Set();
                     STATE.data.users.forEach(u => { if(u.avatarId) allImgIds.add(u.avatarId); });
                     STATE.data.cards.forEach(c => { if(c.imgId) allImgIds.add(c.imgId); });
                     STATE.data.bullets.forEach(b => { if(b.imgId) allImgIds.add(b.imgId); });
+                    STATE.data.logs.forEach(l => { if(l.bulletCache && l.bulletCache.imgId) allImgIds.add(l.bulletCache.imgId); });
+
+                    let dlCount = 0;
                     for (let id of allImgIds) {
                         let b64 = await LocalDB.get(id);
-                        if (!b64) { try { b64 = await CloudManager.downloadImage(id); if(b64) await LocalDB.save(id, b64); } catch(e){} }
+                        if (!b64) {
+                            try {
+                                b64 = await CloudManager.downloadImage(id);
+                                if(b64) { await LocalDB.save(id, b64); dlCount++; }
+                            } catch(e){}
+                        }
                         if(b64) STATE.images[id] = b64;
                     }
-                    this.persistToLocal(); document.getElementById('dynamic-modal').classList.remove('open');
-                    this.enterReadonlyMode(); showToast("載入成功！", false);
+                    appendLog(`[照片載入] 本機快取補齊，從雲端下載了 ${dlCount} 張遺失照片。`);
 
-                } catch (e) { 
-                    if(e.message === "取消選擇" || e.message === "取消") {
+                    debugStep = "重繪畫面與完成";
+                    this.persistToLocal();
+                    this.enterReadonlyMode();
+                    UIManager.updateSyncUI('success');
+                    showToast("載入成功！", false);
+                    appendLog(`[完成] 雲端進度已完美還原。`);
+
+                } catch (e) {
+                    if (e.message === "取消選擇" || e.message === "使用者取消密碼輸入") {
                         showToast("已取消操作", false);
                         if(!STATE.data.users || STATE.data.users.length === 0) CoreManager.init();
                         return;
                     }
                     const errMsg = e.message || "無訊息"; const errStack = e.stack || "無 Stack";
-                    const diag = `==== 系統診斷報告 ====\n[時間] ${new Date().toLocaleString()}\n[功能] 載入進度 (Restore)\n[死因] ${errMsg}\n\n[Safari追蹤]\n${errStack}`;
+                    const diag = `\n❌ ==== 載入崩潰報告 ====\n[發生時間] ${new Date().toLocaleString()}\n[故障斷點] ${debugStep}\n[錯誤訊息] ${errMsg}\n[程式追蹤]\n${errStack}\n========================`;
+                    appendLog(diag);
                     logDebug("Restore Crash", diag);
-                    showToast("載入失敗，請查看診斷面板", true);
-                    if(!STATE.data.users || STATE.data.users.length === 0) CoreManager.init();
+                    UIManager.updateSyncUI('error', '載入失敗');
+                    showToast("載入失敗，已自動開啟偵錯面板", true);
+                    setTimeout(() => document.getElementById('debug-console').classList.add('active'), 1000);
+                    if(!STATE.data.users || STATE.data.users.length === 0) setTimeout(() => CoreManager.init(), 2000);
                 }
             },
             
