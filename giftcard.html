@@ -74,23 +74,124 @@
         .btn-danger { background: var(--accent-red); box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3); }
         .btn-outline { background: transparent; border: 2px solid rgba(150, 150, 150, 0.3); color: var(--text-main); }
         .btn-icon-only { padding: 12px; border-radius: 50%; }
+        .icon-btn { background: transparent; border: none; color: var(--text-main); padding: 8px; cursor: pointer; border-radius: 50%; transition: background 0.2s; }
+        .icon-btn:active { background: rgba(255,255,255,0.1); }
 
         /* 大頭貼與 Drawer */
         .profile-container { display: flex; align-items: center; gap: 12px; position: relative; }
         .avatar-wrap { position: relative; width: 56px; height: 56px; border-radius: 50%; cursor: pointer; transition: transform 0.2s; border: 3px solid transparent; flex-shrink: 0; background: var(--bg-dark); }
         .avatar-wrap.active { border-color: var(--accent-main); transform: scale(1.1); box-shadow: 0 0 15px rgba(0,0,0,0.5); }
         .avatar-wrap img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
-        .title-badge { position: absolute; top: -5px; left: 50%; transform: translateX(-50%); background: var(--accent-main); color: #fff; font-size: 10px; font-weight: 900; padding: 2px 6px; border-radius: 10px; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        .title-badge { position: absolute; top: -5px; left: 50%; transform: translateX(-50%); background: var(--accent-main); color: #fff; font-size: 10px; font-weight: 900; padding: 2px 6px; border-radius: 10px; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.5); pointer-events: none; }
 
         #profile-drawer { position: absolute; top: 85px; left: 20px; width: 300px; background: var(--bg-panel); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 20px; padding: 20px; box-shadow: 0 25px 50px rgba(0,0,0,0.7); display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; z-index: 100; opacity: 0; pointer-events: none; transform: translateY(-20px); transition: all 0.3s; }
         #profile-drawer.open { opacity: 1; pointer-events: auto; transform: translateY(0); }
 
         /* 跑馬燈 */
-        #marquee-container { width: 100%; max-width: 600px; margin: 0 auto; height: 36px; background: rgba(0,0,0,0.4); border-radius: 18px; display: flex; align-items: center; overflow: hidden; position: relative; border: 1px solid rgba(255,255,255,0.1); margin-top: 15px; }
+        .marquee-container { width: 100%; max-width: 600px; margin: 0 auto; height: 36px; background: rgba(0,0,0,0.4); border-radius: 18px; display: flex; align-items: center; overflow: hidden; position: relative; border: 1px solid rgba(255,255,255,0.1); margin-top: 15px; }
         .marquee-text { white-space: nowrap; color: var(--accent-main); font-size: 14px; font-weight: bold; position: absolute; animation: marquee-anim 15s linear infinite; }
         @keyframes marquee-anim { 0% { left: 100%; } 100% { left: -150%; } }
 
-<main id="main-area">
+        /* 卡片與舞台 */
+        #stage-container { flex: 1; width: 100%; position: relative; perspective: 1200px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        .carousel-track { position: absolute; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; transform-style: preserve-3d; transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); touch-action: none; }
+        .card-wrapper { position: absolute; width: 85%; max-width: 450px; transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .card-wrapper.active { transform: translateX(0) scale(1) translateZ(0); opacity: 1; z-index: 10; }
+        .card-wrapper.prev { transform: translateX(-110%) scale(0.8) translateZ(-100px); opacity: 0.4; z-index: 5; pointer-events: none; }
+        .card-wrapper.next { transform: translateX(110%) scale(0.8) translateZ(-100px); opacity: 0.4; z-index: 5; pointer-events: none; }
+        
+        .card-header-title { font-size: 24px; font-weight: 900; color: #fff; margin-bottom: 15px; text-shadow: 0 2px 8px rgba(0,0,0,0.8); letter-spacing: 1px; text-align: center; cursor: pointer; }
+        .card-inner { width: 100%; position: relative; border-radius: 16px; overflow: hidden; background: #111; box-shadow: 0 10px 40px rgba(0,0,0,0.7), 0 0 0 2px rgba(255, 255, 255, 0.1); }
+        .toy-image { width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; z-index: 1; filter: grayscale(1) opacity(0.3); transition: filter 0.5s; }
+        .toy-image.sharp { filter: grayscale(0) opacity(1); }
+        
+        .grid-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 3; display: grid; }
+        .grid-cell { border: 1px solid rgba(0, 0, 0, 0.4); position: relative; overflow: hidden; background-color: rgba(200, 200, 200, 0.5); backdrop-filter: blur(5px); }
+        .grid-cell.hit-half { background-color: rgba(255,255,255,0.2); }
+        .grid-cell.hit-full { background: transparent; border-color: rgba(255,255,255,0.1); backdrop-filter: none; }
+        .bullet-stamp { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; height: 85%; border-radius: 50%; object-fit: cover; border: 3px solid #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+
+        /* 粒子動畫 */
+        .particle-container { position: absolute; inset: 0; pointer-events: none; z-index: 15; overflow: visible; }
+        .particle { position: absolute; top: 50%; left: 50%; border-radius: 50%; animation: particle-burst 0.6s cubic-bezier(0.1, 0.8, 0.3, 1) forwards; }
+        @keyframes particle-burst { 0% { transform: translate(-50%, -50%) scale(1); opacity: 1; } 100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0); opacity: 0; } }
+
+        /* 稽核牆 */
+        #audit-wall { position: absolute; top: 100%; left: 0; width: 100%; height: 100%; background: var(--bg-dark); z-index: 20; transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1); display: flex; flex-direction: column; overflow: hidden; }
+        #stage-container.show-audit #audit-wall { transform: translateY(-100%); }
+        .audit-header { padding: 20px; background: var(--bg-panel); border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; }
+        .audit-grid { flex: 1; overflow-y: auto; padding: 20px; -webkit-overflow-scrolling: touch; }
+
+        /* 模態視窗 */
+        .modal-overlay { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(10px); z-index: 10005; display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        .modal-overlay.open { opacity: 1; pointer-events: auto; }
+        .modal-content { width: 90%; max-width: 450px; max-height: 85vh; background: var(--bg-panel); border: 1px solid rgba(255,255,255,0.2); border-radius: 24px; display: flex; flex-direction: column; transform: scale(0.9); transition: transform 0.3s; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+        .modal-overlay.open .modal-content { transform: scale(1); }
+        .modal-header { padding: 20px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center; font-size: 18px; font-weight: bold; }
+        .modal-close { background: none; border: none; color: #fff; font-size: 24px; cursor: pointer; }
+        .modal-body { padding: 24px; overflow-y: auto; flex: 1; -webkit-overflow-scrolling: touch; }
+
+        .form-group { margin-bottom: 20px; }
+        .form-label { display: block; font-size: 14px; color: var(--text-sub); margin-bottom: 8px; font-weight: bold; }
+        .form-input { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 14px; border-radius: 12px; font-size: 16px; transition: border-color 0.2s; outline: none; }
+        .form-input:focus { border-color: var(--accent-main); }
+        
+        .theme-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+        .theme-btn { aspect-ratio: 1; border-radius: 50%; cursor: pointer; border: 3px solid transparent; transition: transform 0.2s; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
+        .theme-btn.active { border-color: #fff; transform: scale(1.1); box-shadow: 0 0 15px rgba(255,255,255,0.5); }
+
+        /* 背包明細 */
+        #backpack-drawer { position: absolute; inset: 0; background: var(--bg-dark); z-index: 100; transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); display: flex; flex-direction: column; }
+        #backpack-drawer.open { transform: translateY(0); }
+        .bp-header { padding: 20px; background: var(--bg-panel); border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 18px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
+        .bp-list { flex: 1; overflow-y: auto; padding: 20px; -webkit-overflow-scrolling: touch; }
+
+        /* 相機 */
+        #camera-modal { position: fixed; inset: 0; background: #000; z-index: 999999; display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); }
+        #camera-modal.open { transform: translateY(0); }
+        #camera-feed { flex: 1; width: 100%; height: 100%; object-fit: cover; }
+        .cam-controls { height: 120px; background: #000; display: flex; align-items: center; justify-content: space-around; padding-bottom: env(safe-area-inset-bottom, 20px); }
+
+        /* Pin Lock */
+        #pin-lock-container { width: 280px; margin: 0 auto 15px; display: flex; flex-direction: column; align-items: center; }
+        #pin-display { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-bottom: 25px; min-height: 14px; }
+        .pin-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--text-sub); transition: all 0.2s; }
+        .pin-dot.filled { background: var(--accent-gold); border-color: var(--accent-gold); box-shadow: 0 0 8px var(--accent-gold); }
+        .pin-dot.error { background: var(--accent-red); border-color: var(--accent-red); box-shadow: 0 0 8px var(--accent-red); }
+        .pin-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px 25px; }
+        .pin-btn { width: 70px; height: 70px; border-radius: 50%; background: rgba(255, 255, 255, 0.1); display: flex; justify-content: center; align-items: center; cursor: pointer; transition: background 0.1s; color: #fff; font-size: 30px; font-weight: 300; }
+        .pin-btn:active { background: rgba(255, 255, 255, 0.3); }
+        
+        #debug-console.active { display: flex !important; }
+
+    </style>
+</head>
+<body>
+    <div id="app-wrapper">
+        <div id="sidebar-left">
+            <header id="top-bar">
+                <div class="profile-container" id="profile-list"></div>
+            </header>
+            <div id="profile-drawer"></div>
+            
+            <div class="mobile-only" style="padding: 0 20px;">
+                <div class="marquee-container">
+                    <div class="marquee-text" id="marquee-text">歡迎使用！差一點點就可以得到新禮物囉！</div>
+                </div>
+            </div>
+            
+            <div class="desktop-only" style="flex:1;">
+                <!-- Desktop Sidebar Content -->
+            </div>
+        </div>
+
+        <main id="main-area">
+            <div class="desktop-only" style="padding: 20px;">
+                <div class="marquee-container" style="max-width: 100%; margin: 0;">
+                    <div class="marquee-text" id="marquee-text-desktop">歡迎使用！差一點點就可以得到新禮物囉！</div>
+                </div>
+            </div>
+
             <div id="stage-container">
                 <div class="carousel-track" id="card-track"></div>
             </div>
@@ -105,6 +206,19 @@
                 <div class="audit-grid" id="audit-grid"></div>
             </section>
         </main>
+        
+        <footer id="bottom-bar">
+            <div id="child-toolbar" style="width:100%; display:flex; justify-content:space-between; gap:10px;">
+                <button class="btn btn-outline" style="flex:1; border-color:var(--accent-gold); color:var(--accent-gold);" onclick="document.getElementById('backpack-drawer').classList.add('open')">🎒 打開彈藥庫 <span id="backpack-count" style="background:var(--accent-red); color:#fff; padding:2px 6px; border-radius:10px; font-size:12px; margin-left:5px;">0</span></button>
+                <button class="btn btn-outline" style="width:100px; color:var(--text-sub);" onclick="CardManager.recallBullets(STATE.data.cards[STATE.ui.activeCardIndex]?.id)">🔄 收回</button>
+            </div>
+            <div id="parent-toolbar" style="display:none; width:100%; justify-content:space-between; gap:10px;">
+                <button class="btn btn-primary" style="flex:1;" onclick="AdminManager.openGivePoint()">🎯 發放點數</button>
+                <button class="btn btn-outline" style="width:50px; padding:0;" onclick="AdminManager.openSettings()"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                <button class="btn btn-outline" style="width:50px; padding:0; border-color:var(--accent-red); color:var(--accent-red);" onclick="CoreManager.enterReadonlyMode(); showToast('🔒 已鎖定');"><svg class="svg-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>
+                <button class="btn btn-outline" style="width:50px; padding:0; border-color:var(--accent-main); color:var(--accent-main);" onclick="CoreManager.performFullSync()"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></button>
+            </div>
+        </footer>
     </div> <!-- #app-wrapper 結束 -->
 
     <!-- 全螢幕明細背包 -->
@@ -148,6 +262,16 @@
     <!-- 動態互動對話框 (設定、新增、編輯等) -->
     <div id="dynamic-modal" class="modal-overlay"></div>
 
+    <!-- UI 結構與底部工具列 -->
+    <div id="toast-container" style="position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:10000; display:flex; flex-direction:column; gap:10px; pointer-events:none;"></div>
+    
+    <!-- 強大的隱藏式全螢幕除錯面板 -->
+    <div id="debug-console" style="position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:999999; display:none; flex-direction:column; padding:20px; color:#10b981; font-family:monospace;">
+        <h2 style="color:#ef4444; margin-bottom:10px; display:flex; justify-content:space-between;">⚠️ 終極除錯面板 <button onclick="document.getElementById('debug-console').classList.remove('active')" style="padding:5px 10px; background:#fff; color:#000; border:none; border-radius:5px;">關閉</button></h2>
+        <p style="color:#fff; font-size:12px; margin-bottom:10px;">請截圖以下完整內容提供給開發者分析：</p>
+        <textarea id="debug-body" style="flex:1; width:100%; background:#111; color:#10b981; border:1px solid #333; padding:10px; font-size:11px;" readonly></textarea>
+    </div>
+
     <!-- 核心 JavaScript 引擎 -->
     <script>
         const SYS_VERSION = 16; 
@@ -170,7 +294,7 @@
         let tokenClient;
         let gisInited = false;
 
-        // 除錯列印核心 (直接替換掉原本被吞掉的 console.error)
+        // 除錯列印核心
         function logDebug(title, message) {
             console.error(`[${title}]`, message);
             const consoleEl = document.getElementById('debug-console');
@@ -255,7 +379,8 @@
                 document.getElementById(containerId).innerHTML = html;
             }
         };
-const DataCompressor = {
+
+        const DataCompressor = {
             compress: function (uncompressed) {
                 if (!uncompressed) return uncompressed;
                 let dictionary = {}, c, wc, w = "", result = [], dictSize = 256;
@@ -488,7 +613,7 @@ const DataCompressor = {
         };
         PinLock.init();
 
-window.DriveUI = {
+        window.DriveUI = {
             fetchFolders: async function() {
                 const q = encodeURIComponent("mimeType='application/vnd.google-apps.folder' and trashed=false");
                 const res = await DriveAPI.fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,parents)&pageSize=1000`);
@@ -614,7 +739,6 @@ window.DriveUI = {
                     const wrap = document.createElement('div'); wrap.className = `avatar-wrap ${isActive ? 'active' : ''}`;
                     wrap.innerHTML = `<img src="${getImg(user.avatarId || user.avatarBase64)}"><div class="title-badge">${user.name}</div>`;
                     
-                    // 長按編輯/請求家長模式
                     let pressTimer;
                     wrap.ontouchstart = wrap.onmousedown = (e) => {
                         pressTimer = setTimeout(() => {
@@ -622,7 +746,7 @@ window.DriveUI = {
                                 const parent = STATE.data.users.find(u => u.role === 'parent');
                                 if (parent) CoreManager.requestGodMode(parent);
                             } else if (STATE.isGodMode) {
-                                AdminManager.editUser(user.id); // 家長模式下長按可編輯該角色
+                                AdminManager.editUser(user.id);
                             }
                         }, 1000);
                     };
@@ -647,16 +771,20 @@ window.DriveUI = {
             },
             renderMarquee: function() {
                 const textEl = document.getElementById('marquee-text');
+                const textElDesktop = document.getElementById('marquee-text-desktop');
+                let text = '';
                 if (STATE.data.bullets.length > 0) {
                     const recent = [...STATE.data.bullets].sort((a,b)=>b.createdAt - a.createdAt).slice(0, 5);
                     const msgs = recent.map(b => {
                         const d = new Date(b.createdAt); const child = STATE.data.users.find(u=>u.id===b.ownerId)?.name || '孩子';
                         return `✨ ${d.getMonth()+1}/${d.getDate()} ${child} 因為「${b.reason}」獲得了 ${b.size} 點！`;
                     });
-                    textEl.innerText = msgs.join(' 　|　 ') + ' 　|　 ' + msgs.join(' 　|　 ');
+                    text = msgs.join(' 　|　 ') + ' 　|　 ' + msgs.join(' 　|　 ');
                 } else {
-                    textEl.innerText = `歡迎使用數位集點系統 V16！家長請點擊設定發放點數！`;
+                    text = `歡迎使用數位集點系統 V16！家長請點擊設定發放點數！`;
                 }
+                if(textEl) textEl.innerText = text;
+                if(textElDesktop) textElDesktop.innerText = text;
             }
         };
 
@@ -788,13 +916,12 @@ window.DriveUI = {
                 };
             }
         };
-                                                                                                                                                                                                                                     
-window.BackpackManager = {
+
+        window.BackpackManager = {
             render: function() {
                 const list = document.getElementById('backpack-list'); list.innerHTML = '';
                 const myBullets = STATE.data.bullets.filter(b => b.ownerId === STATE.currentBeneficiary);
                 
-                // 更新總數顯示 (如果有掛載 Badge 的話)
                 const badge = document.getElementById('backpack-count');
                 if (badge) badge.innerText = myBullets.length;
 
@@ -803,7 +930,6 @@ window.BackpackManager = {
                     return;
                 }
 
-                // 明細列表渲染
                 const sorted = myBullets.sort((a,b) => b.createdAt - a.createdAt);
                 sorted.forEach(bullet => {
                     const creator = STATE.data.users.find(u => u.id === bullet.creatorId);
@@ -841,7 +967,6 @@ window.BackpackManager = {
                     if (index === STATE.ui.activeCardIndex) wrapper.classList.add('active'); else if (index < STATE.ui.activeCardIndex) wrapper.classList.add('prev'); else wrapper.classList.add('next');
                     const aspectStr = `${card.cols} / ${card.rows}`;
                     
-                    // 卡片標題，長按可編輯
                     const titleEl = document.createElement('div');
                     titleEl.className = 'card-header-title';
                     titleEl.innerHTML = `${card.cardName || '專屬禮物卡'} (<span id="progress-${card.id}">0%</span>)`;
@@ -897,7 +1022,7 @@ window.BackpackManager = {
                     cell.dataset.cardId = card.id; cell.dataset.x = gridData.x; cell.dataset.y = gridData.y;
                     
                     if (gridData.status > 0 && gridData.bulletIds && gridData.bulletIds.length > 0) {
-                        if (gridData.status === 1.0) cell.classList.add('hit-full');
+                        if (gridData.status >= 1.0) cell.classList.add('hit-full');
                         else cell.classList.add('hit-half');
                         
                         gridData.bulletIds.forEach((bId, idx) => {
@@ -910,12 +1035,11 @@ window.BackpackManager = {
                                 stamp.className = 'bullet-stamp';
                                 stamp.style.borderColor = `rgb(var(--${bullet.colorVar}))`;
                                 
-                                // 切割邏輯
                                 if (gridData.status === 0.5) {
-                                    stamp.style.clipPath = 'polygon(0 0, 50% 0, 50% 100%, 0 100%)'; // 左半
-                                } else if (gridData.status === 1.0 && gridData.bulletIds.length === 2) {
-                                    if (idx === 0) stamp.style.clipPath = 'polygon(0 0, 50% 0, 50% 100%, 0 100%)'; // 左半
-                                    if (idx === 1) { stamp.style.clipPath = 'polygon(50% 0, 100% 0, 100% 100%, 50% 100%)'; stamp.style.zIndex = '2'; } // 右半
+                                    stamp.style.clipPath = 'polygon(0 0, 50% 0, 50% 100%, 0 100%)'; 
+                                } else if (gridData.status >= 1.0 && gridData.bulletIds.length === 2) {
+                                    if (idx === 0) stamp.style.clipPath = 'polygon(0 0, 50% 0, 50% 100%, 0 100%)'; 
+                                    if (idx === 1) { stamp.style.clipPath = 'polygon(50% 0, 100% 0, 100% 100%, 50% 100%)'; stamp.style.zIndex = '2'; } 
                                 }
                                 cell.appendChild(stamp);
                             }
@@ -923,6 +1047,12 @@ window.BackpackManager = {
                     }
                     container.appendChild(cell);
                 });
+                
+                const toyImg = document.getElementById(`toy-img-${card.id}`);
+                if (toyImg) {
+                    const isAllFull = card.grids.length > 0 && card.grids.every(g => g.status >= 1.0);
+                    if (isAllFull) toyImg.classList.add('sharp'); else toyImg.classList.remove('sharp');
+                }
             },
             updateProgress: function(card) {
                 const progressEl = document.getElementById(`progress-${card.id}`); if (!progressEl) return;
@@ -932,14 +1062,13 @@ window.BackpackManager = {
             executeSmear: function(cardId, x, y) {
                 const card = STATE.data.cards.find(c => c.id === cardId); if (!card) return;
                 const grid = card.grids.find(g => g.x === x && g.y === y);
-                if (grid.status >= 1.0) return; // 已經滿了
+                if (grid.status >= 1.0) return; 
                 
-                // 找背包可用彈藥 (需符合大小限制，例如只差0.5，就不能塞1.0)
                 const needed = 1.0 - grid.status;
                 const myBullets = STATE.data.bullets.filter(b => b.ownerId === STATE.currentBeneficiary && b.size <= needed);
                 if (myBullets.length === 0) { showToast("背包沒有合適大小的點數囉！"); return; }
                 
-                const bullet = myBullets[0]; // 取第一顆
+                const bullet = myBullets[0]; 
                 const bulletIndex = STATE.data.bullets.findIndex(b => b.id === bullet.id);
                 
                 grid.status += bullet.size;
@@ -955,12 +1084,12 @@ window.BackpackManager = {
                 this.renderGrids(card); this.updateProgress(card);
                 if(typeof BackpackManager !== 'undefined') BackpackManager.render();
                 
-                if (grid.status === 1.0) {
+                if (grid.status >= 1.0) {
                     const cell = document.querySelector(`.grid-cell[data-card-id="${cardId}"][data-x="${x}"][data-y="${y}"]`);
                     if(cell) this.triggerParticles(cell, bullet.colorVar);
                 }
                 
-                if (card.grids.every(g => g.status === 1.0)) setTimeout(() => this.triggerGrandSlam(card), 1000);
+                if (card.grids.every(g => g.status >= 1.0)) setTimeout(() => this.triggerGrandSlam(card), 1000);
                 CoreManager.saveLocal();
             },
             triggerParticles: function(cellEl, colorVar) {
@@ -980,7 +1109,6 @@ window.BackpackManager = {
                 let startX = 0, startY = 0; let isLockX = false, isLockY = false, hasLocked = false;
                 stage.classList.remove('show-audit');
                 
-                // 統一為塗抹模式 (Smear Mode)
                 const handlePointerMove = (e) => {
                     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
                     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
@@ -996,13 +1124,18 @@ window.BackpackManager = {
 
                 track.onpointerdown = (e) => {
                     if(e.target.closest('button')) return; 
-                    startX = e.clientX; startY = e.clientY; isLockX = false; isLockY = false; hasLocked = false; 
+                    startX = e.clientX || (e.touches && e.touches[0].clientX); 
+                    startY = e.clientY || (e.touches && e.touches[0].clientY); 
+                    isLockX = false; isLockY = false; hasLocked = false; 
                     track.style.transition = 'none'; this.lastHitCell = null;
-                    track.setPointerCapture(e.pointerId);
+                    if(e.pointerId) track.setPointerCapture(e.pointerId);
                 };
-                track.onpointermove = (e) => {
+                
+                const moveLogic = (e) => {
                     if(e.target.closest('button') || !startX || !startY) return;
-                    let dx = e.clientX - startX; let dy = e.clientY - startY;
+                    let clientX = e.clientX || (e.touches && e.touches[0].clientX);
+                    let clientY = e.clientY || (e.touches && e.touches[0].clientY);
+                    let dx = clientX - startX; let dy = clientY - startY;
                     
                     if (!hasLocked && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) { 
                         let angle = Math.abs(Math.atan2(dy, dx) * 180 / Math.PI); 
@@ -1010,24 +1143,30 @@ window.BackpackManager = {
                     }
                     if (hasLocked) {
                         if (isLockX) { 
-                            e.preventDefault(); 
+                            if(e.cancelable) e.preventDefault(); 
                             if ((STATE.ui.activeCardIndex === 0 && dx > 0) || (STATE.ui.activeCardIndex === this.filteredCards.length - 1 && dx < 0)) dx = dx * 0.25; 
                             const activeCard = track.querySelector('.card-wrapper.active'); if (activeCard) activeCard.style.transform = `translateX(${dx}px) scale(1)`; 
                         }
                         if (isLockY) {
-                            e.preventDefault();
-                            if (dy < -30) stage.classList.add('show-audit'); // 往上滑看紀錄
-                            else if (dy > 10) handlePointerMove(e); // 往下或原處滑動則視為塗抹
+                            if(e.cancelable) e.preventDefault();
+                            if (dy < -30) stage.classList.add('show-audit'); 
+                            else if (dy > 10) handlePointerMove(e); 
                         }
-                    } else { handlePointerMove(e); } // 未鎖定方向時，也支援點按塗抹
+                    } else { handlePointerMove(e); } 
                 };
+
+                track.onpointermove = moveLogic;
+                track.ontouchmove = moveLogic;
+
                 track.onpointerup = (e) => {
-                    if(e.target.closest('button')) return; track.releasePointerCapture(e.pointerId);
-                    if (!hasLocked) { handlePointerMove(e); return; } // 單點
-                    const dx = e.clientX - startX; track.style.transition = 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)';
+                    if(e.target.closest('button')) return; if(e.pointerId) track.releasePointerCapture(e.pointerId);
+                    if (!hasLocked) { handlePointerMove(e); return; } 
+                    const clientX = e.clientX || (e.changedTouches && e.changedTouches[0].clientX);
+                    const dx = clientX - startX; track.style.transition = 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)';
                     if (isLockX) { Array.from(track.children).forEach(c => c.style.transform = ''); if (Math.abs(dx) > 30) dx > 0 ? this.switchCard('prev') : this.switchCard('next'); }
                     startX = 0; startY = 0; this.lastHitCell = null;
                 };
+                track.ontouchend = track.onpointerup;
             },
             recallBullets: function(cardId, bypassConfirm = false) {
                 if(!bypassConfirm && !confirm("確定要收回這張卡片上的所有點數到背包嗎？")) return;
@@ -1064,7 +1203,7 @@ window.BackpackManager = {
                                 const imgSrc = b.imgId ? getImg(b.imgId) : (c ? getImg(c.avatarId || c.avatarBase64) : '');
                                 let clip = 'none';
                                 if(g.status===0.5) clip = 'polygon(0 0, 50% 0, 50% 100%, 0 100%)';
-                                else if(g.status===1.0 && g.bulletIds.length===2) clip = idx===0 ? 'polygon(0 0, 50% 0, 50% 100%, 0 100%)' : 'polygon(50% 0, 100% 0, 100% 100%, 50% 100%)';
+                                else if(g.status>=1.0 && g.bulletIds.length===2) clip = idx===0 ? 'polygon(0 0, 50% 0, 50% 100%, 0 100%)' : 'polygon(50% 0, 100% 0, 100% 100%, 50% 100%)';
                                 content += `<img src="${imgSrc}" style="position:absolute; width:100%; height:100%; object-fit:cover; border-radius:50%; border:2px solid rgb(var(--${b.colorVar})); clip-path:${clip}; z-index:${idx+1};">`;
                             }
                         });
@@ -1074,7 +1213,6 @@ window.BackpackManager = {
                 document.getElementById('audit-grid').innerHTML = `<div style="display:grid; grid-template-columns:repeat(${activeCard.cols}, 1fr); gap:10px; padding:20px;">${gridHtml}</div>`;
             },
             triggerGrandSlam: function(card) {
-                // ... 簡化滿貫動畫呼叫
                 showToast("🎉 太棒了！卡片集滿囉！", false);
             }
         };
@@ -1101,7 +1239,7 @@ window.BackpackManager = {
                     } catch(e) { logDebug("Init Error", e.stack || e.message); }
                 } else {
                     document.getElementById('dynamic-modal').innerHTML = `
-                        <div class="modal-content"><div class="modal-header"><div class="modal-title">歡迎使用</div></div><div class="modal-body"><button class="btn btn-primary" style="width:100%;margin-bottom:10px;" onclick="CoreManager.handleNewFlow()">全新建立</button><button class="btn btn-outline" style="width:100%;" onclick="CoreManager.handleRestoreFlow()">載入進度</button></div></div>`;
+                        <div class="modal-content"><div class="modal-header"><div class="modal-title">歡迎使用 V16</div></div><div class="modal-body"><button class="btn btn-primary" style="width:100%;margin-bottom:10px;" onclick="CoreManager.handleNewFlow()">全新建立</button><button class="btn btn-outline" style="width:100%;" onclick="CoreManager.handleRestoreFlow()">載入進度</button></div></div>`;
                     document.getElementById('dynamic-modal').classList.add('open');
                 }
             },
@@ -1243,35 +1381,5 @@ window.BackpackManager = {
             window.addEventListener('online', () => STATE.cloud.isOffline = false);
         });
     </script>
-
-    <!-- UI 結構與底部工具列 -->
-    <div id="toast-container" style="position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:10000; display:flex; flex-direction:column; gap:10px; pointer-events:none;"></div>
-    
-    <!-- 強大的隱藏式全螢幕除錯面板 -->
-    <div id="debug-console" style="position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:999999; display:none; flex-direction:column; padding:20px; color:#10b981; font-family:monospace;">
-        <h2 style="color:#ef4444; margin-bottom:10px; display:flex; justify-content:space-between;">⚠️ 終極除錯面板 <button onclick="document.getElementById('debug-console').classList.remove('active')" style="padding:5px 10px; background:#fff; color:#000; border:none; border-radius:5px;">關閉</button></h2>
-        <p style="color:#fff; font-size:12px; margin-bottom:10px;">請截圖以下完整內容提供給開發者分析：</p>
-        <textarea id="debug-body" style="flex:1; width:100%; background:#111; color:#10b981; border:1px solid #333; padding:10px; font-size:11px;" readonly></textarea>
-    </div>
-    <style> #debug-console.active { display: flex !important; } </style>
-
-    <footer id="bottom-bar">
-        <div id="child-toolbar" style="width:100%; display:flex; justify-content:space-between; gap:10px;">
-            <button class="btn btn-outline" style="flex:1; border-color:var(--accent-gold); color:var(--accent-gold);" onclick="document.getElementById('backpack-drawer').classList.add('open')">🎒 打開彈藥庫 <span id="backpack-count" style="background:var(--accent-red); color:#fff; padding:2px 6px; border-radius:10px; font-size:12px; margin-left:5px;">0</span></button>
-            <button class="btn btn-outline" style="width:100px; color:var(--text-sub);" onclick="CardManager.recallBullets(STATE.data.cards[STATE.ui.activeCardIndex]?.id)">🔄 收回</button>
-        </div>
-        <div id="parent-toolbar" style="display:none; width:100%; justify-content:space-between; gap:10px;">
-            <button class="btn btn-primary" style="flex:1;" onclick="AdminManager.openGivePoint()">🎯 發放點數</button>
-            <button class="btn btn-outline" style="width:50px; padding:0;" onclick="AdminManager.openSettings()"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
-            <button class="btn btn-outline" style="width:50px; padding:0; border-color:var(--accent-red); color:var(--accent-red);" onclick="CoreManager.enterReadonlyMode(); showToast('🔒 已鎖定');"><svg class="svg-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>
-            <button class="btn btn-outline" style="width:50px; padding:0; border-color:var(--accent-main); color:var(--accent-main);" onclick="CoreManager.performFullSync()"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></button>
-        </div>
-    </footer>
 </body>
-</html>                                                                                                                                                                                                                     
-                                                                                                                                                                                                                                     
-                                                                                                                                                                                                                                     
-
-
-
-        
+</html>
