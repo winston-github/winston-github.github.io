@@ -329,8 +329,14 @@
             }
         }
 
+        let _lastToastMsg = "";
+        let _lastToastTime = 0;
         function showToast(msg, isError = true) {
+            if (msg === _lastToastMsg && Date.now() - _lastToastTime < 1500) return; // 防止重複訊息洗版
+            _lastToastMsg = msg; _lastToastTime = Date.now();
+            
             const container = document.getElementById('toast-container');
+            
             const toast = document.createElement('div');
             toast.style.cssText = `background: ${isError ? 'var(--accent-red)' : '#10b981'}; color: #fff; padding: 12px 20px; border-radius: 20px; font-size: 14px; font-weight: bold; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.5); opacity: 0; transform: translateY(-20px); transition: all 0.3s;`;
             toast.innerHTML = `<div style="display:flex; align-items:center; justify-content:center; gap:8px;">${isError ? '<svg class="svg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>' : '<svg class="svg-icon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'} ${msg}</div>`;
@@ -1198,19 +1204,34 @@
                     
                     const creator = STATE.data.users.find(u => u.id === card.creatorId);
                     const creatorName = creator ? creator.name : '未知';
-                    const titleEl = document.createElement('div');
-                    titleEl.className = 'card-header-title';
-                    titleEl.innerHTML = `<div style="font-size:12px; font-weight:normal; color:var(--text-sub); margin-bottom:5px; display:flex; align-items:center; justify-content:center; gap:5px;"><svg class="svg-icon" style="width:14px;height:14px;" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> 發行者: ${creatorName}</div>${card.cardName || '專屬禮物卡'} (<span id="progress-${card.id}">0%</span>)`;
                     
+                    const currentHit = card.grids.reduce((sum, g) => sum + g.status, 0);
+                    const totalGrids = card.cols * card.rows;
+                    const percent = Math.floor((currentHit / totalGrids) * 100);
+
+                    const titleContainer = document.createElement('div');
+                    titleContainer.style.cssText = 'width: 100%; position: relative; padding: 0 45px; margin-bottom: 15px; text-align: center;';
+
+                    titleContainer.innerHTML = `
+                        <div style="font-size:24px; font-weight:900; color:#fff; margin-bottom:8px; letter-spacing:1px; text-shadow: 0 2px 8px rgba(0,0,0,0.8);">${card.cardName || '專屬禮物卡'}</div>
+                        <div style="font-size:12px; color:var(--text-sub); display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap;">
+                            <span style="display:flex; align-items:center; gap:4px;"><svg class="svg-icon" style="width:14px;height:14px;" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> 由 ${creatorName} 提供</span>
+                            <span>|</span>
+                            <span id="progress-${card.id}">進度: ${currentHit}/${totalGrids} (${percent}%)</span>
+                        </div>
+                    `;
+
                     if (STATE.isGodMode) {
                         const editBtn = document.createElement('button');
                         editBtn.className = 'icon-btn';
-                        editBtn.style.cssText = 'position:absolute; right:0px; top:50%; transform:translateY(-50%); color:var(--text-sub); background:rgba(255,255,255,0.1); width:36px; height:36px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,0.5); border-radius:10px; z-index:20;';
+                        editBtn.style.cssText = 'position:absolute; right:0; top:50%; transform:translateY(-50%); color:var(--text-sub); background:rgba(255,255,255,0.15); width:38px; height:38px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,0.5); border-radius:12px; z-index:50;';
                         editBtn.innerHTML = '<svg class="svg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
-                        editBtn.onclick = (e) => { e.stopPropagation(); this.editCard(card.id); };
-                        titleEl.appendChild(editBtn);
+                        // 阻止事件冒泡，防止誤觸發卡片滑動
+                        editBtn.onpointerdown = (e) => e.stopPropagation(); 
+                        editBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); this.editCard(card.id); };
+                        titleContainer.appendChild(editBtn);
                     }
-                    wrapper.appendChild(titleEl);
+                    wrapper.appendChild(titleContainer);
 
                     wrapper.innerHTML += `
                         <div class="card-inner" style="aspect-ratio: ${aspectStr};">
@@ -1319,11 +1340,15 @@
                     if (isAllFull) toyImg.classList.add('sharp'); else toyImg.classList.remove('sharp');
                 }
             },
+
             updateProgress: function(card) {
                 const progressEl = document.getElementById(`progress-${card.id}`); if (!progressEl) return;
-                const total = card.grids.length; let current = 0; card.grids.forEach(g => current += g.status);
-                progressEl.innerText = `${Math.floor((current / total) * 100)}%`;
+                const totalGrids = card.cols * card.rows; 
+                let currentHit = 0; card.grids.forEach(g => currentHit += g.status);
+                const percent = Math.floor((currentHit / totalGrids) * 100);
+                progressEl.innerText = `進度: ${currentHit}/${totalGrids} (${percent}%)`;
             },
+        
             executeSmear: function(cardId, x, y) {
                 const card = STATE.data.cards.find(c => c.id === cardId); if (!card) return;
                 const grid = card.grids.find(g => g.x === x && g.y === y);
@@ -1369,16 +1394,23 @@
                 }
                 setTimeout(() => container.remove(), 1000);
             },
+            
             bindGestures: function() {
                 const track = document.getElementById('card-track'); const mainArea = document.getElementById('main-area');
                 let startX = 0, startY = 0; let isLockX = false, isLockY = false, hasLocked = false;
+                let lastMoveProcess = 0;
                 mainArea.classList.remove('show-audit');
                 
                 const handlePointerMove = (e) => {
+                    if (isLockX) return; // 水平滑動時不執行塗抹運算，節省效能
+                    if (Date.now() - lastMoveProcess < 60) return; // 效能優化：限制每秒最高 16 次 elementFromPoint
+                    lastMoveProcess = Date.now();
+
                     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
                     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
                     const targetEl = document.elementFromPoint(clientX, clientY);
                     if (targetEl && targetEl.closest('.grid-cell')) {
+                        
                         const cell = targetEl.closest('.grid-cell');
                         if (cell !== this.lastHitCell) {
                             this.lastHitCell = cell; const cx = parseInt(cell.dataset.x); const cy = parseInt(cell.dataset.y);
@@ -1763,8 +1795,13 @@
                         }
                     }
                     
-                    if(missingCount > 0) appendLog(`[救援總結] 遺失: ${missingCount} 張，成功救回: ${recoveredCount} 張。`);
-                    else appendLog(`[成功] 本地所有照片完整無缺 (${Object.keys(STATE.images).length} files)`);
+                    if(missingCount > 0) {
+                        appendLog(`[救援總結] 遺失: ${missingCount} 張，成功救回: ${recoveredCount} 張。`);
+                        if (missingCount > recoveredCount) {
+                            appendLog(`❌ 警告：仍有照片無法救回！系統診斷面板將保持開啟以供檢查。`);
+                            document.getElementById('debug-console').classList.add('active'); // 自動彈出
+                        }
+                    } else appendLog(`[成功] 本地所有照片完整無缺 (${Object.keys(STATE.images).length} files)`);
 
                     // 3. 雲端狀態檢查
                     appendLog(`\n[3/4] 檢查網路與通行證狀態...`);
@@ -1821,17 +1858,38 @@
                     const success = await CloudManager.resumableUpload(STATE.cloud.fileId, STATE.cloud.folderId, `PointsBackup_${new Date().toISOString().split('T')[0]}.json`, encryptedStr);
                     if (success) { UIManager.updateSyncUI('success'); showToast("雲端同步成功！", false); } 
                     else throw new Error("Resumable Upload Failed");
+
                 } catch (e) {
                     const errMsg = e.message || "無訊息"; const errStack = e.stack || "無 Stack";
                     const diag = `==== 系統診斷報告 ====\n[時間] ${new Date().toLocaleString()}\n[斷點] ${debugStep}\n[Token] ${STATE.cloud.accessToken?'OK':'MISSING'}\n[Folder] ${STATE.cloud.folderId}\n[File] ${STATE.cloud.fileId}\n\n[死因] ${errMsg}\n\n[Safari追蹤]\n${errStack}`;
                     logDebug("Sync Crash", diag);
                     UIManager.updateSyncUI('error', '同步崩潰');
-                    showToast("同步崩潰，請查看診斷面板", true);
+                    showToast("同步崩潰，自動呼叫診斷系統...", true);
+                    setTimeout(() => document.getElementById('debug-console').classList.add('active'), 1000); // 同步異常自動彈出
                 }
+            },
+            silentSyncCheck: async function() {
+                try {
+                    if (STATE.cloud.fileId && !STATE.cloud.isOffline && STATE.cloud.accessToken) {
+                        const isConflict = await CloudManager.checkVersionConflict(STATE.cloud.fileId);
+                        if (isConflict) {
+                            showToast("偵測到雲端有新進度，準備重新載入...", false);
+                            this.performFullSync(); // 自動啟動同步流程
+                        }
+                    }
+                } catch(e) {}
             }
         };
 
         document.addEventListener('DOMContentLoaded', () => {
+            let lastActiveTime = Date.now();
+            document.addEventListener('pointerdown', () => {
+                if (Date.now() - lastActiveTime > 10000) { // 閒置大於10秒
+                    CoreManager.silentSyncCheck();
+                }
+                lastActiveTime = Date.now();
+            }, { passive: true });
+
             CoreManager.init();
             window.addEventListener('offline', () => STATE.cloud.isOffline = true);
             window.addEventListener('online', () => STATE.cloud.isOffline = false);
