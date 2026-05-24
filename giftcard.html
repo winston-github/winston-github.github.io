@@ -200,9 +200,11 @@
                     <button class="btn btn-outline" style="flex:1; padding:14px 10px;" onclick="AdminManager.openSettings()">
                         <svg class="svg-icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> 成員
                     </button>
-                    <button class="btn btn-outline" style="width:75px; padding:14px 10px; border-color:var(--accent-gold); color:var(--accent-gold);" onclick="CoreManager.enterReadonlyMode(); showToast('已切換回孩子模式');">
+                    
+                    <button id="btn-return-child" class="btn btn-outline" style="width:75px; padding:14px 10px; border-color:var(--accent-gold); color:var(--accent-gold);" onclick="if(!this.disabled) { CoreManager.enterReadonlyMode(); }">
                         <svg class="svg-icon" viewBox="0 0 24 24"><path d="m9 14 3-3 3 3"/><path d="M12 11v10"/><path d="M5 21h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2z"/></svg> 返回
                     </button>
+                    
                 </div>
             </footer>
         </div>
@@ -816,13 +818,15 @@
                 else if(statusStr === 'error') { badge.style.color = 'var(--accent-red)'; badge.style.borderColor = 'var(--accent-red)'; badge.innerHTML = `<svg class="svg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> 待上傳`; }
                 if(msg && statusStr === 'error') showToast(msg, true);
             },
-            renderProfiles: function() {
+
+        renderProfiles: function() {
                 const container = document.getElementById('profile-list'); 
                 container.innerHTML = ''; 
                 if (STATE.data.users.length === 0) return;
 
                 let activeId = STATE.isGodMode ? STATE.currentUser : STATE.currentBeneficiary;
                 let activeUser = STATE.data.users.find(u => u.id === activeId) || STATE.data.users[0];
+                if (!activeUser) return;
 
                 const createAvatar = (user, isActive) => {
                     const wrap = document.createElement('div'); wrap.className = `avatar-wrap ${isActive ? 'active' : ''}`;
@@ -834,11 +838,41 @@
                 sortedUsers.forEach((u) => {
                     const isAct = u.id === activeUser.id;
                     const avatar = createAvatar(u, isAct);
-                    avatar.onclick = () => {
+                    
+                    // 實作長按偵測邏輯
+                    let isLongPress = false;
+                    let pressTimer;
+                    const startPress = (e) => {
+                        if(e.type === 'touchstart' && e.touches.length > 1) return;
+                        isLongPress = false;
+                        pressTimer = setTimeout(() => {
+                            isLongPress = true;
+                            if (u.role === 'parent' && !STATE.isGodMode) {
+                                if(navigator.vibrate) navigator.vibrate(50);
+                                CoreManager.requestGodMode(u);
+                            }
+                        }, 600); // 600毫秒視為長按
+                    };
+                    const cancelPress = () => { if(pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
+
+                    avatar.addEventListener('mousedown', startPress);
+                    avatar.addEventListener('touchstart', startPress, {passive: true});
+                    avatar.addEventListener('mouseup', cancelPress);
+                    avatar.addEventListener('mouseleave', cancelPress);
+                    avatar.addEventListener('touchend', cancelPress);
+                    avatar.addEventListener('touchmove', cancelPress, {passive: true});
+
+                    avatar.onclick = (e) => {
+                        e.preventDefault();
+                        if(isLongPress) return; // 如果已經觸發長按，短按事件無效
+                        
                         if(isAct && STATE.isGodMode && u.role === 'parent') { AdminManager.openSettings(); return; }
                         if(isAct) return;
+                        
                         if (u.role === 'parent') {
-                            if(!STATE.isGodMode) CoreManager.requestGodMode(u);
+                            if(!STATE.isGodMode) {
+                                showToast("請長按頭像讓家長登入", false); // 綠色警告提示
+                            }
                         } else {
                             CoreManager.switchBeneficiary(u.id);
                         }
@@ -846,7 +880,24 @@
                     container.appendChild(avatar);
                 });
                 container.style.cssText = "display:flex; overflow-x:auto; gap:15px; padding-bottom:10px; scrollbar-width:none;";
+                this.updateBackButtonState();
             },
+            updateBackButtonState: function() {
+                const btn = document.getElementById('btn-return-child');
+                if(!btn) return;
+                const children = STATE.data.users.filter(u => u.role === 'child');
+                // 如果沒有孩子，或是不知道返回哪個孩子（多位孩子且 currentBeneficiary 為空）時，將按鈕反灰
+                if(children.length === 0 || (!STATE.currentBeneficiary && children.length > 1)) {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.4';
+                    btn.style.cursor = 'not-allowed';
+                } else {
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    btn.style.cursor = 'pointer';
+                }
+            },
+        
             renderMarquee: function() {
                 const textEl = document.getElementById('marquee-text');
                 const textElDesktop = document.getElementById('marquee-text-desktop');
@@ -1558,18 +1609,31 @@
                     if(!STATE.data.users || STATE.data.users.length === 0) CoreManager.init();
                 }
             },
+            
             enterReadonlyMode: function() {
-                STATE.isGodMode = false; STATE.isReadonly = true; STATE.currentUser = null;
                 const children = STATE.data.users.filter(u => u.role === 'child');
-                if (children.length > 0 && !STATE.currentBeneficiary) STATE.currentBeneficiary = children[0].id;
+                if (children.length === 0) {
+                    showToast("請先至成員設定新增孩童帳號", true);
+                    return;
+                }
+                
+                STATE.isGodMode = false; STATE.isReadonly = true; STATE.currentUser = null;
+                if (!STATE.currentBeneficiary) STATE.currentBeneficiary = children[0].id;
                 
                 let activeUser = STATE.data.users.find(u => u.id === STATE.currentBeneficiary);
+                if (!activeUser) { // 防崩潰機制，若原指派丟失，則強制抓取第一位孩子
+                    activeUser = children[0];
+                    STATE.currentBeneficiary = activeUser.id;
+                }
+                
                 if (activeUser && activeUser.theme) document.body.className = `theme-${activeUser.theme}`; else document.body.className = `theme-tech`;
 
                 document.getElementById('child-toolbar').style.display = 'flex';
                 document.getElementById('parent-toolbar').style.display = 'none';
                 UIManager.renderProfiles(); UIManager.renderMarquee(); CardManager.renderStage(); BackpackManager.render();
+                showToast('已切換回孩子模式', false);
             },
+        
             requestGodMode: async function(parentUser) {
                 const pwd = await PinLock.open("家長權限認證", `請輸入密碼解鎖家長模式`);
                 if (!pwd) return;
