@@ -1863,27 +1863,37 @@
             },
             
             enterReadonlyMode: function() {
-                const children = STATE.data.users.filter(u => u.role === 'child');
-                if (children.length === 0) {
-                    showToast("請先至成員設定新增孩童帳號", true);
-                    return;
-                }
-                
                 STATE.isGodMode = false; STATE.isReadonly = true; STATE.currentUser = null;
-                if (!STATE.currentBeneficiary) STATE.currentBeneficiary = children[0].id;
+                const children = STATE.data.users.filter(u => u.role === 'child');
+                
+                if (children.length > 0) {
+                    if (!STATE.currentBeneficiary) STATE.currentBeneficiary = children[0].id;
+                    let activeUser = STATE.data.users.find(u => u.id === STATE.currentBeneficiary);
+                    if (!activeUser) { 
+                        activeUser = children[0];
+                        STATE.currentBeneficiary = activeUser.id;
+                    }
+                } else {
+                    STATE.currentBeneficiary = null; // 系統目前無任何孩子
+                }
                 
                 let activeUser = STATE.data.users.find(u => u.id === STATE.currentBeneficiary);
-                if (!activeUser) { // 防崩潰機制，若原指派丟失，則強制抓取第一位孩子
-                    activeUser = children[0];
-                    STATE.currentBeneficiary = activeUser.id;
-                }
-                
                 if (activeUser && activeUser.theme) document.body.className = `theme-${activeUser.theme}`; else document.body.className = `theme-tech`;
 
                 document.getElementById('child-toolbar').style.display = 'flex';
                 document.getElementById('parent-toolbar').style.display = 'none';
-                UIManager.renderProfiles(); UIManager.renderMarquee(); CardManager.renderStage(); BackpackManager.render();
-                showToast('已切換回孩子模式', false);
+                
+                // 絕對不能 return 中斷，必須確保 UI 被渲染，家長才能長按頭像解鎖
+                UIManager.renderProfiles(); 
+                UIManager.renderMarquee(); 
+                CardManager.renderStage(); 
+                if(typeof BackpackManager !== 'undefined') BackpackManager.render();
+                
+                if (children.length === 0) {
+                    showToast("請長按頭像解鎖家長權限，新增孩童帳號", false);
+                } else {
+                    showToast('已切換回孩子模式', false);
+                }
             },
         
             requestGodMode: async function(parentUser) {
@@ -2042,54 +2052,115 @@
                     appendLog(`\n❌ [致命錯誤] 體檢或同步中斷: ${e.message}\n${e.stack}`);
                 }
             },
-            performFullSync: async function(forceOverwrite = false) {
-                let debugStep = "初始化同步";
-            
+
+            performFullSync: async function(forceUpload = false) {
+                let debugStep = "初始化同步檢查";
+                let appendLog = (msg) => {
+                    const debugTextarea = document.getElementById('debug-body');
+                    if(debugTextarea) {
+                        debugTextarea.value += msg + "\n";
+                        debugTextarea.scrollTop = debugTextarea.scrollHeight;
+                    }
+                };
+
                 try {
                     debugStep = "檢查網路與通行證";
                     if (STATE.cloud.isOffline) { UIManager.updateSyncUI('error', '處於離線狀態'); return; }
-                    if (!STATE.cloud.accessToken) return CloudManager.authorize(() => this.performFullSync(forceOverwrite));
+                    if (!STATE.cloud.accessToken) return CloudManager.authorize(() => this.performFullSync(forceUpload));
 
                     let pwd = localStorage.getItem('sys_pin_cache');
                     if (!pwd) {
-                        pwd = await PinLock.open("授權雲端同步", "請輸入密碼以加密備份");
+                        pwd = await PinLock.open("授權雲端同步", "請輸入密碼以解密備份");
                         if (pwd) localStorage.setItem('sys_pin_cache', pwd); else return;
                     }
 
                     UIManager.updateSyncUI('syncing');
+                    appendLog(`\n--- 開始智慧雙向同步 [${new Date().toLocaleString()}] ---`);
+
+                    // 1. 照片優先上傳 (確保關聯性)
                     debugStep = "處理照片上傳";
                     for (let id of Object.keys(STATE.images)) {
                         if (id.startsWith('local_img_')) {
+                            appendLog(`[上傳圖片] 發現本地新照片: ${id}`);
                             const fileId = await CloudManager.uploadImage(STATE.images[id], STATE.cloud.folderId, generateFileName('Img', 'Data'));
                             if (fileId) { await LocalDB.save(fileId, STATE.images[id]); STATE.images[fileId] = STATE.images[id]; LocalDB.delete(id); }
                         }
                     }
 
-                    debugStep = "檢查版本衝突";
-                    if (STATE.cloud.fileId && !forceOverwrite) {
-                        const isConflict = await CloudManager.checkVersionConflict(STATE.cloud.fileId);
-                        if (isConflict) {
-                            if (confirm("版本衝突：雲端有較新的存檔！\n按【確定】強制用本機覆蓋雲端。\n按【取消】停止上傳，請重新載入網頁。")) return this.performFullSync(true);
-                            else { UIManager.updateSyncUI('error', '版本衝突取消'); return; }
+                    // 2. 判斷雲端與本機時間戳 (智慧覆寫)
+                    debugStep = "檢查雲端版本與時間戳";
+                    if (STATE.cloud.fileId && !forceUpload) {
+                        const res = await DriveAPI.fetch(`https://www.googleapis.com/drive/v3/files/${STATE.cloud.fileId}?fields=modifiedTime`);
+                        const meta = await res.json();
+                        const cloudTime = new Date(meta.modifiedTime).getTime();
+                        const localTime = STATE.data.last_update || 0;
+                        
+                        appendLog(`[時間比對] 雲端檔案時間: ${new Date(cloudTime).toLocaleString()}`);
+                        appendLog(`[時間比對] 本機更新時間: ${new Date(localTime).toLocaleString()}`);
+                        
+                        if (cloudTime > localTime + 3000) { 
+                            // 雲端比較新 (給予 3 秒容錯緩衝)
+                            debugStep = "下載並載入雲端較新資料";
+                            appendLog(`[同步決策] 雲端資料較新，系統將自動下載並覆寫本機...`);
+                            const fileRes = await DriveAPI.fetch(`https://www.googleapis.com/drive/v3/files/${STATE.cloud.fileId}?alt=media`);
+                            const encryptedCompressedStr = await fileRes.text();
+                            const compressedStr = await CryptoEngine.decrypt(encryptedCompressedStr, pwd);
+                            const decompressed = DataCompressor.decompress(compressedStr);
+                            const parsedCloudData = JSON.parse(decompressed);
+                            
+                            STATE.data = SyncEngine.mergeCloudWithLocal(parsedCloudData);
+                            STATE.cloud.lastSyncTime = cloudTime;
+                            STATE.data.last_update = cloudTime; // 對齊時間防止重複下載
+                            this.persistToLocal();
+                            
+                            appendLog(`[成功] 已將最新雲端資料同步至本機。`);
+                            
+                            // 觸發 UI 重新渲染以反映最新資料
+                            let actUser = STATE.data.users.find(u => u.id === (STATE.isGodMode ? STATE.currentUser : STATE.currentBeneficiary));
+                            if (actUser && actUser.theme) ThemeManager.apply(actUser.theme);
+                            UIManager.renderProfiles();
+                            UIManager.renderMarquee();
+                            CardManager.renderStage();
+                            if(typeof BackpackManager !== 'undefined') BackpackManager.render();
+                            
+                            UIManager.updateSyncUI('success');
+                            showToast("已從雲端載入最新進度！", false);
+                            return; // 流程結束
+                        } else if (localTime <= cloudTime) {
+                            appendLog(`[同步決策] 兩邊資料為最新狀態，無需同步。`);
+                            UIManager.updateSyncUI('success');
+                            return;
+                        } else {
+                            appendLog(`[同步決策] 本機資料較新，準備上傳覆寫雲端...`);
                         }
                     }
 
+                    // 3. 上傳覆寫雲端
                     debugStep = "加密與上傳";
-                    STATE.data.last_update = Date.now(); this.persistToLocal(); 
+                    if(!STATE.data.last_update) STATE.data.last_update = Date.now();
+                    this.persistToLocal(); 
                     const encryptedStr = await CryptoEngine.encrypt(DataCompressor.compress(JSON.stringify(STATE.data)), pwd);
                     const success = await CloudManager.resumableUpload(STATE.cloud.fileId, STATE.cloud.folderId, `PointsBackup_${new Date().toISOString().split('T')[0]}.json`, encryptedStr);
-                    if (success) { UIManager.updateSyncUI('success'); showToast("雲端同步成功！", false); } 
-                    else throw new Error("Resumable Upload Failed");
+                    
+                    if (success) { 
+                        appendLog(`[成功] 本機資料已成功上傳覆寫雲端。`);
+                        UIManager.updateSyncUI('success'); 
+                        showToast("雲端同步成功！", false); 
+                    } else {
+                        throw new Error("Resumable Upload Failed: API未回傳成功代碼");
+                    }
 
                 } catch (e) {
                     const errMsg = e.message || "無訊息"; const errStack = e.stack || "無 Stack";
-                    const diag = `==== 系統診斷報告 ====\n[時間] ${new Date().toLocaleString()}\n[斷點] ${debugStep}\n[Token] ${STATE.cloud.accessToken?'OK':'MISSING'}\n[Folder] ${STATE.cloud.folderId}\n[File] ${STATE.cloud.fileId}\n\n[死因] ${errMsg}\n\n[Safari追蹤]\n${errStack}`;
+                    const diag = `\n❌ ==== 同步崩潰報告 ====\n[發生時間] ${new Date().toLocaleString()}\n[故障斷點] ${debugStep}\n[錯誤訊息] ${errMsg}\n[程式追蹤]\n${errStack}\n========================`;
+                    appendLog(diag);
                     logDebug("Sync Crash", diag);
-                    UIManager.updateSyncUI('error', '同步崩潰');
-                    showToast("同步崩潰，自動呼叫診斷系統...", true);
-                    setTimeout(() => document.getElementById('debug-console').classList.add('active'), 1000); // 同步異常自動彈出
+                    UIManager.updateSyncUI('error', '同步失敗');
+                    showToast("同步失敗，已自動開啟偵錯面板", true);
+                    setTimeout(() => document.getElementById('debug-console').classList.add('active'), 1000); 
                 }
             },
+            
             silentSyncCheck: async function() {
                 try {
                     if (STATE.cloud.fileId && !STATE.cloud.isOffline && STATE.cloud.accessToken) {
