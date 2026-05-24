@@ -396,10 +396,8 @@
 
         const ThemeManager = {
             apply: function(themeName) { 
+                // 純視覺切換，絕對不在此處修改資料庫，防範主題污染！
                 document.body.className = `theme-${themeName}`; 
-                let activeId = STATE.isGodMode ? STATE.currentUser : STATE.currentBeneficiary;
-                let activeUser = STATE.data.users.find(u => u.id === activeId);
-                if (activeUser) { activeUser.theme = themeName; }
             },
             getPickerHTML: function(currentTheme) {
                 const themes = [ 
@@ -1016,7 +1014,9 @@
                 const modal = document.getElementById('dynamic-modal');
                 modal.innerHTML = `
                     <div class="modal-content">
-                        <div class="modal-header"><div class="modal-title" style="display:flex; align-items:center; gap:8px;"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> 成員設定</div><button class="modal-close" onclick="document.getElementById('dynamic-modal').classList.remove('open')">&times;</button></div>
+                        
+                        <div class="modal-header"><div class="modal-title" style="display:flex; align-items:center; gap:8px;"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> 成員設定</div><button class="modal-close" onclick="document.getElementById('dynamic-modal').classList.remove('open'); CoreManager.refreshTheme();">&times;</button></div>
+                        
                         <div class="modal-body">
                             <div id="settings-user-list" style="margin-bottom: 20px;"></div>
                             <button class="btn btn-outline" style="width:100%; border-style:dashed;" onclick="AdminManager.editUser(null)"><svg class="svg-icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> 新增家庭成員</button>
@@ -1075,7 +1075,8 @@
 
                 modal.innerHTML = `
                     <div class="modal-content">
-                        <div class="modal-header"><div class="modal-title" style="display:flex; align-items:center; gap:8px;">${titleIcon} ${user ? '編輯成員' : '新增成員'}</div><button class="modal-close" onclick="AdminManager.openSettings()"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+                        <div class="modal-header"><div class="modal-title" style="display:flex; align-items:center; gap:8px;">${titleIcon} ${user ? '編輯成員' : '新增成員'}</div><button class="modal-close" onclick="AdminManager.openSettings(); CoreManager.refreshTheme();"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+                        
                         <div class="modal-body">
                             <div style="text-align:center;">
                                 <img id="preview-avatar" src="${user ? getImg(user.avatarId || user.avatarBase64) : ''}" style="width:100px; height:100px; border-radius:50%; object-fit:cover; margin: 0 auto 15px; border: 3px solid var(--accent-main); display:${user?'block':'none'};">
@@ -1992,15 +1993,19 @@
                     STATE.isReadonly = false;
                 }
                 
-                let activeUser = STATE.data.users.find(u => u.id === childId);
-                // 切換視角時只改畫面樣式，絕對不要呼叫 ThemeManager.apply() 以免覆寫資料庫
-                if (activeUser && activeUser.theme) document.body.className = `theme-${activeUser.theme}`; else document.body.className = `theme-tech`;
-
+                this.refreshTheme();
                 UIManager.renderProfiles(); CardManager.renderStage(); 
                 if(typeof BackpackManager !== 'undefined') BackpackManager.render();
             },
             
+            refreshTheme: function() {
+                // 讓系統隨時能精準還原為「目前畫面上正在看的孩子」的佈景主題
+                let activeUser = STATE.data.users.find(u => u.id === STATE.currentBeneficiary);
+                if (activeUser && activeUser.theme) document.body.className = `theme-${activeUser.theme}`; else document.body.className = `theme-tech`;
+            },
+            
             saveLocal: function() { STATE.data.last_update = Date.now(); this.persistToLocal(); },
+        
             persistToLocal: function() {
                 localStorage.setItem('points_sys_data', JSON.stringify(STATE.data));
                 localStorage.setItem('points_sys_cloud', JSON.stringify({ folderId: STATE.cloud.folderId, fileId: STATE.cloud.fileId, lastSyncTime: STATE.cloud.lastSyncTime }));
@@ -2171,8 +2176,25 @@
                     for (let id of Object.keys(STATE.images)) {
                         if (id.startsWith('local_img_')) {
                             appendLog(`[上傳圖片] 發現本地新照片: ${id}`);
-                            const fileId = await CloudManager.uploadImage(STATE.images[id], STATE.cloud.folderId, generateFileName('Img', 'Data'));
-                            if (fileId) { await LocalDB.save(fileId, STATE.images[id]); STATE.images[fileId] = STATE.images[id]; LocalDB.delete(id); }
+                            try {
+                                const fileId = await CloudManager.uploadImage(STATE.images[id], STATE.cloud.folderId, generateFileName('Img', 'Data'));
+                                if (fileId) { 
+                                    await LocalDB.save(fileId, STATE.images[id]); 
+                                    STATE.images[fileId] = STATE.images[id]; 
+                                    
+                                    // 核心修復：將資料庫內所有舊的 local_img_ 替換為 Google Drive 給的真實 fileId
+                                    STATE.data.users.forEach(u => { if (u.avatarId === id) u.avatarId = fileId; });
+                                    STATE.data.cards.forEach(c => { if (c.imgId === id) c.imgId = fileId; });
+                                    STATE.data.bullets.forEach(b => { if (b.imgId === id) b.imgId = fileId; });
+                                    STATE.data.logs.forEach(l => { if (l.bulletCache && l.bulletCache.imgId === id) l.bulletCache.imgId = fileId; });
+                                    
+                                    LocalDB.delete(id); 
+                                    delete STATE.images[id];
+                                    appendLog(`[上傳成功] 照片已同步至雲端並更新關聯 ID: ${fileId}`);
+                                }
+                            } catch (imgErr) {
+                                appendLog(`[上傳失敗] 照片 ${id} 發生錯誤: ${imgErr.message}`);
+                            }
                         }
                     }
 
