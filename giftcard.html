@@ -858,8 +858,20 @@
                 };
 
                 const sortedUsers = [activeUser, ...STATE.data.users.filter(u => u.id !== activeUser.id)];
+                // 需求 3：孩童模式下，家長永遠排在最右側減少誤按
+                if (!STATE.isGodMode) {
+                    sortedUsers.sort((a, b) => {
+                        if(a.id === activeUser.id) return -1;
+                        if(b.id === activeUser.id) return 1;
+                        if(a.role === 'parent' && b.role !== 'parent') return 1;
+                        if(a.role !== 'parent' && b.role === 'parent') return -1;
+                        return 0;
+                    });
+                }
+
                 sortedUsers.forEach((u) => {
                     const isAct = u.id === activeUser.id;
+                    
                     const avatar = createAvatar(u, isAct);
                     
                     let isLongPress = false;
@@ -1001,7 +1013,51 @@
 
         window.AdminManager = {
             tempImg: null,
+            selectedExistingImgId: null,
+            userSelectedNewImg: false,
+
+            openGalleryPicker: function(previewElId) {
+                let modal = document.getElementById('gallery-modal');
+                if(!modal) {
+                    modal = document.createElement('div');
+                    modal.id = 'gallery-modal';
+                    modal.className = 'modal-overlay';
+                    modal.style.zIndex = '10006'; // 高於 dynamic-modal 疊加上去
+                    document.body.appendChild(modal);
+                }
+
+                // 盤點所有圖片的使用足跡 (讓用戶知道這張照片用在哪)
+                let usageMap = {};
+                STATE.data.cards.forEach(c => { if(c.imgId) usageMap[c.imgId] = `卡片: ${c.cardName}`; });
+                STATE.data.bullets.forEach(b => { if(b.imgId && !usageMap[b.imgId]) usageMap[b.imgId] = `點數: ${b.reason}`; });
+                STATE.data.users.forEach(u => { if(u.avatarId && !usageMap[u.avatarId]) usageMap[u.avatarId] = `成員: ${u.name}`; });
+
+                // 排除預設或錯誤的 ID
+                const imgIds = Object.keys(STATE.images).filter(id => id.startsWith('local_img_') || id.length > 10);
+                
+                let gridHtml = imgIds.length === 0 ? '<div style="text-align:center; padding:20px; color:var(--text-sub);">暫無照片紀錄</div>' : imgIds.map(id => {
+                    const usage = usageMap[id] || '未標記紀錄';
+                    return `<div style="position:relative; border-radius:12px; overflow:hidden; border:2px solid transparent; cursor:pointer;" onclick="AdminManager.tempImg = null; AdminManager.selectedExistingImgId = '${id}'; AdminManager.userSelectedNewImg = true; document.getElementById('${previewElId}').src = getImg('${id}'); document.getElementById('${previewElId}').style.display='block'; document.getElementById('gallery-modal').classList.remove('open');">
+                        <img src="${getImg(id)}" style="width:100%; aspect-ratio:1; object-fit:cover; display:block;">
+                        <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.7); color:#fff; font-size:10px; padding:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:center;">${usage}</div>
+                    </div>`;
+                }).join('');
+
+                modal.innerHTML = `
+                    <div class="modal-content" style="max-height:85vh; display:flex; flex-direction:column;">
+                        <div class="modal-header">
+                            <div class="modal-title" style="display:flex; align-items:center; gap:8px;"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg> 雲端照片庫</div>
+                            <button class="modal-close" onclick="document.getElementById('gallery-modal').classList.remove('open')">&times;</button>
+                        </div>
+                        <div class="modal-body" style="overflow-y:auto; padding:15px;">
+                            <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px;">${gridHtml}</div>
+                        </div>
+                    </div>`;
+                modal.classList.add('open');
+            },
+
             editBehaviors: function() {
+                
                 const modal = document.getElementById('dynamic-modal');
                 const listHtml = STATE.data.behaviors.map((b, i) => {
                     const safeReason = b.reason.replace(/"/g, '&quot;');
@@ -1122,11 +1178,13 @@
 
             openGivePoint: function() {
                 this.tempImg = null;
+                this.selectedExistingImgId = null;
+                this.userSelectedNewImg = false;
+
                 const children = STATE.data.users.filter(u => u.role === 'child');
                 if (children.length === 0) return showToast("請先至設定新增「孩子」");
                 if(!STATE.data.behaviors || STATE.data.behaviors.length===0) STATE.data.behaviors = Array.from({length:10}, (_, i) => ({ color: `c${i+1}`, reason: `好表現 ${i+1}`, enabled: i < 6 }));
                 
-                // 動態生成行為按鈕，並注入照片自動記憶邏輯
                 const behaviorHtml = STATE.data.behaviors.filter(b => b.enabled).map((b, i) => {
                     const isSel = i === 0;
                     const safeReason = b.reason.replace(/"/g, '&quot;');
@@ -1135,20 +1193,24 @@
                         this.style.borderColor='#fff'; this.classList.add('selected'); 
                         document.getElementById('point-reason').value=this.dataset.reason;
                         
-                        // 尋找此好表現最後一次的照片紀錄
-                        let pastLog = STATE.data.logs.slice().reverse().find(x=>x.bulletCache?.reason === this.dataset.reason && x.bulletCache?.imgId);
-                        let pastBullet = STATE.data.bullets.slice().reverse().find(x=>x.reason === this.dataset.reason && x.imgId);
-                        let foundItem = pastBullet || (pastLog ? pastLog.bulletCache : null);
-                        
-                        const preview = document.getElementById('preview-bullet-img');
-                        if(foundItem && STATE.images[foundItem.imgId]) {
-                            AdminManager.tempImg = STATE.images[foundItem.imgId];
-                            preview.src = getImg(foundItem.imgId);
-                            preview.style.display = 'block';
-                        } else {
-                            AdminManager.tempImg = null;
-                            preview.style.display = 'none';
-                            preview.src = '';
+                        // 需求 4：只有在用戶沒有手動挑選新照片時，才自動載入歷史照片，防止洗掉剛拍好的照片！
+                        if (!AdminManager.userSelectedNewImg) {
+                            let pastLog = STATE.data.logs.slice().reverse().find(x=>x.bulletCache?.reason === this.dataset.reason && x.bulletCache?.imgId);
+                            let pastBullet = STATE.data.bullets.slice().reverse().find(x=>x.reason === this.dataset.reason && x.imgId);
+                            let foundItem = pastBullet || (pastLog ? pastLog.bulletCache : null);
+                            
+                            const preview = document.getElementById('preview-bullet-img');
+                            if(foundItem && STATE.images[foundItem.imgId]) {
+                                AdminManager.selectedExistingImgId = foundItem.imgId;
+                                AdminManager.tempImg = null;
+                                preview.src = getImg(foundItem.imgId);
+                                preview.style.display = 'block';
+                            } else {
+                                AdminManager.selectedExistingImgId = null;
+                                AdminManager.tempImg = null;
+                                preview.style.display = 'none';
+                                preview.src = '';
+                            }
                         }
                     ">${b.reason}</div>`;
                 }).join('');
@@ -1157,40 +1219,34 @@
                 modal.innerHTML = `
                     <div class="modal-content" style="max-height:90vh; overflow-y:auto;">
                         <div class="modal-header"><div class="modal-title" style="display:flex; align-items:center; gap:8px;"><svg class="svg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg> 發放點數</div><button class="modal-close" onclick="document.getElementById('dynamic-modal').classList.remove('open')"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
-
                         <div class="modal-body">
                             <div class="form-group"><label class="form-label">發放對象</label><select id="point-child" class="form-input" onchange="CoreManager.switchBeneficiary(this.value)">${children.map(c => `<option value="${c.id}" ${c.id===STATE.currentBeneficiary?'selected':''}>${c.name}</option>`).join('')}</select></div>
-
-                            
                             <div class="form-group"><label class="form-label">點數威力</label><select id="point-size" class="form-input"><option value="1.0">1.0 點 (直接蓋滿一格)</option><option value="0.5">0.5 點 (只蓋半格)</option></select></div>
                             
                             <div class="form-group">
-                                <label class="form-label">夾帶照片紀錄 (選填)</label>
-                                <div style="display:flex; gap:10px; align-items:stretch; height: 60px;">
-                                    <button class="btn btn-outline" style="flex:1;" onclick="CameraEngine.open(); document.getElementById('btn-shutter').onclick = async () => { const b64 = await CameraEngine.capture('card'); if(b64){ AdminManager.tempImg=b64; document.getElementById('preview-bullet-img').src=b64; document.getElementById('preview-bullet-img').style.display='block'; } };"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button>
-                                    <button class="btn btn-outline" style="flex:1;" onclick="window.FileEngine.importImage('card', (b64)=>{ AdminManager.tempImg=b64; document.getElementById('preview-bullet-img').src=b64; document.getElementById('preview-bullet-img').style.display='block'; });"><svg class="svg-icon" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></button>
-                                    <img id="preview-bullet-img" style="width:60px; height:100%; border-radius:10px; object-fit:cover; display:none; border:2px solid var(--accent-main); flex-shrink:0;">
-                                </div>
-                            </div>
-
-                            <div class="form-group">
                                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;"><label class="form-label" style="margin:0;">選擇好表現</label><button class="btn btn-outline" onclick="AdminManager.editBehaviors()" style="padding:4px 8px; font-size:12px; border-radius:8px; display:flex; gap:4px; align-items:center;"><svg class="svg-icon" style="width:14px;height:14px;" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> 編輯</button></div>
                                 <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">${behaviorHtml}</div>
+                            </div>
+
+                            <!-- 需求 4：將照片選項移到最後，並加入雲端圖庫按鈕 -->
+                            <div class="form-group">
+                                <label class="form-label">夾帶照片紀錄 (選填)</label>
+                                <div style="display:flex; gap:10px; align-items:stretch; height: 60px;">
+                                    <button class="btn btn-outline" style="flex:1;" onclick="AdminManager.userSelectedNewImg=true; AdminManager.selectedExistingImgId=null; CameraEngine.open(); document.getElementById('btn-shutter').onclick = async () => { const b64 = await CameraEngine.capture('card'); if(b64){ AdminManager.tempImg=b64; document.getElementById('preview-bullet-img').src=b64; document.getElementById('preview-bullet-img').style.display='block'; } };"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button>
+                                    <button class="btn btn-outline" style="flex:1;" onclick="AdminManager.userSelectedNewImg=true; AdminManager.selectedExistingImgId=null; window.FileEngine.importImage('card', (b64)=>{ AdminManager.tempImg=b64; document.getElementById('preview-bullet-img').src=b64; document.getElementById('preview-bullet-img').style.display='block'; });"><svg class="svg-icon" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></button>
+                                    <button class="btn btn-outline" style="flex:1;" onclick="AdminManager.openGalleryPicker('preview-bullet-img');"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg></button>
+                                    <img id="preview-bullet-img" style="width:60px; height:100%; border-radius:10px; object-fit:cover; display:none; border:2px solid var(--accent-main); flex-shrink:0;">
+                                </div>
                             </div>
                             
                             <input type="hidden" id="point-reason" value="${STATE.data.behaviors.find(b=>b.enabled)?.reason || ''}">
                             <button class="btn btn-primary" id="btn-send-point" style="width:100%; padding:15px;"><svg class="svg-icon" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> 發送到孩子背包</button>
                         </div>
                     </div>`;
-
                 modal.classList.add('open');
-                
-                // 強制讓下拉選單預設為目前畫面的孩子
-                if(STATE.currentBeneficiary) document.getElementById('point-child').value = STATE.currentBeneficiary;
 
-                // 初始化載入第一個行為的歷史照片
+                if(STATE.currentBeneficiary) document.getElementById('point-child').value = STATE.currentBeneficiary;
                 const firstBtn = modal.querySelector('.behavior-btn.selected');
-                
                 if(firstBtn) firstBtn.click();
 
                 document.getElementById('btn-send-point').onclick = async function() {
@@ -1206,6 +1262,8 @@
                     if (AdminManager.tempImg) {
                         bulletImgId = 'local_img_' + generateUUID();
                         await LocalDB.save(bulletImgId, AdminManager.tempImg); STATE.images[bulletImgId] = AdminManager.tempImg;
+                    } else if (AdminManager.selectedExistingImgId) {
+                        bulletImgId = AdminManager.selectedExistingImgId;
                     }
                     
                     STATE.data.bullets.push({ id: generateUUID(), ownerId: childId, creatorId: STATE.currentUser, size: size, colorVar: colorVar, reason: reason, imgId: bulletImgId, createdAt: Date.now() });
@@ -1216,6 +1274,8 @@
             
             openAddCard: function() {
                 this.tempImg = null;
+                this.selectedExistingImgId = null;
+
                 const children = STATE.data.users.filter(u => u.role === 'child');
                 const parents = STATE.data.users.filter(u => u.role === 'parent');
                 if (children.length === 0) return showToast("請先至設定新增「孩子」帳號！");
@@ -1227,28 +1287,24 @@
                             <div style="text-align:center;">
                                 <img id="preview-toy" style="width:100%; aspect-ratio:4/3; object-fit:cover; display:none; margin-bottom:10px; border-radius:12px; border: 2px solid var(--accent-main);">
                                 <div style="display:flex; gap:10px; margin-bottom:15px;">
-                                    <button class="btn btn-outline" style="flex:1;" onclick="CameraEngine.open(); document.getElementById('btn-shutter').onclick = async () => { const b64 = await CameraEngine.capture('card'); if(b64){ AdminManager.tempImg=b64; document.getElementById('preview-toy').src=b64; document.getElementById('preview-toy').style.display='block'; } };"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> 拍照</button>
-                                    <button class="btn btn-outline" style="flex:1;" onclick="window.FileEngine.importImage('card', (b64)=>{ AdminManager.tempImg=b64; document.getElementById('preview-toy').src=b64; document.getElementById('preview-toy').style.display='block'; });"><svg class="svg-icon" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg> 相簿</button>
+                                    <button class="btn btn-outline" style="flex:1;" onclick="AdminManager.selectedExistingImgId=null; CameraEngine.open(); document.getElementById('btn-shutter').onclick = async () => { const b64 = await CameraEngine.capture('card'); if(b64){ AdminManager.tempImg=b64; document.getElementById('preview-toy').src=b64; document.getElementById('preview-toy').style.display='block'; } };"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button>
+                                    <button class="btn btn-outline" style="flex:1;" onclick="AdminManager.selectedExistingImgId=null; window.FileEngine.importImage('card', (b64)=>{ AdminManager.tempImg=b64; document.getElementById('preview-toy').src=b64; document.getElementById('preview-toy').style.display='block'; });"><svg class="svg-icon" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></button>
+                                    <button class="btn btn-outline" style="flex:1;" onclick="AdminManager.openGalleryPicker('preview-toy');"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg></button>
                                 </div>
                             </div>
-
                             <div class="form-group"><label class="form-label">選擇專屬孩子</label><select id="card-child" class="form-input" onchange="CoreManager.switchBeneficiary(this.value)">${children.map(c => `<option value="${c.id}" ${c.id===STATE.currentBeneficiary?'selected':''}>${c.name}</option>`).join('')}</select></div>
-                            
                             <div class="form-group"><label class="form-label">禮物卡名稱</label><input type="text" id="card-name" class="form-input" placeholder="例如: 迪士尼門票"></div>
                             <div class="form-group"><label class="form-label" style="display:flex; justify-content:space-between;">行數 <strong id="col-val" style="color:var(--accent-gold);">4</strong></label><input type="range" id="card-cols" style="width:100%;" min="3" max="10" value="4" oninput="document.getElementById('col-val').innerText=this.value"></div>
                             <div class="form-group"><label class="form-label" style="display:flex; justify-content:space-between;">列數 <strong id="row-val" style="color:var(--accent-gold);">3</strong></label><input type="range" id="card-rows" style="width:100%;" min="3" max="10" value="3" oninput="document.getElementById('row-val').innerText=this.value"></div>
                             <button class="btn btn-success" id="btn-save-card" style="width:100%; padding:15px;"><svg class="svg-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> 發行集點卡</button>
                         </div>
                     </div>`;
-
                 modal.classList.add('open');
-
-                // 強制讓下拉選單預設為目前畫面的孩子
+                
                 if(STATE.currentBeneficiary) document.getElementById('card-child').value = STATE.currentBeneficiary;
                 
                 document.getElementById('btn-save-card').onclick = async function() {
-                    
-                    if(!AdminManager.tempImg) return showToast("請務必提供一張禮物照片！");
+                    if(!AdminManager.tempImg && !AdminManager.selectedExistingImgId) return showToast("請務必提供一張禮物照片！");
                     this.disabled = true; this.innerHTML = '<svg class="svg-icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> 正在發行中...';
 
                     const childId = document.getElementById('card-child').value; 
@@ -1256,9 +1312,14 @@
                     const cols = parseInt(document.getElementById('card-cols').value); 
                     const rows = parseInt(document.getElementById('card-rows').value);
                     
-                    const localId = 'local_img_' + generateUUID(); 
-                    await LocalDB.save(localId, AdminManager.tempImg); 
-                    STATE.images[localId] = AdminManager.tempImg;
+                    let finalImgId = null;
+                    if (AdminManager.tempImg) {
+                        finalImgId = 'local_img_' + generateUUID(); 
+                        await LocalDB.save(finalImgId, AdminManager.tempImg); 
+                        STATE.images[finalImgId] = AdminManager.tempImg;
+                    } else if (AdminManager.selectedExistingImgId) {
+                        finalImgId = AdminManager.selectedExistingImgId;
+                    }
                     
                     const grids = []; 
                     for(let y=0; y<rows; y++){ for(let x=0; x<cols; x++){ grids.push({ x: x, y: y, status: 0, bulletIds: [] }); } }
@@ -1266,331 +1327,10 @@
                     let creatorId = STATE.currentUser; 
                     if(!STATE.data.users.find(u=>u.id===creatorId && u.role==='parent')) creatorId = parents[0].id;
 
-                    const newCard = { id: generateUUID(), beneficiaryId: childId, creatorId: creatorId, imgId: localId, cardName: cardName, cols: cols, rows: rows, grids: grids, status: 'active' };
+                    const newCard = { id: generateUUID(), beneficiaryId: childId, creatorId: creatorId, imgId: finalImgId, cardName: cardName, cols: cols, rows: rows, grids: grids, status: 'active' };
                     STATE.data.cards.unshift(newCard); STATE.ui.activeCardIndex = 0; 
                     CoreManager.saveLocal(); document.getElementById('dynamic-modal').classList.remove('open'); showToast("建立成功！", false); CoreManager.switchBeneficiary(childId);
                 };
-            }
-        };
-
-        window.BackpackManager = {
-            render: function() {
-                const list = document.getElementById('backpack-list'); list.innerHTML = '';
-                const myBullets = STATE.data.bullets.filter(b => b.ownerId === STATE.currentBeneficiary);
-                
-                const badge = document.getElementById('backpack-count');
-                if (badge) badge.innerText = myBullets.length;
-
-                if (myBullets.length === 0) {
-                    list.innerHTML = `<div style="text-align:center; color:var(--text-sub); padding:40px 20px; font-size: 15px; line-height: 1.8;"><svg class="svg-icon" style="width:50px;height:50px;margin-bottom:15px;opacity:0.8;" viewBox="0 0 24 24"><path d="M20 12v10H4V12"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg><br>背包空空如也<br>趕快爭取好表現吧！</div>`;
-                    return;
-                }
-
-                const sorted = myBullets.sort((a,b) => b.createdAt - a.createdAt);
-                sorted.forEach(bullet => {
-                    const creator = STATE.data.users.find(u => u.id === bullet.creatorId);
-                    const imgSrc = bullet.imgId ? getImg(bullet.imgId) : (creator ? getImg(creator.avatarId || creator.avatarBase64) : '');
-                    const d = new Date(bullet.createdAt);
-                    const timeStr = `${d.getMonth()+1}/${d.getDate()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
-                    
-                    const item = document.createElement('div');
-                    item.style.cssText = `display:flex; align-items:center; gap:15px; background:rgba(255,255,255,0.05); padding:12px; border-radius:16px; margin-bottom:10px; border-left:4px solid rgb(var(--${bullet.colorVar}));`;
-                    item.innerHTML = `
-                        <div style="width:48px; height:48px; border-radius:50%; background:rgb(var(--${bullet.colorVar})); padding:3px; flex-shrink:0;">
-                            <img src="${imgSrc}" style="width:100%; height:100%; border-radius:50%; object-fit:cover; border:2px solid #000;">
-                        </div>
-                        <div style="flex:1;">
-                            <div style="font-size:14px; font-weight:bold; color:var(--text-main); margin-bottom:4px;">${bullet.reason}</div>
-                            <div style="font-size:11px; color:var(--text-sub);">${timeStr}</div>
-                        </div>
-                        <div style="font-size:20px; font-weight:900; color:var(--accent-gold);">${bullet.size} 點</div>
-                    `;
-                    list.appendChild(item);
-                });
-            }
-        };
-
-        window.CardManager = {
-            filteredCards: [], lastHitCell: null,
-            renderStage: function() {
-                const track = document.getElementById('card-track'); track.innerHTML = '';
-                this.filteredCards = STATE.data.cards.filter(c => c.beneficiaryId === STATE.currentBeneficiary);
-                if (this.filteredCards.length === 0) { track.innerHTML = `<div style="color:var(--text-sub); text-align:center; padding: 20px; font-size: 15px; line-height: 1.8;"><svg class="svg-icon" style="width:45px;height:45px;margin-bottom:15px;opacity:0.8;" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" ry="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg><br>目前沒有專屬的集點卡<br>請家長點擊下方「卡片」建立一張</div>`; return; }
-                if (STATE.ui.activeCardIndex >= this.filteredCards.length) STATE.ui.activeCardIndex = Math.max(0, this.filteredCards.length - 1);
-
-                this.filteredCards.forEach((card, index) => {
-                    const wrapper = document.createElement('div'); wrapper.className = 'card-wrapper';
-                    if (index === STATE.ui.activeCardIndex) wrapper.classList.add('active'); else if (index < STATE.ui.activeCardIndex) wrapper.classList.add('prev'); else wrapper.classList.add('next');
-                    const aspectStr = `${card.cols} / ${card.rows}`;
-                    
-                    // 原生桌面拖曳支援 (將家長頭像拉到卡片上)
-                    wrapper.ondragover = (e) => e.preventDefault();
-                    wrapper.ondrop = (e) => {
-                        e.preventDefault();
-                        const pId = e.dataTransfer.getData('parent-id');
-                        if (pId && card.creatorId !== pId) {
-                            const newParent = STATE.data.users.find(u=>u.id===pId);
-                            if(newParent) {
-                                card.creatorId = pId; CoreManager.saveLocal(); this.renderStage(); 
-                                showToast(`已將提供者變更為 ${newParent.name}`, false);
-                            }
-                        }
-                    };
-
-                    const creator = STATE.data.users.find(u => u.id === card.creatorId);
-                    const creatorName = creator ? creator.name : '未知';
-                    
-                    const currentHit = card.grids.reduce((sum, g) => sum + g.status, 0);
-                    const totalGrids = card.cols * card.rows;
-                    const percent = Math.floor((currentHit / totalGrids) * 100);
-
-                    const titleContainer = document.createElement('div');
-                    titleContainer.style.cssText = 'width: 100%; position: relative; padding: 0 10px; margin-bottom: 8px; text-align: center;';
-
-                    // 標題與附標題，縮小空間防重疊
-                    titleContainer.innerHTML = `
-                        <div style="font-size:20px; font-weight:900; color:#fff; margin-bottom:4px; letter-spacing:1px; text-shadow: 0 2px 8px rgba(0,0,0,0.8); padding:0 35px;">${card.cardName || '專屬禮物卡'}</div>
-                        <div style="font-size:11px; color:var(--text-sub); display:flex; align-items:center; justify-content:center; gap:6px; flex-wrap:wrap;">
-                            <span style="display:flex; align-items:center; gap:3px;"><svg class="svg-icon" style="width:12px;height:12px;" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> 由 ${creatorName} 提供</span>
-                            <span>|</span>
-                            <span id="progress-${card.id}">進度: ${currentHit}/${totalGrids} (${percent}%)</span>
-                        </div>
-                    `;
-
-                    // 直接寫死在 HTML 字串中，設定超高層級與強制穿透，100% 絕對能點擊！
-                    if (STATE.isGodMode) {
-                        titleContainer.innerHTML += `
-                            <button class="icon-btn" onclick="CardManager.editCard('${card.id}'); event.stopPropagation();" style="position:absolute; right: -5px; top: -5px; color:var(--text-sub); background:rgba(0,0,0,0.6); width:36px; height:36px; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 15px rgba(0,0,0,0.8); border-radius:50%; z-index:9999; border: 1px solid rgba(255,255,255,0.2); cursor:pointer; pointer-events:auto;">
-                                <svg class="svg-icon" style="width:18px;height:18px;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                            </button>
-                        `;
-                    }
-                    wrapper.appendChild(titleContainer);
-
-                    wrapper.innerHTML += `
-                        <div class="card-inner" style="aspect-ratio: ${aspectStr};">
-                            <img src="${getImg(card.imgId || card.imgBase64)}" class="toy-image" id="toy-img-${card.id}">
-                            <div class="grid-container" id="grid-${card.id}" style="grid-template-columns: repeat(${card.cols}, 1fr); grid-template-rows: repeat(${card.rows}, 1fr);"></div>
-                        </div>
-                        <button class="btn btn-outline" style="margin-top:10px; padding:6px 15px; font-size:12px; border-radius:20px; background:rgba(0,0,0,0.6); color:var(--text-sub); border:none; box-shadow:0 4px 10px rgba(0,0,0,0.5); display:flex; align-items:center; gap:6px;" onclick="document.getElementById('main-area').classList.add('show-audit'); const msg='請點選下方格子查看詳細歷史紀錄'; if(document.getElementById('marquee-text')) document.getElementById('marquee-text').innerHTML=msg; if(document.getElementById('marquee-text-desktop')) document.getElementById('marquee-text-desktop').innerHTML=msg;"><svg class="svg-icon" style="width:14px;height:14px;" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg> 查看歷史明細</button>`;
-
-                    
-                    track.appendChild(wrapper);
-                    
-                    this.renderGrids(card); this.updateProgress(card);
-                });
-                
-                this.bindGestures(); this.renderAuditWall();
-
-                const existingNav = document.getElementById('card-nav-dots');
-                if(existingNav) existingNav.remove();
-                
-                const nav = document.createElement('div');
-                nav.id = 'card-nav-dots';
-                nav.style.cssText = 'position:absolute; bottom:15px; left:50%; transform:translateX(-50%); display:flex; gap:10px; z-index:20; align-items:center;';
-                
-                if (this.filteredCards.length === 1) {
-                    // 單張卡片提示
-                    nav.innerHTML = '<span style="color:var(--text-sub); font-size:12px; background:rgba(0,0,0,0.5); padding:4px 10px; border-radius:10px;">目前只有 1 張卡片</span>';
-                    document.getElementById('stage-container').appendChild(nav);
-                } else if (this.filteredCards.length > 1) {
-                    const btnPrev = document.createElement('button');
-                    btnPrev.innerHTML = '<svg class="svg-icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>'; btnPrev.style.cssText = 'background:none; border:none; color:white; font-size:18px; padding:5px 10px; opacity:0.7; cursor:pointer;';
-                    btnPrev.onclick = () => this.switchCard('prev');
-                    nav.appendChild(btnPrev);
-
-                    this.filteredCards.forEach((_, idx) => {
-                        const dot = document.createElement('div');
-                        dot.style.cssText = `width:10px; height:10px; border-radius:50%; background:${idx === STATE.ui.activeCardIndex ? 'var(--accent-main)' : 'rgba(255,255,255,0.2)'}; cursor:pointer; transition:all 0.3s; box-shadow:0 2px 5px rgba(0,0,0,0.5);`;
-                        dot.onclick = () => { STATE.ui.activeCardIndex = idx; this.renderStage(); };
-                        nav.appendChild(dot);
-                    });
-
-                    const btnNext = document.createElement('button');
-                    btnNext.innerHTML = '<svg class="svg-icon" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>'; btnNext.style.cssText = 'background:none; border:none; color:white; font-size:18px; padding:5px 10px; opacity:0.7; cursor:pointer;';
-                    btnNext.onclick = () => this.switchCard('next');
-                    nav.appendChild(btnNext);
-
-                    document.getElementById('stage-container').appendChild(nav);
-                }
-            },
-            
-            editCard: function(cardId) {
-                if(!STATE.isGodMode) return showToast("僅家長可編輯卡片屬性");
-                const card = STATE.data.cards.find(c => c.id === cardId); if(!card) return;
-                
-                const parents = STATE.data.users.filter(u => u.role === 'parent');
-                const parentOptions = parents.map(p => `<option value="${p.id}" ${card.creatorId===p.id?'selected':''}>${p.name}</option>`).join('');
-                
-                const children = STATE.data.users.filter(u => u.role === 'child');
-                const childOptions = children.map(c => `<option value="${c.id}" ${card.beneficiaryId===c.id?'selected':''}>${c.name}</option>`).join('');
-
-                const modal = document.getElementById('dynamic-modal');
-                modal.innerHTML = `
-                    <div class="modal-content">
-                        <div class="modal-header"><div class="modal-title" style="display:flex; align-items:center; gap:8px;"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> 編輯卡片</div><button class="modal-close" onclick="document.getElementById('dynamic-modal').classList.remove('open')">&times;</button></div>
-                        <div class="modal-body">
-                            <div class="form-group"><label class="form-label">卡片名稱</label><input type="text" id="edit-card-name" class="form-input" value="${card.cardName}"></div>
-                            <div class="form-group"><label class="form-label">卡片專屬孩子 (變更將退回已蓋點數)</label><select id="edit-card-child" class="form-input">${childOptions}</select></div>
-                            <div class="form-group"><label class="form-label">卡片提供者 (家長)</label><select id="edit-card-creator" class="form-input">${parentOptions}</select></div>
-                            
-                            <button class="btn btn-primary" id="btn-save-edit-card" style="width:100%; margin-bottom:25px; padding:15px;"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> 儲存更新</button>
-                            <button class="btn btn-danger" id="btn-del-card" style="width:100%; background:transparent; border:2px solid var(--accent-red); color:var(--accent-red);"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> 刪除這張卡片</button>
-                        </div>
-                    </div>`;
-                modal.classList.add('open');
-                
-                document.getElementById('btn-save-edit-card').onclick = () => {
-                    const newChildId = document.getElementById('edit-card-child').value;
-                    if (newChildId !== card.beneficiaryId) {
-                        this.recallBullets(card.id, true); // true 代表強制退還不需確認框
-                        card.beneficiaryId = newChildId;
-                    }
-                    card.cardName = document.getElementById('edit-card-name').value;
-                    card.creatorId = document.getElementById('edit-card-creator').value;
-                    CoreManager.saveLocal(); 
-                    CoreManager.switchBeneficiary(newChildId); // 自動跳轉視角到該孩子
-                    modal.classList.remove('open'); 
-                    showToast("卡片已更新", false);
-                };
-                
-                document.getElementById('btn-del-card').onclick = () => {
-                    if(confirm("確定要刪除這張卡片嗎？上面的點數會被強制收回背包喔！")) {
-                        this.recallBullets(card.id, true);
-                        STATE.data.cards = STATE.data.cards.filter(c => c.id !== card.id);
-                        CoreManager.saveLocal(); this.renderStage(); modal.classList.remove('open'); showToast("卡片已刪除", false);
-                    }
-                };
-            },
-
-            renderGrids: function(card) {
-                const container = document.getElementById(`grid-${card.id}`); container.innerHTML = '';
-                card.grids.forEach(gridData => {
-                    const cell = document.createElement('div'); cell.className = 'grid-cell'; 
-                    cell.dataset.cardId = card.id; cell.dataset.x = gridData.x; cell.dataset.y = gridData.y;
-                    
-                    // 雙擊退回邏輯
-                    let lastClickTime = 0;
-                    cell.onclick = (e) => {
-                        const now = Date.now();
-                        if (now - lastClickTime < 300) {
-                            this.recallSingleCell(card.id, gridData.x, gridData.y);
-                        }
-                        lastClickTime = now;
-                    };
-                    
-                    cell.dataset.cardId = card.id; cell.dataset.x = gridData.x; cell.dataset.y = gridData.y;
-                    
-                    if (gridData.status > 0 && gridData.bulletIds && gridData.bulletIds.length > 0) {
-                        if (gridData.status >= 1.0) cell.classList.add('hit-full');
-                        else cell.classList.add('hit-half');
-                        
-                        gridData.bulletIds.forEach((bId, idx) => {
-                            const bullet = STATE.data.bullets.find(b => b.id === bId) || STATE.data.logs.find(l => l.bulletId === bId)?.bulletCache;
-                            if (bullet) {
-                                const creator = STATE.data.users.find(u => u.id === bullet.creatorId);
-                                const imgSrc = bullet.imgId ? getImg(bullet.imgId) : (creator ? getImg(creator.avatarId || creator.avatarBase64) : '');
-                                const stamp = document.createElement('img');
-                                stamp.src = imgSrc;
-                                stamp.className = 'bullet-stamp';
-                                stamp.style.borderColor = `rgb(var(--${bullet.colorVar}))`;
-                                
-                                if (gridData.status === 0.5) {
-                                    stamp.style.clipPath = 'polygon(0 0, 50% 0, 50% 100%, 0 100%)'; 
-                                } else if (gridData.status >= 1.0 && gridData.bulletIds.length === 2) {
-                                    if (idx === 0) stamp.style.clipPath = 'polygon(0 0, 50% 0, 50% 100%, 0 100%)'; 
-                                    if (idx === 1) { stamp.style.clipPath = 'polygon(50% 0, 100% 0, 100% 100%, 50% 100%)'; stamp.style.zIndex = '2'; } 
-                                }
-                                cell.appendChild(stamp);
-                            }
-                        });
-                    }
-                    container.appendChild(cell);
-                });
-                
-                const toyImg = document.getElementById(`toy-img-${card.id}`);
-                if (toyImg) {
-                    const isAllFull = card.grids.length > 0 && card.grids.every(g => g.status >= 1.0);
-                    if (isAllFull) toyImg.classList.add('sharp'); else toyImg.classList.remove('sharp');
-                }
-            },
-
-            updateProgress: function(card) {
-                const progressEl = document.getElementById(`progress-${card.id}`); if (!progressEl) return;
-                const totalGrids = card.cols * card.rows; 
-                let currentHit = 0; card.grids.forEach(g => currentHit += g.status);
-                const percent = Math.floor((currentHit / totalGrids) * 100);
-                progressEl.innerText = `進度: ${currentHit}/${totalGrids} (${percent}%)`;
-            },
-        
-            executeSmear: function(cardId, x, y) {
-                const card = STATE.data.cards.find(c => c.id === cardId); if (!card) return;
-                const grid = card.grids.find(g => g.x === x && g.y === y);
-                if (grid.status >= 1.0) return; 
-                
-                const needed = 1.0 - grid.status;
-                const myBullets = STATE.data.bullets.filter(b => b.ownerId === STATE.currentBeneficiary && b.size <= needed);
-                if (myBullets.length === 0) { showToast("背包沒有合適大小的點數囉！"); return; }
-                
-                const bullet = myBullets[0]; 
-                const bulletIndex = STATE.data.bullets.findIndex(b => b.id === bullet.id);
-                
-                grid.status += bullet.size;
-                grid.bulletIds = grid.bulletIds || [];
-                grid.bulletIds.push(bullet.id);
-                
-                const logEntry = { id: generateUUID(), cardId: card.id, bulletId: bullet.id, bulletCache: bullet, x: x, y: y, hitLevel: grid.status, timestamp: Date.now() };
-                STATE.data.logs.push(logEntry); 
-                if (STATE.cloud.isOffline) STATE.cloud.dirtyQueue.push({ action: 'hit', ...logEntry });
-                
-                STATE.data.bullets.splice(bulletIndex, 1);
-                
-                this.renderGrids(card); this.updateProgress(card); 
-                this.renderAuditWall(); // 核心修復：蓋章後立刻重繪隱藏在下方的歷史牆
-                if(typeof BackpackManager !== 'undefined') BackpackManager.render();
-                
-                if (grid.status >= 1.0) {
-                    
-                    const cell = document.querySelector(`.grid-cell[data-card-id="${cardId}"][data-x="${x}"][data-y="${y}"]`);
-                    if(cell) this.triggerParticles(cell, bullet.colorVar);
-                }
-                
-                if (card.grids.every(g => g.status >= 1.0)) setTimeout(() => this.triggerGrandSlam(card), 1000);
-                CoreManager.saveLocal();
-            },
-            recallSingleCell: function(cardId, x, y) {
-                const card = STATE.data.cards.find(c => c.id === cardId); if (!card) return;
-                const grid = card.grids.find(g => g.x === x && g.y === y);
-                if (!grid || grid.status <= 0 || !grid.bulletIds || grid.bulletIds.length === 0) return;
-                
-                const bId = grid.bulletIds.pop();
-                const logIdx = STATE.data.logs.findIndex(l => l.bulletId === bId && l.cardId === cardId);
-                if (logIdx > -1) {
-                    const log = STATE.data.logs[logIdx];
-                    grid.status -= log.bulletCache.size; // 扣除點數
-                    if(grid.status < 0) grid.status = 0;
-                    STATE.data.bullets.push({...log.bulletCache}); // 放回背包
-                    STATE.data.logs.splice(logIdx, 1);
-                } else {
-                    grid.status = 0; grid.bulletIds = [];
-                }
-                
-                CoreManager.saveLocal(); this.renderStage(); BackpackManager.render();
-                showToast("已退回此格最新的點數", false);
-                if(navigator.vibrate) navigator.vibrate(30);
-            },
-            triggerParticles: function(cellEl, colorVar) {
-                
-                const particleCount = 30; const container = document.createElement('div'); container.className = 'particle-container'; cellEl.appendChild(container);
-                const colorRGB = `rgb(var(--${colorVar}))`;
-                for (let i = 0; i < particleCount; i++) {
-                    const p = document.createElement('div'); p.className = 'particle';
-                    const angle = Math.random() * Math.PI * 2; const velocity = (Math.random() * 80) + 20;
-                    p.style.setProperty('--tx', `${Math.cos(angle) * velocity}px`); p.style.setProperty('--ty', `${Math.sin(angle) * velocity}px`);
-                    p.style.width = p.style.height = `${Math.random() * 4 + 2}px`; p.style.background = colorRGB; p.style.boxShadow = `0 0 10px ${colorRGB}`;
-                    container.appendChild(p);
-                }
-                setTimeout(() => container.remove(), 1000);
             },
             
             bindGestures: function() {
@@ -1632,6 +1372,13 @@
                     track.style.transition = 'none'; this.lastHitCell = null;
                     if(e.pointerId) track.setPointerCapture(e.pointerId);
                 };
+
+                // 核心修復：攔截原生手勢干擾，解決 20 秒卡死當機的 Bug
+                track.onpointercancel = (e) => {
+                    if(e.pointerId) track.releasePointerCapture(e.pointerId);
+                    hasLocked = false; isLockX = false; isLockY = false; startX = 0; startY = 0; this.lastHitCell = null;
+                    Array.from(track.children).forEach(c => c.style.transform = '');
+                };
                 
                 const moveLogic = (e) => {
                     if(e.target.closest('button') || !startX || !startY || this.filteredCards.length === 0) return;
@@ -1646,7 +1393,7 @@
                     if (hasLocked) {
                         if (isLockX) { 
                             if(e.cancelable) e.preventDefault(); 
-                            if ((STATE.ui.activeCardIndex === 0 && dx > 0) || (STATE.ui.activeCardIndex === this.filteredCards.length - 1 && dx < 0)) dx = dx * 0.25; 
+                            if ((STATE.ui.activeCardIndex === 0 && dx > 0) || (STATE.ui.activeCardIndex === this.filteredCards.length - 1 && dx < 0) || this.filteredCards.length === 1) dx = dx * 0.25; 
                             const activeCard = track.querySelector('.card-wrapper.active'); if (activeCard) activeCard.style.transform = `translateX(${dx}px) scale(1)`; 
                         }
                         if (isLockY) {
@@ -1671,7 +1418,15 @@
                     if (!hasLocked) { handlePointerMove(e); return; } 
                     const clientX = e.clientX || (e.changedTouches && e.changedTouches[0].clientX);
                     const dx = clientX - startX; track.style.transition = 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)';
-                    if (isLockX) { Array.from(track.children).forEach(c => c.style.transform = ''); if (Math.abs(dx) > 30) dx > 0 ? this.switchCard('prev') : this.switchCard('next'); }
+                    if (isLockX) { 
+                        Array.from(track.children).forEach(c => c.style.transform = ''); 
+                        // 需求 2：單卡滑動時，才出現上方動態 Toast 警告
+                        if (this.filteredCards.length === 1 && Math.abs(dx) > 30) {
+                            showToast("目前只有 1 張卡片", false);
+                        } else if (Math.abs(dx) > 30) {
+                            dx > 0 ? this.switchCard('prev') : this.switchCard('next'); 
+                        }
+                    }
                     startX = 0; startY = 0; this.lastHitCell = null;
                 };
                 track.ontouchend = track.onpointerup;
