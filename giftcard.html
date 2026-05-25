@@ -84,16 +84,17 @@
 
         .marquee-wrapper { padding: 10px 15px; }
         .marquee-container { width: 100%; max-width: 600px; margin: 0 auto; height: 32px; background: rgba(0,0,0,0.4); border-radius: 16px; display: flex; align-items: center; overflow: hidden; position: relative; border: 1px solid rgba(255,255,255,0.1); }
+
         .marquee-text { white-space: nowrap; color: var(--accent-main); font-size: 13px; font-weight: bold; position: absolute; animation: marquee-anim 15s linear infinite; display:flex; align-items:center; gap:5px;}
+        .marquee-text.static-center { animation: none; left: 50%; transform: translateX(-50%); width: max-content; }
         @keyframes marquee-anim { 0% { left: 100%; } 100% { left: -150%; } }
 
-        #stage-container { flex: 1; width: 100%; position: relative; perspective: 1200px; overflow: hidden; display: flex; align-items: center; justify-content: center; z-index: 10; padding-top: 30px; }
-        .carousel-track { position: absolute; width: 100%; height: calc(100% - 30px); top: 30px; display: flex; align-items: center; justify-content: center; transform-style: preserve-3d; transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); touch-action: none; }
-        .card-wrapper { position: absolute; width: 85%; max-width: 450px; max-height: 68vh; transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1); display: flex; flex-direction: column; align-items: center; justify-content: center; margin-top: -5vh; }
+        #stage-container { flex: 1; width: 100%; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; z-index: 10; padding-top: 30px; }
+        .carousel-track { position: absolute; width: 100%; height: calc(100% - 30px); top: 30px; display: flex; align-items: center; justify-content: center; touch-action: none; }
         
-        .card-wrapper.active { transform: translateX(0) scale(1) translateZ(0); opacity: 1; z-index: 10; }
-        .card-wrapper.prev { transform: translateX(-110%) scale(0.8) translateZ(-100px); opacity: 0.4; z-index: 5; pointer-events: none; }
-        .card-wrapper.next { transform: translateX(110%) scale(0.8) translateZ(-100px); opacity: 0.4; z-index: 5; pointer-events: none; }
+        /* 拔除容易卡頓的 3D Translate，改用極致滑順的 Opacity 漸變 */
+        .card-wrapper { position: absolute; width: 85%; max-width: 450px; max-height: 68vh; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-top: -5vh; opacity: 0; pointer-events: none; z-index: 5; transition: opacity 0.3s ease-in-out; }
+        .card-wrapper.active { opacity: 1; pointer-events: auto; z-index: 10; }
         
         .card-inner { width: 100%; position: relative; border-radius: 16px; overflow: hidden; background: #111; box-shadow: 0 10px 40px rgba(0,0,0,0.7), 0 0 0 2px rgba(255, 255, 255, 0.1); }
 
@@ -184,13 +185,14 @@
 
             <footer id="bottom-bar">
                 <!-- 孩子介面工具列 -->
+                
                 <div id="child-toolbar" style="width:100%; display:flex; justify-content:space-between; gap:10px;">
-                    <button class="btn btn-outline" style="flex:1; border-color:var(--accent-gold); color:var(--accent-gold);" onclick="document.getElementById('backpack-drawer').classList.add('open')">
+                    <button class="btn btn-outline" style="flex:1; border-color:var(--accent-gold); color:var(--accent-gold);" onclick="if(typeof BackpackManager !== 'undefined') BackpackManager.render(); document.getElementById('backpack-drawer').classList.add('open')">
                         <svg class="svg-icon" viewBox="0 0 24 24"><path d="M20 12v10H4V12"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg> 打開背包 
                         <span id="backpack-count" style="background:var(--accent-red); color:#fff; padding:2px 6px; border-radius:10px; font-size:12px; margin-left:5px;">0</span>
                     </button>
 
-                    <button id="btn-recall-card" class="btn btn-outline" style="width:100px; color:var(--text-sub); transition:all 0.3s;" onclick="CardManager.recallBullets(CardManager.filteredCards[STATE.ui.activeCardIndex]?.id)">
+                    <button id="btn-recall-card" class="btn btn-outline" style="width:100px; color:var(--text-sub); transition:all 0.3s;">
                         <svg class="svg-icon" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> 收回
                     </button>
                 </div>
@@ -229,9 +231,11 @@
                     <span id="audit-title" style="font-weight:bold; color:var(--accent-main); display:flex; align-items:center; gap:8px;">
                         <svg class="svg-icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg> 歷史紀錄
                     </span>
+                    
                     <button class="icon-btn" onclick="document.getElementById('main-area').classList.remove('show-audit'); UIManager.renderMarquee();">
                         <svg class="svg-icon" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
                     </button>
+                    
                 </div>
                 <div class="audit-grid" id="audit-grid"></div>
             </section>
@@ -488,6 +492,7 @@
                     if (typeof UIManager !== 'undefined') UIManager.updateSyncUI('error', '請重新同步');
                 }, true);
             },
+
             switchFolder: async function() {
                 try {
                     await new Promise((resolve) => this.authorize(() => resolve()));
@@ -497,9 +502,14 @@
                     if(typeof CoreManager !== 'undefined') CoreManager.saveLocal();
                     showToast("已切換資料夾，下次將同步至此資料夾", false);
                 } catch (e) {
-                    if(e.message !== "取消選擇") showToast("切換資料夾失敗");
+                    if(e.message !== "取消選擇") {
+                        showToast("切換資料夾失敗，已開啟診斷面板", true);
+                        logDebug("Folder Switch Error", `[時間] ${new Date().toLocaleString()}\n[錯誤] ${e.message}\n[Stack] ${e.stack}`);
+                        document.getElementById('debug-console').classList.add('active');
+                    }
                 }
             },
+        
             authorize: function(callback, forcePrompt = false) {
                 if (!gisInited) return showToast("授權模組載入中，請稍候");
                 if (!STATE.cloud.accessToken || forcePrompt) {
@@ -1032,9 +1042,27 @@
                 }
             },
         
-            renderMarquee: function() {
+            setMarquee: function(text, autoCenter = false) {
                 const textEl = document.getElementById('marquee-text');
-                const textElDesktop = document.getElementById('marquee-text-desktop');
+                const textElDesk = document.getElementById('marquee-text-desktop');
+                const apply = (el) => {
+                    if(!el) return;
+                    el.innerHTML = text;
+                    el.classList.remove('static-center');
+                    if(autoCenter) {
+                        el.classList.add('static-center');
+                        requestAnimationFrame(() => {
+                            const containerWidth = el.parentElement.clientWidth;
+                            if(el.scrollWidth > containerWidth) {
+                                setTimeout(() => el.classList.remove('static-center'), 1000);
+                            }
+                        });
+                    }
+                };
+                apply(textEl); apply(textElDesk);
+            },
+
+            renderMarquee: function() {
                 let text = '';
                 const starIcon = `<svg class="svg-icon" style="width:16px;height:16px;display:inline-block;" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
                 
@@ -1045,18 +1073,13 @@
                         return `${starIcon} ${d.getMonth()+1}/${d.getDate()} ${child} 因為「${b.reason}」獲得了 ${b.size} 點！`;
                     });
                     text = msgs.join(' 　|　 ') + ' 　|　 ' + msgs.join(' 　|　 ');
-
                 } else {
-                    if (STATE.isGodMode) {
-                        text = `歡迎使用${SYS_NAME}！請家長點擊下方「給點」發放獎勵！`;
-                    } else {
-                        text = `歡迎使用${SYS_NAME}！繼續保持好表現，爭取更多驚喜獎勵喔！`;
-                    }
+                    if (STATE.isGodMode) text = `歡迎使用${SYS_NAME}！請家長點擊下方「給點」發放獎勵！`;
+                    else text = `歡迎使用${SYS_NAME}！繼續保持好表現，爭取更多驚喜獎勵喔！`;
                 }
-                if(textEl) textEl.innerHTML = text;
-                
-                if(textElDesktop) textElDesktop.innerHTML = text;
+                this.setMarquee(text, false);
             }
+        
         };
 
         window.AdminManager = {
@@ -1420,10 +1443,9 @@
                 const activeCard = this.filteredCards[STATE.ui.activeCardIndex];
                 const isActiveFull = activeCard.grids.length > 0 && activeCard.grids.every(g => g.status >= 1.0);
                 
-                // 需求 2：防呆控制 - 如果集滿且為孩童，封鎖收回按鈕
                 if(btnRecall) {
                     if (isActiveFull && !STATE.isGodMode) {
-                        btnRecall.disabled = false; // 保持可點擊以觸發紅色警告
+                        btnRecall.disabled = false; 
                         btnRecall.style.opacity = '0.3';
                         btnRecall.onclick = () => showToast("卡片已集滿！只有家長可以收回點數喔！", true);
                     } else {
@@ -1436,7 +1458,6 @@
                 this.filteredCards.forEach((card, index) => {
                     const wrapper = document.createElement('div'); wrapper.className = 'card-wrapper';
                     
-                    // 需求 5：無限循環顯示邏輯 (Prev / Active / Next)
                     if (index === STATE.ui.activeCardIndex) {
                         wrapper.classList.add('active');
                     } else if (len > 1 && index === (STATE.ui.activeCardIndex - 1 + len) % len) {
@@ -1444,7 +1465,6 @@
                     } else if (len > 1 && index === (STATE.ui.activeCardIndex + 1) % len) {
                         wrapper.classList.add('next');
                     } else {
-                        // 超過3張卡片時隱藏多餘的，避免渲染干擾
                         wrapper.style.opacity = '0';
                         wrapper.style.pointerEvents = 'none';
                         wrapper.style.transform = 'translateZ(-200px)';
@@ -1489,7 +1509,6 @@
                             </button>
                         `;
                     } else {
-                        // 需求 7：孩童模式下顯示「分享/匯出」精美報表按鈕
                         titleContainer.innerHTML += `
                             <button class="icon-btn" onclick="CardManager.exportCard('${card.id}'); event.stopPropagation();" style="position:absolute; right: -5px; top: -5px; color:var(--accent-gold); background:rgba(0,0,0,0.6); width:36px; height:36px; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 15px rgba(0,0,0,0.8); border-radius:50%; z-index:9999; border: 1px solid rgba(255,255,255,0.2); cursor:pointer; pointer-events:auto;">
                                 <svg class="svg-icon" style="width:18px;height:18px;" viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
@@ -1498,7 +1517,6 @@
                     }
                     wrapper.appendChild(titleContainer);
 
-                    // 需求 2：集滿時覆蓋半透明獎品大圖
                     let overlayHtml = '';
                     if (isAllFull) {
                         overlayHtml = `
@@ -1513,41 +1531,12 @@
                             <img src="${getImg(card.imgId || card.imgBase64)}" class="toy-image" id="toy-img-${card.id}">
                             <div class="grid-container" id="grid-${card.id}" style="grid-template-columns: repeat(${card.cols}, 1fr); grid-template-rows: repeat(${card.rows}, 1fr);"></div>
                         </div>`;
-                    // 需求 3：移除下方「查看歷史明細」按鈕，版面清爽化
 
                     track.appendChild(wrapper);
                     this.renderGrids(card); this.updateProgress(card);
                 });
                 
                 this.bindGestures(); this.renderAuditWall();
-
-                const existingNav = document.getElementById('card-nav-dots');
-                if(existingNav) existingNav.remove();
-                
-                if (this.filteredCards.length > 1) {
-                    const nav = document.createElement('div');
-                    nav.id = 'card-nav-dots';
-                    nav.style.cssText = 'position:absolute; bottom:15px; left:50%; transform:translateX(-50%); display:flex; gap:10px; z-index:20; align-items:center;';
-                    
-                    const btnPrev = document.createElement('button');
-                    btnPrev.innerHTML = '<svg class="svg-icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>'; btnPrev.style.cssText = 'background:none; border:none; color:white; font-size:18px; padding:5px 10px; opacity:0.7; cursor:pointer;';
-                    btnPrev.onclick = () => this.switchCard('prev');
-                    nav.appendChild(btnPrev);
-
-                    this.filteredCards.forEach((_, idx) => {
-                        const dot = document.createElement('div');
-                        dot.style.cssText = `width:10px; height:10px; border-radius:50%; background:${idx === STATE.ui.activeCardIndex ? 'var(--accent-main)' : 'rgba(255,255,255,0.2)'}; cursor:pointer; transition:all 0.3s; box-shadow:0 2px 5px rgba(0,0,0,0.5);`;
-                        dot.onclick = () => { STATE.ui.activeCardIndex = idx; this.renderStage(); };
-                        nav.appendChild(dot);
-                    });
-
-                    const btnNext = document.createElement('button');
-                    btnNext.innerHTML = '<svg class="svg-icon" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>'; btnNext.style.cssText = 'background:none; border:none; color:white; font-size:18px; padding:5px 10px; opacity:0.7; cursor:pointer;';
-                    btnNext.onclick = () => this.switchCard('next');
-                    nav.appendChild(btnNext);
-
-                    document.getElementById('stage-container').appendChild(nav);
-                }
             },
 
             editCard: function(cardId) {
@@ -1566,7 +1555,7 @@
                         <div class="modal-header"><div class="modal-title" style="display:flex; align-items:center; gap:8px;"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> 編輯卡片</div><button class="modal-close" onclick="document.getElementById('dynamic-modal').classList.remove('open')">&times;</button></div>
                         <div class="modal-body">
                             <div class="form-group"><label class="form-label">卡片名稱</label><input type="text" id="edit-card-name" class="form-input" value="${card.cardName}"></div>
-                            <div class="form-group"><label class="form-label">卡片專屬孩子 (變更將退回已蓋點數)</label><select id="edit-card-child" class="form-input">${childOptions}</select></div>
+                            <div class="form-group"><label class="form-label">獎勵對象 (變更將退回已蓋點數)</label><select id="edit-card-child" class="form-input">${childOptions}</select></div>
                             <div class="form-group"><label class="form-label">卡片提供者 (家長)</label><select id="edit-card-creator" class="form-input">${parentOptions}</select></div>
                             
                             <button class="btn btn-primary" id="btn-save-edit-card" style="width:100%; margin-bottom:25px; padding:15px;"><svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> 儲存更新</button>
@@ -1610,7 +1599,6 @@
                     let lastClickTime = 0;
                     cell.onclick = (e) => {
                         e.stopPropagation();
-                        // 需求 2：防呆，集滿後小孩不能雙擊退回
                         if (isAllFull && !STATE.isGodMode) {
                             showToast("卡片已集滿！若誤觸請請家長協助收回。", true);
                             return;
@@ -1719,7 +1707,6 @@
                         size: grid.status >= 1 ? 1.0 : 0.5, colorVar: 'c5', reason: '退回的點數', createdAt: Date.now() 
                     };
                 }
-                // 需求 1：確保退回的點數主人一定是這張卡片的孩子，避免幽靈吃點
                 recoveredBullet.ownerId = card.beneficiaryId;
 
                 grid.status -= recoveredBullet.size; 
@@ -1749,104 +1736,49 @@
             },
             
             bindGestures: function() {
-                const track = document.getElementById('card-track'); const mainArea = document.getElementById('main-area');
+                const track = document.getElementById('card-track'); 
+                const mainArea = document.getElementById('main-area');
                 if (this._gestureBound && track) {
-                    track.onpointerdown = null; track.onpointermove = null; track.onpointerup = null; track.onpointercancel = null;
-                    track.ontouchmove = null; track.ontouchend = null;
+                    track.onpointerdown = null; track.onpointerup = null; track.onpointercancel = null;
                 }
                 this._gestureBound = true;
 
-                let startX = 0, startY = 0; let isLockX = false, isLockY = false, hasLocked = false;
-                let lastMoveProcess = 0;
+                let startX = 0, startY = 0; 
                 mainArea.classList.remove('show-audit');
-                
-                const handlePointerMove = (e) => {
-                    if (isLockX || this.filteredCards.length === 0) return; 
-                    if (Date.now() - lastMoveProcess < 60) return; 
-                    lastMoveProcess = Date.now();
-
-                    let clientX = e.clientX;
-                    let clientY = e.clientY;
-                    if (e.touches && e.touches.length > 0) {
-                        clientX = e.touches[0].clientX;
-                        clientY = e.touches[0].clientY;
-                    } else if (e.changedTouches && e.changedTouches.length > 0) {
-                        clientX = e.changedTouches[0].clientX;
-                        clientY = e.changedTouches[0].clientY;
-                    }
-
-                    const targetEl = document.elementFromPoint(clientX, clientY);
-                    if (targetEl && targetEl.closest('.grid-cell')) {
-                        const cell = targetEl.closest('.grid-cell');
-                        if (cell !== this.lastHitCell) {
-                            this.lastHitCell = cell; const cx = parseInt(cell.dataset.x); const cy = parseInt(cell.dataset.y);
-                            this.executeSmear(cell.dataset.cardId, cx, cy);
-                        }
-                    }
-                };
 
                 track.onpointerdown = (e) => {
-                    if(e.target.closest('button') || this.filteredCards.length === 0) return; 
-                    startX = e.clientX || (e.touches && e.touches[0].clientX); 
-                    startY = e.clientY || (e.touches && e.touches[0].clientY); 
-                    isLockX = false; isLockY = false; hasLocked = false; 
-                    track.style.transition = 'none'; this.lastHitCell = null;
+                    if(e.target.closest('button') || this.filteredCards.length === 0) return;
+                    startX = e.clientX || (e.touches && e.touches[0].clientX);
+                    startY = e.clientY || (e.touches && e.touches[0].clientY);
                     if(e.pointerId) track.setPointerCapture(e.pointerId);
                 };
 
-                track.onpointercancel = (e) => {
+                const handleUp = (e) => {
+                    if(e.target.closest('button') || this.filteredCards.length === 0) return;
                     if(e.pointerId) track.releasePointerCapture(e.pointerId);
-                    hasLocked = false; isLockX = false; isLockY = false; startX = 0; startY = 0; this.lastHitCell = null;
-                    Array.from(track.children).forEach(c => c.style.transform = '');
-                };
-                
-                const moveLogic = (e) => {
-                    if(e.target.closest('button') || !startX || !startY || this.filteredCards.length === 0) return;
-                    let clientX = e.clientX || (e.touches && e.touches[0].clientX);
-                    let clientY = e.clientY || (e.touches && e.touches[0].clientY);
-                    let dx = clientX - startX; let dy = clientY - startY;
+                    if(startX === 0 && startY === 0) return;
+
+                    let endX = e.clientX || (e.changedTouches && e.changedTouches[0].clientX);
+                    let endY = e.clientY || (e.changedTouches && e.changedTouches[0].clientY);
                     
-                    if (!hasLocked && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) { 
-                        let angle = Math.abs(Math.atan2(dy, dx) * 180 / Math.PI); 
-                        if (angle < 30 || angle > 150) isLockX = true; else if (angle > 60 && angle < 120) isLockY = true; hasLocked = true; 
-                    }
-                    if (hasLocked) {
-                        if (isLockX) { 
-                            if(e.cancelable) e.preventDefault(); 
-                            // 需求 5：移除邊緣阻力，開放無限輪播！如果只有1張卡片則縮小阻力
-                            if (this.filteredCards.length === 1) dx = dx * 0.25; 
-                            const activeCard = track.querySelector('.card-wrapper.active'); if (activeCard) activeCard.style.transform = `translateX(${dx}px) scale(1)`; 
-                        }
-                        if (isLockY) {
-                            if(e.cancelable) e.preventDefault();
-                            if (dy < -30) {
-                                mainArea.classList.add('show-audit');
-                            } 
-                            else if (dy > 10) handlePointerMove(e); 
-                        }
-                    } else { handlePointerMove(e); } 
-                };
+                    let dx = endX - startX;
+                    let dy = endY - startY;
 
-                track.onpointermove = moveLogic;
-                track.ontouchmove = moveLogic;
-
-                track.onpointerup = (e) => {
-                    if(e.target.closest('button') || this.filteredCards.length === 0) return; 
-                    if(e.pointerId) track.releasePointerCapture(e.pointerId);
-                    if (!hasLocked) { handlePointerMove(e); return; } 
-                    const clientX = e.clientX || (e.changedTouches && e.changedTouches[0].clientX);
-                    const dx = clientX - startX; track.style.transition = 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)';
-                    if (isLockX) { 
-                        Array.from(track.children).forEach(c => c.style.transform = ''); 
-                        if (this.filteredCards.length === 1 && Math.abs(dx) > 30) {
+                    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
+                        if (this.filteredCards.length <= 1) {
                             showToast("您目前只有這 1 張卡片喔", false);
-                        } else if (Math.abs(dx) > 30) {
-                            dx > 0 ? this.switchCard('prev') : this.switchCard('next'); 
+                        } else {
+                            dx > 0 ? this.switchCard('prev') : this.switchCard('next');
                         }
+                    } else if (dy < -40 && Math.abs(dy) > Math.abs(dx)) {
+                        mainArea.classList.add('show-audit');
+                        UIManager.setMarquee('您可點選點數查看點數歷程', true);
                     }
-                    startX = 0; startY = 0; this.lastHitCell = null;
+                    startX = 0; startY = 0;
                 };
-                track.ontouchend = track.onpointerup;
+
+                track.onpointerup = handleUp;
+                track.onpointercancel = handleUp;
             },
         
             recallBullets: async function(cardId, bypassConfirm = false) {
@@ -1892,7 +1824,6 @@
             switchCard: function(dir) {
                 const len = this.filteredCards.length;
                 if (len <= 1) return;
-                // 需求 5：無限輪播切換算法
                 if (dir === 'next') STATE.ui.activeCardIndex = (STATE.ui.activeCardIndex + 1) % len;
                 else if (dir === 'prev') STATE.ui.activeCardIndex = (STATE.ui.activeCardIndex - 1 + len) % len;
                 this.renderStage();
@@ -1920,7 +1851,6 @@
                                     else if(g.status>=1.0 && bIds.length===2) clip = idx===0 ? 'polygon(0 0, 50% 0, 50% 100%, 0 100%)' : 'polygon(50% 0, 100% 0, 100% 100%, 50% 100%)';
                                     
                                     const safeReason = (b.reason || '').replace(/'/g, "\\'");
-                                    // 需求 4：讓每個印章實體可以被點擊，跑馬燈精準顯示 0.5 點各自的紀錄
                                     let clickEvent = `onclick="CardManager.showAuditDetail(event, '${b.ownerId}', '${safeReason}', ${b.size})"`;
                                     
                                     content += `<img src="${imgSrc}" ${clickEvent} style="position:absolute; width:100%; height:100%; object-fit:cover; border-radius:50%; border:2px solid rgb(var(--${b.colorVar || 'accent-main'})); clip-path:${clip}; z-index:${idx+1}; pointer-events:auto; cursor:pointer;">`;
@@ -1941,17 +1871,13 @@
                 const dateStr = `${d.getMonth()+1}/${d.getDate()}`;
                 const msg = `⭐ ${dateStr} ${child ? child.name : '孩子'} 因為「${reason}」獲得了 ${bulletSize} 點！`;
                 
-                const textEl = document.getElementById('marquee-text');
-                const textElDesk = document.getElementById('marquee-text-desktop');
-                if(textEl) textEl.innerHTML = msg;
-                if(textElDesk) textElDesk.innerHTML = msg;
+                UIManager.setMarquee(msg, true);
                 
                 document.querySelectorAll('.audit-cell').forEach(el => el.classList.remove('selected'));
                 e.currentTarget.parentElement.classList.add('selected'); // 高亮整個格子
                 if(navigator.vibrate) navigator.vibrate(20);
             },
             
-            // 需求 7：精美圖檔報表匯出引擎
             exportCard: function(cardId) {
                 showToast("正在為您繪製精美報表，請稍候...", false);
                 const card = STATE.data.cards.find(c => c.id === cardId); if(!card) return;
@@ -1962,32 +1888,31 @@
                 canvas.width = 1080; canvas.height = 1920;
                 const ctx = canvas.getContext('2d');
                 
-                // 畫背景深藍色
-                ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, 1080, 1920);
+                const bodyStyle = getComputedStyle(document.body);
+                const bgColor = bodyStyle.getPropertyValue('--bg-dark').trim() || '#0f172a';
+                ctx.fillStyle = bgColor; ctx.fillRect(0, 0, 1080, 1920);
                 
-                // 上方標題與資訊
                 ctx.fillStyle = '#f8fafc'; ctx.font = 'bold 80px sans-serif'; ctx.textAlign = 'center';
                 ctx.fillText(card.cardName, 540, 160);
                 ctx.font = 'bold 36px sans-serif'; ctx.fillStyle = '#fbbf24';
-                ctx.fillText(`專屬孩子: ${child ? child.name : '未知'}   |   提供者: ${parent ? parent.name : '未知'}`, 540, 240);
+                ctx.fillText(`獎勵對象: ${child ? child.name : '未知'}   |   提供者: ${parent ? parent.name : '未知'}`, 540, 240);
 
-                // 計算網格大小
                 const cols = card.cols; const rows = card.rows;
-                const gridW = 900; const gridH = 1350; // 卡片畫布大小
+                const gridW = 900; const gridH = 1350; 
                 const startX = 90; const startY = 320;
                 const cellW = gridW / cols; const cellH = gridH / rows;
 
-                // 畫玩具背景圖
                 const img = new Image();
                 img.crossOrigin = 'Anonymous';
                 img.onload = () => {
-                    ctx.globalAlpha = 0.2; // 背景半透明
+                    ctx.globalAlpha = 0.2; 
                     ctx.drawImage(img, startX, startY, gridW, gridH);
                     ctx.globalAlpha = 1.0;
                     
-                    // 畫網格線
                     ctx.strokeStyle = 'rgba(255,255,255,0.4)';
                     ctx.lineWidth = 3;
+                    
+                    let currentHit = 0;
                     
                     for(let y=0; y<rows; y++){
                         for(let x=0; x<cols; x++){
@@ -1995,42 +1920,87 @@
                             ctx.strokeRect(px, py, cellW, cellH);
                             
                             const g = card.grids.find(grid => grid.x === x && grid.y === y);
-                            if (g && g.status > 0 && g.bulletIds && g.bulletIds.length > 0) {
-                                // 抓最後一個章代表
-                                const lastBId = g.bulletIds[g.bulletIds.length - 1];
-                                const lastLog = STATE.data.logs.find(l => l.bulletId === lastBId);
-                                const bCache = lastLog ? lastLog.bulletCache : STATE.data.bullets.find(b=>b.id===lastBId);
-                                
-                                if(bCache) {
-                                    const d = new Date(bCache.createdAt || Date.now());
-                                    const dStr = `${d.getMonth()+1}/${d.getDate()}`;
+                            if (g && g.status > 0) {
+                                currentHit += g.status;
+                                if (g.bulletIds && g.bulletIds.length > 0) {
+                                    const lastBId = g.bulletIds[g.bulletIds.length - 1];
+                                    const lastLog = STATE.data.logs.find(l => l.bulletId === lastBId);
+                                    const bCache = lastLog ? lastLog.bulletCache : STATE.data.bullets.find(b=>b.id===lastBId);
                                     
-                                    // 畫文字
-                                    ctx.textAlign = 'center';
-                                    ctx.fillStyle = '#10b981'; // 綠色日期
-                                    ctx.font = 'bold 32px sans-serif';
-                                    ctx.fillText(dStr, px + cellW/2, py + cellH/2 - 10);
-                                    
-                                    ctx.fillStyle = '#ffffff'; // 白色理由
-                                    ctx.font = '28px sans-serif';
-                                    // 限制理由長度避免爆格
-                                    let shortReason = bCache.reason;
-                                    if(shortReason.length > 5) shortReason = shortReason.substring(0, 4) + '..';
-                                    ctx.fillText(shortReason, px + cellW/2, py + cellH/2 + 35);
+                                    if(bCache) {
+                                        const d = new Date(bCache.createdAt || Date.now());
+                                        const dStr = `${d.getMonth()+1}/${d.getDate()}`;
+                                        
+                                        ctx.textAlign = 'center';
+                                        ctx.fillStyle = '#10b981'; 
+                                        ctx.font = 'bold 32px sans-serif';
+                                        ctx.fillText(dStr, px + cellW/2, py + cellH/2 - 10);
+                                        
+                                        ctx.fillStyle = '#ffffff'; 
+                                        
+                                        let shortReason = bCache.reason;
+                                        let fs = 28;
+                                        ctx.font = `${fs}px sans-serif`;
+                                        while(ctx.measureText(shortReason).width > cellW - 10 && fs > 12) {
+                                            fs--;
+                                            ctx.font = `${fs}px sans-serif`;
+                                        }
+                                        ctx.fillText(shortReason, px + cellW/2, py + cellH/2 + 35);
+                                    }
                                 }
                             }
                         }
                     }
                     
-                    // 加入浮水印
                     ctx.fillStyle = '#94a3b8'; ctx.font = '24px sans-serif'; ctx.textAlign = 'center';
-                    ctx.fillText(`— 數位獎品集點卡 自動生成 —`, 540, 1800);
+                    const now = new Date();
+                    const todayStr = `- ${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 -`;
+                    ctx.fillText(todayStr, 540, 1780);
 
-                    // 觸發下載
-                    const link = document.createElement('a');
-                    link.download = `${child ? child.name : '孩子'}_${card.cardName}_集點報表.png`;
-                    link.href = canvas.toDataURL('image/png');
-                    link.click();
+                    const totalGrids = cols * rows;
+                    const isAllFull = currentHit >= totalGrids;
+                    let bottomText = '';
+
+                    if (isAllFull) {
+                        const quotes = [
+                            "每一步累積的星芒，終於在此刻匯聚成耀眼的光芒",
+                            "你用恆心，在時間的畫布上填滿了最美麗的色彩",
+                            "點點滴滴的努力，化作春雨灌溉出今日豐收的果實",
+                            "那些堅持的日子，都在這張卡片上開出了燦爛的花朵",
+                            "每一格辛勤的足跡，都引領你走向期待已久的寶藏",
+                            "微小的光點，在你的手掌心中凝聚成一條璀璨的星河",
+                            "你用專注與耐心，為自己編織了一件寫滿榮譽的羽翼",
+                            "歲月不負努力，每一顆點數都是你成長路上的珍珠",
+                            "沿途默默耕耘的風景，在此刻收穫了最甜美的回憶",
+                            "恭喜你用意志的畫筆，為這段旅程畫下完美的句點"
+                        ];
+                        bottomText = `- ${quotes[Math.floor(Math.random()*quotes.length)]} -`;
+                    } else {
+                        let diff = parseFloat((totalGrids - currentHit).toFixed(1));
+                        bottomText = `- 再接再厲，還差 ${diff} 點就可以得到 ${card.cardName} -`;
+                    }
+                    ctx.fillText(bottomText, 540, 1830);
+
+                    const filename = `${child ? child.name : '孩子'}_${card.cardName}_集點報表.png`;
+                    const shareFallback = () => {
+                        const link = document.createElement('a');
+                        link.download = filename;
+                        link.href = canvas.toDataURL('image/png');
+                        link.click();
+                    };
+
+                    canvas.toBlob(blob => {
+                        const file = new File([blob], filename, { type: 'image/png' });
+                        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                            navigator.share({
+                                title: '獎品集點卡',
+                                text: '來看看我的集點進度！',
+                                files: [file]
+                            }).catch(err => shareFallback());
+                        } else {
+                            shareFallback();
+                        }
+                    });
                 };
                 img.src = getImg(card.imgId || card.imgBase64);
             },
@@ -2074,7 +2044,6 @@
                         for (let id of allImgIds) { const b64 = await LocalDB.get(id); if (b64) STATE.images[id] = b64; }
                         
                         this.enterReadonlyMode();
-                        UIManager.renderProfiles(); CardManager.renderStage(); BackpackManager.render();
                     } catch(e) { logDebug("Init Error", e.stack || e.message); }
                 } else {
                     document.getElementById('dynamic-modal').innerHTML = `
@@ -2218,11 +2187,8 @@
                 const children = STATE.data.users.filter(u => u.role === 'child');
                 
                 if (children.length > 0) {
-                    if (!STATE.currentBeneficiary) STATE.currentBeneficiary = children[0].id;
-                    let activeUser = STATE.data.users.find(u => u.id === STATE.currentBeneficiary);
-                    if (!activeUser) { 
-                        activeUser = children[0];
-                        STATE.currentBeneficiary = activeUser.id;
+                    if (!STATE.currentBeneficiary || !children.find(c => c.id === STATE.currentBeneficiary)) {
+                        STATE.currentBeneficiary = children[0].id;
                     }
                 } else {
                     STATE.currentBeneficiary = null; 
@@ -2256,7 +2222,7 @@
                 document.getElementById('child-toolbar').style.display = 'none';
                 document.getElementById('parent-toolbar').style.display = 'flex';
                 UIManager.renderProfiles(); 
-                CardManager.renderStage(); // 修復：登入後立刻重繪卡片，讓編輯按鈕浮現
+                CardManager.renderStage();
                 showToast("已切換為家長模式", false);
             },
 
@@ -2318,16 +2284,6 @@
                 try {
                     // 1. UI 檢查與重置
                     appendLog(`\n[1/4] 檢查並重置 UI 元件...`);
-                    const els = {
-                        profile: document.getElementById('profile-list'),
-                        stage: document.getElementById('stage-container'),
-                        track: document.getElementById('card-track'),
-                        backpack: document.getElementById('backpack-list')
-                    };
-                    for(const [k, v] of Object.entries(els)) {
-                        if(!v) appendLog(`[錯誤] 找不到元件 DOM 節點: ${k}`);
-                    }
-
                     document.querySelectorAll('.glass-overlay.active, .modal-overlay.open').forEach(el => {
                         if(el.id !== 'debug-console' && el.id !== 'toast-container') {
                             el.classList.remove('active', 'open');
@@ -2336,8 +2292,7 @@
                     });
 
                     if (typeof setDynamicViewport === 'function') setDynamicViewport();
-                    let actUser = STATE.data.users.find(u => u.id === (STATE.isGodMode ? STATE.currentUser : STATE.currentBeneficiary));
-                    if (actUser && actUser.theme) ThemeManager.apply(actUser.theme);
+                    this.refreshTheme();
                     UIManager.renderProfiles();
                     UIManager.renderMarquee();
                     CardManager.renderStage();
@@ -2356,8 +2311,11 @@
                     appendLog(`\n[2/4] 檢查本地資料與照片關聯 (自動救援)...`);
                     appendLog(`- 成員數: ${STATE.data.users?.length || 0}`);
                     appendLog(`- 卡片數: ${STATE.data.cards?.length || 0}`);
-                    appendLog(`- 點數庫: ${STATE.data.bullets?.length || 0}`);
+                    appendLog(`- 全域背包庫: ${STATE.data.bullets?.length || 0}`);
                     appendLog(`- 歷史牆: ${STATE.data.logs?.length || 0}`);
+                    
+                    const orphans = STATE.data.bullets.filter(b => !STATE.data.users.find(u => u.id === b.ownerId));
+                    if (orphans.length > 0) appendLog(`[警告] 發現 ${orphans.length} 個幽靈點數 (查無擁有者)，可能導致背包顯示為0！`);
                     
                     const allImgIds = new Set();
                     STATE.data.users.forEach(u => { if(u.avatarId) allImgIds.add(u.avatarId); });
@@ -2395,8 +2353,7 @@
                     if(missingCount > 0) {
                         appendLog(`[救援總結] 遺失: ${missingCount} 張，成功救回: ${recoveredCount} 張。`);
                         if (missingCount > recoveredCount) {
-                            appendLog(`❌ 警告：仍有照片無法救回！系統診斷面板將保持開啟以供檢查。`);
-                            document.getElementById('debug-console').classList.add('active'); 
+                            appendLog(`❌ 警告：仍有照片無法救回！`);
                         }
                     } else appendLog(`[成功] 本地所有照片完整無缺 (${Object.keys(STATE.images).length} files)`);
 
@@ -2418,7 +2375,8 @@
                 }
             },
 
-            performFullSync: async function(forceUpload = false) {
+            // 加入了 attempt 參數與 errorLogs 陣列，實作「三波同步防護網」
+            performFullSync: async function(forceUpload = false, attempt = 1, errorLogs = []) {
                 let debugStep = "初始化同步檢查";
                 let appendLog = (msg) => {
                     const debugTextarea = document.getElementById('debug-body');
@@ -2439,13 +2397,12 @@
                         if (pwd) localStorage.setItem('sys_pin_cache', pwd); else return;
                     }
 
-                    UIManager.updateSyncUI('syncing');
-                    appendLog(`\n--- 開始智慧雙向同步 [${new Date().toLocaleString()}] ---`);
+                    if(attempt === 1) UIManager.updateSyncUI('syncing');
+                    appendLog(`\n--- 開始智慧雙向同步 [第 ${attempt} 次嘗試] ---`);
 
                     debugStep = "處理照片上傳";
                     for (let id of Object.keys(STATE.images)) {
                         if (id.startsWith('local_img_')) {
-                            appendLog(`[上傳圖片] 發現本地新照片: ${id}`);
                             try {
                                 const fileId = await CloudManager.uploadImage(STATE.images[id], STATE.cloud.folderId, generateFileName('Img', 'Data'));
                                 if (fileId) { 
@@ -2459,11 +2416,8 @@
                                     
                                     LocalDB.delete(id); 
                                     delete STATE.images[id];
-                                    appendLog(`[上傳成功] 照片已同步至雲端並更新關聯 ID: ${fileId}`);
                                 }
-                            } catch (imgErr) {
-                                appendLog(`[上傳失敗] 照片 ${id} 發生錯誤: ${imgErr.message}`);
-                            }
+                            } catch (imgErr) {}
                         }
                     }
 
@@ -2474,12 +2428,8 @@
                         const cloudTime = new Date(meta.modifiedTime).getTime();
                         const localTime = STATE.data.last_update || 0;
                         
-                        appendLog(`[時間比對] 雲端檔案時間: ${new Date(cloudTime).toLocaleString()}`);
-                        appendLog(`[時間比對] 本機更新時間: ${new Date(localTime).toLocaleString()}`);
-                        
                         if (cloudTime > localTime + 3000) { 
                             debugStep = "下載並載入雲端較新資料";
-                            appendLog(`[同步決策] 雲端資料較新，系統將自動下載並覆寫本機...`);
                             const fileRes = await DriveAPI.fetch(`https://www.googleapis.com/drive/v3/files/${STATE.cloud.fileId}?alt=media`);
                             const encryptedStr = await fileRes.text();
                             
@@ -2494,8 +2444,6 @@
                                     parsedCloudData = JSON.parse(decompressed);
                                 }
                             } catch (parseErr) {
-                                appendLog(`[嚴重警告] 雲端檔案解析失敗: ${parseErr.message}`);
-                                appendLog(`[修復啟動] 系統判斷雲端存檔已損毀，將強制把本機現有資料上傳覆蓋！`);
                                 parsedCloudData = null; 
                             }
                             
@@ -2504,28 +2452,20 @@
                                 STATE.cloud.lastSyncTime = cloudTime;
                                 STATE.data.last_update = cloudTime; 
                                 this.persistToLocal();
-                                appendLog(`[成功] 已將最新雲端資料同步至本機。`);
                                 
-                                let actUser = STATE.data.users.find(u => u.id === (STATE.isGodMode ? STATE.currentUser : STATE.currentBeneficiary));
-                                if (actUser && actUser.theme) ThemeManager.apply(actUser.theme);
+                                this.refreshTheme();
                                 UIManager.renderProfiles();
                                 UIManager.renderMarquee();
                                 CardManager.renderStage();
                                 if(typeof BackpackManager !== 'undefined') BackpackManager.render();
                                 
                                 UIManager.updateSyncUI('success');
-                                showToast("已從雲端載入最新進度！", false);
+                                if(attempt === 1) showToast("已從雲端載入最新進度！", false);
                                 return true; 
-                            } else {
-                                debugStep = "強制上傳覆寫損毀檔案";
-                                appendLog(`[執行] 準備強制覆寫損毀的雲端存檔...`);
                             }
                         } else if (localTime <= cloudTime) {
-                            appendLog(`[同步決策] 兩邊資料為最新狀態，無需同步。`);
                             UIManager.updateSyncUI('success');
                             return true;
-                        } else {
-                            appendLog(`[同步決策] 本機資料較新，準備上傳覆寫雲端...`);
                         }
                     }
 
@@ -2539,23 +2479,33 @@
                     const success = await CloudManager.resumableUpload(STATE.cloud.fileId, STATE.cloud.folderId, `PointsBackup_${new Date().toISOString().split('T')[0]}.json`, finalEncryptedStr);
                     
                     if (success) { 
-                        appendLog(`[成功] 本機資料已成功上傳覆寫雲端。`);
                         UIManager.updateSyncUI('success'); 
-                        showToast("雲端同步成功！", false); 
+                        if(attempt === 1) showToast("雲端同步成功！", false); 
                         return true;
                     } else {
                         throw new Error("Resumable Upload Failed: API未回傳成功代碼");
                     }
 
                 } catch (e) {
-                    const errMsg = e.message || "無訊息"; const errStack = e.stack || "無 Stack";
-                    const diag = `\n❌ ==== 同步崩潰報告 ====\n[發生時間] ${new Date().toLocaleString()}\n[故障斷點] ${debugStep}\n[錯誤訊息] ${errMsg}\n[程式追蹤]\n${errStack}\n========================`;
-                    appendLog(diag);
-                    logDebug("Sync Crash", diag);
-                    UIManager.updateSyncUI('error', '同步失敗');
-                    showToast("同步失敗，已自動開啟偵錯面板", true);
-                    setTimeout(() => document.getElementById('debug-console').classList.add('active'), 1000); 
-                    return false;
+                    errorLogs.push(`[第 ${attempt} 次嘗試失敗] 斷點: ${debugStep}\n錯誤: ${e.message}\n追蹤: ${e.stack}`);
+                    
+                    if(attempt === 1) {
+                        showToast("網路延遲，系統將自動進行第 2 次嘗試...", true);
+                        await new Promise(r => setTimeout(r, 2000));
+                        return this.performFullSync(forceUpload, 2, errorLogs);
+                    } else if(attempt === 2) {
+                        showToast("連線不穩，將重置通行證進行最後嘗試...", true);
+                        STATE.cloud.accessToken = null;
+                        return this.performFullSync(forceUpload, 3, errorLogs);
+                    } else {
+                        const diag = `\n❌ ==== 終極同步崩潰報告 ====\n[發生時間] ${new Date().toLocaleString()}\n[三次錯誤全紀錄]\n${errorLogs.join('\n\n')}\n========================`;
+                        appendLog(diag);
+                        logDebug("Sync Crash", diag);
+                        UIManager.updateSyncUI('error', '同步失敗');
+                        showToast("三次同步嘗試皆失敗，請查看診斷面板", true);
+                        setTimeout(() => document.getElementById('debug-console').classList.add('active'), 1000); 
+                        return false;
+                    }
                 }
             },
             
