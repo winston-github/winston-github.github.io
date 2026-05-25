@@ -1160,6 +1160,7 @@
                 modal.classList.add('open');
                 this.renderSettingsUserList();
             },
+            
             renderSettingsUserList: function() {
                 const list = document.getElementById('settings-user-list'); list.innerHTML = '';
                 const parentCount = STATE.data.users.filter(u => u.role === 'parent').length;
@@ -1167,10 +1168,13 @@
                     const isLastParent = u.role === 'parent' && parentCount <= 1;
                     const wrap = document.createElement('div'); wrap.className = 'member-list-item';
                     
-                    let actionsHtml = `
-                        <button class="btn btn-outline" style="flex:1; padding:6px 0; font-size:12px; border-color:var(--accent-gold); color:var(--accent-gold); white-space:nowrap;" onclick="CoreManager.switchBeneficiary('${u.id}'); document.getElementById('dynamic-modal').classList.remove('open');">進入</button>
-                        <button class="btn btn-primary" style="flex:1; padding:6px 0; font-size:12px; white-space:nowrap;" onclick="AdminManager.editUser('${u.id}')">編輯</button>
-                    `;
+                    let actionsHtml = '';
+                    // 核心修復：絕對不允許「進入」家長的帳號，避免污染 Beneficiary 狀態
+                    if (u.role === 'child') {
+                        actionsHtml += `<button class="btn btn-outline" style="flex:1; padding:6px 0; font-size:12px; border-color:var(--accent-gold); color:var(--accent-gold); white-space:nowrap;" onclick="CoreManager.switchBeneficiary('${u.id}'); document.getElementById('dynamic-modal').classList.remove('open');">進入</button>`;
+                    }
+                    actionsHtml += `<button class="btn btn-primary" style="flex:1; padding:6px 0; font-size:12px; white-space:nowrap;" onclick="AdminManager.editUser('${u.id}')">編輯</button>`;
+                    
                     if (!isLastParent) {
                         actionsHtml += `<button class="btn btn-danger" style="flex:1; padding:6px 0; font-size:12px; background:transparent; border:1px solid var(--accent-red); color:var(--accent-red); white-space:nowrap;" onclick="AdminManager.deleteUser('${u.id}', '${u.name}')">刪除</button>`;
                     }
@@ -1342,10 +1346,18 @@
                             <button class="btn btn-primary" id="btn-send-point" style="width:100%; padding:15px;"><svg class="svg-icon" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> 發送到孩子背包</button>
                         </div>
                     </div>`;
+
                 modal.classList.add('open');
 
-                if(STATE.currentBeneficiary) document.getElementById('point-child').value = STATE.currentBeneficiary;
+                // 核心修復：強制檢驗目前的受惠者是否真的是孩子，否則自動對齊第一位孩子
+                if(STATE.currentBeneficiary && children.some(c => c.id === STATE.currentBeneficiary)) {
+                    document.getElementById('point-child').value = STATE.currentBeneficiary;
+                } else if(children.length > 0) {
+                    document.getElementById('point-child').value = children[0].id;
+                    CoreManager.switchBeneficiary(children[0].id);
+                }
                 const firstBtn = modal.querySelector('.behavior-btn.selected');
+                
                 if(firstBtn) firstBtn.click();
 
                 document.getElementById('btn-send-point').onclick = async function() {
@@ -1415,11 +1427,19 @@
                             <button class="btn btn-success" id="btn-save-card" style="width:100%; padding:15px;"><svg class="svg-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> 發行集點卡</button>
                         </div>
                     </div>`;
+
                 modal.classList.add('open');
                 
-                if(STATE.currentBeneficiary) document.getElementById('card-child').value = STATE.currentBeneficiary;
+                // 核心修復：強制檢驗並同步下拉選單
+                if(STATE.currentBeneficiary && children.some(c => c.id === STATE.currentBeneficiary)) {
+                    document.getElementById('card-child').value = STATE.currentBeneficiary;
+                } else if(children.length > 0) {
+                    document.getElementById('card-child').value = children[0].id;
+                    CoreManager.switchBeneficiary(children[0].id);
+                }
                 
                 document.getElementById('btn-save-card').onclick = async function() {
+                    
                     if(!AdminManager.tempImg && !AdminManager.selectedExistingImgId) return showToast("請務必提供一張禮物照片！");
                     this.disabled = true; this.innerHTML = '<svg class="svg-icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> 正在發行中...';
 
@@ -1535,10 +1555,11 @@
                     if (STATE.isGodMode) {
                         titleContainer.innerHTML += `
                             <button class="icon-btn" onclick="CardManager.editCard('${card.id}'); event.stopPropagation();" style="position:absolute; right: -5px; top: -5px; color:var(--text-sub); background:rgba(0,0,0,0.6); width:36px; height:36px; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 15px rgba(0,0,0,0.8); border-radius:50%; z-index:9999; border: 1px solid rgba(255,255,255,0.2); cursor:pointer; pointer-events:auto;">
-                                <svg class="svg-icon" style="width:18px;height:18px;" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                <svg class="svg-icon" style="width:18px;height:18px;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                             </button>
                         `;
                     } else {
+                        
                         titleContainer.innerHTML += `
                             <button class="icon-btn" onclick="CardManager.exportCard('${card.id}'); event.stopPropagation();" style="position:absolute; right: -5px; top: -5px; color:var(--accent-gold); background:rgba(0,0,0,0.6); width:36px; height:36px; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 15px rgba(0,0,0,0.8); border-radius:50%; z-index:9999; border: 1px solid rgba(255,255,255,0.2); cursor:pointer; pointer-events:auto;">
                                 <svg class="svg-icon" style="width:18px;height:18px;" viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
@@ -2298,7 +2319,9 @@
             },
             
             refreshTheme: function() {
-                let activeUser = STATE.data.users.find(u => u.id === STATE.currentBeneficiary);
+                // 核心修復：如果在家長模式，就應該渲染家長的主題，否則渲染孩子的主題
+                let activeId = STATE.isGodMode ? STATE.currentUser : STATE.currentBeneficiary;
+                let activeUser = STATE.data.users.find(u => u.id === activeId);
                 if (activeUser && activeUser.theme) document.body.className = `theme-${activeUser.theme}`; else document.body.className = `theme-tech`;
             },
             
