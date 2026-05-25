@@ -190,10 +190,9 @@
                         <span id="backpack-count" style="background:var(--accent-red); color:#fff; padding:2px 6px; border-radius:10px; font-size:12px; margin-left:5px;">0</span>
                     </button>
 
-                    <button class="btn btn-outline" style="width:100px; color:var(--text-sub);" onclick="CardManager.recallBullets(CardManager.filteredCards[STATE.ui.activeCardIndex]?.id)">
+                    <button id="btn-recall-card" class="btn btn-outline" style="width:100px; color:var(--text-sub); transition:all 0.3s;" onclick="CardManager.recallBullets(CardManager.filteredCards[STATE.ui.activeCardIndex]?.id)">
                         <svg class="svg-icon" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> 收回
                     </button>
-                    
                 </div>
                 
                 <!-- 家長介面工具列 -->
@@ -231,11 +230,12 @@
                         <svg class="svg-icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg> 歷史紀錄
                     </span>
                     <button class="icon-btn" onclick="document.getElementById('main-area').classList.remove('show-audit'); UIManager.renderMarquee();">
-                        <svg class="svg-icon" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></svg>
+                        <svg class="svg-icon" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
                     </button>
                 </div>
                 <div class="audit-grid" id="audit-grid"></div>
             </section>
+            
         </main>
     </div>
 
@@ -1399,26 +1399,58 @@
 
         window.CardManager = {
             filteredCards: [], lastHitCell: null,
-            _gestureBound: false, // 防止重複綁定手勢的守門員
+            _gestureBound: false, 
 
             renderStage: function() {
                 const track = document.getElementById('card-track'); track.innerHTML = '';
                 this.filteredCards = STATE.data.cards.filter(c => c.beneficiaryId === STATE.currentBeneficiary);
                 
+                const btnRecall = document.getElementById('btn-recall-card');
+                
                 if (this.filteredCards.length === 0) { 
                     track.innerHTML = `<div style="color:var(--text-sub); text-align:center; padding: 20px; font-size: 15px; line-height: 1.8;"><svg class="svg-icon" style="width:45px;height:45px;margin-bottom:15px;opacity:0.8;" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" ry="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg><br>目前沒有專屬的集點卡<br>請家長點擊下方「卡片」建立一張</div>`; 
-                    this.bindGestures(); // 即使0張也要綁定，以防死鎖
+                    if(btnRecall) { btnRecall.disabled = true; btnRecall.style.opacity = '0.3'; }
+                    this.bindGestures(); 
                     return; 
                 }
                 
                 if (STATE.ui.activeCardIndex >= this.filteredCards.length) STATE.ui.activeCardIndex = Math.max(0, this.filteredCards.length - 1);
+                
+                const len = this.filteredCards.length;
+                const activeCard = this.filteredCards[STATE.ui.activeCardIndex];
+                const isActiveFull = activeCard.grids.length > 0 && activeCard.grids.every(g => g.status >= 1.0);
+                
+                // 需求 2：防呆控制 - 如果集滿且為孩童，封鎖收回按鈕
+                if(btnRecall) {
+                    if (isActiveFull && !STATE.isGodMode) {
+                        btnRecall.disabled = false; // 保持可點擊以觸發紅色警告
+                        btnRecall.style.opacity = '0.3';
+                        btnRecall.onclick = () => showToast("卡片已集滿！只有家長可以收回點數喔！", true);
+                    } else {
+                        btnRecall.disabled = false;
+                        btnRecall.style.opacity = '1';
+                        btnRecall.onclick = () => CardManager.recallBullets(activeCard.id);
+                    }
+                }
 
                 this.filteredCards.forEach((card, index) => {
                     const wrapper = document.createElement('div'); wrapper.className = 'card-wrapper';
-                    if (index === STATE.ui.activeCardIndex) wrapper.classList.add('active'); else if (index < STATE.ui.activeCardIndex) wrapper.classList.add('prev'); else wrapper.classList.add('next');
-                    const aspectStr = `${card.cols} / ${card.rows}`;
                     
-                    // 原生桌面拖曳支援 (將家長頭像拉到卡片上)
+                    // 需求 5：無限循環顯示邏輯 (Prev / Active / Next)
+                    if (index === STATE.ui.activeCardIndex) {
+                        wrapper.classList.add('active');
+                    } else if (len > 1 && index === (STATE.ui.activeCardIndex - 1 + len) % len) {
+                        wrapper.classList.add('prev');
+                    } else if (len > 1 && index === (STATE.ui.activeCardIndex + 1) % len) {
+                        wrapper.classList.add('next');
+                    } else {
+                        // 超過3張卡片時隱藏多餘的，避免渲染干擾
+                        wrapper.style.opacity = '0';
+                        wrapper.style.pointerEvents = 'none';
+                        wrapper.style.transform = 'translateZ(-200px)';
+                    }
+                    
+                    const aspectStr = `${card.cols} / ${card.rows}`;
                     wrapper.ondragover = (e) => e.preventDefault();
                     wrapper.ondrop = (e) => {
                         e.preventDefault();
@@ -1433,41 +1465,55 @@
                     };
 
                     const creator = STATE.data.users.find(u => u.id === card.creatorId);
-                    const creatorName = creator ? creator.name : '未知';
-                    
                     const currentHit = card.grids.reduce((sum, g) => sum + g.status, 0);
                     const totalGrids = card.cols * card.rows;
                     const percent = Math.floor((currentHit / totalGrids) * 100);
+                    const isAllFull = card.grids.length > 0 && card.grids.every(g => g.status >= 1.0);
 
                     const titleContainer = document.createElement('div');
                     titleContainer.style.cssText = 'width: 100%; position: relative; padding: 0 10px; margin-bottom: 8px; text-align: center;';
 
-                    // 標題與附標題，縮小空間防重疊
                     titleContainer.innerHTML = `
                         <div style="font-size:20px; font-weight:900; color:#fff; margin-bottom:4px; letter-spacing:1px; text-shadow: 0 2px 8px rgba(0,0,0,0.8); padding:0 35px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${card.cardName || '專屬禮物卡'}</div>
                         <div style="font-size:11px; color:var(--text-sub); display:flex; align-items:center; justify-content:center; gap:6px; flex-wrap:wrap;">
-                            <span style="display:flex; align-items:center; gap:3px;"><svg class="svg-icon" style="width:12px;height:12px;" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> 由 ${creatorName} 提供</span>
+                            <span style="display:flex; align-items:center; gap:3px;"><svg class="svg-icon" style="width:12px;height:12px;" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> 由 ${creator ? creator.name : '未知'} 提供</span>
                             <span>|</span>
                             <span id="progress-${card.id}">進度: ${currentHit}/${totalGrids} (${percent}%)</span>
                         </div>
                     `;
 
-                    // 完美對稱編輯畫筆
                     if (STATE.isGodMode) {
                         titleContainer.innerHTML += `
                             <button class="icon-btn" onclick="CardManager.editCard('${card.id}'); event.stopPropagation();" style="position:absolute; right: -5px; top: -5px; color:var(--text-sub); background:rgba(0,0,0,0.6); width:36px; height:36px; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 15px rgba(0,0,0,0.8); border-radius:50%; z-index:9999; border: 1px solid rgba(255,255,255,0.2); cursor:pointer; pointer-events:auto;">
                                 <svg class="svg-icon" style="width:18px;height:18px;" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                             </button>
                         `;
+                    } else {
+                        // 需求 7：孩童模式下顯示「分享/匯出」精美報表按鈕
+                        titleContainer.innerHTML += `
+                            <button class="icon-btn" onclick="CardManager.exportCard('${card.id}'); event.stopPropagation();" style="position:absolute; right: -5px; top: -5px; color:var(--accent-gold); background:rgba(0,0,0,0.6); width:36px; height:36px; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 15px rgba(0,0,0,0.8); border-radius:50%; z-index:9999; border: 1px solid rgba(255,255,255,0.2); cursor:pointer; pointer-events:auto;">
+                                <svg class="svg-icon" style="width:18px;height:18px;" viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                            </button>
+                        `;
                     }
                     wrapper.appendChild(titleContainer);
 
+                    // 需求 2：集滿時覆蓋半透明獎品大圖
+                    let overlayHtml = '';
+                    if (isAllFull) {
+                        overlayHtml = `
+                        <div onclick="if(!STATE.isGodMode) showToast('太棒了！請拿著這個畫面去向家長領取獎勵吧！', false); event.stopPropagation();" style="position:absolute; inset:0; background:rgba(0,0,0,0.4); z-index:10; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+                            <img src="${getImg(card.imgId || card.imgBase64)}" style="width:80%; aspect-ratio:1; object-fit:contain; filter:drop-shadow(0 10px 20px rgba(0,0,0,0.9)); transform: scale(1.1); pointer-events:none;">
+                        </div>`;
+                    }
+
                     wrapper.innerHTML += `
                         <div class="card-inner" style="aspect-ratio: ${aspectStr};">
+                            ${overlayHtml}
                             <img src="${getImg(card.imgId || card.imgBase64)}" class="toy-image" id="toy-img-${card.id}">
                             <div class="grid-container" id="grid-${card.id}" style="grid-template-columns: repeat(${card.cols}, 1fr); grid-template-rows: repeat(${card.rows}, 1fr);"></div>
-                        </div>
-                        <button class="btn btn-outline" style="margin-top:10px; padding:6px 15px; font-size:12px; border-radius:20px; background:rgba(0,0,0,0.6); color:var(--text-sub); border:none; box-shadow:0 4px 10px rgba(0,0,0,0.5); display:flex; align-items:center; gap:6px;" onclick="document.getElementById('main-area').classList.add('show-audit'); const msg='請點選下方格子查看詳細歷史紀錄'; if(document.getElementById('marquee-text')) document.getElementById('marquee-text').innerHTML=msg; if(document.getElementById('marquee-text-desktop')) document.getElementById('marquee-text-desktop').innerHTML=msg;"><svg class="svg-icon" style="width:14px;height:14px;" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg> 查看歷史明細</button>`;
+                        </div>`;
+                    // 需求 3：移除下方「查看歷史明細」按鈕，版面清爽化
 
                     track.appendChild(wrapper);
                     this.renderGrids(card); this.updateProgress(card);
@@ -1555,6 +1601,8 @@
 
             renderGrids: function(card) {
                 const container = document.getElementById(`grid-${card.id}`); container.innerHTML = '';
+                const isAllFull = card.grids.length > 0 && card.grids.every(g => g.status >= 1.0);
+
                 card.grids.forEach(gridData => {
                     const cell = document.createElement('div'); cell.className = 'grid-cell'; 
                     cell.dataset.cardId = card.id; cell.dataset.x = gridData.x; cell.dataset.y = gridData.y;
@@ -1562,6 +1610,11 @@
                     let lastClickTime = 0;
                     cell.onclick = (e) => {
                         e.stopPropagation();
+                        // 需求 2：防呆，集滿後小孩不能雙擊退回
+                        if (isAllFull && !STATE.isGodMode) {
+                            showToast("卡片已集滿！若誤觸請請家長協助收回。", true);
+                            return;
+                        }
                         const now = Date.now();
                         if (now - lastClickTime < 400) {
                             this.recallSingleCell(card.id, gridData.x, gridData.y);
@@ -1600,7 +1653,6 @@
                 
                 const toyImg = document.getElementById(`toy-img-${card.id}`);
                 if (toyImg) {
-                    const isAllFull = card.grids.length > 0 && card.grids.every(g => g.status >= 1.0);
                     if (isAllFull) toyImg.classList.add('sharp'); else toyImg.classList.remove('sharp');
                 }
             },
@@ -1667,6 +1719,8 @@
                         size: grid.status >= 1 ? 1.0 : 0.5, colorVar: 'c5', reason: '退回的點數', createdAt: Date.now() 
                     };
                 }
+                // 需求 1：確保退回的點數主人一定是這張卡片的孩子，避免幽靈吃點
+                recoveredBullet.ownerId = card.beneficiaryId;
 
                 grid.status -= recoveredBullet.size; 
                 if(grid.status <= 0) { grid.status = 0; grid.bulletIds = []; }
@@ -1759,16 +1813,14 @@
                     if (hasLocked) {
                         if (isLockX) { 
                             if(e.cancelable) e.preventDefault(); 
-                            if ((STATE.ui.activeCardIndex === 0 && dx > 0) || (STATE.ui.activeCardIndex === this.filteredCards.length - 1 && dx < 0) || this.filteredCards.length === 1) dx = dx * 0.25; 
+                            // 需求 5：移除邊緣阻力，開放無限輪播！如果只有1張卡片則縮小阻力
+                            if (this.filteredCards.length === 1) dx = dx * 0.25; 
                             const activeCard = track.querySelector('.card-wrapper.active'); if (activeCard) activeCard.style.transform = `translateX(${dx}px) scale(1)`; 
                         }
                         if (isLockY) {
                             if(e.cancelable) e.preventDefault();
                             if (dy < -30) {
                                 mainArea.classList.add('show-audit');
-                                const msg = '請點選下方格子查看詳細歷史紀錄';
-                                if(document.getElementById('marquee-text')) document.getElementById('marquee-text').innerHTML = msg;
-                                if(document.getElementById('marquee-text-desktop')) document.getElementById('marquee-text-desktop').innerHTML = msg;
                             } 
                             else if (dy > 10) handlePointerMove(e); 
                         }
@@ -1787,7 +1839,7 @@
                     if (isLockX) { 
                         Array.from(track.children).forEach(c => c.style.transform = ''); 
                         if (this.filteredCards.length === 1 && Math.abs(dx) > 30) {
-                            showToast("目前只有 1 張卡片", false);
+                            showToast("您目前只有這 1 張卡片喔", false);
                         } else if (Math.abs(dx) > 30) {
                             dx > 0 ? this.switchCard('prev') : this.switchCard('next'); 
                         }
@@ -1819,6 +1871,7 @@
                                     size: 1.0, colorVar: 'c5', reason: '退回的點數', createdAt: Date.now() 
                                 };
                             }
+                            recoveredBullet.ownerId = card.beneficiaryId;
                             if(!STATE.data.bullets.some(b => b.id === recoveredBullet.id)) {
                                 STATE.data.bullets.push(recoveredBullet); 
                                 hasRecalled = true; 
@@ -1837,8 +1890,11 @@
             },
 
             switchCard: function(dir) {
-                if (dir === 'next' && STATE.ui.activeCardIndex < this.filteredCards.length - 1) STATE.ui.activeCardIndex++;
-                else if (dir === 'prev' && STATE.ui.activeCardIndex > 0) STATE.ui.activeCardIndex--;
+                const len = this.filteredCards.length;
+                if (len <= 1) return;
+                // 需求 5：無限輪播切換算法
+                if (dir === 'next') STATE.ui.activeCardIndex = (STATE.ui.activeCardIndex + 1) % len;
+                else if (dir === 'prev') STATE.ui.activeCardIndex = (STATE.ui.activeCardIndex - 1 + len) % len;
                 this.renderStage();
             },
 
@@ -1850,17 +1906,9 @@
                 const activeCard = this.filteredCards[STATE.ui.activeCardIndex];
                 const gridHtml = activeCard.grids.map(g => {
                     let content = '';
-                    let clickEvent = '';
                     if (g.status > 0) {
                         const bIds = g.bulletIds || [];
                         if (bIds.length > 0) {
-                            const mainLog = STATE.data.logs.find(l => l.bulletId === bIds[bIds.length - 1]);
-                            const cacheRef = mainLog ? mainLog.bulletCache : STATE.data.bullets.find(x => x.id === bIds[bIds.length - 1]);
-                            if (cacheRef) {
-                                const safeReason = (cacheRef.reason || '').replace(/'/g, "\\'");
-                                clickEvent = `onclick="CardManager.showAuditDetail(event, '${cacheRef.ownerId}', '${safeReason}', ${g.status})"`;
-                            }
-                            
                             bIds.forEach((bId, idx) => {
                                 const logEntry = STATE.data.logs.find(l => l.bulletId === bId);
                                 const b = logEntry ? logEntry.bulletCache : STATE.data.bullets.find(x => x.id === bId);
@@ -1870,23 +1918,28 @@
                                     let clip = 'none';
                                     if(g.status===0.5) clip = 'polygon(0 0, 50% 0, 50% 100%, 0 100%)';
                                     else if(g.status>=1.0 && bIds.length===2) clip = idx===0 ? 'polygon(0 0, 50% 0, 50% 100%, 0 100%)' : 'polygon(50% 0, 100% 0, 100% 100%, 50% 100%)';
-                                    content += `<img src="${imgSrc}" style="position:absolute; width:100%; height:100%; object-fit:cover; border-radius:50%; border:2px solid rgb(var(--${b.colorVar || 'accent-main'})); clip-path:${clip}; z-index:${idx+1}; pointer-events:none;">`;
+                                    
+                                    const safeReason = (b.reason || '').replace(/'/g, "\\'");
+                                    // 需求 4：讓每個印章實體可以被點擊，跑馬燈精準顯示 0.5 點各自的紀錄
+                                    let clickEvent = `onclick="CardManager.showAuditDetail(event, '${b.ownerId}', '${safeReason}', ${b.size})"`;
+                                    
+                                    content += `<img src="${imgSrc}" ${clickEvent} style="position:absolute; width:100%; height:100%; object-fit:cover; border-radius:50%; border:2px solid rgb(var(--${b.colorVar || 'accent-main'})); clip-path:${clip}; z-index:${idx+1}; pointer-events:auto; cursor:pointer;">`;
                                 }
                             });
                         } else {
                             content = `<div style="width:100%; height:100%; background:var(--accent-main); opacity:0.5; border-radius:50%;"></div>`;
                         }
                     } else { content = `<div style="color:var(--text-sub); font-size:10px;">空</div>`; }
-                    return `<div class="audit-cell" ${clickEvent} style="position:relative; width:100%; aspect-ratio:1; border:1px solid rgba(255,255,255,0.1); border-radius:12px; display:flex; justify-content:center; align-items:center; background:rgba(0,0,0,0.3); overflow:hidden;">${content}</div>`;
+                    return `<div class="audit-cell" style="position:relative; width:100%; aspect-ratio:1; border:1px solid rgba(255,255,255,0.1); border-radius:12px; display:flex; justify-content:center; align-items:center; background:rgba(0,0,0,0.3); overflow:hidden;">${content}</div>`;
                 }).join('');
                 document.getElementById('audit-grid').innerHTML = `<div style="display:grid; grid-template-columns:repeat(${activeCard.cols}, 1fr); gap:10px; padding:20px;">${gridHtml}</div>`;
             },
 
-            showAuditDetail: function(e, ownerId, reason, totalGridStatus) {
+            showAuditDetail: function(e, ownerId, reason, bulletSize) {
                 const child = STATE.data.users.find(u => u.id === ownerId);
                 const d = new Date(); 
                 const dateStr = `${d.getMonth()+1}/${d.getDate()}`;
-                const msg = `⭐ ${dateStr} ${child ? child.name : '孩子'} 因為「${reason}」這格集滿了 ${totalGridStatus} 點！`;
+                const msg = `⭐ ${dateStr} ${child ? child.name : '孩子'} 因為「${reason}」獲得了 ${bulletSize} 點！`;
                 
                 const textEl = document.getElementById('marquee-text');
                 const textElDesk = document.getElementById('marquee-text-desktop');
@@ -1894,12 +1947,95 @@
                 if(textElDesk) textElDesk.innerHTML = msg;
                 
                 document.querySelectorAll('.audit-cell').forEach(el => el.classList.remove('selected'));
-                e.currentTarget.classList.add('selected');
+                e.currentTarget.parentElement.classList.add('selected'); // 高亮整個格子
                 if(navigator.vibrate) navigator.vibrate(20);
             },
             
+            // 需求 7：精美圖檔報表匯出引擎
+            exportCard: function(cardId) {
+                showToast("正在為您繪製精美報表，請稍候...", false);
+                const card = STATE.data.cards.find(c => c.id === cardId); if(!card) return;
+                const child = STATE.data.users.find(u => u.id === card.beneficiaryId);
+                const parent = STATE.data.users.find(u => u.id === card.creatorId);
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = 1080; canvas.height = 1920;
+                const ctx = canvas.getContext('2d');
+                
+                // 畫背景深藍色
+                ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, 1080, 1920);
+                
+                // 上方標題與資訊
+                ctx.fillStyle = '#f8fafc'; ctx.font = 'bold 80px sans-serif'; ctx.textAlign = 'center';
+                ctx.fillText(card.cardName, 540, 160);
+                ctx.font = 'bold 36px sans-serif'; ctx.fillStyle = '#fbbf24';
+                ctx.fillText(`專屬孩子: ${child ? child.name : '未知'}   |   提供者: ${parent ? parent.name : '未知'}`, 540, 240);
+
+                // 計算網格大小
+                const cols = card.cols; const rows = card.rows;
+                const gridW = 900; const gridH = 1350; // 卡片畫布大小
+                const startX = 90; const startY = 320;
+                const cellW = gridW / cols; const cellH = gridH / rows;
+
+                // 畫玩具背景圖
+                const img = new Image();
+                img.crossOrigin = 'Anonymous';
+                img.onload = () => {
+                    ctx.globalAlpha = 0.2; // 背景半透明
+                    ctx.drawImage(img, startX, startY, gridW, gridH);
+                    ctx.globalAlpha = 1.0;
+                    
+                    // 畫網格線
+                    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+                    ctx.lineWidth = 3;
+                    
+                    for(let y=0; y<rows; y++){
+                        for(let x=0; x<cols; x++){
+                            const px = startX + x*cellW; const py = startY + y*cellH;
+                            ctx.strokeRect(px, py, cellW, cellH);
+                            
+                            const g = card.grids.find(grid => grid.x === x && grid.y === y);
+                            if (g && g.status > 0 && g.bulletIds && g.bulletIds.length > 0) {
+                                // 抓最後一個章代表
+                                const lastBId = g.bulletIds[g.bulletIds.length - 1];
+                                const lastLog = STATE.data.logs.find(l => l.bulletId === lastBId);
+                                const bCache = lastLog ? lastLog.bulletCache : STATE.data.bullets.find(b=>b.id===lastBId);
+                                
+                                if(bCache) {
+                                    const d = new Date(bCache.createdAt || Date.now());
+                                    const dStr = `${d.getMonth()+1}/${d.getDate()}`;
+                                    
+                                    // 畫文字
+                                    ctx.textAlign = 'center';
+                                    ctx.fillStyle = '#10b981'; // 綠色日期
+                                    ctx.font = 'bold 32px sans-serif';
+                                    ctx.fillText(dStr, px + cellW/2, py + cellH/2 - 10);
+                                    
+                                    ctx.fillStyle = '#ffffff'; // 白色理由
+                                    ctx.font = '28px sans-serif';
+                                    // 限制理由長度避免爆格
+                                    let shortReason = bCache.reason;
+                                    if(shortReason.length > 5) shortReason = shortReason.substring(0, 4) + '..';
+                                    ctx.fillText(shortReason, px + cellW/2, py + cellH/2 + 35);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 加入浮水印
+                    ctx.fillStyle = '#94a3b8'; ctx.font = '24px sans-serif'; ctx.textAlign = 'center';
+                    ctx.fillText(`— 數位獎品集點卡 自動生成 —`, 540, 1800);
+
+                    // 觸發下載
+                    const link = document.createElement('a');
+                    link.download = `${child ? child.name : '孩子'}_${card.cardName}_集點報表.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                };
+                img.src = getImg(card.imgId || card.imgBase64);
+            },
+
             triggerGrandSlam: function(card) {
-                showToast("太棒了！卡片集滿囉！", false);
                 const colors = ['#ef4444', '#3b82f6', '#10b981', '#fbbf24', '#ec4899', '#a855f7'];
                 const container = document.createElement('div');
                 container.style.cssText = 'position:fixed; inset:0; pointer-events:none; z-index:999999; overflow:hidden;';
@@ -2119,7 +2255,9 @@
 
                 document.getElementById('child-toolbar').style.display = 'none';
                 document.getElementById('parent-toolbar').style.display = 'flex';
-                UIManager.renderProfiles(); showToast("已切換為家長模式", false);
+                UIManager.renderProfiles(); 
+                CardManager.renderStage(); // 修復：登入後立刻重繪卡片，讓編輯按鈕浮現
+                showToast("已切換為家長模式", false);
             },
 
             switchBeneficiary: function(childId) {
