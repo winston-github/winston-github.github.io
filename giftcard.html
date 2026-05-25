@@ -629,10 +629,66 @@
                 });
             },
             close: function() { document.getElementById('pin-lock-overlay').classList.remove('active'); this.resolveCallback = null; }
+
         };
         PinLock.init();
 
+        // 核心修復：全域拔除原生 confirm 與 prompt，防止瀏覽器安全機制封鎖
+        const DialogManager = {
+            confirm: function(title, message, confirmText = '確定', cancelText = '取消') {
+                return new Promise(resolve => {
+                    const overlay = document.createElement('div');
+                    overlay.className = 'glass-overlay active';
+                    overlay.style.zIndex = '100000'; // 保證在最上層
+                    overlay.innerHTML = `
+                        <div class="glass-dialog" style="transform: translateY(0) scale(1); max-width:320px;">
+                            <div class="dialog-title" style="color:var(--accent-red); display:flex; align-items:center; justify-content:center; gap:8px;">
+                                <svg class="svg-icon" style="width:24px;height:24px;" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                ${title}
+                            </div>
+                            <div class="dialog-desc" style="white-space:pre-wrap; margin-top:10px; font-weight:bold;">${message}</div>
+                            <div style="display:flex; gap:10px; margin-top:20px;">
+                                <button class="btn btn-outline" id="btn-dlg-cancel" style="flex:1; padding:12px;">${cancelText}</button>
+                                <button class="btn btn-danger" id="btn-dlg-confirm" style="flex:1; padding:12px;">${confirmText}</button>
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(overlay);
+                    const cleanup = () => { overlay.classList.remove('active'); setTimeout(()=>overlay.remove(), 300); };
+                    document.getElementById('btn-dlg-cancel').onclick = () => { cleanup(); resolve(false); };
+                    document.getElementById('btn-dlg-confirm').onclick = () => { cleanup(); resolve(true); };
+                });
+            },
+            prompt: function(title, placeholder = '') {
+                return new Promise(resolve => {
+                    const overlay = document.createElement('div');
+                    overlay.className = 'glass-overlay active';
+                    overlay.style.zIndex = '100000';
+                    overlay.innerHTML = `
+                        <div class="glass-dialog" style="transform: translateY(0) scale(1); max-width:320px;">
+                            <div class="dialog-title" style="display:flex; align-items:center; justify-content:center; gap:8px;">
+                                <svg class="svg-icon" style="width:24px;height:24px;" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                ${title}
+                            </div>
+                            <input type="text" id="dlg-prompt-input" class="form-input" placeholder="${placeholder}" style="margin:15px 0 20px; text-align:center;">
+                            <div style="display:flex; gap:10px;">
+                                <button class="btn btn-outline" id="btn-dlg-cancel" style="flex:1; padding:12px;">取消</button>
+                                <button class="btn btn-primary" id="btn-dlg-confirm" style="flex:1; padding:12px;">確定</button>
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(overlay);
+                    const input = document.getElementById('dlg-prompt-input');
+                    input.focus();
+                    const cleanup = () => { overlay.classList.remove('active'); setTimeout(()=>overlay.remove(), 300); };
+                    document.getElementById('btn-dlg-cancel').onclick = () => { cleanup(); resolve(null); };
+                    document.getElementById('btn-dlg-confirm').onclick = () => { cleanup(); resolve(input.value); };
+                });
+            }
+        };
+
         window.DriveUI = {
+            
             fetchFolders: async function() {
                 const q = encodeURIComponent("mimeType='application/vnd.google-apps.folder' and trashed=false");
                 const res = await DriveAPI.fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,parents)&pageSize=1000`);
@@ -710,7 +766,8 @@
                                 if (isDeleteMode) {
                                     item.querySelector('.btn-delete-folder').onclick = async (e) => {
                                         e.stopPropagation();
-                                        if (confirm(`確定要將資料夾「${f.name}」移至垃圾桶嗎？\n這會導致該資料夾原本的同步中斷！`)) {
+                                        const isConf = await DialogManager.confirm("刪除資料夾", `確定要將資料夾「${f.name}」移至垃圾桶嗎？\n這會導致該資料夾原本的同步中斷！`);
+                                        if (isConf) {
                                             showToast("移至垃圾桶...", false);
                                             const success = await this.trashFolder(f.id);
                                             if(success) {
@@ -742,7 +799,7 @@
 
                         document.getElementById('drive-close').onclick = () => { modal.classList.remove('open'); reject(new Error("取消選擇")); };
                         document.getElementById('btn-create-root-folder').onclick = async () => {
-                            const fname = prompt("請輸入新資料夾名稱 (例如: 獎品集點卡備份)");
+                            const fname = await DialogManager.prompt("建立新資料夾", "例如: 獎品集點卡備份");
                             if (fname && fname.trim().length > 0) { showToast("建立中...", false); await this.createFolder(fname.trim()); renderTree(await this.fetchFolders(), treeContainer); }
                         };
                     } catch (e) { reject(e); }
@@ -1098,7 +1155,7 @@
                 });
             },
 
-            deleteUser: function(userId, userName) {
+            deleteUser: async function(userId, userName) {
                 const user = STATE.data.users.find(u => u.id === userId);
                 if (!user) return;
 
@@ -1108,16 +1165,20 @@
                         const otherParents = STATE.data.users.filter(u => u.role === 'parent' && u.id !== userId);
                         if (otherParents.length > 0) {
                             const targetParentId = otherParents[0].id;
-                            if (!confirm(`「${userName}」目前發行了 ${parentCards.length} 張卡片，刪除後將自動轉移給「${otherParents[0].name}」。確定要刪除嗎？`)) return;
+                            const isConf = await DialogManager.confirm("刪除家長", `「${userName}」目前發行了 ${parentCards.length} 張卡片，刪除後將自動轉移給「${otherParents[0].name}」。確定要刪除嗎？`);
+                            if(!isConf) return;
                             parentCards.forEach(c => c.creatorId = targetParentId);
                         } else {
-                            if (!confirm(`警告：「${userName}」目前發行了 ${parentCards.length} 張卡片。刪除後這些卡片將失去提供者，確定要刪除嗎？`)) return;
+                            const isConf = await DialogManager.confirm("嚴重警告", `「${userName}」目前發行了 ${parentCards.length} 張卡片。刪除後這些卡片將失去提供者，確定要刪除嗎？`);
+                            if(!isConf) return;
                         }
                     } else {
-                        if (!confirm(`確定要刪除「${userName}」嗎？這將不可逆轉！`)) return;
+                        const isConf = await DialogManager.confirm("刪除家長", `確定要刪除「${userName}」嗎？這將不可逆轉！`);
+                        if(!isConf) return;
                     }
                 } else {
-                    if (!confirm(`確定要刪除「${userName}」嗎？這將不可逆轉！`)) return;
+                    const isConf = await DialogManager.confirm("刪除孩子", `確定要刪除「${userName}」嗎？這將不可逆轉！`);
+                    if(!isConf) return;
                 }
 
                 STATE.data.users = STATE.data.users.filter(u => u.id !== userId);
@@ -1469,10 +1530,10 @@
                     </div>`;
                 modal.classList.add('open');
                 
-                document.getElementById('btn-save-edit-card').onclick = () => {
+                document.getElementById('btn-save-edit-card').onclick = async () => {
                     const newChildId = document.getElementById('edit-card-child').value;
                     if (newChildId !== card.beneficiaryId) {
-                        this.recallBullets(card.id, true); 
+                        await this.recallBullets(card.id, true); 
                         card.beneficiaryId = newChildId;
                     }
                     card.cardName = document.getElementById('edit-card-name').value;
@@ -1483,13 +1544,15 @@
                     showToast("卡片已更新", false);
                 };
 
-                document.getElementById('btn-del-card').onclick = () => {
-                    if(confirm("確定要刪除這張卡片嗎？上面的點數會被強制收回背包喔！")) {
-                        this.recallBullets(card.id, true);
+                document.getElementById('btn-del-card').onclick = async () => {
+                    const isConf = await DialogManager.confirm("刪除卡片", "確定要刪除這張卡片嗎？上面的點數會被強制收回背包喔！");
+                    if(isConf) {
+                        await this.recallBullets(card.id, true);
                         STATE.data.cards = STATE.data.cards.filter(c => c.id !== card.id);
                         CoreManager.saveLocal(); this.renderStage(); modal.classList.remove('open'); showToast("卡片已刪除", false);
                     }
                 };
+                
             },
 
             renderGrids: function(card) {
@@ -1595,19 +1658,24 @@
                 const bId = grid.bulletIds.pop();
                 const logIdx = STATE.data.logs.findIndex(l => l.bulletId === bId && l.cardId === cardId);
                 
+                let recoveredBullet = null;
                 if (logIdx > -1) {
                     const log = STATE.data.logs[logIdx];
-                    grid.status -= log.bulletCache.size; 
-                    if(grid.status <= 0) { grid.status = 0; grid.bulletIds = []; }
-                    
-                    // 強制深度拷貝確保乾淨資料，並防止重複推入背包
-                    const recoveredBullet = JSON.parse(JSON.stringify(log.bulletCache));
-                    if (!STATE.data.bullets.some(b => b.id === recoveredBullet.id)) {
-                        STATE.data.bullets.push(recoveredBullet); 
-                    }
+                    recoveredBullet = JSON.parse(JSON.stringify(log.bulletCache));
                     STATE.data.logs.splice(logIdx, 1);
                 } else {
-                    grid.status = 0; grid.bulletIds = [];
+                    // 防呆修復：如果日誌遺失，強制建立一個還原點數，避免背包憑空吃點！
+                    recoveredBullet = { 
+                        id: bId, ownerId: card.beneficiaryId, creatorId: card.creatorId, 
+                        size: grid.status >= 1 ? 1.0 : 0.5, colorVar: 'c5', reason: '退回的點數', createdAt: Date.now() 
+                    };
+                }
+
+                grid.status -= recoveredBullet.size; 
+                if(grid.status <= 0) { grid.status = 0; grid.bulletIds = []; }
+                
+                if (!STATE.data.bullets.some(b => b.id === recoveredBullet.id)) {
+                    STATE.data.bullets.push(recoveredBullet); 
                 }
                 
                 CoreManager.saveLocal(); this.renderStage(); 
@@ -1615,147 +1683,46 @@
                 showToast("已退回此格最新的點數", false);
                 if(navigator.vibrate) navigator.vibrate(30);
             },
-
-            triggerParticles: function(cellEl, colorVar) {
-                const particleCount = 30; const container = document.createElement('div'); container.className = 'particle-container'; cellEl.appendChild(container);
-                const colorRGB = `rgb(var(--${colorVar}))`;
-                for (let i = 0; i < particleCount; i++) {
-                    const p = document.createElement('div'); p.className = 'particle';
-                    const angle = Math.random() * Math.PI * 2; const velocity = (Math.random() * 80) + 20;
-                    p.style.setProperty('--tx', `${Math.cos(angle) * velocity}px`); p.style.setProperty('--ty', `${Math.sin(angle) * velocity}px`);
-                    p.style.width = p.style.height = `${Math.random() * 4 + 2}px`; p.style.background = colorRGB; p.style.boxShadow = `0 0 10px ${colorRGB}`;
-                    container.appendChild(p);
-                }
-                setTimeout(() => container.remove(), 1000);
-            },
             
-            bindGestures: function() {
-                const track = document.getElementById('card-track'); const mainArea = document.getElementById('main-area');
-                
-                if (this._gestureBound && track) {
-                    track.onpointerdown = null; track.onpointermove = null; track.onpointerup = null; track.onpointercancel = null;
-                    track.ontouchmove = null; track.ontouchend = null;
+            // ...(保留您中間原本的 triggerParticles 與 bindGestures，直接將下方的 recallBullets 替換即可)...
+            
+            recallBullets: async function(cardId, bypassConfirm = false) {
+                if(!bypassConfirm) {
+                    const isConf = await DialogManager.confirm("收回點數", "確定要收回這張卡片上的所有點數到背包嗎？");
+                    if(!isConf) return;
                 }
-                this._gestureBound = true;
-
-                let startX = 0, startY = 0; let isLockX = false, isLockY = false, hasLocked = false;
-                let lastMoveProcess = 0;
-                mainArea.classList.remove('show-audit');
-                
-                const handlePointerMove = (e) => {
-                    if (isLockX || this.filteredCards.length === 0) return; 
-                    if (Date.now() - lastMoveProcess < 60) return; 
-                    lastMoveProcess = Date.now();
-
-                    let clientX = e.clientX;
-                    let clientY = e.clientY;
-                    if (e.touches && e.touches.length > 0) {
-                        clientX = e.touches[0].clientX;
-                        clientY = e.touches[0].clientY;
-                    } else if (e.changedTouches && e.changedTouches.length > 0) {
-                        clientX = e.changedTouches[0].clientX;
-                        clientY = e.changedTouches[0].clientY;
-                    }
-
-                    const targetEl = document.elementFromPoint(clientX, clientY);
-                    if (targetEl && targetEl.closest('.grid-cell')) {
-                        const cell = targetEl.closest('.grid-cell');
-                        if (cell !== this.lastHitCell) {
-                            this.lastHitCell = cell; const cx = parseInt(cell.dataset.x); const cy = parseInt(cell.dataset.y);
-                            this.executeSmear(cell.dataset.cardId, cx, cy);
-                        }
-                    }
-                };
-
-                track.onpointerdown = (e) => {
-                    if(e.target.closest('button') || this.filteredCards.length === 0) return; 
-                    startX = e.clientX || (e.touches && e.touches[0].clientX); 
-                    startY = e.clientY || (e.touches && e.touches[0].clientY); 
-                    isLockX = false; isLockY = false; hasLocked = false; 
-                    track.style.transition = 'none'; this.lastHitCell = null;
-                    if(e.pointerId) track.setPointerCapture(e.pointerId);
-                };
-
-                track.onpointercancel = (e) => {
-                    if(e.pointerId) track.releasePointerCapture(e.pointerId);
-                    hasLocked = false; isLockX = false; isLockY = false; startX = 0; startY = 0; this.lastHitCell = null;
-                    Array.from(track.children).forEach(c => c.style.transform = '');
-                };
-                
-                const moveLogic = (e) => {
-                    if(e.target.closest('button') || !startX || !startY || this.filteredCards.length === 0) return;
-                    let clientX = e.clientX || (e.touches && e.touches[0].clientX);
-                    let clientY = e.clientY || (e.touches && e.touches[0].clientY);
-                    let dx = clientX - startX; let dy = clientY - startY;
-                    
-                    if (!hasLocked && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) { 
-                        let angle = Math.abs(Math.atan2(dy, dx) * 180 / Math.PI); 
-                        if (angle < 30 || angle > 150) isLockX = true; else if (angle > 60 && angle < 120) isLockY = true; hasLocked = true; 
-                    }
-                    if (hasLocked) {
-                        if (isLockX) { 
-                            if(e.cancelable) e.preventDefault(); 
-                            if ((STATE.ui.activeCardIndex === 0 && dx > 0) || (STATE.ui.activeCardIndex === this.filteredCards.length - 1 && dx < 0) || this.filteredCards.length === 1) dx = dx * 0.25; 
-                            const activeCard = track.querySelector('.card-wrapper.active'); if (activeCard) activeCard.style.transform = `translateX(${dx}px) scale(1)`; 
-                        }
-                        if (isLockY) {
-                            if(e.cancelable) e.preventDefault();
-                            if (dy < -30) {
-                                mainArea.classList.add('show-audit');
-                                const msg = '請點選下方格子查看詳細歷史紀錄';
-                                if(document.getElementById('marquee-text')) document.getElementById('marquee-text').innerHTML = msg;
-                                if(document.getElementById('marquee-text-desktop')) document.getElementById('marquee-text-desktop').innerHTML = msg;
-                            } 
-                            else if (dy > 10) handlePointerMove(e); 
-                        }
-                    } else { handlePointerMove(e); } 
-                };
-
-                track.onpointermove = moveLogic;
-                track.ontouchmove = moveLogic;
-
-                track.onpointerup = (e) => {
-                    if(e.target.closest('button') || this.filteredCards.length === 0) return; 
-                    if(e.pointerId) track.releasePointerCapture(e.pointerId);
-                    if (!hasLocked) { handlePointerMove(e); return; } 
-                    const clientX = e.clientX || (e.changedTouches && e.changedTouches[0].clientX);
-                    const dx = clientX - startX; track.style.transition = 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)';
-                    if (isLockX) { 
-                        Array.from(track.children).forEach(c => c.style.transform = ''); 
-                        if (this.filteredCards.length === 1 && Math.abs(dx) > 30) {
-                            showToast("目前只有 1 張卡片", false);
-                        } else if (Math.abs(dx) > 30) {
-                            dx > 0 ? this.switchCard('prev') : this.switchCard('next'); 
-                        }
-                    }
-                    startX = 0; startY = 0; this.lastHitCell = null;
-                };
-                track.ontouchend = track.onpointerup;
-            },
-        
-            recallBullets: function(cardId, bypassConfirm = false) {
-                if(!bypassConfirm && !confirm("確定要收回這張卡片上的所有點數到背包嗎？")) return;
                 const card = STATE.data.cards.find(c => c.id === cardId); if(!card) return;
                 let hasRecalled = false;
+                
                 card.grids.forEach(g => {
-                    if (g.status > 0 && g.bulletIds) {
+                    if (g.status > 0 && g.bulletIds && g.bulletIds.length > 0) {
                         g.bulletIds.forEach(bId => {
-                            const log = STATE.data.logs.find(l => l.bulletId === bId);
-
-                            if (log && log.bulletCache) { 
-                                if(!STATE.data.bullets.some(b => b.id === log.bulletCache.id)) {
-                                    STATE.data.bullets.push(JSON.parse(JSON.stringify(log.bulletCache))); 
-                                    hasRecalled = true; 
-                                }
+                            const logIdx = STATE.data.logs.findIndex(l => l.bulletId === bId && l.cardId === cardId);
+                            let recoveredBullet = null;
+                            if (logIdx > -1) {
+                                recoveredBullet = JSON.parse(JSON.stringify(STATE.data.logs[logIdx].bulletCache));
+                                STATE.data.logs.splice(logIdx, 1);
+                            } else {
+                                // 遺失日誌防呆
+                                recoveredBullet = { 
+                                    id: bId, ownerId: card.beneficiaryId, creatorId: card.creatorId, 
+                                    size: 1.0, colorVar: 'c5', reason: '退回的點數', createdAt: Date.now() 
+                                };
                             }
-                            
+                            if(!STATE.data.bullets.some(b => b.id === recoveredBullet.id)) {
+                                STATE.data.bullets.push(recoveredBullet); 
+                                hasRecalled = true; 
+                            }
                         });
                         g.status = 0; g.bulletIds = [];
                     }
                 });
+                
                 if (!hasRecalled && !bypassConfirm) return showToast("這張卡片上沒有可以收回的點數");
                 STATE.data.logs = STATE.data.logs.filter(l => l.cardId !== cardId);
-                CoreManager.saveLocal(); this.renderStage(); if(typeof BackpackManager !== 'undefined') BackpackManager.render(); 
+                
+                CoreManager.saveLocal(); this.renderStage(); 
+                if(typeof BackpackManager !== 'undefined') BackpackManager.render(); 
                 if(!bypassConfirm) showToast("點數已全數收回背包！", false);
             },
 
