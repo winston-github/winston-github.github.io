@@ -756,6 +756,7 @@ function parseSentence(text) {
 // ==========================================
 // 系統控制與渲染引擎 (完美回歸穩定版)
 // ==========================================
+
 const ControlSystem = (() => {
     let activeLineElement = document.getElementById('activeLine');
     let isUserLocked = true;
@@ -763,8 +764,9 @@ const ControlSystem = (() => {
     let lastSpeechTime = Date.now();
     let timeoutTimer = null;
     let coolDownLock = false;
-    let isMicRestarting = false;
+    let isMicRestarting = false; // 新增：全局重啟冷卻鎖，防止雙重觸發
 
+    // 核心快取緩衝字串
     let finalTranscriptCache = '';
     let interimTranscriptCache = '';
 
@@ -809,10 +811,12 @@ const ControlSystem = (() => {
         recognition.onerror = (event) => {
             console.warn("語音辨識非致命性狀況:", event.error);
             
+            // 修正：忽略 no-speech 錯誤，交給 onend 做安全的緩衝重啟即可
             if (event.error === 'no-speech') {
                 return; 
             }
 
+            // 嚴重的權限或設備拒絕錯誤，必須徹底關閉防線
             if (event.error === 'not-allowed' || event.error === 'service-not-allowed' || event.error === 'audio-capture') {
                 hasPermissionError = true;
                 ControlSystem.lockSystem(); 
@@ -822,14 +826,17 @@ const ControlSystem = (() => {
         };
 
         recognition.onend = () => {
+            // 如果使用者已手動關閉或無權限，徹底終止重啟
             if (isUserLocked || hasPermissionError) {
                 isMicRestarting = false;
                 return;
             }
 
+            // 如果已經在準備重啟的排程中，跳過本次請求（打破無限重啟迴圈的關鍵）
             if (isMicRestarting) return;
             isMicRestarting = true;
 
+            // 核心防禦：拉長至 800ms 的冷卻時間，讓瀏覽器底層音訊進程有時間完全釋放
             setTimeout(() => {
                 try {
                     if (!isUserLocked && !hasPermissionError) {
@@ -839,37 +846,92 @@ const ControlSystem = (() => {
                 } catch(e) {
                     console.warn("麥克風重啟併發衝突攔截:", e);
                 } finally {
-                    isMicRestarting = false;
+                    isMicRestarting = false; // 解鎖
                 }
             }, 800);
         };
     }
 
+    // ==== 核心字典快取機制 (最大配對演算法) ====
+    const charToBpmfCache = {};
+    for (const [bpmf, chars] of Object.entries(BOPOMOFO_COMPRESSED_DICT)) {
+        for (let i = 0; i < chars.length; i++) {
+            const char = chars[i];
+            // 保留字典中第一個出現的注音為預設發音，確保單字讀音正確
+            if (!charToBpmfCache[char]) {
+                charToBpmfCache[char] = bpmf;
+            }
+        }
+    }
+
+    function parseSentence(text) {
+        let result = [];
+        let i = 0;
+        const maxPhraseLen = 6; 
+
+        while (i < text.length) {
+            let matched = false;
+            // 優先從長詞開始比對，若命中則整個詞的注音一起定案
+            for (let len = Math.min(maxPhraseLen, text.length - i); len >= 2; len--) {
+                let word = text.slice(i, i + len);
+                if (typeof PHRASE_BPMF_DICT !== 'undefined' && PHRASE_BPMF_DICT[word]) {
+                    let bpmfs = PHRASE_BPMF_DICT[word].split(',');
+                    for (let j = 0; j < len; j++) {
+                        result.push({ char: word[j], bpmf: bpmfs[j] });
+                    }
+                    i += len;
+                    matched = true;
+                    break;
+                }
+            }
+            // 如果沒有成詞，就退回使用單字字典的最常用預設音
+            if (!matched) {
+                let char = text[i];
+                result.push({ char: char, bpmf: charToBpmfCache[char] || "" });
+                i++;
+            }
+        }
+        return result;
+    }
+
     function renderPipeline(finalText, interimText) {
         if (!activeLineElement) return;
+
         const fragment = document.createDocumentFragment();
+
         processTokens(finalText, true, fragment);
         processTokens(interimText, false, fragment);
+
         activeLineElement.innerHTML = '';
         activeLineElement.appendChild(fragment);
+
         autoScalePipeline();
     }
 
     function processTokens(text, isFinal, fragmentParent) {
-        if (!text || typeof text !== 'string' || text === "undefined") return;
+        if (!text || typeof text !== 'string') return;
+        if (text === "undefined") return;
 
-        const tokens = text.match(/[\u4e00-\u9fa5]+|[a-zA-Z0-9_]+|[^a-zA-Z0-9_\u4e00-\u9fa5]+/g) || [];
+        // 【唯一差異】將正則表達式的中文字加上 + 號，讓系統可以整塊讀入中文字去解析破音詞
+        const tokens = text.match(/[\u4e00-\u9fa5]+|[a-zA-Z]+|[，。！？、]/g) || [];
 
         tokens.forEach(token => {
             if (!token || token === "undefined") return;
 
-            if (/^[a-zA-Z0-9_]+$/.test(token)) {
+            if (/^[a-zA-Z]+$/.test(token)) {
                 const charBox = document.createElement('div');
-                charBox.className = `char-box is-english ${isFinal ? 'is-final' : 'is-interim'}`;
+                charBox.className = `char-box ${isFinal ? 'is-final' : 'is-interim'} is-english`;
                 charBox.innerHTML = `<div class="char-zh">${token}</div>`;
                 fragmentParent.appendChild(charBox);
             } 
-            else if (/^[\u4e00-\u9fa5]+$/.test(token)) {
+            else if (/^[，。！？、]$/.test(token)) {
+                const charBox = document.createElement('div');
+                charBox.className = `char-box ${isFinal ? 'is-final' : 'is-interim'} is-punctuation`;
+                charBox.innerHTML = `<div class="char-zh">${token}</div>`;
+                fragmentParent.appendChild(charBox);
+            }
+            else {
+                // 原本的 parseBopomofo 被升級為 parseSentence，完美保留所有 DOM 生成邏輯
                 const parsedItems = parseSentence(token);
                 parsedItems.forEach(item => {
                     const charBox = document.createElement('div');
@@ -907,16 +969,6 @@ const ControlSystem = (() => {
                     }
                     fragmentParent.appendChild(charBox);
                 });
-            } 
-            else {
-                for(let i=0; i<token.length; i++) {
-                    let p = token[i];
-                    if(p.trim() === '') continue;
-                    const charBox = document.createElement('div');
-                    charBox.className = `char-box is-punctuation ${isFinal ? 'is-final' : 'is-interim'}`;
-                    charBox.innerHTML = `<div class="char-zh">${p}</div>`;
-                    fragmentParent.appendChild(charBox);
-                }
             }
         });
     }
@@ -970,13 +1022,16 @@ const ControlSystem = (() => {
         timeoutTimer = setInterval(() => {
             if (!isUserLocked && (Date.now() - lastSpeechTime > 3500) && activeLineElement.children.length > 0) {
                 activeLineElement.removeAttribute('id');
+
                 finalTranscriptCache = '';
                 interimTranscriptCache = '';
+
                 const newLine = document.createElement('div');
                 newLine.className = 'speech-line';
                 newLine.id = 'activeLine';
                 document.getElementById('wrapper').appendChild(newLine);
                 activeLineElement = newLine;
+
                 lastSpeechTime = Date.now();
             }
         }, 1000);
@@ -1003,7 +1058,7 @@ const ControlSystem = (() => {
                 lastSpeechTime = Date.now();
                 startTimeoutChecker();
                 
-                isMicRestarting = false; 
+                isMicRestarting = false; // 重設鎖狀態
                 try { recognition.start(); } catch(e) { console.log(e); }
             } else {
                 ControlSystem.lockSystem();
@@ -1042,6 +1097,7 @@ const ControlSystem = (() => {
             if (!isUserLocked) {
                 lastSpeechTime = Date.now();
                 startTimeoutChecker();
+                // 修正：此處直接 abort() 會觸發 onend，交給 onend 內部的 800ms 緩衝機制去重新 start 即可
                 try { recognition.abort(); } catch(e) { console.log(e); }
             } else {
                 autoScalePipeline(); 
@@ -1058,7 +1114,9 @@ const ControlSystem = (() => {
     let resizeTimeout = null;
     window.addEventListener('resize', () => {
         if (resizeTimeout) clearTimeout(resizeTimeout);
-        resizeTimeout = setTimeout(() => { ControlSystem.triggerResizeScale(); }, 150);
+        resizeTimeout = setTimeout(() => {
+            ControlSystem.triggerResizeScale();
+        }, 150);
     });
     window.addEventListener('orientationchange', () => {
         setTimeout(() => ControlSystem.triggerResizeScale(), 300);
