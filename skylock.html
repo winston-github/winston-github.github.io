@@ -1,14 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>MIL-SPEC AR SATELLITE TRACKER</title>
+    <title>ORBITAL INTELLIGENCE TERMINAL</title>
     <!-- PWA Setup -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#050505">
-    <link rel="manifest" id="manifest-link">
     
     <!-- Dependencies -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -20,490 +19,331 @@
            CORE & RESET
            ========================================================================== */
         :root {
-            --sat-top: env(safe-area-inset-top, 20px);
-            --sat-bottom: env(safe-area-inset-bottom, 20px);
-            --sat-left: env(safe-area-inset-left, 15px);
-            --sat-right: env(safe-area-inset-right, 15px);
-            --neon-green: #00FFCC;
-            --tac-orange: #FF9900;
-            --alert-red: #FF3B30;
-            --dim-blue: #0099FF;
-            --bg-black: #050505;
-            --hud-glow: 0 0 6px rgba(0, 255, 204, 0.6);
-            --alert-glow: 0 0 8px rgba(255, 59, 48, 0.8);
+            --neon-green: #00FFCC; --tac-orange: #FF9900; --alert-red: #FF3B30; --dim-blue: #0099FF; --bg-black: #050505;
+            --hud-glow: 0 0 6px rgba(0, 255, 204, 0.6); --alert-glow: 0 0 8px rgba(255, 59, 48, 0.8);
+            --safe-t: env(safe-area-inset-top, 20px); --safe-b: env(safe-area-inset-bottom, 20px);
+            --safe-l: env(safe-area-inset-left, 15px); --safe-r: env(safe-area-inset-right, 15px);
         }
-
-        * {
-            margin: 0; padding: 0; box-sizing: border-box;
-            user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
-            touch-action: none; overscroll-behavior: none;
-        }
-
-        body, html {
-            width: 100vw; height: 100dvh;
-            background-color: var(--bg-black);
-            overflow: hidden;
-            font-family: "SF Mono", "Courier New", Courier, monospace;
-            color: var(--neon-green);
-            -webkit-font-smoothing: antialiased;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-touch-callout: none; touch-action: none; }
+        body, html { width: 100vw; height: 100dvh; background: var(--bg-black); overflow: hidden; font-family: "SF Mono", "Courier New", monospace; color: var(--neon-green); }
 
         /* ==========================================================================
-           LAYER 1: CAMERA PASSTHROUGH & VFX
+           AR LAYER & WebGL
            ========================================================================== */
-        #bg-camera {
-            position: absolute; top: 0; left: 0; width: 100vw; height: 100dvh;
-            object-fit: cover; z-index: 1; transform: translateZ(0);
-            background: var(--bg-black); opacity: 0; transition: opacity 1s ease;
-        }
-
-        .vfx-layer {
-            position: absolute; top: 0; left: 0; width: 100vw; height: 100dvh; pointer-events: none;
-        }
-
-        #vfx-scanlines {
-            z-index: 2;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
-                        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-            background-size: 100% 4px, 3px 100%;
-            opacity: 0.8; mix-blend-mode: overlay;
-        }
-
-        #vfx-vignette { z-index: 2; background: radial-gradient(circle, transparent 50%, rgba(0,0,0,0.85) 100%); }
-        #vfx-flash { z-index: 9000; background: var(--neon-green); opacity: 0; mix-blend-mode: screen; }
+        #bg-camera { position: absolute; width: 100vw; height: 100dvh; object-fit: cover; z-index: 1; opacity: 0; transition: opacity 1s; }
+        .vfx-layer { position: absolute; width: 100vw; height: 100dvh; pointer-events: none; }
+        #vfx-scanlines { z-index: 2; background: linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.25) 50%), linear-gradient(90deg, rgba(255,0,0,0.06), rgba(0,255,0,0.02), rgba(0,0,255,0.06)); background-size: 100% 4px, 3px 100%; mix-blend-mode: overlay; opacity: 0.8; }
+        #vfx-flash { z-index: 9000; background: var(--neon-green); opacity: 0; mix-blend-mode: screen; transition: opacity 0.5s; }
+        #webgl-canvas { position: absolute; z-index: 3; pointer-events: none; }
 
         /* ==========================================================================
-           LAYER 2: WebGL AR CANVAS
+           HUD & TARGET TRACKING
            ========================================================================== */
-        #webgl-canvas {
-            position: absolute; top: 0; left: 0; width: 100vw; height: 100dvh;
-            z-index: 3; pointer-events: none;
-        }
+        #hud-container { position: absolute; width: 100vw; height: 100dvh; z-index: 5; pointer-events: none; filter: drop-shadow(var(--hud-glow)); }
+        .svg-icon { vector-effect: non-scaling-stroke; stroke-width: 1.2px; fill: none; stroke: var(--neon-green); }
+        .text-svg { fill: var(--neon-green); stroke: none; font-size: 10px; font-weight: bold; text-anchor: middle; }
 
-        /* ==========================================================================
-           LAYER 3: TARGET TRACKING BOX & HUD
-           ========================================================================== */
-        #target-box {
-            position: absolute; top: 0; left: 0; width: 80px; height: 80px;
-            transform: translate(-50%, -50%); z-index: 4; pointer-events: none;
-            display: none; transition: opacity 0.2s;
-        }
+        /* Center Reticle & Scan Ring */
+        #center-reticle { position: absolute; top: 50%; left: 50%; width: 240px; height: 240px; transform: translate(-50%, -50%); transition: transform 0.1s; }
+        #scan-ring { stroke: var(--tac-orange); stroke-width: 4px; stroke-dasharray: 251; stroke-dashoffset: 251; transform: rotate(-90deg); transform-origin: center; transition: stroke-dashoffset 0.1s linear; }
         
-        .tgt-corner { position: absolute; width: 15px; height: 15px; border: 2px solid var(--alert-red); }
-        .tgt-tl { top: 0; left: 0; border-right: none; border-bottom: none; }
-        .tgt-tr { top: 0; right: 0; border-left: none; border-bottom: none; }
-        .tgt-bl { bottom: 0; left: 0; border-right: none; border-top: none; }
-        .tgt-br { bottom: 0; right: 0; border-left: none; border-top: none; }
-        
-        .tgt-label {
-            position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
-            color: var(--alert-red); font-size: 10px; font-weight: bold; white-space: nowrap;
-            text-shadow: var(--alert-glow);
-        }
+        #target-box { position: absolute; top: 0; left: 0; width: 80px; height: 80px; transform: translate(-50%, -50%); z-index: 4; display: none; }
+        .tgt-corner { position: absolute; width: 15px; height: 15px; border: 2px solid var(--alert-red); transition: all 0.2s; }
+        .tgt-tl { top:0; left:0; border-right:none; border-bottom:none; } .tgt-tr { top:0; right:0; border-left:none; border-bottom:none; }
+        .tgt-bl { bottom:0; left:0; border-right:none; border-top:none; } .tgt-br { bottom:0; right:0; border-left:none; border-top:none; }
+        #tgt-lock-msg { position: absolute; top: -20px; width: 100%; text-align: center; color: var(--tac-orange); font-size: 10px; font-weight: bold; animation: blink 0.5s infinite; }
 
-        #hud-container {
-            position: absolute; top: 0; left: 0; width: 100vw; height: 100dvh;
-            z-index: 5; pointer-events: none; filter: drop-shadow(var(--hud-glow));
-        }
-
-        .svg-icon { vector-effect: non-scaling-stroke; stroke-width: 1.2px; fill: none; stroke: var(--neon-green); stroke-linecap: square; }
-        .text-svg { fill: var(--neon-green); stroke: none; font-size: 10px; font-weight: bold; text-anchor: middle; letter-spacing: 1px; }
-        
-        #center-reticle {
-            position: absolute; top: 50%; left: 50%; width: 240px; height: 240px;
-            transform: translate(-50%, -50%); transform-origin: center center;
-            transition: width 0.1s, height 0.1s;
-        }
-
-        /* Calibration Ring */
-        #calib-ring {
-            stroke: var(--tac-orange); stroke-width: 3px; stroke-dasharray: 251; stroke-dashoffset: 251;
-            transform: rotate(-90deg); transform-origin: center; transition: stroke-dashoffset 0.1s linear;
-        }
-        
-        #hint-calib { font-size: 11px; opacity: 0.8; animation: pulse-opacity 2s infinite; }
-        @keyframes pulse-opacity { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
-
-        /* Compass Tape */
-        #compass-tape-container {
-            position: absolute; top: calc(var(--sat-top) + 10px); left: 50%; transform: translateX(-50%);
-            width: 200px; height: 20px; overflow: hidden; border-left: 2px solid var(--neon-green); border-right: 2px solid var(--neon-green);
-        }
+        /* Compass */
+        #compass-tape-container { position: absolute; top: calc(var(--safe-t) + 10px); left: 50%; transform: translateX(-50%); width: 200px; height: 20px; overflow: hidden; border-left: 2px solid var(--neon-green); border-right: 2px solid var(--neon-green); }
         #compass-tape { display: flex; position: absolute; left: 100px; height: 100%; align-items: flex-end; }
         .compass-tick { width: 2px; height: 8px; background: var(--neon-green); position: absolute; bottom: 0; transform: translateX(-50%); }
-        .compass-label { position: absolute; bottom: 10px; color: var(--neon-green); font-size: 10px; transform: translateX(-50%); font-weight: bold; }
-        #compass-arrow {
-            position: absolute; top: calc(var(--sat-top) + 32px); left: 50%; transform: translateX(-50%);
-            width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid var(--tac-orange);
-        }
+        .compass-label { position: absolute; bottom: 10px; color: var(--neon-green); font-size: 10px; transform: translateX(-50%); }
+        #compass-arrow { position: absolute; top: calc(var(--safe-t) + 32px); left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid var(--tac-orange); }
 
         /* ==========================================================================
-           LAYER 4: DATA TELEMETRY PANELS
+           MISSIONS & PROGRESSION (GAMIFICATION)
            ========================================================================== */
-        .panel {
-            position: absolute; z-index: 6; font-size: 11px; font-weight: 600; line-height: 1.6;
-            letter-spacing: 0.5px; text-shadow: var(--hud-glow); pointer-events: none;
-            display: flex; flex-direction: column; max-width: 45vw; min-width: 100px;
-        }
-
-        #panel-top-left { top: calc(var(--sat-top) + 15px); left: var(--sat-left); }
-        #panel-top-right { top: calc(var(--sat-top) + 15px); right: var(--sat-right); text-align: right; align-items: flex-end; }
-        #panel-bottom-left { bottom: calc(var(--sat-bottom) + 15px); left: var(--sat-left); }
-        #panel-bottom-right { bottom: calc(var(--sat-bottom) + 15px); right: var(--sat-right); text-align: right; align-items: flex-end; }
-
-        .data-row { display: flex; justify-content: space-between; gap: 15px; width: 100%; }
-        .data-label { color: rgba(0, 255, 204, 0.7); text-align: left; }
-        .data-val { color: var(--neon-green); text-align: right; white-space: nowrap; }
+        #mission-banner { position: absolute; top: calc(var(--safe-t) + 50px); left: 50%; transform: translateX(-50%); border: 1px solid var(--tac-orange); background: rgba(255,153,0,0.1); padding: 5px 15px; color: var(--tac-orange); font-size: 11px; font-weight: bold; text-align: center; backdrop-filter: blur(4px); box-shadow: 0 0 10px rgba(255,153,0,0.3); text-shadow: 0 0 5px var(--tac-orange); width: max-content; }
         
-        .warn-text { color: var(--tac-orange); text-shadow: 0 0 6px var(--tac-orange); animation: blink 1s infinite; }
-        .alert-text { color: var(--alert-red); text-shadow: var(--alert-glow); animation: rapid-blink 0.3s infinite; }
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-        @keyframes rapid-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-
-        .tac-btn {
-            pointer-events: auto; cursor: pointer; width: 44px; height: 44px; margin-bottom: 12px;
-            background: rgba(0, 255, 204, 0.05); border: 1px solid rgba(0, 255, 204, 0.3);
-            border-radius: 4px; display: flex; justify-content: center; align-items: center;
-            transition: background 0.2s, transform 0.1s; backdrop-filter: blur(4px);
-        }
-        .tac-btn:active { background: rgba(0, 255, 204, 0.3); transform: scale(0.95); }
-        .tac-btn svg { width: 24px; height: 24px; }
-
-        #target-info {
-            position: absolute; bottom: calc(var(--sat-bottom) + 80px); left: 50%; transform: translateX(-50%);
-            border: 1px solid var(--neon-green); padding: 8px 16px; background: rgba(0,20,10,0.6);
-            backdrop-filter: blur(4px); text-align: center; font-size: 12px; display: none; min-width: 150px;
-            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
-        }
-        #target-info::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--tac-orange); }
+        #xp-bar-container { position: absolute; bottom: calc(var(--safe-b) + 50px); left: 50%; transform: translateX(-50%); width: 200px; height: 4px; background: rgba(0,255,204,0.2); }
+        #xp-bar-fill { height: 100%; width: 0%; background: var(--neon-green); transition: width 0.5s ease; box-shadow: 0 0 8px var(--neon-green); }
+        #rank-display { position: absolute; bottom: calc(var(--safe-b) + 60px); left: 50%; transform: translateX(-50%); font-size: 10px; color: var(--neon-green); font-weight: bold; }
 
         /* ==========================================================================
-           LAYER 9999: DIALOGS
+           TELEMETRY PANELS
            ========================================================================== */
-        #dialog-layer {
-            position: absolute; top: 0; left: 0; width: 100vw; height: 100dvh;
-            background: rgba(0, 0, 0, 0.85); z-index: 9999; display: flex; justify-content: center; align-items: center;
-            pointer-events: auto; backdrop-filter: blur(8px);
-        }
+        .panel { position: absolute; z-index: 6; font-size: 11px; font-weight: 600; line-height: 1.6; text-shadow: var(--hud-glow); pointer-events: none; display: flex; flex-direction: column; }
+        #panel-top-left { top: calc(var(--safe-t) + 10px); left: var(--safe-l); }
+        #panel-top-right { top: calc(var(--safe-t) + 10px); right: var(--safe-r); text-align: right; align-items: flex-end; }
+        #panel-bottom-left { bottom: calc(var(--safe-b) + 10px); left: var(--safe-l); }
+        #panel-bottom-right { bottom: calc(var(--safe-b) + 10px); right: var(--safe-r); text-align: right; align-items: flex-end; }
+        .data-row { display: flex; justify-content: space-between; gap: 15px; width: 100%; }
+        .data-label { color: rgba(0, 255, 204, 0.7); } .data-val { color: var(--neon-green); }
+        
+        .tac-btn { pointer-events: auto; cursor: pointer; width: 40px; height: 40px; margin-bottom: 10px; background: rgba(0, 255, 204, 0.05); border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 4px; display: flex; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
+        .tac-btn:active { background: rgba(0, 255, 204, 0.3); transform: scale(0.95); }
+        
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
-        .mil-box {
-            background: rgba(10, 10, 10, 0.95); border: 2px solid var(--tac-orange);
-            background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255, 153, 0, 0.03) 10px, rgba(255, 153, 0, 0.03) 20px);
-            padding: 25px; width: 85%; max-width: 420px; box-shadow: 0 0 20px rgba(255, 153, 0, 0.2);
-            position: relative; text-align: center; opacity: 0; transform: scale(0.9); transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-        .mil-box.active { opacity: 1; transform: scale(1); }
-        .mil-box::before, .mil-box::after { content: ''; position: absolute; width: 30px; height: 30px; border: 3px solid var(--tac-orange); }
-        .mil-box::before { top: -3px; left: -3px; border-right: none; border-bottom: none; }
-        .mil-box::after { bottom: -3px; right: -3px; border-left: none; border-top: none; }
+        /* ==========================================================================
+           INTEL CODEX (LEARNING OVERLAY)
+           ========================================================================== */
+        #intel-overlay { position: absolute; top:0; left:0; width: 100vw; height: 100dvh; background: rgba(5,5,5,0.9); z-index: 9998; display: none; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(10px); padding: 20px; }
+        .intel-box { border: 1px solid var(--neon-green); background: rgba(0,255,204,0.05); padding: 20px; max-width: 500px; width: 100%; box-shadow: 0 0 20px rgba(0,255,204,0.2); position: relative; }
+        .intel-header { border-bottom: 1px solid var(--neon-green); padding-bottom: 10px; margin-bottom: 15px; font-size: 18px; color: var(--neon-green); text-shadow: var(--hud-glow); font-weight: bold; display: flex; justify-content: space-between;}
+        .intel-body { font-size: 13px; line-height: 1.6; margin-bottom: 20px; min-height: 100px;}
+        .intel-reward { color: var(--tac-orange); font-weight: bold; margin-bottom: 15px; text-shadow: 0 0 5px var(--tac-orange); font-size: 14px; text-align: center; animation: blink 1s infinite;}
+        .intel-btn { width: 100%; padding: 12px; background: var(--neon-green); color: var(--bg-black); border: none; font-weight: bold; font-family: inherit; font-size: 14px; cursor: pointer; text-transform: uppercase; letter-spacing: 2px; }
 
-        .dialog-title { color: var(--tac-orange); font-size: 18px; font-weight: bold; margin-bottom: 15px; letter-spacing: 2px; border-bottom: 1px solid rgba(255,153,0,0.3); padding-bottom: 10px; }
-        .dialog-content { color: var(--neon-green); font-size: 13px; line-height: 1.6; margin-bottom: 25px; text-align: left; }
-        .dialog-btn {
-            width: 100%; padding: 12px; background: transparent; border: 1px solid var(--tac-orange);
-            color: var(--tac-orange); font-family: inherit; font-size: 14px; font-weight: bold; cursor: pointer; text-transform: uppercase;
-            letter-spacing: 2px; transition: all 0.2s; position: relative; overflow: hidden;
-        }
+        /* DIALOGS */
+        #dialog-layer { position: absolute; top:0; left:0; width: 100vw; height: 100dvh; background: rgba(0,0,0,0.9); z-index: 9999; display: flex; justify-content: center; align-items: center; pointer-events: auto; }
+        .mil-box { border: 2px solid var(--tac-orange); padding: 25px; width: 85%; max-width: 400px; text-align: center; background: rgba(10,10,10,0.9); box-shadow: 0 0 20px rgba(255,153,0,0.2); }
+        .mil-box h2 { color: var(--tac-orange); font-size: 18px; margin-bottom: 15px; border-bottom: 1px solid rgba(255,153,0,0.3); padding-bottom: 10px; }
+        .mil-box p { color: var(--neon-green); font-size: 13px; margin-bottom: 20px; line-height: 1.5; text-align: left;}
+        .dialog-btn { width: 100%; padding: 12px; border: 1px solid var(--tac-orange); background: transparent; color: var(--tac-orange); font-weight: bold; font-family: inherit; cursor: pointer; letter-spacing: 1px; }
         .dialog-btn:active { background: var(--tac-orange); color: var(--bg-black); }
-
-        #boot-terminal {
-            position: absolute; top: 0; left: 0; width: 100vw; height: 100dvh; z-index: 10000;
-            background: var(--bg-black); color: var(--neon-green); padding: 20px; font-size: 12px;
-            display: flex; flex-direction: column; justify-content: flex-end; pointer-events: none; transition: opacity 0.5s;
-        }
-        .log-line { margin-bottom: 5px; opacity: 0; animation: typeIn 0.1s forwards; }
-        @keyframes typeIn { to { opacity: 1; } }
         .hidden { display: none !important; }
     </style>
 </head>
 <body>
 
-    <!-- LAYER 1: VFX & Camera -->
+    <!-- LAYER 1: Camera & Effects -->
     <video id="bg-camera" autoplay playsinline muted></video>
     <div id="vfx-scanlines" class="vfx-layer"></div>
-    <div id="vfx-vignette" class="vfx-layer"></div>
     <div id="vfx-flash" class="vfx-layer"></div>
 
     <!-- LAYER 2: 3D Engine -->
     <canvas id="webgl-canvas"></canvas>
 
-    <!-- LAYER 3: Target Tracking & HUD -->
+    <!-- LAYER 3: Targeting & Gamification HUD -->
     <div id="target-box">
-        <div class="tgt-corner tgt-tl"></div>
-        <div class="tgt-corner tgt-tr"></div>
-        <div class="tgt-corner tgt-bl"></div>
-        <div class="tgt-corner tgt-br"></div>
-        <div class="tgt-label" data-i18n="lbl_current_pos">[CURRENT]</div>
+        <div class="tgt-corner tgt-tl"></div><div class="tgt-corner tgt-tr"></div>
+        <div class="tgt-corner tgt-bl"></div><div class="tgt-corner tgt-br"></div>
+        <div id="tgt-lock-msg" class="hidden" data-i18n="msg_scanning">DATA-LINK...</div>
     </div>
 
     <div id="hud-container">
-        <!-- Dynamic Compass -->
+        <!-- Mission Banner -->
+        <div id="mission-banner"><span data-i18n="bounty">任務目標:</span> <span id="bounty-name">---</span></div>
+
+        <!-- Compass -->
         <div id="compass-tape-container"><div id="compass-tape"></div></div>
         <div id="compass-arrow"></div>
 
-        <!-- Central Reticle & Calibration Ring -->
+        <!-- Center Reticle with Scan Progress -->
         <svg id="center-reticle" viewBox="0 0 240 240">
-            <!-- Calibrate Progress -->
-            <circle id="calib-ring" cx="120" cy="120" r="40" fill="none" />
-            
+            <circle id="scan-ring" cx="120" cy="120" r="40" fill="none" />
             <circle cx="120" cy="120" r="110" class="svg-icon" stroke-dasharray="2, 6" stroke-opacity="0.5"/>
             <circle cx="120" cy="120" r="80" class="svg-icon" id="reticle-inner"/>
-            
-            <line x1="120" y1="10" x2="120" y2="30" class="svg-icon"/>
-            <line x1="120" y1="210" x2="120" y2="230" class="svg-icon"/>
-            <line x1="10" y1="120" x2="30" y2="120" class="svg-icon"/>
-            <line x1="210" y1="120" x2="230" y2="120" class="svg-icon"/>
-            
-            <g id="pitch-ladder">
-                <line x1="80" y1="120" x2="160" y2="120" class="svg-icon" stroke-width="1.5" stroke="var(--tac-orange)"/>
-                <circle cx="120" cy="120" r="3" fill="var(--tac-orange)"/>
-            </g>
-
-            <text x="120" y="28" class="text-svg" data-i18n="lbl_tgt">TGT</text>
-            <text x="212" y="123" class="text-svg" id="hud-txt-right">E</text>
-            <text x="120" y="218" class="text-svg" id="hud-txt-bottom" data-i18n="lbl_zoom">ZOOM</text>
-            <text x="28" y="123" class="text-svg" id="hud-txt-left">W</text>
-            
-            <text x="120" y="160" class="text-svg" id="hint-calib" data-i18n="hint_calib">HOLD TO ALIGN</text>
+            <line x1="120" y1="10" x2="120" y2="30" class="svg-icon"/><line x1="120" y1="210" x2="120" y2="230" class="svg-icon"/>
+            <line x1="10" y1="120" x2="30" y2="120" class="svg-icon"/><line x1="210" y1="120" x2="230" y2="120" class="svg-icon"/>
+            <text x="120" y="28" class="text-svg" data-i18n="hud_up">TGT</text>
+            <text x="120" y="218" class="text-svg" id="hud-txt-bottom" data-i18n="hint_scan">對準目標 3 秒以攔截情報</text>
         </svg>
 
-        <!-- Target Info Box -->
-        <div id="target-info">
-            <div style="color:var(--tac-orange); font-weight:bold; letter-spacing:2px; margin-bottom:4px;" id="tgt-name">NO TARGET</div>
-            <div class="data-row"><span class="data-label" data-i18n="lbl_rng">RNG</span><span class="data-val" id="tgt-rng">--- km</span></div>
-            <div class="data-row"><span class="data-label" data-i18n="lbl_vel">VEL</span><span class="data-val" id="tgt-vel">--- km/s</span></div>
-        </div>
+        <!-- Player Progression -->
+        <div id="rank-display"><span id="txt-rank">Rookie</span> [XP: <span id="txt-xp">0</span>]</div>
+        <div id="xp-bar-container"><div id="xp-bar-fill"></div></div>
     </div>
 
-    <!-- LAYER 4: Telemetry -->
+    <!-- LAYER 4: Telemetry Panels -->
     <div id="panel-top-left" class="panel">
-        <div class="tac-btn" id="btn-lang">
-            <svg viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2zm0 6l5 10H7l5-10z" class="svg-icon"/><circle cx="12" cy="15" r="2" class="svg-icon"/></svg>
-        </div>
-        <div class="data-row"><span class="data-label" data-i18n="lbl_sys">SYS:</span><span class="data-val" id="tel-sys" data-i18n="sys_online">ONLINE</span></div>
-        <div class="data-row"><span class="data-label" data-i18n="lbl_lat">LAT:</span><span class="data-val" id="tel-lat">--.----</span></div>
-        <div class="data-row"><span class="data-label" data-i18n="lbl_lon">LON:</span><span class="data-val" id="tel-lon">--.----</span></div>
-        <div class="data-row"><span class="data-label" data-i18n="lbl_alt">ALT:</span><span class="data-val" id="tel-alt">--- m</span></div>
+        <div class="tac-btn" id="btn-lang"><svg viewBox="0 0 24 24" class="svg-icon" style="width:20px"><path d="M12 2L2 22h20z"/><circle cx="12" cy="15" r="2"/></svg></div>
+        <div class="data-row"><span class="data-label">SYS</span><span class="data-val" id="tel-sys">ONLINE</span></div>
+        <div class="data-row"><span class="data-label" data-i18n="lbl_lat">LAT</span><span class="data-val" id="tel-lat">--.----</span></div>
+        <div class="data-row"><span class="data-label" data-i18n="lbl_lon">LON</span><span class="data-val" id="tel-lon">--.----</span></div>
     </div>
-
     <div id="panel-top-right" class="panel">
-        <div class="tac-btn" id="btn-audio">
-            <svg viewBox="0 0 24 24"><path d="M11 5L6 9H2v6h4l5 4V5z M15.5 12c0-1.5-1-2.8-2.5-3.3v6.6c1.5-.5 2.5-1.8 2.5-3.3z" class="svg-icon" id="audio-icon"/></svg>
-        </div>
-        <div class="data-row"><span class="data-label" data-i18n="lbl_az">AZ:</span><span class="data-val" id="tel-az">000.0°</span></div>
-        <div class="data-row"><span class="data-label" data-i18n="lbl_el">EL:</span><span class="data-val" id="tel-el">00.0°</span></div>
-        <div class="data-row"><span class="data-label" data-i18n="lbl_rl">RL:</span><span class="data-val" id="tel-rl">00.0°</span></div>
-        <div class="data-row"><span class="data-label" data-i18n="lbl_fov">FOV:</span><span class="data-val" id="tel-fov">75°</span></div>
+        <div class="tac-btn" id="btn-audio"><svg viewBox="0 0 24 24" class="svg-icon" id="audio-icon" style="width:20px"><path d="M11 5L6 9H2v6h4l5 4V5z M15.5 12c0-1.5-1-2.8-2.5-3.3v6.6c1.5-.5 2.5-1.8 2.5-3.3z"/></svg></div>
+        <div class="data-row"><span class="data-label" data-i18n="lbl_az">AZ</span><span class="data-val" id="tel-az">000.0°</span></div>
+        <div class="data-row"><span class="data-label" data-i18n="lbl_el">EL</span><span class="data-val" id="tel-el">00.0°</span></div>
+        <div class="data-row"><span class="data-label" data-i18n="lbl_fov">FOV</span><span class="data-val" id="tel-fov">75°</span></div>
     </div>
-
     <div id="panel-bottom-left" class="panel">
-        <div class="data-row"><span class="data-label" data-i18n="lbl_tme">TME:</span><span class="data-val" id="tel-time">00:00:00.000</span></div>
-        <div id="tel-cache" class="warn-text hidden" data-i18n="cache_overdue">[CACHE_OVERDUE]</div>
-        <div id="tel-audio-warn" class="warn-text hidden" data-i18n="err_audio">[AUDIO_OFFLINE]</div>
-        <div id="tel-gyro-warn" class="alert-text hidden" data-i18n="err_gyro">[GYRO_OFFLINE]</div>
+        <div class="data-row"><span class="data-label" data-i18n="lbl_tme">TME</span><span class="data-val" id="tel-time">00:00:00</span></div>
+        <div id="tel-warn" style="color:var(--tac-orange); animation:blink 1s infinite"></div>
     </div>
-
     <div id="panel-bottom-right" class="panel">
-        <div class="data-row"><span class="data-label" data-i18n="lbl_sat">SAT:</span><span class="data-val" id="tel-sat-count">0</span></div>
-        <div class="data-row"><span class="data-label" data-i18n="lbl_env">ENV:</span><span class="data-val" id="tel-env">---</span></div>
-        <div class="data-row"><span class="data-label" data-i18n="lbl_fps">FPS:</span><span class="data-val" id="tel-fps">60</span></div>
+        <div class="data-row"><span class="data-label" data-i18n="lbl_sat">TRK</span><span class="data-val" id="tel-sat-count">0</span></div>
+        <div class="data-row"><span class="data-label" data-i18n="lbl_rng">RNG</span><span class="data-val" id="tel-rng">--- km</span></div>
     </div>
 
-    <!-- LAYER 9999: Dialogs -->
+    <!-- LAYER 9998: INTEL CODEX (LEARNING) -->
+    <div id="intel-overlay">
+        <div class="intel-box">
+            <div class="intel-header"><span data-i18n="intel_title">機密情報解鎖</span> <span id="intel-class">[CLASS]</span></div>
+            <div class="intel-body" id="intel-text"></div>
+            <div class="intel-reward">+<span id="intel-xp">0</span> XP</div>
+            <button class="intel-btn" id="btn-close-intel" data-i18n="btn_continue">繼續執行任務</button>
+        </div>
+    </div>
+
+    <!-- LAYER 9999: INIT DIALOG -->
     <div id="dialog-layer">
         <div class="mil-box" id="dialog-box">
-            <div class="dialog-title" id="dialog-title">AUTHORIZATION REQUIRED</div>
-            <div class="dialog-content" id="dialog-text">Initializing Tactical AR System.<br><br>Access to Camera, GPS, and Gyroscope is mandatory.</div>
-            <button class="dialog-btn" id="dialog-btn-ok" data-i18n="btn_accept">ENGAGE SYSTEMS</button>
+            <h2 id="dialog-title" data-i18n="title_boot">軌道情報局終端機</h2>
+            <p id="dialog-text" data-i18n="desc_boot">特工，歡迎登入。<br>您的任務是掃描並識別地球軌道上的未知航天器。<br>系統需要授權相機與感測器連線。</p>
+            <button class="dialog-btn" id="dialog-btn-ok" data-i18n="btn_accept">授權並登入 (INITIATE)</button>
         </div>
     </div>
-
-    <div id="boot-terminal"></div>
 
 <script>
 /**
- * AR SATELLITE TRACKER (SPA)
- * Extreme strict adherence to single-file constraint.
+ * ORBITAL INTELLIGENCE TERMINAL - Gamified AR Tracker
+ * Single HTML File. No external assets. Pure DOM/WebGL magic.
  */
 
 /* ==========================================================================
-   1. GLOBAL STATE & I18N
+   1. GAME STATE, PROGRESSION & LORE DB
    ========================================================================== */
 const SYS = {
-    locale: "en", audioEnabled: true, zoom: 1.0, maxZoom: 8.0,
-    fps: 0, frames: 0, lastFpsTime: 0, targetSat: null, sats: [],
-    geo: { lat: 0, lon: 0, alt: 0, timestamp: 0, perfAnchor: 0 },
-    orient: { alpha: 0, beta: 0, gamma: 0 }, smoothOrient: { alpha: 0, beta: 0, gamma: 0 },
-    offset: { alpha: 0, beta: 0, gamma: 0 }, isCalibrating: false
+    locale: "en", audio: true, zoom: 1.0, maxZoom: 8.0, 
+    geo: { lat: 0, lon: 0, alt: 0 }, orient: { alpha:0, beta:0, gamma:0 }, offset: { alpha:0, beta:0, gamma:0 },
+    sats: [], targetSat: null, bountySat: null, 
+    scanProgress: 0, isScanning: false, isPaused: false
+};
+
+const PLAYER = { xp: 0, level: 0, scannedIDs: [] };
+const RANKS = ["Rookie (新兵)", "Field Agent (外勤特工)", "Orbital Analyst (軌道分析師)", "Space Command (太空指揮官)", "Overlord (星際霸主)"];
+
+// Educational Lore Database (Dual Language)
+const LORE_DB = {
+    "zh-Hant": {
+        "STARLINK": { class: "通訊陣列 (LEO)", desc: "Starlink 是由 SpaceX 構建的低軌道巨型衛星網，旨在提供全球覆蓋的低延遲寬頻網路。它們距離地表僅約 500 公里，因此移動速度極快。當它們剛發射時，會在夜空中形成著名的『星鏈列車』。" },
+        "ISS": { class: "軌道棲息地 (Habitable)", desc: "國際太空站 (ISS) 是人類在太空中最大的人造物體，耗資超過千億美元。它以每秒 7.6 公里的驚人速度繞地球飛行，每天大約可以看見 16 次日出與日落。站內通常駐留著進行各種微重力科學實驗的太空人。" },
+        "HUBBLE": { class: "深空觀測器 (Telescope)", desc: "哈伯太空望遠鏡 (HST) 自 1990 年發射以來，徹底改變了人類對宇宙的認知。由於位於大氣層外，它能拍攝到極度清晰的深空星系影像，證明了宇宙正在加速膨脹。" },
+        "NOAA": { class: "氣象觀測網 (Weather)", desc: "NOAA 衛星屬於氣象與環境監測衛星。它們通常運行在『極地軌道』，這意味著它們會由北極向南極繞行，隨著地球自轉，這類衛星能在幾天內掃描整個地球表面，是天氣預報的關鍵。" },
+        "TIANGONG": { class: "軌道棲息地 (Habitable)", desc: "天宮太空站是中國自主建設的長期近地軌道太空站。其核心艙『天和』為太空人提供了生活與科學實驗的空間，是太空中唯二長期有人駐留的設施。" },
+        "UNKNOWN": { class: "未分類航天器 (Generic)", desc: "該航天器的確切機密資料尚未解密。地球軌道上目前有數萬顆人造物體，包括科學衛星、軍事間諜衛星，甚至是被遺棄的火箭推進器殘骸（太空垃圾）。隨時留意天空，特工。" }
+    },
+    "en": {
+        "STARLINK": { class: "COMM ARRAY (LEO)", desc: "Starlink is a satellite internet constellation constructed by SpaceX. Orbiting at only ~500km altitude (Low Earth Orbit), they move extremely fast across the sky. After launch, they form a spectacular 'train' of lights." },
+        "ISS": { class: "HABITAT (Manned)", desc: "The International Space Station is the largest modular space station in low Earth orbit. Traveling at 7.6 km/s, astronauts aboard experience 16 sunrises and sunsets every day while conducting microgravity research." },
+        "HUBBLE": { class: "TELESCOPE (Observatory)", desc: "The Hubble Space Telescope (HST) revolutionized astronomy. Operating outside Earth's atmospheric distortion, it has provided the most detailed images of deep space and helped determine the age of the universe." },
+        "NOAA": { class: "WEATHER SENSOR (Polar)", desc: "NOAA satellites monitor global weather and climate. Operating in 'Polar Orbits', they fly over the poles while the Earth spins beneath them, allowing them to scan the entire planet's surface every few days." },
+        "TIANGONG": { class: "HABITAT (Manned)", desc: "Tiangong is a space station constructed by China in low Earth orbit. Its core module 'Tianhe' provides living quarters and laboratories, making it one of the only two permanently inhabited structures in space." },
+        "UNKNOWN": { class: "UNCLASSIFIED ASSET", desc: "Detailed intel on this asset is classified or unavailable. Earth's orbit contains tens of thousands of objects, from spy satellites to defunct rocket bodies (space debris). Keep scanning, Operative." }
+    }
 };
 
 const I18N = {
-    "zh-Hant": {
-        "lbl_sys": "系統:", "lbl_lat": "緯度:", "lbl_lon": "經度:", "lbl_alt": "高度:",
-        "lbl_az": "方位:", "lbl_el": "仰角:", "lbl_rl": "滾轉:", "lbl_fov": "視野:",
-        "lbl_tme": "時間:", "lbl_sat": "衛星:", "lbl_env": "環境:", "lbl_fps": "幀率:",
-        "lbl_tgt": "目標", "lbl_rng": "距離:", "lbl_vel": "速度:", "lbl_zoom": "倍率",
-        "lbl_current_pos": "[目前位置]", "hint_calib": "長按以校準方位", "hint_calibrated": "校準完成",
-        "sys_online": "連線", "cache_overdue": "[快取過期]", "btn_accept": "授權啟動",
-        "title_perm": "系統權限請求", "desc_perm": "啟動戰術 AR 系統需要相機、GPS 與陀螺儀權限以校準軌道與當前位置。",
-        "err_data": "無網路連線，無法獲取星曆數據。", "err_gps": "GPS 訊號遺失，降級至本機時間。",
-        "err_sensor": "無法存取陀螺儀，降級雷達模式。", "err_audio": "[音效離線]", "err_gyro": "[感測器離線]",
-        "env_day": "高反光(晝)", "env_night": "潛伏(夜)"
+    "zh-Hant": { 
+        "lbl_lat":"緯度", "lbl_lon":"經度", "lbl_az":"方位", "lbl_el":"仰角", "lbl_fov":"視野", "lbl_tme":"時間", "lbl_sat":"目標數", "lbl_rng":"距離",
+        "hud_up": "目標", "hint_scan": "將目標保持在準心 3 秒以攔截情報", "hint_scanning": "資料鏈傳輸中...",
+        "bounty": "懸賞任務:", "bounty_find": "尋找並攔截", "bounty_any": "任意未知衛星",
+        "title_boot": "軌道情報局終端機", "desc_boot": "特工，歡迎登入。<br>您的任務是掃描並識別地球軌道上的航天器。<br>我們需要相機與感測器權限以校準軌道。", "btn_accept": "授權並登入 (INITIATE)",
+        "intel_title": "機密情報解鎖", "btn_continue": "繼續執行任務", "msg_lock": "鎖定", "msg_scanning": "資料下載中...",
+        "rank_up": "階級提升！"
     },
     "en": {
-        "lbl_sys": "SYS:", "lbl_lat": "LAT:", "lbl_lon": "LON:", "lbl_alt": "ALT:",
-        "lbl_az": "AZ:", "lbl_el": "EL:", "lbl_rl": "RL:", "lbl_fov": "FOV:",
-        "lbl_tme": "TME:", "lbl_sat": "SAT:", "lbl_env": "ENV:", "lbl_fps": "FPS:",
-        "lbl_tgt": "TGT", "lbl_rng": "RNG:", "lbl_vel": "VEL:", "lbl_zoom": "ZOOM",
-        "lbl_current_pos": "[CURRENT]", "hint_calib": "HOLD TO ALIGN", "hint_calibrated": "ALIGNED",
-        "sys_online": "ONLINE", "cache_overdue": "[CACHE_OVERDUE]", "btn_accept": "ENGAGE SYSTEMS",
-        "title_perm": "AUTHORIZATION REQUIRED", "desc_perm": "Camera, GPS, and Gyroscope access is mandatory for tracking orbits and current position.",
-        "err_data": "No network connection. Orbit data unavailable.", "err_gps": "GPS signal lost. Downgrading to local clock.",
-        "err_sensor": "Gyroscope absent. Defaulting to virtual radar.", "err_audio": "[AUDIO_OFFLINE]", "err_gyro": "[GYRO_OFFLINE]",
-        "env_day": "DAYLIGHT", "env_night": "ECLIPSE"
+        "lbl_lat":"LAT", "lbl_lon":"LON", "lbl_az":"AZ", "lbl_el":"EL", "lbl_fov":"FOV", "lbl_tme":"TME", "lbl_sat":"TRK", "lbl_rng":"RNG",
+        "hud_up": "TGT", "hint_scan": "HOLD TARGET IN CENTER FOR 3 SEC TO SCAN", "hint_scanning": "DATA-LINK IN PROGRESS...",
+        "bounty": "ACTIVE DIRECTIVE:", "bounty_find": "Locate & Scan", "bounty_any": "Any Unknown Satellite",
+        "title_boot": "ORBITAL INTEL TERMINAL", "desc_boot": "Welcome, Operative.<br>Your mission is to scan and classify orbital assets.<br>Camera and sensor authorization required.", "btn_accept": "INITIATE SEQUENCE",
+        "intel_title": "INTEL UNLOCKED", "btn_continue": "RESUME MISSION", "msg_lock": "LOCKED", "msg_scanning": "DOWNLOADING...",
+        "rank_up": "PROMOTION!"
     }
 };
 
 /* ==========================================================================
-   2. UTILS, UI & CALIBRATION
+   2. CORE SYSTEM & UI
    ========================================================================== */
 const UI = {
-    init: async () => {
-        document.getElementById('manifest-link').href = 'data:application/manifest+json;charset=utf-8,' + encodeURIComponent(JSON.stringify({
-            name: "Tactical AR Tracker", display: "standalone", background_color: "#050505", theme_color: "#00FFCC"
-        }));
-        const cached = localStorage.getItem('TAC_LANG');
-        if(cached) SYS.locale = cached;
-        else SYS.locale = navigator.languages.some(l => l.includes('zh')) ? "zh-Hant" : "en";
+    init: () => {
+        const cachedLang = localStorage.getItem('TAC_LANG');
+        SYS.locale = cachedLang || (navigator.languages.some(l => l.includes('zh')) ? "zh-Hant" : "en");
         UI.applyLang();
-        
         document.getElementById('btn-lang').onclick = () => {
             SYS.locale = SYS.locale === "en" ? "zh-Hant" : "en";
-            localStorage.setItem('TAC_LANG', SYS.locale);
-            UI.applyLang(); AudioSynth.beep();
+            localStorage.setItem('TAC_LANG', SYS.locale); UI.applyLang(); Audio.beep(); Game.updateBountyUI();
         };
 
-        // Compass Tape
+        // Render Compass
         let tapeHTML = '';
         for(let i=0; i<=360; i+=15) {
             tapeHTML += `<div class="compass-tick" style="left: ${i*4}px"></div>`;
-            if(i%45 === 0) {
-                const lbl = i===0||i===360?'N':i===90?'E':i===180?'S':i===270?'W':i;
-                tapeHTML += `<div class="compass-label" style="left: ${i*4}px">${lbl}</div>`;
-            }
+            if(i%45 === 0) tapeHTML += `<div class="compass-label" style="left: ${i*4}px">${i===0||i===360?'N':i===90?'E':i===180?'S':i===270?'W':i}</div>`;
         }
         document.getElementById('compass-tape').innerHTML = tapeHTML;
 
-        // Custom Hold-to-Calibrate logic
-        let holdTimer;
-        const ring = document.getElementById('calib-ring');
-        const hint = document.getElementById('hint-calib');
-        
-        const startCalib = (e) => {
-            if(e.touches && e.touches.length > 1) return; // Ignore multi-touch
-            SYS.isCalibrating = true;
-            hint.style.fill = 'var(--tac-orange)';
-            ring.style.transition = 'stroke-dashoffset 0.6s linear';
-            ring.style.strokeDashoffset = '0';
-            
-            holdTimer = setTimeout(() => {
-                SYS.offset.alpha = -SYS.orient.alpha; 
-                SYS.offset.beta = -SYS.orient.beta;
-                SYS.offset.gamma = -SYS.orient.gamma;
-                UI.flash(); AudioSynth.beep(1500, 'square', 0.2);
-                hint.innerText = I18N[SYS.locale]['hint_calibrated'];
-                setTimeout(() => hint.innerText = I18N[SYS.locale]['hint_calib'], 2000);
-                resetCalib();
-            }, 600);
-        };
-        const resetCalib = () => {
-            SYS.isCalibrating = false;
-            clearTimeout(holdTimer);
-            ring.style.transition = 'stroke-dashoffset 0.2s linear';
-            ring.style.strokeDashoffset = '251';
-            hint.style.fill = 'var(--neon-green)';
-        };
-
-        document.body.addEventListener('touchstart', startCalib, {passive: true});
-        document.body.addEventListener('touchend', resetCalib, {passive: true});
-        document.body.addEventListener('touchmove', resetCalib, {passive: true});
+        // Load Save Data
+        const save = JSON.parse(localStorage.getItem('TAC_SAVE') || '{"xp":0, "level":0, "scannedIDs":[]}');
+        PLAYER.xp = save.xp; PLAYER.level = save.level; PLAYER.scannedIDs = save.scannedIDs;
+        UI.updateRank();
     },
-    applyLang: () => {
-        document.querySelectorAll('[data-i18n]').forEach(el => {
-            const k = el.getAttribute('data-i18n');
-            if(I18N[SYS.locale][k]) el.innerText = I18N[SYS.locale][k];
-        });
-        document.getElementById('hud-txt-bottom').innerText = `${I18N[SYS.locale]['lbl_zoom']} ${SYS.zoom.toFixed(1)}x`;
+    applyLang: () => { document.querySelectorAll('[data-i18n]').forEach(el => { if(I18N[SYS.locale][el.getAttribute('data-i18n')]) el.innerHTML = I18N[SYS.locale][el.getAttribute('data-i18n')]; }); },
+    flash: (color = 'var(--neon-green)') => {
+        const f = document.getElementById('vfx-flash'); f.style.background = color; f.style.opacity = 1; f.style.transition = 'none';
+        setTimeout(() => { f.style.transition = 'opacity 0.6s ease-out'; f.style.opacity = 0; }, 50);
     },
-    log: (msg) => {
-        const term = document.getElementById('boot-terminal');
-        const div = document.createElement('div');
-        div.className = 'log-line'; div.innerText = `[${new Date().toISOString().split('T')[1].slice(0,-1)}] ${msg}`;
-        term.appendChild(div); if(term.childElementCount > 20) term.removeChild(term.firstChild);
+    updateRank: () => {
+        document.getElementById('txt-xp').innerText = PLAYER.xp;
+        document.getElementById('txt-rank').innerText = RANKS[Math.min(PLAYER.level, RANKS.length-1)];
+        const nextXp = (PLAYER.level + 1) * 200;
+        const prevXp = PLAYER.level * 200;
+        const pct = Math.min(100, Math.max(0, ((PLAYER.xp - prevXp) / (nextXp - prevXp)) * 100));
+        document.getElementById('xp-bar-fill').style.width = pct + '%';
     },
-    dialog: (titleKey, textKey, btnKey, callback) => {
-        document.getElementById('dialog-title').innerText = I18N[SYS.locale][titleKey] || titleKey;
-        document.getElementById('dialog-text').innerHTML = I18N[SYS.locale][textKey] || textKey;
-        document.getElementById('dialog-btn-ok').innerText = I18N[SYS.locale][btnKey] || btnKey;
-        const layer = document.getElementById('dialog-layer'); const box = document.getElementById('dialog-box');
-        layer.classList.remove('hidden'); setTimeout(() => box.classList.add('active'), 50);
-        document.getElementById('dialog-btn-ok').onclick = () => {
-            box.classList.remove('active'); setTimeout(() => layer.classList.add('hidden'), 300);
-            if(callback) callback();
-        };
-    },
-    flash: () => {
-        const f = document.getElementById('vfx-flash'); f.style.opacity = 1; f.style.transition = 'none';
-        setTimeout(() => { f.style.transition = 'opacity 0.5s ease-out'; f.style.opacity = 0; }, 50);
-    }
+    saveGame: () => { localStorage.setItem('TAC_SAVE', JSON.stringify(PLAYER)); }
 };
 
 /* ==========================================================================
-   3. AUDIO SYNTHESIS
+   3. AUDIO (Web Audio API)
    ========================================================================== */
-const AudioSynth = {
-    ctx: null, master: null,
+const Audio = {
+    ctx: null, master: null, scanOsc: null, scanGain: null,
     init: () => {
-        if(!SYS.audioEnabled) return;
+        if(!SYS.audio) return;
         try {
-            AudioSynth.ctx = new (window.AudioContext || window.webkitAudioContext)();
-            AudioSynth.master = AudioSynth.ctx.createGain(); AudioSynth.master.connect(AudioSynth.ctx.destination);
-            if(AudioSynth.ctx.state === 'suspended') AudioSynth.ctx.resume();
+            Audio.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            Audio.master = Audio.ctx.createGain(); Audio.master.connect(Audio.ctx.destination);
+            if(Audio.ctx.state === 'suspended') Audio.ctx.resume();
             document.getElementById('btn-audio').onclick = () => {
-                SYS.audioEnabled = !SYS.audioEnabled;
-                AudioSynth.master.gain.value = SYS.audioEnabled ? 1 : 0;
-                document.getElementById('audio-icon').style.opacity = SYS.audioEnabled ? 1 : 0.3;
+                SYS.audio = !SYS.audio; Audio.master.gain.value = SYS.audio ? 1 : 0;
+                document.getElementById('audio-icon').style.opacity = SYS.audio ? 1 : 0.3;
             };
-        } catch(e) { SYS.audioEnabled = false; document.getElementById('tel-audio-warn').classList.remove('hidden'); }
+        } catch(e) { SYS.audio = false; }
     },
-    beep: (freq = 800, type = 'square', dur = 0.1) => {
-        if(!SYS.audioEnabled || !AudioSynth.ctx || AudioSynth.ctx.state !== 'running') return;
-        const osc = AudioSynth.ctx.createOscillator(); const gain = AudioSynth.ctx.createGain();
-        osc.type = type; osc.frequency.setValueAtTime(freq, AudioSynth.ctx.currentTime);
-        gain.gain.setValueAtTime(0, AudioSynth.ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.1, AudioSynth.ctx.currentTime + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001, AudioSynth.ctx.currentTime + dur);
-        osc.connect(gain); gain.connect(AudioSynth.master); osc.start(); osc.stop(AudioSynth.ctx.currentTime + dur);
+    beep: (f=800, t='square', d=0.1, vol=0.1) => {
+        if(!SYS.audio || !Audio.ctx) return;
+        const o = Audio.ctx.createOscillator(); const g = Audio.ctx.createGain();
+        o.type = t; o.frequency.setValueAtTime(f, Audio.ctx.currentTime);
+        g.gain.setValueAtTime(0, Audio.ctx.currentTime); g.gain.linearRampToValueAtTime(vol, Audio.ctx.currentTime + 0.02); g.gain.exponentialRampToValueAtTime(0.001, Audio.ctx.currentTime + d);
+        o.connect(g); g.connect(Audio.master); o.start(); o.stop(Audio.ctx.currentTime + d);
     },
-    lock: () => { AudioSynth.beep(1200, 'square', 0.05); setTimeout(() => AudioSynth.beep(1600, 'square', 0.15), 60); },
-    motor: (delta) => { if(SYS.audioEnabled && AudioSynth.ctx && delta >= 0.05) AudioSynth.beep(50+(delta*50), 'sawtooth', 0.05); }
+    startScan: () => {
+        if(!SYS.audio || !Audio.ctx || Audio.scanOsc) return;
+        Audio.scanOsc = Audio.ctx.createOscillator(); Audio.scanGain = Audio.ctx.createGain();
+        Audio.scanOsc.type = 'triangle'; Audio.scanOsc.frequency.setValueAtTime(200, Audio.ctx.currentTime);
+        Audio.scanOsc.frequency.linearRampToValueAtTime(800, Audio.ctx.currentTime + 3); // Pitch up over 3s
+        Audio.scanGain.gain.setValueAtTime(0.05, Audio.ctx.currentTime);
+        Audio.scanOsc.connect(Audio.scanGain); Audio.scanGain.connect(Audio.master); Audio.scanOsc.start();
+    },
+    stopScan: () => {
+        if(Audio.scanOsc) { Audio.scanOsc.stop(); Audio.scanOsc = null; }
+    },
+    success: () => { Audio.stopScan(); Audio.beep(1200, 'square', 0.1, 0.2); setTimeout(()=>Audio.beep(1800, 'square', 0.4, 0.2), 100); }
 };
 
 /* ==========================================================================
-   4. HARDWARE SENSORS
+   4. HARDWARE SENSORS & TLE DATA
    ========================================================================== */
 const Sensors = {
-    getTime: () => SYS.geo.perfAnchor === 0 ? new Date() : new Date(SYS.geo.timestamp + (performance.now() - SYS.geo.perfAnchor)),
-    initGPS: () => new Promise(res => {
-        if(!navigator.geolocation) return res();
-        navigator.geolocation.getCurrentPosition(pos => {
-            SYS.geo.lat = pos.coords.latitude; SYS.geo.lon = pos.coords.longitude; SYS.geo.alt = pos.coords.altitude || 0;
-            SYS.geo.timestamp = pos.timestamp; SYS.geo.perfAnchor = performance.now();
-            UI.log(`GPS LOCK: ${SYS.geo.lat.toFixed(4)}, ${SYS.geo.lon.toFixed(4)}`); res();
-        }, () => { document.getElementById('tel-lat').innerText = 'ERR'; res(); }, { enableHighAccuracy: true, timeout: 5000 });
-    }),
-    initGyro: () => new Promise(res => {
-        const start = () => {
+    init: async () => {
+        // GPS
+        if(navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(p => {
+                SYS.geo.lat = p.coords.latitude; SYS.geo.lon = p.coords.longitude; SYS.geo.alt = p.coords.altitude || 0;
+            }, e => {}, { enableHighAccuracy: true });
+        }
+        // Camera
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } });
+            const vid = document.getElementById('bg-camera'); vid.srcObject = stream; vid.style.opacity = 1;
+        } catch(e) { document.getElementById('tel-warn').innerText = '[CAM_ERR]'; }
+        
+        // Gyro
+        const startGyro = () => {
             window.addEventListener('deviceorientation', e => {
                 if(e.alpha === null) return;
                 const d2r = Math.PI/180; let a = e.alpha;
@@ -511,195 +351,228 @@ const Sensors = {
                 else if(e.absolute) a = 360 - e.alpha;
                 SYS.orient.alpha = a * d2r; SYS.orient.beta = e.beta * d2r; SYS.orient.gamma = e.gamma * d2r;
             });
-            UI.log('GYRO ALIGNED.'); res();
         };
         if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-            DeviceOrientationEvent.requestPermission().then(r => {
-                if(r === 'granted') start();
-                else { document.getElementById('tel-gyro-warn').classList.remove('hidden'); res(); }
-            }).catch(() => res());
-        } else start();
-    }),
-    initCamera: async () => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
-            const vid = document.getElementById('bg-camera'); vid.srcObject = stream; vid.style.opacity = 1;
-            UI.log('OPTICAL PASSTHROUGH ENGAGED.');
-        } catch(e) { UI.log('CAMERA FAILED. VIRTUAL MODE.'); }
-    }
-};
-
-/* ==========================================================================
-   5. ORBIT DATA ENGINE
-   ========================================================================== */
-const DataEngine = {
-    fetchTLE: async () => {
-        const KEY = 'TAC_TLE', TIME = 'TAC_TLE_TS'; let txt = '';
-        try {
-            const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 5000);
-            const res = await fetch('https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle', { signal: ctrl });
-            clearTimeout(to); if(!res.ok) throw new Error();
-            txt = await res.text(); localStorage.setItem(KEY, txt); localStorage.setItem(TIME, Date.now().toString());
-        } catch(e) {
-            txt = localStorage.getItem(KEY);
-            if(!txt) { UI.log("TLE FETCH FAILED."); return; }
-            if(Date.now() - parseInt(localStorage.getItem(TIME)) > 86400000) document.getElementById('tel-cache').classList.remove('hidden');
-        }
-        const lines = txt.split(/\r?\n/); const MAX = 400;
-        for(let i=0; i<lines.length && SYS.sats.length < MAX; i+=3) {
-            if(!lines[i] || !lines[i+1] || !lines[i+2]) continue;
-            try { SYS.sats.push({ name: lines[i].trim(), satrec: satellite.twoline2satrec(lines[i+1].trim(), lines[i+2].trim()) }); } catch(e) {}
-        }
-        UI.log(`TRACKING ${SYS.sats.length} ORBITAL VECTORS.`);
-        document.getElementById('tel-sat-count').innerText = SYS.sats.length;
+            try { const r = await DeviceOrientationEvent.requestPermission(); if(r === 'granted') startGyro(); } catch(e){}
+        } else startGyro();
     },
-    getLookAngles: (satrec, date) => {
-        if(SYS.geo.lat === 0 && SYS.geo.lon === 0) return null;
-        const pv = satellite.propagate(satrec, date);
-        if(!pv.position || isNaN(pv.position.x)) return null;
-        const gmst = satellite.gstime(date);
-        const obsGd = { longitude: SYS.geo.lon * Math.PI/180, latitude: SYS.geo.lat * Math.PI/180, height: SYS.geo.alt/1000 };
-        const posEcf = satellite.eciToEcf(pv.position, gmst);
-        const look = satellite.ecfToLookAngles(obsGd, posEcf);
-        const vel = Math.sqrt(pv.velocity.x**2 + pv.velocity.y**2 + pv.velocity.z**2);
-        return { az: look.azimuth, el: look.elevation, r: look.rangeSat, v: vel, pv: pv };
+    fetchTLE: async () => {
+        try {
+            const res = await fetch('https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle');
+            const txt = await res.text(); const lines = txt.split(/\r?\n/);
+            for(let i=0; i<lines.length && SYS.sats.length < 300; i+=3) {
+                if(!lines[i+2]) continue;
+                try { SYS.sats.push({ name: lines[i].trim(), satrec: satellite.twoline2satrec(lines[i+1].trim(), lines[i+2].trim()) }); } catch(e){}
+            }
+            document.getElementById('tel-sat-count').innerText = SYS.sats.length;
+            Game.assignBounty();
+        } catch(e) { document.getElementById('tel-warn').innerText = '[DATA_ERR]'; }
     }
 };
 
 /* ==========================================================================
-   6. 3D RENDERER (Webgl & Orbit Trails)
+   5. GAMIFICATION LOGIC (Missions & Scanning)
+   ========================================================================== */
+const Game = {
+    assignBounty: () => {
+        if(SYS.sats.length === 0) return;
+        // Prioritize known educational targets
+        const targets = ["STARLINK", "ISS", "HUBBLE", "NOAA", "TIANGONG"];
+        const keyword = targets[Math.floor(Math.random() * targets.length)];
+        const candidates = SYS.sats.filter(s => s.name.includes(keyword));
+        if(candidates.length > 0) SYS.bountySat = candidates[Math.floor(Math.random() * candidates.length)];
+        else SYS.bountySat = SYS.sats[Math.floor(Math.random() * SYS.sats.length)]; // Random fallback
+        Game.updateBountyUI();
+    },
+    updateBountyUI: () => {
+        if(!SYS.bountySat) return;
+        let prefix = I18N[SYS.locale]['bounty_find'];
+        document.getElementById('bounty-name').innerText = `${prefix} [${SYS.bountySat.name.substring(0,15)}]`;
+        UI.flash('rgba(255,153,0,0.5)'); // Orange flash for new mission
+    },
+    getType: (name) => {
+        for(let key in LORE_DB["en"]) { if(name.includes(key)) return key; }
+        return "UNKNOWN";
+    },
+    processScan: (delta) => {
+        if(SYS.isPaused) return;
+        const ring = document.getElementById('scan-ring');
+        const hint = document.getElementById('hud-txt-bottom');
+        const lockMsg = document.getElementById('tgt-lock-msg');
+
+        if(SYS.isScanning && SYS.targetSat) {
+            SYS.scanProgress += delta;
+            if(SYS.scanProgress >= 3000) { // 3 Seconds to scan
+                SYS.scanProgress = 3000;
+                Game.unlockIntel(SYS.targetSat);
+            } else {
+                // Update visuals
+                const pct = SYS.scanProgress / 3000;
+                ring.style.strokeDashoffset = 251 - (251 * pct);
+                ring.style.stroke = 'var(--neon-green)';
+                hint.innerText = I18N[SYS.locale]['hint_scanning'];
+                hint.style.fill = 'var(--tac-orange)';
+                lockMsg.classList.remove('hidden');
+                
+                // Shake target box slightly
+                const box = document.getElementById('target-box');
+                box.style.transform = `translate(-50%, -50%) translate(${(Math.random()-0.5)*4}px, ${(Math.random()-0.5)*4}px)`;
+            }
+        } else {
+            SYS.scanProgress = Math.max(0, SYS.scanProgress - delta * 2); // Quick decay
+            ring.style.strokeDashoffset = 251 - (251 * (SYS.scanProgress/3000));
+            ring.style.stroke = 'var(--tac-orange)';
+            hint.innerText = I18N[SYS.locale]['hint_scan'];
+            hint.style.fill = 'var(--neon-green)';
+            lockMsg.classList.add('hidden');
+        }
+    },
+    unlockIntel: (sat) => {
+        SYS.isPaused = true; Audio.success(); UI.flash();
+        
+        // Calculate XP
+        let isBounty = (SYS.bountySat === sat);
+        let xpGained = isBounty ? 150 : 50;
+        
+        // Prevent farming same sat
+        if(PLAYER.scannedIDs.includes(sat.name)) xpGained = 10; 
+        else PLAYER.scannedIDs.push(sat.name);
+
+        PLAYER.xp += xpGained;
+        
+        // Level up check
+        let nextLevelXp = (PLAYER.level + 1) * 200;
+        if(PLAYER.xp >= nextLevelXp) {
+            PLAYER.level++;
+            setTimeout(() => { UI.flash('rgba(255,215,0,0.8)'); Audio.beep(2000, 'square', 0.5); document.getElementById('dialog-title').innerText = I18N[SYS.locale]['rank_up']; }, 500);
+        }
+
+        UI.updateRank(); UI.saveGame();
+
+        // Show Intel Modal
+        const typeKey = Game.getType(sat.name);
+        const lore = LORE_DB[SYS.locale][typeKey];
+        
+        document.getElementById('intel-class').innerText = lore.class;
+        document.getElementById('intel-xp').innerText = xpGained;
+        document.getElementById('intel-overlay').style.display = 'flex';
+        
+        // Typewriter effect
+        const textEl = document.getElementById('intel-text');
+        textEl.innerHTML = `<strong>[TARGET]: ${sat.name}</strong><br><br>`;
+        let i = 0; const txt = lore.desc;
+        const typeWriter = setInterval(() => {
+            if(i < txt.length) { textEl.innerHTML += txt.charAt(i); i++; Audio.beep(3000 + Math.random()*500, 'square', 0.02, 0.01); }
+            else clearInterval(typeWriter);
+        }, 20);
+
+        document.getElementById('btn-close-intel').onclick = () => {
+            clearInterval(typeWriter);
+            document.getElementById('intel-overlay').style.display = 'none';
+            SYS.isPaused = false; SYS.scanProgress = 0; SYS.isScanning = false;
+            document.getElementById('target-box').style.transform = `translate(-50%, -50%)`; // Reset shake
+            if(isBounty) Game.assignBounty();
+        };
+    }
+};
+
+/* ==========================================================================
+   6. 3D RENDERER (Three.js)
    ========================================================================== */
 const Graphics = {
-    scene: null, camera: null, renderer: null, satMesh: null, trailLine: null,
-    TRAIL_POINTS: 200,
-    
+    scene: null, camera: null, renderer: null, mesh: null,
     init: () => {
         const cvs = document.getElementById('webgl-canvas');
-        Graphics.renderer = new THREE.WebGLRenderer({ canvas: cvs, alpha: true, antialias: true, powerPreference: "high-performance" });
+        Graphics.renderer = new THREE.WebGLRenderer({ canvas: cvs, alpha: true, antialias: true });
         Graphics.renderer.setSize(window.innerWidth, window.innerHeight);
         Graphics.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        
         Graphics.scene = new THREE.Scene();
         Graphics.camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 10000);
         Graphics.camera.rotation.order = 'YXZ'; 
-
-        // Satellites Instanced Mesh
-        const geo = new THREE.PlaneGeometry(2.5, 2.5); 
+        
+        const geo = new THREE.PlaneGeometry(3, 3); 
         const mat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, side: THREE.DoubleSide, transparent: true });
-        Graphics.satMesh = new THREE.InstancedMesh(geo, mat, SYS.sats.length);
-        Graphics.satMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-        Graphics.scene.add(Graphics.satMesh);
-
-        // Orbital Trail Setup (Red/Blue Gradient)
-        const trailGeo = new THREE.BufferGeometry();
-        const posArr = new Float32Array(Graphics.TRAIL_POINTS * 3);
-        const colArr = new Float32Array(Graphics.TRAIL_POINTS * 3);
-        trailGeo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
-        trailGeo.setAttribute('color', new THREE.BufferAttribute(colArr, 3));
+        Graphics.mesh = new THREE.InstancedMesh(geo, mat, 300);
+        Graphics.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        Graphics.scene.add(Graphics.mesh);
         
-        // Colors: Past (Blue 0x0099FF) -> Future (Red 0xFF3B30)
-        for(let i=0; i<Graphics.TRAIL_POINTS; i++) {
-            const ratio = i / Graphics.TRAIL_POINTS;
-            if(ratio < 0.25) { colArr[i*3]=0.0; colArr[i*3+1]=0.6; colArr[i*3+2]=1.0; } 
-            else { colArr[i*3]=1.0; colArr[i*3+1]=0.23; colArr[i*3+2]=0.18; }
-        }
+        window.addEventListener('resize', () => {
+            Graphics.camera.aspect = window.innerWidth/window.innerHeight; Graphics.camera.updateProjectionMatrix();
+            Graphics.renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    },
+    update: () => {
+        if(SYS.isPaused) return;
+        const date = new Date();
+        const obsGd = { longitude: SYS.geo.lon * Math.PI/180, latitude: SYS.geo.lat * Math.PI/180, height: SYS.geo.alt/1000 };
+        const gmst = satellite.gstime(date);
         
-        const trailMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9, linewidth: 2 });
-        Graphics.trailLine = new THREE.Line(trailGeo, trailMat);
-        Graphics.trailLine.visible = false;
-        Graphics.scene.add(Graphics.trailLine);
-
-        window.visualViewport.addEventListener('resize', Graphics.resize);
-        UI.log('WEBGL2 ENGINE ONLINE.');
-    },
-    resize: () => {
-        if(!Graphics.camera) return;
-        Graphics.camera.aspect = window.visualViewport.width / window.visualViewport.height;
-        Graphics.camera.updateProjectionMatrix();
-        Graphics.renderer.setSize(window.visualViewport.width, window.visualViewport.height);
-    },
-    update: (date) => {
         let dummy = new THREE.Object3D(); let closestDist = Infinity; let newTarget = null;
-        const R = 500; // Fixed projection sphere radius
-        
-        const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000);
-        const sunRad = (dayOfYear - 80) * (Math.PI / 182.5);
-        const sunVec = new THREE.Vector3(Math.cos(sunRad), 0, -Math.sin(sunRad)).normalize();
+        const R = 500; const camDir = new THREE.Vector3(0,0,-1).applyQuaternion(Graphics.camera.quaternion);
 
         for(let i=0; i<SYS.sats.length; i++) {
             const sat = SYS.sats[i];
-            const look = DataEngine.getLookAngles(sat.satrec, date);
+            const pv = satellite.propagate(sat.satrec, date);
+            if(!pv.position || isNaN(pv.position.x)) { dummy.position.set(0,-1000,0); dummy.updateMatrix(); Graphics.mesh.setMatrixAt(i, dummy.matrix); continue; }
             
-            if(look && look.el > 0) {
-                const x = R * Math.sin(look.az) * Math.cos(look.el);
-                const y = R * Math.sin(look.el);
-                const z = -R * Math.cos(look.az) * Math.cos(look.el);
-                
+            const posEcf = satellite.eciToEcf(pv.position, gmst);
+            const look = satellite.ecfToLookAngles(obsGd, posEcf);
+            
+            if(look.elevation > 0) {
+                const x = R * Math.sin(look.azimuth) * Math.cos(look.elevation);
+                const y = R * Math.sin(look.elevation);
+                const z = -R * Math.cos(look.azimuth) * Math.cos(look.elevation);
                 dummy.position.set(x, y, z); dummy.lookAt(0,0,0);
                 
-                const dot = new THREE.Vector3(x,y,z).normalize().dot(sunVec);
-                Graphics.satMesh.setColorAt(i, new THREE.Color(dot > 0.2 ? 0xFFFFFF : 0x00FFCC));
-                dummy.updateMatrix(); Graphics.satMesh.setMatrixAt(i, dummy.matrix);
-
-                const camDir = new THREE.Vector3(0,0,-1).applyQuaternion(Graphics.camera.quaternion);
-                const satDir = new THREE.Vector3(x,y,z).normalize();
-                const distToCenter = camDir.distanceTo(satDir);
+                // Color Logic (Bounty is Orange, others are White/Green based on eclipse)
+                if(sat === SYS.bountySat) Graphics.mesh.setColorAt(i, new THREE.Color(0xFF9900));
+                else Graphics.mesh.setColorAt(i, new THREE.Color(0x00FFCC));
                 
-                if(distToCenter < closestDist && distToCenter < (0.2 / SYS.zoom)) {
-                    closestDist = distToCenter; newTarget = { sat: sat, look: look, dot: dot, vec: dummy.position.clone() };
-                }
+                dummy.updateMatrix(); Graphics.mesh.setMatrixAt(i, dummy.matrix);
+
+                const satDir = new THREE.Vector3(x,y,z).normalize();
+                const dist = camDir.distanceTo(satDir);
+                // Reticle capture radius (larger if zoomed in)
+                if(dist < closestDist && dist < (0.3 / SYS.zoom)) { closestDist = dist; newTarget = { sat:sat, dist:look.rangeSat, vec:dummy.position.clone() }; }
             } else {
-                dummy.position.set(0,-1000,0); dummy.updateMatrix(); Graphics.satMesh.setMatrixAt(i, dummy.matrix);
+                dummy.position.set(0,-1000,0); dummy.updateMatrix(); Graphics.mesh.setMatrixAt(i, dummy.matrix);
             }
         }
-        Graphics.satMesh.instanceMatrix.needsUpdate = true;
-        if(Graphics.satMesh.instanceColor) Graphics.satMesh.instanceColor.needsUpdate = true;
+        Graphics.mesh.instanceMatrix.needsUpdate = true;
+        if(Graphics.mesh.instanceColor) Graphics.mesh.instanceColor.needsUpdate = true;
 
-        // Target updating & Orbit Trail
-        const tgtBox = document.getElementById('target-box');
+        // Target Logic
+        const box = document.getElementById('target-box');
         if(newTarget) {
-            if(SYS.targetSat !== newTarget.sat) {
-                SYS.targetSat = newTarget.sat;
-                UI.flash(); AudioSynth.lock();
-                document.getElementById('target-info').style.display = 'block';
-                document.getElementById('tgt-name').innerText = newTarget.sat.name.substring(0,22);
-                Graphics.trailLine.visible = true;
+            if(SYS.targetSat !== newTarget.sat) { 
+                SYS.targetSat = newTarget.sat; Audio.beep(1200, 'square', 0.1); 
+                document.getElementById('reticle-inner').style.stroke = 'var(--alert-red)';
+                document.getElementById('center-reticle').style.transform = `translate(-50%, -50%) scale(1.1)`; // Kick back
+                setTimeout(()=>document.getElementById('center-reticle').style.transform = `translate(-50%, -50%) scale(1)`, 100);
             }
             
-            // Render Trail (T-15 mins to T+45 mins)
-            const posAttr = Graphics.trailLine.geometry.attributes.position;
-            const nowTime = date.getTime();
-            for(let i=0; i<Graphics.TRAIL_POINTS; i++) {
-                const offsetMs = (i - (Graphics.TRAIL_POINTS*0.25)) * 18000; // 60 mins total
-                const tLook = DataEngine.getLookAngles(SYS.targetSat.satrec, new Date(nowTime + offsetMs));
-                if(tLook) {
-                    const tx = R * Math.sin(tLook.az) * Math.cos(tLook.el);
-                    const ty = R * Math.sin(tLook.el);
-                    const tz = -R * Math.cos(tLook.az) * Math.cos(tLook.el);
-                    posAttr.setXYZ(i, tx, ty, tz);
-                } else posAttr.setXYZ(i, 0,0,0);
-            }
-            posAttr.needsUpdate = true;
+            document.getElementById('tel-rng').innerText = newTarget.dist.toFixed(1) + ' km';
+            
+            // Project 3D to 2D
+            const p = newTarget.vec.clone().project(Graphics.camera);
+            if(p.z < 1) {
+                const sx = (p.x * .5 + .5) * window.innerWidth; const sy = (p.y * -.5 + .5) * window.innerHeight;
+                // Only move box if not actively scanning (freeze box during scan shake)
+                if(!SYS.isScanning || SYS.scanProgress === 0) box.style.transform = `translate(-50%, -50%) translate(${sx}px, ${sy}px)`;
+                box.style.display = 'block';
 
-            // Project 3D pos to 2D Screen for Current Position Box
-            const projVec = newTarget.vec.clone();
-            projVec.project(Graphics.camera);
-            if(projVec.z < 1) { // In front of camera
-                const sx = (projVec.x * .5 + .5) * window.innerWidth;
-                const sy = (projVec.y * -.5 + .5) * window.innerHeight;
-                tgtBox.style.transform = `translate(-50%, -50%) translate(${sx}px, ${sy}px)`;
-                tgtBox.style.display = 'block';
-                tgtBox.style.opacity = 1;
-            } else tgtBox.style.opacity = 0;
+                // Check if perfectly centered for Data-Link (dist < 0.08)
+                if(closestDist < (0.08 / SYS.zoom)) {
+                    if(!SYS.isScanning) { SYS.isScanning = true; Audio.startScan(); }
+                } else {
+                    if(SYS.isScanning) { SYS.isScanning = false; Audio.stopScan(); }
+                }
+            } else box.style.display = 'none';
 
-            document.getElementById('tgt-rng').innerText = `${newTarget.look.r.toFixed(1)} km`;
-            document.getElementById('tgt-vel').innerText = `${newTarget.look.v.toFixed(2)} km/s`;
-            document.getElementById('tel-env').innerText = newTarget.dot > 0.2 ? I18N[SYS.locale]['env_day'] : I18N[SYS.locale]['env_night'];
         } else {
-            SYS.targetSat = null;
-            document.getElementById('target-info').style.display = 'none';
-            tgtBox.style.display = 'none';
-            Graphics.trailLine.visible = false;
+            SYS.targetSat = null; box.style.display = 'none'; document.getElementById('tel-rng').innerText = '--- km';
+            document.getElementById('reticle-inner').style.stroke = 'var(--neon-green)';
+            if(SYS.isScanning) { SYS.isScanning = false; Audio.stopScan(); }
         }
 
         Graphics.renderer.render(Graphics.scene, Graphics.camera);
@@ -707,93 +580,67 @@ const Graphics = {
 };
 
 /* ==========================================================================
-   7. INPUT & HUD CONTROLLER
+   7. INPUT & HUD UPDATE
    ========================================================================== */
-const InputController = {
-    init: () => {
-        const mc = new Hammer(document.body); mc.get('pinch').set({ enable: true });
-        let startZ = 1.0;
-        mc.on('pinchstart', () => { startZ = SYS.zoom; });
-        mc.on('pinchmove', e => {
-            const prev = SYS.zoom; SYS.zoom = Math.max(1.0, Math.min(SYS.maxZoom, startZ * e.scale));
-            if(Graphics.camera) { Graphics.camera.fov = 75 / SYS.zoom; Graphics.camera.updateProjectionMatrix(); }
-            AudioSynth.motor(Math.abs(SYS.zoom - prev));
-        });
-        document.body.addEventListener('touchmove', e => { if(!SYS.isCalibrating) e.preventDefault(); }, { passive: false });
-    },
-    updateHUD: () => {
-        SYS.smoothOrient.alpha += (SYS.orient.alpha - SYS.smoothOrient.alpha) * 0.1;
-        SYS.smoothOrient.beta += (SYS.orient.beta - SYS.smoothOrient.beta) * 0.1;
-        SYS.smoothOrient.gamma += (SYS.orient.gamma - SYS.smoothOrient.gamma) * 0.1;
+let lastTime = performance.now();
+function loop() {
+    requestAnimationFrame(loop);
+    const now = performance.now(); const delta = now - lastTime; lastTime = now;
+    
+    if(SYS.isPaused) return;
 
-        const cx = SYS.smoothOrient.beta + SYS.offset.beta;
-        let cy = SYS.smoothOrient.alpha + SYS.offset.alpha;
-        const cz = -(SYS.smoothOrient.gamma + SYS.offset.gamma);
+    // Smooth Gyro
+    const o = SYS.orient; const s = SYS.offset;
+    const cx = o.beta + s.beta; const cy = o.alpha + s.alpha; const cz = -(o.gamma + s.gamma);
+    if(Graphics.camera) Graphics.camera.rotation.set(cx, cy, cz, 'YXZ');
+    
+    // HUD Updates
+    let az = (cy * 180 / Math.PI) % 360; if(az < 0) az += 360;
+    document.getElementById('compass-tape').style.transform = `translateX(${-az * 4}px)`;
+    document.getElementById('tel-az').innerText = az.toFixed(1) + '°';
+    document.getElementById('tel-el').innerText = (cx * 180 / Math.PI).toFixed(1) + '°';
+    
+    const d = new Date();
+    document.getElementById('tel-time').innerText = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
 
-        if(Graphics.camera) Graphics.camera.rotation.set(cx, cy, cz, 'YXZ');
-        
-        let degAz = (cy * 180 / Math.PI) % 360; if(degAz < 0) degAz += 360;
-        document.getElementById('compass-tape').style.transform = `translateX(${-degAz * 4}px)`;
-        
-        let degEl = cx * 180 / Math.PI;
-        document.getElementById('pitch-ladder').style.transform = `translateY(${degEl * SYS.zoom * 2}px) rotate(${-cz}rad)`;
-        
-        const outer = document.getElementById('reticle-inner'); outer.setAttribute('r', 80 + (SYS.zoom * 5));
-        const zLblStr = `${I18N[SYS.locale]['lbl_zoom']} ${SYS.zoom.toFixed(1)}x`;
-        if(SYS.zoom >= 5.0) {
-            outer.style.stroke = 'var(--tac-orange)'; document.getElementById('hud-txt-bottom').style.fill = 'var(--tac-orange)';
-        } else {
-            outer.style.stroke = 'var(--neon-green)'; document.getElementById('hud-txt-bottom').style.fill = 'var(--neon-green)';
-        }
-        document.getElementById('hud-txt-bottom').innerText = zLblStr;
-
-        document.getElementById('tel-lat').innerText = SYS.geo.lat.toFixed(4);
-        document.getElementById('tel-lon').innerText = SYS.geo.lon.toFixed(4);
-        document.getElementById('tel-alt').innerText = SYS.geo.alt ? SYS.geo.alt.toFixed(1) + ' m' : '0.0 m';
-        document.getElementById('tel-az').innerText = degAz.toFixed(1) + '°';
-        document.getElementById('tel-el').innerText = degEl.toFixed(1) + '°';
-        document.getElementById('tel-rl').innerText = (cz * 180 / Math.PI).toFixed(1) + '°';
-        document.getElementById('tel-fov').innerText = (75 / SYS.zoom).toFixed(1) + '°';
-
-        const t = Sensors.getTime();
-        document.getElementById('tel-time').innerText = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}:${String(t.getSeconds()).padStart(2,'0')}.${String(t.getMilliseconds()).padStart(3,'0')}`;
-
-        SYS.frames++; const now = performance.now();
-        if(now - SYS.lastFpsTime >= 1000) {
-            document.getElementById('tel-fps').innerText = SYS.frames;
-            SYS.frames = 0; SYS.lastFpsTime = now;
-        }
-    }
-};
-
-/* ==========================================================================
-   8. BOOT & MAIN LOOP
-   ========================================================================== */
-function animate() {
-    requestAnimationFrame(animate);
-    InputController.updateHUD();
-    Graphics.update(Sensors.getTime());
+    Graphics.update();
+    Game.processScan(delta);
 }
 
-window.onload = async () => {
-    UI.init(); UI.log('SYSTEM BOOT INITIALIZED...');
-    const reqFS = () => { if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{}); };
-    document.body.addEventListener('click', reqFS, { once: true });
+/* ==========================================================================
+   8. BOOT SEQUENCE
+   ========================================================================== */
+window.onload = () => {
+    UI.init();
+    
+    const mc = new Hammer(document.body); mc.get('pinch').set({ enable: true });
+    let startZ = 1.0;
+    mc.on('pinchstart', () => { startZ = SYS.zoom; });
+    mc.on('pinchmove', e => {
+        SYS.zoom = Math.max(1.0, Math.min(SYS.maxZoom, startZ * e.scale));
+        if(Graphics.camera) { Graphics.camera.fov = 75 / SYS.zoom; Graphics.camera.updateProjectionMatrix(); document.getElementById('tel-fov').innerText = Graphics.camera.fov.toFixed(1)+'°';}
+    });
 
-    setTimeout(() => {
-        document.getElementById('boot-terminal').style.opacity = 0;
-        UI.dialog('title_perm', 'desc_perm', 'btn_accept', async () => {
-            reqFS(); AudioSynth.init(); AudioSynth.beep(600, 'square', 0.1);
-            UI.log('REQUESTING HARDWARE CLEARANCE...');
-            await Promise.all([ Sensors.initCamera(), Sensors.initGPS(), Sensors.initGyro() ]);
-            UI.log('FETCHING ORBITAL TELEMETRY...'); await DataEngine.fetchTLE();
-            Graphics.init(); InputController.init();
-            setTimeout(() => document.getElementById('boot-terminal').classList.add('hidden'), 1000);
-            UI.flash(); animate();
-        });
-    }, 1500);
+    // Double tap to Calibrate North
+    mc.on('doubletap', () => {
+        SYS.offset.alpha = -SYS.orient.alpha; SYS.offset.beta = -SYS.orient.beta; SYS.offset.gamma = -SYS.orient.gamma;
+        UI.flash('var(--tac-orange)'); Audio.beep(1500, 'square', 0.2);
+    });
+
+    document.getElementById('dialog-btn-ok').onclick = async () => {
+        document.getElementById('dialog-layer').style.display = 'none';
+        if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{});
+        Audio.init(); Audio.beep();
+        
+        await Sensors.init();
+        await Sensors.fetchTLE();
+        Graphics.init();
+        UI.flash();
+        
+        lastTime = performance.now();
+        loop();
+    };
 };
-
 </script>
 </body>
 </html>
