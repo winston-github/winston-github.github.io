@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>MIL-SPEC AR SATELLITE TRACKER</title>
+    <!-- PWA Setup -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#000000">
+    <link rel="manifest" id="manifest-link">
+    
+    <!-- Dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/4.1.3/satellite.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
+
+    <style>
+        /* ==========================================================================
+           CORE & RESET (Human Factors & Ergonomics)
+           ========================================================================== */
+        :root {
+            --sat-top: env(safe-area-inset-top, 20px);
+            --sat-bottom: env(safe-area-inset-bottom, 20px);
+            --sat-left: env(safe-area-inset-left, 15px);
+            --sat-right: env(safe-area-inset-right, 15px);
+            --neon-green: #00FFCC;
+            --tac-orange: #FF9900;
+            --alert-red: #FF3B30;
+            --dim-blue: #0099FF;
+            --bg-black: #050505;
+            --hud-glow: 0 0 6px rgba(0, 255, 204, 0.6);
+            --alert-glow: 0 0 8px rgba(255, 59, 48, 0.8);
+        }
+
+        * {
+            margin: 0; padding: 0; box-sizing: border-box;
+            user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+            touch-action: none; overscroll-behavior: none;
+        }
+
+        body, html {
+            width: 100vw; height: 100dvh; /* dvh solves iOS bottom bar issues */
+            background-color: var(--bg-black);
+            overflow: hidden;
+            font-family: "SF Mono", "Courier New", Courier, monospace;
+            color: var(--neon-green);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ==========================================================================
+           LAYER 1: CAMERA PASSTHROUGH & VFX
+           ========================================================================== */
+        #bg-camera {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100dvh;
+            object-fit: cover; z-index: 1; transform: translateZ(0);
+            background: var(--bg-black); opacity: 0; transition: opacity 1s ease;
+        }
+
+        .vfx-layer {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100dvh; pointer-events: none;
+        }
+
+        #vfx-scanlines {
+            z-index: 2;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 3px 100%;
+            opacity: 0.8; mix-blend-mode: overlay;
+        }
+
+        #vfx-vignette {
+            z-index: 2;
+            background: radial-gradient(circle, transparent 50%, rgba(0,0,0,0.8) 100%);
+        }
+
+        #vfx-flash {
+            z-index: 9000; background: var(--neon-green); opacity: 0; mix-blend-mode: screen;
+        }
+
+        /* ==========================================================================
+           LAYER 2: WebGL AR CANVAS
+           ========================================================================== */
+        #webgl-canvas {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100dvh;
+            z-index: 3; pointer-events: none;
+        }
+
+        /* ==========================================================================
+           LAYER 3: TACTICAL HUD (Crosshair, Pitch Ladder, Compass)
+           ========================================================================== */
+        #hud-container {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100dvh;
+            z-index: 4; pointer-events: none; filter: drop-shadow(var(--hud-glow));
+        }
+
+        .svg-icon { vector-effect: non-scaling-stroke; stroke-width: 1.2px; fill: none; stroke: var(--neon-green); stroke-linecap: square; }
+        .text-svg { fill: var(--neon-green); stroke: none; font-size: 10px; font-weight: bold; text-anchor: middle; letter-spacing: 1px; }
+        
+        #center-reticle {
+            position: absolute; top: 50%; left: 50%; width: 240px; height: 240px;
+            transform: translate(-50%, -50%); transform-origin: center center;
+            transition: width 0.1s, height 0.1s;
+        }
+
+        /* Pitch Ladder & Compass Tape */
+        #compass-tape-container {
+            position: absolute; top: calc(var(--sat-top) + 10px); left: 50%; transform: translateX(-50%);
+            width: 200px; height: 20px; overflow: hidden;
+            border-left: 2px solid var(--neon-green); border-right: 2px solid var(--neon-green);
+        }
+        #compass-tape { display: flex; position: absolute; left: 100px; height: 100%; align-items: flex-end; }
+        .compass-tick { width: 2px; height: 8px; background: var(--neon-green); position: absolute; bottom: 0; transform: translateX(-50%); }
+        .compass-label { position: absolute; bottom: 10px; color: var(--neon-green); font-size: 10px; transform: translateX(-50%); font-weight: bold; }
+        #compass-arrow {
+            position: absolute; top: calc(var(--sat-top) + 32px); left: 50%; transform: translateX(-50%);
+            width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid var(--tac-orange);
+        }
+
+        /* ==========================================================================
+           LAYER 4: DATA TELEMETRY PANELS
+           ========================================================================== */
+        .panel {
+            position: absolute; z-index: 5; font-size: 11px; font-weight: 600; line-height: 1.6;
+            letter-spacing: 0.5px; text-shadow: var(--hud-glow); pointer-events: none;
+            display: flex; flex-direction: column; max-width: 45vw;
+        }
+
+        #panel-top-left { top: calc(var(--sat-top) + 15px); left: var(--sat-left); }
+        #panel-top-right { top: calc(var(--sat-top) + 15px); right: var(--sat-right); text-align: right; align-items: flex-end; }
+        #panel-bottom-left { bottom: calc(var(--sat-bottom) + 15px); left: var(--sat-left); }
+        #panel-bottom-right { bottom: calc(var(--sat-bottom) + 15px); right: var(--sat-right); text-align: right; align-items: flex-end; }
+
+        .data-row { display: flex; justify-content: space-between; gap: 10px; width: 100%; }
+        .data-label { color: rgba(0, 255, 204, 0.7); }
+        .data-val { color: var(--neon-green); }
+        
+        .warn-text { color: var(--tac-orange); text-shadow: 0 0 6px var(--tac-orange); animation: blink 1s infinite; }
+        .alert-text { color: var(--alert-red); text-shadow: var(--alert-glow); animation: rapid-blink 0.3s infinite; }
+        
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        @keyframes rapid-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        /* Tactical Interactive Buttons */
+        .tac-btn {
+            pointer-events: auto; cursor: pointer; width: 44px; height: 44px; margin-bottom: 12px;
+            background: rgba(0, 255, 204, 0.05); border: 1px solid rgba(0, 255, 204, 0.3);
+            border-radius: 4px; display: flex; justify-content: center; align-items: center;
+            transition: background 0.2s, transform 0.1s; backdrop-filter: blur(4px);
+        }
+        .tac-btn:active { background: rgba(0, 255, 204, 0.3); transform: scale(0.95); }
+        .tac-btn svg { width: 24px; height: 24px; }
+
+        /* Target Lock Info */
+        #target-info {
+            position: absolute; bottom: calc(var(--sat-bottom) + 80px); left: 50%; transform: translateX(-50%);
+            border: 1px solid var(--neon-green); padding: 8px 16px; background: rgba(0,20,10,0.6);
+            backdrop-filter: blur(4px); text-align: center; font-size: 12px; display: none;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+        }
+        #target-info::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--tac-orange);
+        }
+
+        /* ==========================================================================
+           LAYER 9999: CUSTOM DOM DIALOGS & BOOT SEQUENCE
+           ========================================================================== */
+        #dialog-layer {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100dvh;
+            background: rgba(0, 0, 0, 0.85); z-index: 9999; display: flex; justify-content: center; align-items: center;
+            pointer-events: auto; backdrop-filter: blur(8px);
+        }
+
+        .mil-box {
+            background: rgba(10, 10, 10, 0.95); border: 2px solid var(--tac-orange);
+            background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255, 153, 0, 0.03) 10px, rgba(255, 153, 0, 0.03) 20px);
+            padding: 25px; width: 85%; max-width: 420px; box-shadow: 0 0 20px rgba(255, 153, 0, 0.2);
+            position: relative; text-align: center; opacity: 0; transform: scale(0.9); transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .mil-box.active { opacity: 1; transform: scale(1); }
+        .mil-box::before, .mil-box::after { content: ''; position: absolute; width: 30px; height: 30px; border: 3px solid var(--tac-orange); }
+        .mil-box::before { top: -3px; left: -3px; border-right: none; border-bottom: none; }
+        .mil-box::after { bottom: -3px; right: -3px; border-left: none; border-top: none; }
+
+        .dialog-title { color: var(--tac-orange); font-size: 18px; font-weight: bold; margin-bottom: 15px; letter-spacing: 2px; border-bottom: 1px solid rgba(255,153,0,0.3); padding-bottom: 10px; }
+        .dialog-content { color: var(--neon-green); font-size: 13px; line-height: 1.6; margin-bottom: 25px; text-align: left; }
+        .dialog-btn {
+            width: 100%; padding: 12px; background: transparent; border: 1px solid var(--tac-orange);
+            color: var(--tac-orange); font-family: inherit; font-size: 14px; font-weight: bold; cursor: pointer; text-transform: uppercase;
+            letter-spacing: 2px; transition: all 0.2s; position: relative; overflow: hidden;
+        }
+        .dialog-btn:active { background: var(--tac-orange); color: var(--bg-black); }
+        .dialog-btn::before {
+            content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); transition: 0.5s;
+        }
+        .dialog-btn:hover::before { left: 100%; }
+
+        /* Boot Terminal */
+        #boot-terminal {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100dvh; z-index: 10000;
+            background: var(--bg-black); color: var(--neon-green); padding: 20px; font-size: 12px;
+            display: flex; flex-direction: column; justify-content: flex-end; pointer-events: none; transition: opacity 0.5s;
+        }
+        .log-line { margin-bottom: 5px; opacity: 0; animation: typeIn 0.1s forwards; }
+        @keyframes typeIn { to { opacity: 1; } }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <!-- LAYER 1: VFX & Camera -->
+    <video id="bg-camera" autoplay playsinline muted></video>
+    <div id="vfx-scanlines" class="vfx-layer"></div>
+    <div id="vfx-vignette" class="vfx-layer"></div>
+    <div id="vfx-flash" class="vfx-layer"></div>
+
+    <!-- LAYER 2: 3D Engine -->
+    <canvas id="webgl-canvas"></canvas>
+
+    <!-- LAYER 3: HUD Elements -->
+    <div id="hud-container">
+        <!-- Dynamic Compass -->
+        <div id="compass-tape-container"><div id="compass-tape"></div></div>
+        <div id="compass-arrow"></div>
+
+        <!-- Central Targeting Reticle -->
+        <svg id="center-reticle" viewBox="0 0 240 240">
+            <defs>
+                <filter id="glow"><feGaussianBlur stdDeviation="2" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <circle cx="120" cy="120" r="110" class="svg-icon" stroke-dasharray="2, 6" stroke-opacity="0.5"/>
+            <circle cx="120" cy="120" r="80" class="svg-icon" id="reticle-inner"/>
+            
+            <!-- Crosshairs -->
+            <line x1="120" y1="10" x2="120" y2="30" class="svg-icon"/>
+            <line x1="120" y1="210" x2="120" y2="230" class="svg-icon"/>
+            <line x1="10" y1="120" x2="30" y2="120" class="svg-icon"/>
+            <line x1="210" y1="120" x2="230" y2="120" class="svg-icon"/>
+            
+            <!-- Dynamic Pitch Ladder Group (moves vertically) -->
+            <g id="pitch-ladder">
+                <line x1="80" y1="120" x2="160" y2="120" class="svg-icon" stroke-width="1.5" stroke="var(--tac-orange)"/>
+                <circle cx="120" cy="120" r="3" fill="var(--tac-orange)"/>
+            </g>
+
+            <!-- Text Data around Reticle -->
+            <text x="120" y="28" class="text-svg" id="hud-txt-top">TGT</text>
+            <text x="212" y="123" class="text-svg" id="hud-txt-right">E</text>
+            <text x="120" y="218" class="text-svg" id="hud-txt-bottom" data-i18n="sniper_mode">ZOOM 1.0x</text>
+            <text x="28" y="123" class="text-svg" id="hud-txt-left">W</text>
+        </svg>
+
+        <!-- Target Info Box -->
+        <div id="target-info">
+            <div style="color:var(--tac-orange); font-weight:bold; letter-spacing:2px; margin-bottom:4px;" id="tgt-name">NO TARGET</div>
+            <div class="data-row"><span class="data-label">RNG</span><span class="data-val" id="tgt-rng">--- km</span></div>
+            <div class="data-row"><span class="data-label">VEL</span><span class="data-val" id="tgt-vel">--- km/s</span></div>
+        </div>
+    </div>
+
+    <!-- LAYER 4: Telemetry -->
+    <div id="panel-top-left" class="panel">
+        <div class="tac-btn" id="btn-lang">
+            <svg viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2zm0 6l5 10H7l5-10z" class="svg-icon"/><circle cx="12" cy="15" r="2" class="svg-icon"/></svg>
+        </div>
+        <div class="data-row"><span class="data-label">SYS:</span><span class="data-val" id="tel-sys" data-i18n="sys_online">ONLINE</span></div>
+        <div class="data-row"><span class="data-label">LAT:</span><span class="data-val" id="tel-lat">--.----</span></div>
+        <div class="data-row"><span class="data-label">LON:</span><span class="data-val" id="tel-lon">--.----</span></div>
+        <div class="data-row"><span class="data-label">ALT:</span><span class="data-val" id="tel-alt">--- m</span></div>
+    </div>
+
+    <div id="panel-top-right" class="panel">
+        <div class="tac-btn" id="btn-audio">
+            <svg viewBox="0 0 24 24"><path d="M11 5L6 9H2v6h4l5 4V5z M15.5 12c0-1.5-1-2.8-2.5-3.3v6.6c1.5-.5 2.5-1.8 2.5-3.3z" class="svg-icon" id="audio-icon"/></svg>
+        </div>
+        <div class="data-row"><span class="data-label">AZ:</span><span class="data-val" id="tel-az">000.0°</span></div>
+        <div class="data-row"><span class="data-label">EL:</span><span class="data-val" id="tel-el">00.0°</span></div>
+        <div class="data-row"><span class="data-label">RL:</span><span class="data-val" id="tel-rl">00.0°</span></div>
+        <div class="data-row"><span class="data-label">FOV:</span><span class="data-val" id="tel-fov">75°</span></div>
+    </div>
+
+    <div id="panel-bottom-left" class="panel">
+        <div class="data-row"><span class="data-label">TME:</span><span class="data-val" id="tel-time">00:00:00.000</span></div>
+        <div id="tel-cache" class="warn-text hidden" data-i18n="cache_overdue">[CACHE_OVERDUE]</div>
+        <div id="tel-audio-warn" class="warn-text hidden">[AUDIO_OFFLINE]</div>
+        <div id="tel-gyro-warn" class="alert-text hidden">[GYRO_OFFLINE]</div>
+    </div>
+
+    <div id="panel-bottom-right" class="panel">
+        <div class="data-row"><span class="data-label">SAT:</span><span class="data-val" id="tel-sat-count">0</span></div>
+        <div class="data-row"><span class="data-label">ENV:</span><span class="data-val" id="tel-env">---</span></div>
+        <div class="data-row"><span class="data-label">FPS:</span><span class="data-val" id="tel-fps">60</span></div>
+    </div>
+
+    <!-- LAYER 9999: Dialogs -->
+    <div id="dialog-layer">
+        <div class="mil-box" id="dialog-box">
+            <div class="dialog-title" id="dialog-title">AUTHORIZATION REQUIRED</div>
+            <div class="dialog-content" id="dialog-text">Initializing Tactical AR System.<br><br>Access to Camera, GPS, and Gyroscope is mandatory for tracking orbital vectors.</div>
+            <button class="dialog-btn" id="dialog-btn-ok" data-i18n="btn_accept">ENGAGE SYSTEMS</button>
+        </div>
+    </div>
+
+    <!-- Boot Terminal -->
+    <div id="boot-terminal"></div>
+
+<script>
+/**
+ * AR SATELLITE TRACKER (SPA)
+ * Extreme strict adherence to single-file, no-BS constraint.
+ * Enhanced Math, Visuals, and Fallbacks for mobile AR perfection.
+ */
+
+/* ==========================================================================
+   1. GLOBAL STATE & CONFIG
+   ========================================================================== */
+const SYS = {
+    locale: "en",
+    audioEnabled: true,
+    zoom: 1.0,
+    maxZoom: 8.0,
+    fps: 0,
+    frames: 0,
+    lastFpsTime: 0,
+    targetSat: null,
+    sats: [], // { name, satrec, obj3d, traceLine, isVisible }
+    geo: { lat: 0, lon: 0, alt: 0, timestamp: 0, perfAnchor: 0 },
+    orient: { alpha: 0, beta: 0, gamma: 0, heading: 0 }, // Raw
+    smoothOrient: { alpha: 0, beta: 0, gamma: 0 }, // EMA filtered
+    offset: { alpha: 0, beta: 0, gamma: 0 } // Calibration
+};
+
+const I18N = {
+    "zh-Hant": {
+        "sys_online": "連線", "cache_overdue": "[快取過期]", "btn_accept": "授權啟動",
+        "title_perm": "系統權限請求", "desc_perm": "啟動戰術 AR 系統需要相機、GPS 與陀螺儀權限以校準軌道向量。",
+        "err_data": "無網路連線，無法獲取星曆數據。", "err_gps": "GPS 訊號遺失，降級至本機時間。",
+        "err_sensor": "無法存取陀螺儀，降級雷達模式。", "env_day": "高反光", "env_night": "潛伏"
+    },
+    "en": {
+        "sys_online": "ONLINE", "cache_overdue": "[CACHE_OVERDUE]", "btn_accept": "ENGAGE SYSTEMS",
+        "title_perm": "AUTHORIZATION REQUIRED", "desc_perm": "Camera, GPS, and Gyroscope access is mandatory for tracking orbital vectors.",
+        "err_data": "No network connection. Orbit data unavailable.", "err_gps": "GPS signal lost. Downgrading to local clock.",
+        "err_sensor": "Gyroscope absent. Defaulting to virtual radar.", "env_day": "DAYLIGHT", "env_night": "ECLIPSE"
+    }
+};
+
+/* ==========================================================================
+   2. UTILS, UI & BOOT LOGIC
+   ========================================================================== */
+const UI = {
+    init: async () => {
+        // PWA Manifest
+        document.getElementById('manifest-link').href = 'data:application/manifest+json;charset=utf-8,' + encodeURIComponent(JSON.stringify({
+            name: "Tactical AR Tracker", display: "standalone", background_color: "#050505", theme_color: "#00FFCC"
+        }));
+        // Locale
+        const cached = localStorage.getItem('TAC_LANG');
+        if(cached) SYS.locale = cached;
+        else SYS.locale = navigator.languages.some(l => l.includes('zh')) ? "zh-Hant" : "en";
+        UI.applyLang();
+        
+        document.getElementById('btn-lang').onclick = () => {
+            SYS.locale = SYS.locale === "en" ? "zh-Hant" : "en";
+            localStorage.setItem('TAC_LANG', SYS.locale);
+            UI.applyLang(); AudioSynth.beep();
+        };
+
+        // Render Compass Tape
+        let tapeHTML = '';
+        for(let i=0; i<=360; i+=15) {
+            tapeHTML += `<div class="compass-tick" style="left: ${i*4}px"></div>`;
+            if(i%45 === 0) {
+                const lbl = i===0||i===360?'N':i===90?'E':i===180?'S':i===270?'W':i;
+                tapeHTML += `<div class="compass-label" style="left: ${i*4}px">${lbl}</div>`;
+            }
+        }
+        document.getElementById('compass-tape').innerHTML = tapeHTML;
+    },
+    applyLang: () => {
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const k = el.getAttribute('data-i18n');
+            if(I18N[SYS.locale][k]) el.innerText = I18N[SYS.locale][k];
+        });
+    },
+    log: (msg) => {
+        const term = document.getElementById('boot-terminal');
+        const div = document.createElement('div');
+        div.className = 'log-line';
+        div.innerText = `[${new Date().toISOString().split('T')[1].slice(0,-1)}] ${msg}`;
+        term.appendChild(div);
+        if(term.childElementCount > 20) term.removeChild(term.firstChild);
+    },
+    dialog: (titleKey, textKey, btnKey, callback) => {
+        document.getElementById('dialog-title').innerText = I18N[SYS.locale][titleKey] || titleKey;
+        document.getElementById('dialog-text').innerHTML = I18N[SYS.locale][textKey] || textKey;
+        document.getElementById('dialog-btn-ok').innerText = I18N[SYS.locale][btnKey] || btnKey;
+        
+        const layer = document.getElementById('dialog-layer');
+        const box = document.getElementById('dialog-box');
+        layer.classList.remove('hidden');
+        setTimeout(() => box.classList.add('active'), 50);
+
+        document.getElementById('dialog-btn-ok').onclick = () => {
+            box.classList.remove('active');
+            setTimeout(() => layer.classList.add('hidden'), 300);
+            if(callback) callback();
+        };
+    },
+    flash: () => {
+        const f = document.getElementById('vfx-flash');
+        f.style.opacity = 1;
+        f.style.transition = 'none';
+        setTimeout(() => { f.style.transition = 'opacity 0.5s ease-out'; f.style.opacity = 0; }, 50);
+    }
+};
+
+/* ==========================================================================
+   3. AUDIO SYNTHESIS (Zero Dependency)
+   ========================================================================== */
+const AudioSynth = {
+    ctx: null, master: null,
+    init: () => {
+        if(!SYS.audioEnabled) return;
+        try {
+            AudioSynth.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            AudioSynth.master = AudioSynth.ctx.createGain();
+            AudioSynth.master.connect(AudioSynth.ctx.destination);
+            if(AudioSynth.ctx.state === 'suspended') AudioSynth.ctx.resume();
+            
+            document.getElementById('btn-audio').onclick = () => {
+                SYS.audioEnabled = !SYS.audioEnabled;
+                AudioSynth.master.gain.value = SYS.audioEnabled ? 1 : 0;
+                document.getElementById('audio-icon').style.opacity = SYS.audioEnabled ? 1 : 0.3;
+            };
+        } catch(e) { SYS.audioEnabled = false; document.getElementById('tel-audio-warn').classList.remove('hidden'); }
+    },
+    beep: (freq = 800, type = 'square', dur = 0.1) => {
+        if(!SYS.audioEnabled || !AudioSynth.ctx || AudioSynth.ctx.state !== 'running') return;
+        const osc = AudioSynth.ctx.createOscillator();
+        const gain = AudioSynth.ctx.createGain();
+        osc.type = type; osc.frequency.setValueAtTime(freq, AudioSynth.ctx.currentTime);
+        gain.gain.setValueAtTime(0, AudioSynth.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.1, AudioSynth.ctx.currentTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, AudioSynth.ctx.currentTime + dur);
+        osc.connect(gain); gain.connect(AudioSynth.master);
+        osc.start(); osc.stop(AudioSynth.ctx.currentTime + dur);
+    },
+    lock: () => {
+        AudioSynth.beep(1200, 'square', 0.05);
+        setTimeout(() => AudioSynth.beep(1600, 'square', 0.15), 60);
+    },
+    motor: (delta) => {
+        if(!SYS.audioEnabled || !AudioSynth.ctx || delta < 0.05) return;
+        AudioSynth.beep(50 + (delta * 50), 'sawtooth', 0.05);
+    }
+};
+
+/* ==========================================================================
+   4. HARDWARE SENSORS & TIME KEEPER
+   ========================================================================== */
+const Sensors = {
+    getTime: () => {
+        if(SYS.geo.perfAnchor === 0) return new Date();
+        return new Date(SYS.geo.timestamp + (performance.now() - SYS.geo.perfAnchor));
+    },
+    initGPS: () => {
+        return new Promise((resolve) => {
+            if(!navigator.geolocation) return resolve();
+            navigator.geolocation.getCurrentPosition(pos => {
+                SYS.geo.lat = pos.coords.latitude;
+                SYS.geo.lon = pos.coords.longitude;
+                SYS.geo.alt = pos.coords.altitude || 0;
+                SYS.geo.timestamp = pos.timestamp;
+                SYS.geo.perfAnchor = performance.now();
+                UI.log(`GPS LOCK: ${SYS.geo.lat.toFixed(4)}, ${SYS.geo.lon.toFixed(4)}`);
+                resolve();
+            }, err => {
+                document.getElementById('tel-lat').innerText = 'ERR';
+                resolve(); // Proceed anyway
+            }, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+        });
+    },
+    initGyro: () => {
+        return new Promise((resolve) => {
+            const startListing = () => {
+                window.addEventListener('deviceorientation', e => {
+                    if(e.alpha === null) return;
+                    const deg2rad = Math.PI / 180;
+                    // Handle iOS webkitCompassHeading for true north mapping
+                    let alphaDeg = e.alpha;
+                    if (e.webkitCompassHeading !== undefined) {
+                        alphaDeg = 360 - e.webkitCompassHeading;
+                    } else if (e.absolute) {
+                        alphaDeg = 360 - e.alpha; 
+                    }
+                    
+                    SYS.orient.alpha = alphaDeg * deg2rad;
+                    SYS.orient.beta = e.beta * deg2rad;
+                    SYS.orient.gamma = e.gamma * deg2rad;
+                });
+                UI.log('GYRO ALIGNED.'); resolve();
+            };
+
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission().then(res => {
+                    if(res === 'granted') startListing();
+                    else { document.getElementById('tel-gyro-warn').classList.remove('hidden'); resolve(); }
+                }).catch(() => resolve());
+            } else { startListing(); }
+        });
+    },
+    initCamera: async () => {
+        const vid = document.getElementById('bg-camera');
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+            });
+            vid.srcObject = stream;
+            vid.style.opacity = 1;
+            UI.log('OPTICAL PASSTHROUGH ENGAGED.');
+        } catch(e) { UI.log('CAMERA FAILED. VIRTUAL MODE.'); }
+    }
+};
+
+/* ==========================================================================
+   5. ORBIT DATA (SGP4 Engine)
+   ========================================================================== */
+const DataEngine = {
+    fetchTLE: async () => {
+        const KEY = 'TAC_TLE', TIME = 'TAC_TLE_TS';
+        let txt = '';
+        try {
+            const ctrl = new AbortController();
+            const to = setTimeout(() => ctrl.abort(), 5000);
+            // Military/Visual/Active priority sources
+            const res = await fetch('https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle', { signal: ctrl });
+            clearTimeout(to);
+            if(!res.ok) throw new Error("HTTP");
+            txt = await res.text();
+            localStorage.setItem(KEY, txt);
+            localStorage.setItem(TIME, Date.now().toString());
+        } catch(e) {
+            txt = localStorage.getItem(KEY);
+            if(!txt) { UI.log("TLE FETCH FAILED. NO CACHE."); return; }
+            if(Date.now() - parseInt(localStorage.getItem(TIME)) > 86400000) {
+                document.getElementById('tel-cache').classList.remove('hidden');
+            }
+        }
+        
+        const lines = txt.split(/\r?\n/);
+        const MAX = 400; // Hard limit for mobile rendering stability
+        for(let i=0; i<lines.length && SYS.sats.length < MAX; i+=3) {
+            if(!lines[i] || !lines[i+1] || !lines[i+2]) continue;
+            try {
+                const rec = satellite.twoline2satrec(lines[i+1].trim(), lines[i+2].trim());
+                SYS.sats.push({ name: lines[i].trim(), satrec: rec });
+            } catch(e) {}
+        }
+        UI.log(`TRACKING ${SYS.sats.length} ORBITAL VECTORS.`);
+        document.getElementById('tel-sat-count').innerText = SYS.sats.length;
+    },
+    // Convert ECI to Topocentric (Az, El, Range) to map to device camera perfectly
+    getLookAngles: (satrec, date) => {
+        if(SYS.geo.lat === 0 && SYS.geo.lon === 0) return null; // Need GPS
+        const pv = satellite.propagate(satrec, date);
+        if(!pv.position || isNaN(pv.position.x)) return null;
+        
+        const gmst = satellite.gstime(date);
+        const obsGd = {
+            longitude: SYS.geo.lon * Math.PI / 180,
+            latitude: SYS.geo.lat * Math.PI / 180,
+            height: SYS.geo.alt / 1000
+        };
+        const posEcf = satellite.eciToEcf(pv.position, gmst);
+        const look = satellite.ecfToLookAngles(obsGd, posEcf);
+        
+        // Return azimuth (rad), elevation (rad), range (km), velocity vector length (km/s)
+        const vel = Math.sqrt(pv.velocity.x**2 + pv.velocity.y**2 + pv.velocity.z**2);
+        return { az: look.azimuth, el: look.elevation, r: look.rangeSat, v: vel, pv: pv };
+    }
+};
+
+/* ==========================================================================
+   6. 3D RENDERER (Three.js WebGL2)
+   ========================================================================== */
+const Graphics = {
+    scene: null, camera: null, renderer: null,
+    satMesh: null,
+    
+    init: () => {
+        const cvs = document.getElementById('webgl-canvas');
+        Graphics.renderer = new THREE.WebGLRenderer({ canvas: cvs, alpha: true, antialias: true, powerPreference: "high-performance" });
+        Graphics.renderer.setSize(window.innerWidth, window.innerHeight);
+        Graphics.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        
+        Graphics.scene = new THREE.Scene();
+        Graphics.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+        // Camera starts at origin
+        Graphics.camera.rotation.order = 'YXZ'; 
+
+        // Generate InstancedMesh for zero-GC massive rendering
+        const geo = new THREE.PlaneGeometry(2, 2); // Use planes for markers to reduce polys
+        const mat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, side: THREE.DoubleSide, transparent: true });
+        Graphics.satMesh = new THREE.InstancedMesh(geo, mat, SYS.sats.length);
+        Graphics.satMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        Graphics.scene.add(Graphics.satMesh);
+
+        // Resize handler using Visual Viewport to prevent address bar glitches
+        window.visualViewport.addEventListener('resize', Graphics.resize);
+        UI.log('WEBGL2 ENGINE ONLINE.');
+    },
+    resize: () => {
+        if(!Graphics.camera) return;
+        const w = window.visualViewport.width;
+        const h = window.visualViewport.height;
+        Graphics.camera.aspect = w / h;
+        Graphics.camera.updateProjectionMatrix();
+        Graphics.renderer.setSize(w, h);
+    },
+    update: (date) => {
+        let dummy = new THREE.Object3D();
+        let closestDist = Infinity;
+        let newTarget = null;
+        
+        // Calc sun vector for day/night shading
+        const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000);
+        const sunRad = (dayOfYear - 80) * (Math.PI / 182.5);
+        const sunVec = new THREE.Vector3(Math.cos(sunRad), 0, -Math.sin(sunRad)).normalize();
+
+        for(let i=0; i<SYS.sats.length; i++) {
+            const sat = SYS.sats[i];
+            const look = DataEngine.getLookAngles(sat.satrec, date);
+            
+            if(look && look.el > 0) { // Only render if above horizon
+                // Map spherical to Cartesian for Three.js (Fixed distance to avoid near/far clip issues, scale visually)
+                const R = 500; 
+                // ThreeJS: -Z is forward, X is right, Y is up. Azimuth 0 is North.
+                // Standard math: x = sin(az)*cos(el), y = sin(el), z = -cos(az)*cos(el)
+                const x = R * Math.sin(look.az) * Math.cos(look.el);
+                const y = R * Math.sin(look.el);
+                const z = -R * Math.cos(look.az) * Math.cos(look.el);
+                
+                dummy.position.set(x, y, z);
+                dummy.lookAt(0,0,0); // Orient plane to face camera
+                
+                // Day/Night eclipse check (simplified)
+                const dot = new THREE.Vector3(x,y,z).normalize().dot(sunVec);
+                if(dot > 0.2) Graphics.satMesh.setColorAt(i, new THREE.Color(0xFFFFFF));
+                else Graphics.satMesh.setColorAt(i, new THREE.Color(0x00FFCC));
+                
+                dummy.updateMatrix();
+                Graphics.satMesh.setMatrixAt(i, dummy.matrix);
+
+                // Target lock logic: find sat closest to center of screen (Camera forward vector)
+                const camDir = new THREE.Vector3(0,0,-1).applyQuaternion(Graphics.camera.quaternion);
+                const satDir = new THREE.Vector3(x,y,z).normalize();
+                const distToCenter = camDir.distanceTo(satDir);
+                
+                if(distToCenter < closestDist && distToCenter < (0.2 / SYS.zoom)) {
+                    closestDist = distToCenter;
+                    newTarget = { sat: sat, look: look, dot: dot };
+                }
+
+            } else {
+                // Hide below horizon
+                dummy.position.set(0,-1000,0);
+                dummy.updateMatrix();
+                Graphics.satMesh.setMatrixAt(i, dummy.matrix);
+            }
+        }
+        Graphics.satMesh.instanceMatrix.needsUpdate = true;
+        if(Graphics.satMesh.instanceColor) Graphics.satMesh.instanceColor.needsUpdate = true;
+
+        // Target updating
+        if(newTarget && SYS.targetSat !== newTarget.sat) {
+            SYS.targetSat = newTarget.sat;
+            UI.flash(); AudioSynth.lock();
+            document.getElementById('target-info').style.display = 'block';
+            document.getElementById('tgt-name').innerText = newTarget.sat.name.substring(0,20);
+        } else if(!newTarget && SYS.targetSat) {
+            SYS.targetSat = null;
+            document.getElementById('target-info').style.display = 'none';
+        }
+
+        if(newTarget) {
+            document.getElementById('tgt-rng').innerText = `${newTarget.look.r.toFixed(1)} km`;
+            document.getElementById('tgt-vel').innerText = `${newTarget.look.v.toFixed(2)} km/s`;
+            document.getElementById('tel-env').innerText = newTarget.dot > 0.2 ? I18N[SYS.locale]['env_day'] : I18N[SYS.locale]['env_night'];
+        }
+
+        Graphics.renderer.render(Graphics.scene, Graphics.camera);
+    }
+};
+
+/* ==========================================================================
+   7. INPUT & HUD CONTROLLER
+   ========================================================================== */
+const InputController = {
+    init: () => {
+        const mc = new Hammer(document.body);
+        mc.get('pinch').set({ enable: true });
+        mc.get('press').set({ time: 400 });
+
+        let startZ = 1.0;
+        mc.on('pinchstart', () => { startZ = SYS.zoom; });
+        mc.on('pinchmove', e => {
+            const prev = SYS.zoom;
+            SYS.zoom = Math.max(1.0, Math.min(SYS.maxZoom, startZ * e.scale));
+            if(Graphics.camera) {
+                Graphics.camera.fov = 75 / SYS.zoom;
+                Graphics.camera.updateProjectionMatrix();
+            }
+            AudioSynth.motor(Math.abs(SYS.zoom - prev));
+        });
+
+        // Long press to auto-calibrate heading to True North (Assuming user faces North)
+        mc.on('press', () => {
+            SYS.offset.alpha = -SYS.orient.alpha; 
+            SYS.offset.beta = -SYS.orient.beta;
+            SYS.offset.gamma = -SYS.orient.gamma;
+            UI.flash(); AudioSynth.beep(1500, 'square', 0.2);
+            document.getElementById('dialog-title').innerText = "CALIBRATION OVERRIDE";
+            UI.log('MATRIX ALIGNED TO OBSERVER AZIMUTH.');
+        });
+        
+        // Prevent default touch behaviors
+        document.body.addEventListener('touchmove', e => { e.preventDefault(); }, { passive: false });
+    },
+    
+    updateHUD: () => {
+        // Smooth rotation (EMA Filter)
+        SYS.smoothOrient.alpha += (SYS.orient.alpha - SYS.smoothOrient.alpha) * 0.1;
+        SYS.smoothOrient.beta += (SYS.orient.beta - SYS.smoothOrient.beta) * 0.1;
+        SYS.smoothOrient.gamma += (SYS.orient.gamma - SYS.smoothOrient.gamma) * 0.1;
+
+        // Apply Offset
+        const cx = SYS.smoothOrient.beta + SYS.offset.beta;
+        let cy = SYS.smoothOrient.alpha + SYS.offset.alpha;
+        const cz = -(SYS.smoothOrient.gamma + SYS.offset.gamma);
+
+        if(Graphics.camera) {
+            // Screen orientation logic (Assume portrait locked, but handle physical tilt)
+            // Beta is X axis, Alpha is Y axis.
+            Graphics.camera.rotation.set(cx, cy, cz, 'YXZ');
+        }
+
+        // --- HUD Visual Updates --- //
+        
+        // Compass Tape (Y rotation = Heading)
+        let degAz = (cy * 180 / Math.PI) % 360;
+        if(degAz < 0) degAz += 360;
+        // Tape moves linearly. 1 degree = 4px (as per CSS setup)
+        const tapeOffset = -degAz * 4;
+        document.getElementById('compass-tape').style.transform = `translateX(${tapeOffset}px)`;
+        
+        // Pitch Ladder (X rotation = Pitch)
+        let degEl = cx * 180 / Math.PI;
+        const ladderOffset = degEl * SYS.zoom * 2; // Move ladder vertically
+        document.getElementById('pitch-ladder').style.transform = `translateY(${ladderOffset}px) rotate(${-cz}rad)`;
+        
+        // Crosshair dynamic styling based on zoom
+        const outer = document.getElementById('reticle-inner');
+        outer.setAttribute('r', 80 + (SYS.zoom * 5));
+        
+        if(SYS.zoom >= 5.0) {
+            outer.style.stroke = 'var(--tac-orange)';
+            document.getElementById('hud-txt-bottom').innerText = I18N[SYS.locale]['sniper_mode'];
+            document.getElementById('hud-txt-bottom').style.fill = 'var(--tac-orange)';
+        } else {
+            outer.style.stroke = 'var(--neon-green)';
+            document.getElementById('hud-txt-bottom').innerText = `ZOOM ${SYS.zoom.toFixed(1)}x`;
+            document.getElementById('hud-txt-bottom').style.fill = 'var(--neon-green)';
+        }
+
+        // Telemetry Text
+        document.getElementById('tel-lat').innerText = SYS.geo.lat.toFixed(4);
+        document.getElementById('tel-lon').innerText = SYS.geo.lon.toFixed(4);
+        document.getElementById('tel-alt').innerText = SYS.geo.alt ? SYS.geo.alt.toFixed(1) + ' m' : '0.0 m';
+        
+        document.getElementById('tel-az').innerText = degAz.toFixed(1) + '°';
+        document.getElementById('tel-el').innerText = degEl.toFixed(1) + '°';
+        document.getElementById('tel-rl').innerText = (cz * 180 / Math.PI).toFixed(1) + '°';
+        document.getElementById('tel-fov').innerText = (75 / SYS.zoom).toFixed(1) + '°';
+
+        const t = Sensors.getTime();
+        document.getElementById('tel-time').innerText = 
+            `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}:${String(t.getSeconds()).padStart(2,'0')}.${String(t.getMilliseconds()).padStart(3,'0')}`;
+
+        // FPS Tracker
+        SYS.frames++;
+        const now = performance.now();
+        if(now - SYS.lastFpsTime >= 1000) {
+            document.getElementById('tel-fps').innerText = SYS.frames;
+            SYS.frames = 0; SYS.lastFpsTime = now;
+        }
+    }
+};
+
+/* ==========================================================================
+   8. MAIN LOOP & BOOT SEQUENCE
+   ========================================================================== */
+function animate() {
+    requestAnimationFrame(animate);
+    InputController.updateHUD();
+    Graphics.update(Sensors.getTime());
+}
+
+window.onload = async () => {
+    UI.init();
+    UI.log('SYSTEM BOOT INITIALIZED...');
+    
+    // Attempt Auto-fullscreen
+    const reqFS = () => { if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{}); };
+    document.body.addEventListener('click', reqFS, { once: true });
+
+    // Show Auth Dialog
+    setTimeout(() => {
+        document.getElementById('boot-terminal').style.opacity = 0;
+        
+        UI.dialog('title_perm', 'desc_perm', 'btn_accept', async () => {
+            reqFS();
+            AudioSynth.init();
+            AudioSynth.beep(600, 'square', 0.1);
+            
+            UI.log('REQUESTING HARDWARE CLEARANCE...');
+            await Promise.all([ Sensors.initCamera(), Sensors.initGPS(), Sensors.initGyro() ]);
+            
+            UI.log('FETCHING ORBITAL TELEMETRY...');
+            await DataEngine.fetchTLE();
+            
+            Graphics.init();
+            InputController.init();
+            
+            setTimeout(() => document.getElementById('boot-terminal').classList.add('hidden'), 1000);
+            
+            UI.flash();
+            animate(); // Engage Main Loop
+        });
+    }, 1500);
+};
+
+</script>
+</body>
+</html>
