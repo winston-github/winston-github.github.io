@@ -99,8 +99,8 @@
         
         /* Image Display */
         .intel-img-container { width: 100%; height: 180px; background: #000; border: 1px solid var(--neon-green); margin-bottom: 15px; display: flex; justify-content: center; align-items: center; overflow: hidden; position: relative;}
-        .intel-img { max-width: 100%; max-height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.5s; }
-        .intel-dl-hint { position: absolute; color: var(--tac-orange); font-size: 12px; animation: blink 1s infinite; }
+        .intel-img { max-width: 100%; max-height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.5s; display: none; }
+        .intel-dl-hint { position: absolute; color: var(--tac-orange); font-size: 12px; animation: blink 1s infinite; text-align: center; width: 100%; z-index: 0; }
         
         .intel-body { font-size: 12px; line-height: 1.6; margin-bottom: 20px; min-height: 80px; color: var(--neon-green); }
         .intel-reward { color: var(--tac-orange); font-weight: bold; margin-bottom: 15px; text-shadow: 0 0 5px var(--tac-orange); font-size: 14px; text-align: center; animation: blink 1s infinite;}
@@ -186,8 +186,9 @@
         <div class="intel-box">
             <div class="intel-header"><span data-i18n="intel_title">機密情報解鎖</span> <span id="intel-class">[CLASS]</span></div>
             <div class="intel-img-container">
-                <div class="intel-dl-hint" id="intel-dl-hint" data-i18n="hint_dl">DECRYPTING IMAGE...</div>
-                <img src="" id="intel-img" class="intel-img">
+                <div class="intel-dl-hint" id="intel-dl-hint" data-i18n="hint_dl">ESTABLISHING SECURE LINK...</div>
+                <!-- 加上 crossorigin 屬性防止 canvas 被污染 -->
+                <img src="" id="intel-img" class="intel-img" crossorigin="anonymous">
             </div>
             <div class="intel-body" id="intel-text"></div>
             <div class="intel-reward">+<span id="intel-xp">0</span> XP</div>
@@ -214,7 +215,7 @@
 <script>
 /**
  * ORBITAL INTEL TERMINAL - Ultimate Collection Edition
- * Pure Quaternions, Color Coding, Dynamic Fetching, Backpack, Base64 Storage
+ * With Multi-CDN Proxy System & Save Corruption Auto-Repair
  */
 
 const SYS = {
@@ -226,14 +227,10 @@ const SYS = {
     labelPool: [] 
 };
 
-// Player Storage (Images stored in Base64 string dict)
+// Player Storage
 const PLAYER = { xp: 0, level: 0, scannedIDs: [], images: {} };
 const RANKS = ["Rookie (新兵)", "Field Agent (外勤)", "Analyst (分析師)", "Commander (指揮官)", "Overlord (星際霸主)"];
 
-// ==========================================
-// ASTRONOMY TARGETS (All Planets + Img URLs)
-// Colors strictly classified
-// ==========================================
 const ASTRO_TARGETS = [
     { id: 'Sun', color: '#FFD700', radius: 25, 'zh-Hant': 'SUN (太陽)', en: 'SUN', class: 'STAR (G-Type)', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/The_Sun_by_the_Atmospheric_Imaging_Assembly_of_NASA%27s_Solar_Dynamics_Observatory_-_20100819.jpg/320px-The_Sun_by_the_Atmospheric_Imaging_Assembly_of_NASA%27s_Solar_Dynamics_Observatory_-_20100819.jpg', desc: { 'zh-Hant': '太陽是距離我們最近的恆星，直徑約為地球的 109 倍，它的核融合反應為整個太陽系提供了能量。', en: 'The Sun is a G-type main-sequence star. It contains 99.8% of the mass in the Solar System.' } },
     { id: 'Moon', color: '#E0E0E0', radius: 20, 'zh-Hant': 'MOON (月球)', en: 'MOON', class: 'SATELLITE (Natural)', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/FullMoon2010.jpg/320px-FullMoon2010.jpg', desc: { 'zh-Hant': '月球是地球唯一的天然衛星，引發了地球的潮汐現象。它正以每年 3.8 公分的速度遠離我們。', en: 'The Moon is Earth\'s only natural satellite, responsible for our ocean tides.' } },
@@ -247,9 +244,6 @@ const ASTRO_TARGETS = [
     { id: 'Pluto', color: '#DDBB99', radius: 6, 'zh-Hant': 'PLUTO (冥王星)', en: 'PLUTO', class: 'DWARF PLANET', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ef/Pluto_in_True_Color_-_High-Res.jpg/320px-Pluto_in_True_Color_-_High-Res.jpg', desc: { 'zh-Hant': '冥王星曾被視為第九大行星，後來被降級為矮行星。其表面有著著名的「心型」冰川。', en: 'Once the 9th planet, Pluto is a dwarf planet in the Kuiper belt with a famous heart-shaped glacier.' } }
 ];
 
-// ==========================================
-// STRICT SATELLITE WHITELIST (With Colors & Imgs)
-// ==========================================
 const KNOWN_TARGETS = {
     "ISS": { color: '#00FFCC', 'zh-Hant': "ISS (國際太空站)", en: "ISS (Space Station)", class: "HABITAT", img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/International_Space_Station_after_undocking_of_STS-132.jpg/320px-International_Space_Station_after_undocking_of_STS-132.jpg', desc: { 'zh-Hant': "國際太空站以每秒 7.6 公里繞行地球，站內太空人每天可看見 16 次日出。", en: "The ISS travels at 7.6 km/s. Astronauts aboard experience 16 sunrises a day." } },
     "HST": { color: '#BA55D3', 'zh-Hant': "HUBBLE (哈伯望遠鏡)", en: "HUBBLE (Telescope)", class: "OBSERVATORY", img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/HST-SM4.jpeg/320px-HST-SM4.jpeg', desc: { 'zh-Hant': "哈伯太空望遠鏡位於大氣層外，不受光害干擾，幫助計算出宇宙的年齡。", en: "Hubble operates outside atmospheric distortion, revealing the universe's expansion." } }
@@ -258,7 +252,7 @@ const KNOWN_TARGETS = {
 const I18N = {
     "zh-Hant": { 
         "lbl_lat":"緯度", "lbl_lon":"經度", "lbl_az":"方位", "lbl_el":"仰角", "lbl_fov":"視野", "lbl_tme":"時間", "lbl_sat":"軌道目標", "lbl_rng":"目標距離",
-        "hud_up": "目標", "hint_scan": "將目標保持在準心 3 秒以攔截情報", "hint_scanning": "資料鏈傳輸中...", "hint_dl": "圖片解密中...",
+        "hud_up": "目標", "hint_scan": "將目標保持在準心 3 秒以攔截情報", "hint_scanning": "資料鏈傳輸中...", "hint_dl": "ESTABLISHING SECURE LINK...",
         "bounty": "懸賞任務:", "bounty_find": "尋找並攔截", "hint_swipe": "滑動螢幕微調方位 / 雙擊重置",
         "title_boot": "軌道情報局終端機", "desc_boot": "特工，歡迎登入。<br>太陽系全息圖鑑與過濾網路已連線。<br>請授權相機與感測器以建立空間幾何。", "btn_accept": "授權並登入 (INITIATE)",
         "intel_title": "機密情報解鎖", "btn_continue": "繼續執行任務", "msg_scanning": "DOWNLOADING...", "rank_up": "階級提升！",
@@ -266,7 +260,7 @@ const I18N = {
     },
     "en": {
         "lbl_lat":"LAT", "lbl_lon":"LON", "lbl_az":"AZ", "lbl_el":"EL", "lbl_fov":"FOV", "lbl_tme":"TME", "lbl_sat":"ORBITS", "lbl_rng":"RNG",
-        "hud_up": "TGT", "hint_scan": "HOLD TARGET IN CENTER FOR 3 SEC", "hint_scanning": "DATA-LINK IN PROGRESS...", "hint_dl": "DECRYPTING IMAGE...",
+        "hud_up": "TGT", "hint_scan": "HOLD TARGET IN CENTER FOR 3 SEC", "hint_scanning": "DATA-LINK IN PROGRESS...", "hint_dl": "ESTABLISHING SECURE LINK...",
         "bounty": "ACTIVE DIRECTIVE:", "bounty_find": "Locate & Scan", "hint_swipe": "Swipe to adjust azimuth / Double tap to reset",
         "title_boot": "ORBITAL INTEL TERMINAL", "desc_boot": "Welcome, Operative.<br>Solar System Databank & Filter Active.<br>Camera and gyro access required.", "btn_accept": "INITIATE SEQUENCE",
         "intel_title": "INTEL UNLOCKED", "btn_continue": "RESUME MISSION", "msg_scanning": "DOWNLOADING...", "rank_up": "PROMOTION!",
@@ -298,14 +292,20 @@ const UI = {
             SYS.labelPool.push({ el, nameSpan, distSpan, active: false });
         }
 
-        // Backpack Setup
         document.getElementById('btn-backpack').onclick = UI.openBackpack;
         document.getElementById('btn-close-bp').onclick = () => { document.getElementById('backpack-overlay').style.display = 'none'; SYS.isPaused = false; };
 
-        // Load Save
+        // 載入並自動修復受損存檔
         try {
             const save = JSON.parse(localStorage.getItem('TAC_SAVE') || '{"xp":0, "level":0, "scannedIDs":[], "images":{}}');
             PLAYER.xp = save.xp || 0; PLAYER.level = save.level || 0; PLAYER.scannedIDs = save.scannedIDs || []; PLAYER.images = save.images || {};
+            
+            // 【修復機制】如果圖片沒有轉換成安全的 Base64，強制刪除快取，讓下次掃描重新下載 (解決卡在破圖的問題)
+            for(let key in PLAYER.images) {
+                if(!PLAYER.images[key].startsWith('data:image')) {
+                    delete PLAYER.images[key];
+                }
+            }
         } catch(e) { PLAYER.xp = 0; PLAYER.level = 0; PLAYER.scannedIDs = []; PLAYER.images = {}; }
         UI.updateRank();
     },
@@ -320,7 +320,6 @@ const UI = {
         SYS.isPaused = true; Audio.beep();
         const grid = document.getElementById('bp-grid'); grid.innerHTML = '';
         
-        // Combine all possible targets
         const allTargets = [];
         ASTRO_TARGETS.forEach(t => allTargets.push({ id: t.id, name: t[SYS.locale], class: t.class }));
         Object.keys(KNOWN_TARGETS).forEach(k => allTargets.push({ id: k, name: KNOWN_TARGETS[k][SYS.locale], class: KNOWN_TARGETS[k].class }));
@@ -331,7 +330,7 @@ const UI = {
             item.className = isUnlocked ? 'bp-item' : 'bp-item locked';
             
             if(isUnlocked && PLAYER.images[t.id]) {
-                const img = document.createElement('img'); img.src = PLAYER.images[t.id]; img.className = 'bp-item-img'; item.appendChild(img);
+                const img = document.createElement('img'); img.src = PLAYER.images[t.id]; img.className = 'bp-item-img'; img.crossOrigin = "anonymous"; item.appendChild(img);
             }
             const nameLabel = document.createElement('div'); nameLabel.className = 'bp-item-name'; nameLabel.innerText = isUnlocked ? t.name : 'CLASSIFIED';
             item.appendChild(nameLabel); grid.appendChild(item);
@@ -380,27 +379,49 @@ const Game = {
         document.getElementById('bounty-name').innerText = `${I18N[SYS.locale]['bounty_find']} [${SYS.bountySat.displayName[SYS.locale]}]`;
         UI.flash('rgba(255,153,0,0.5)');
     },
-    downloadImage: async (id, url) => {
-        if(PLAYER.images[id]) return; // Already downloaded
-        try {
-            const res = await fetch(url); const blob = await res.blob();
-            const reader = new FileReader();
-            reader.onloadend = () => { PLAYER.images[id] = reader.result; }; // Save as Base64
-            reader.readAsDataURL(blob);
-        } catch(e) { console.log('Download failed, will use direct URL'); }
+    
+    // 【多重代理靜默快取】在背景透過多個可靠來源將圖片轉存為 Base64
+    cacheImageToBase64: (id, urls) => {
+        if(PLAYER.images[id] && PLAYER.images[id].startsWith('data:')) return; 
+        
+        const tryCache = (index) => {
+            if(index >= urls.length) return;
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.onload = () => {
+                const b64 = getBase64Image(img);
+                if(b64 && b64.startsWith('data:')) {
+                    PLAYER.images[id] = b64;
+                    localStorage.setItem('TAC_SAVE', JSON.stringify(PLAYER));
+                }
+            };
+            img.onerror = () => tryCache(index + 1); // 失敗則嘗試下一個代理網址
+            img.src = urls[index];
+        };
+        tryCache(0);
     },
+
     processScan: (delta) => {
         if(SYS.isPaused) return;
         const ring = document.getElementById('scan-ring'); const hint = document.getElementById('hud-txt-bottom');
         const lockMsg = document.getElementById('tgt-lock-msg');
 
         if(SYS.isScanning && SYS.targetObj) {
-            // Stealth Download trigger
+            
+            // 掃描開始時，背景預先偷跑圖片下載 (使用多重 CDN 備援)
             if(!SYS.downloadingImg) {
                 SYS.downloadingImg = true;
                 const rawId = SYS.targetObj.isCelestial ? SYS.targetObj.id : SYS.targetObj.typeKey;
-                const imgUrl = SYS.targetObj.isCelestial ? ASTRO_TARGETS.find(t=>t.id===rawId).img : KNOWN_TARGETS[rawId].img;
-                Game.downloadImage(rawId, imgUrl);
+                const rawUrl = SYS.targetObj.isCelestial ? ASTRO_TARGETS.find(t=>t.id===rawId).img : KNOWN_TARGETS[rawId].img;
+                const cleanUrl = rawUrl.replace(/^https?:\/\//, ''); // 移除協定給 proxy 使用
+                
+                // 強制穿透防火牆與防盜鏈的 CDN 組合
+                const urlsToTry = [
+                    `https://wsrv.nl/?url=${cleanUrl}&w=400&output=webp`,
+                    `https://api.allorigins.win/raw?url=${encodeURIComponent(rawUrl)}`,
+                    rawUrl
+                ];
+                Game.cacheImageToBase64(rawId, urlsToTry);
             }
 
             SYS.scanProgress += delta;
@@ -418,6 +439,7 @@ const Game = {
             SYS.downloadingImg = false;
         }
     },
+    
     unlockIntel: (obj) => {
         SYS.isPaused = true; Audio.success(); UI.flash();
         let isBounty = (SYS.bountySat === obj); let xpGained = isBounty ? 150 : (obj.isCelestial ? 100 : 50);
@@ -434,24 +456,57 @@ const Game = {
         let loreData = obj.isCelestial ? ASTRO_TARGETS.find(t=>t.id===obj.id) : KNOWN_TARGETS[obj.typeKey];
         document.getElementById('intel-class').innerText = `[${loreData.class}]`; document.getElementById('intel-xp').innerText = xpGained;
         
-        // Handle Image Display (With Error Fallback)
-        const imgEl = document.getElementById('intel-img'); const hintEl = document.getElementById('intel-dl-hint');
-        imgEl.style.opacity = 0; hintEl.style.display = 'block'; hintEl.innerText = I18N[SYS.locale]['hint_dl'];
+        // --- 圖片載入核心邏輯 ---
+        const imgEl = document.getElementById('intel-img'); 
+        const hintEl = document.getElementById('intel-dl-hint');
         
-        if(PLAYER.images[rawId]) { 
-            imgEl.src = PLAYER.images[rawId]; 
-            imgEl.onload = () => { imgEl.style.opacity = 1; hintEl.style.display = 'none'; }; 
-        } else { 
-            imgEl.src = loreData.img; 
-            imgEl.onload = () => { 
-                imgEl.style.opacity = 1; hintEl.style.display = 'none'; 
-                PLAYER.images[rawId] = getBase64Image(imgEl); 
-                localStorage.setItem('TAC_SAVE', JSON.stringify(PLAYER)); 
-            }; 
-            imgEl.onerror = () => {
-                hintEl.innerText = "IMAGE DATA CORRUPTED";
-                imgEl.style.opacity = 0.3; // Prevent full blockage
+        // 重置狀態 (移除舊圖片以防顯示藍色問號)
+        imgEl.style.opacity = 0; 
+        imgEl.style.display = 'none'; 
+        imgEl.removeAttribute('src');
+        hintEl.style.display = 'block'; 
+        hintEl.innerText = I18N[SYS.locale]['hint_dl'];
+
+        // 如果在快取階段就已經成功轉成 Base64，直接載入本地檔案 (秒開且永不失敗)
+        if (PLAYER.images[rawId] && PLAYER.images[rawId].startsWith('data:')) {
+            imgEl.style.display = 'block';
+            imgEl.src = PLAYER.images[rawId];
+            imgEl.onload = () => { imgEl.style.opacity = 1; hintEl.style.display = 'none'; };
+        } else {
+            // 如果本地沒抓好，啟動即時的多重 CDN 備援下載
+            const rawUrl = loreData.img;
+            const cleanUrl = rawUrl.replace(/^https?:\/\//, '');
+            const fallbackUrls = [
+                `https://wsrv.nl/?url=${cleanUrl}&w=400&output=webp`,
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(rawUrl)}`,
+                rawUrl
+            ];
+
+            const tryDisplayImage = (index) => {
+                if (index >= fallbackUrls.length) {
+                    hintEl.innerText = "[ERROR] CONNECTION BLOCKED"; // 所有備援都失效時，不會顯示醜圖示
+                    return;
+                }
+                imgEl.style.display = 'block';
+                imgEl.crossOrigin = "anonymous";
+                imgEl.src = fallbackUrls[index];
+                
+                imgEl.onload = () => {
+                    imgEl.style.opacity = 1;
+                    hintEl.style.display = 'none';
+                    // 順手把成功的圖片存成 Base64 放進資料庫
+                    const b64 = getBase64Image(imgEl);
+                    if(b64 && b64.startsWith('data:')) {
+                        PLAYER.images[rawId] = b64;
+                        localStorage.setItem('TAC_SAVE', JSON.stringify(PLAYER));
+                    }
+                };
+                imgEl.onerror = () => {
+                    imgEl.style.display = 'none'; // 隱藏藍色問號破圖圖示
+                    tryDisplayImage(index + 1); // 嘗試下一個伺服器
+                };
             };
+            tryDisplayImage(0);
         }
         
         document.getElementById('intel-overlay').style.display = 'flex';
@@ -473,8 +528,18 @@ const Game = {
     }
 };
 
+// 增加安全防呆的 Base64 轉換函數
 function getBase64Image(img) {
-    try { const canvas = document.createElement("canvas"); canvas.width = img.width; canvas.height = img.height; const ctx = canvas.getContext("2d"); ctx.drawImage(img, 0, 0); return canvas.toDataURL("image/jpeg", 0.5); } catch(e) { return img.src; }
+    try { 
+        const canvas = document.createElement("canvas"); 
+        canvas.width = img.naturalWidth || img.width || 320; 
+        canvas.height = img.naturalHeight || img.height || 320; 
+        const ctx = canvas.getContext("2d"); 
+        ctx.drawImage(img, 0, 0); 
+        return canvas.toDataURL("image/jpeg", 0.6); 
+    } catch(e) { 
+        return null; 
+    }
 }
 
 /* ==========================================================================
@@ -564,7 +629,7 @@ const Graphics = {
             if(camDir.distanceTo(vec.clone().normalize()) < 1.5) onScreenItems.push({ obj: { displayName: { 'zh-Hant': c.t, en: c.t } }, distToCenter: 99, distStr: '', vec: vec, isCardinal: true });
         });
 
-        // 4. Update HUD Labels with Colors
+        // 4. Update HUD Labels
         onScreenItems.sort((a,b) => a.distToCenter - b.distToCenter); 
         let labelIndex = 0;
         for(let s of onScreenItems) {
