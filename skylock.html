@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ORBITAL INTELLIGENCE TERMINAL</title>
+    <title>ORBITAL INTEL TERMINAL</title>
     <!-- PWA Setup -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -19,8 +19,8 @@
            CORE & RESET
            ========================================================================== */
         :root {
-            --neon-green: #00FFCC; --tac-orange: #FF9900; --alert-red: #FF3B30; --dim-blue: #0099FF; --bg-black: #050505;
-            --hud-glow: 0 0 6px rgba(0, 255, 204, 0.6); --alert-glow: 0 0 8px rgba(255, 59, 48, 0.8);
+            --neon-green: #00FFCC; --tac-orange: #FF9900; --alert-red: #FF3B30; --bg-black: #050505;
+            --hud-glow: 0 0 5px rgba(0, 255, 204, 0.5);
             --safe-t: env(safe-area-inset-top, 20px); --safe-b: env(safe-area-inset-bottom, 20px);
             --safe-l: env(safe-area-inset-left, 15px); --safe-r: env(safe-area-inset-right, 15px);
         }
@@ -37,23 +37,37 @@
         #webgl-canvas { position: absolute; z-index: 3; pointer-events: none; }
 
         /* ==========================================================================
-           HUD & TARGET TRACKING
+           AUTO-LABELING SYSTEM (HUD AR LABELS)
+           ========================================================================== */
+        #labels-container { position: absolute; top:0; left:0; width: 100vw; height: 100dvh; z-index: 4; pointer-events: none; }
+        .ar-label {
+            position: absolute; transform: translate(-50%, -50%);
+            color: var(--neon-green); font-size: 10px; font-weight: bold; text-shadow: 1px 1px 2px #000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0;
+            transition: opacity 0.2s, transform 0.1s linear; will-change: transform;
+        }
+        .ar-label::before { content: '⌜'; position: absolute; top: -5px; left: -5px; font-size: 14px; }
+        .ar-label::after { content: '⌟'; position: absolute; bottom: -5px; right: -5px; font-size: 14px; }
+        .ar-label.bounty { color: var(--tac-orange); z-index: 5; font-size: 11px; text-shadow: 0 0 5px var(--tac-orange); }
+        .ar-label.bounty::before, .ar-label.bounty::after { font-size: 18px; }
+        .ar-dist { font-size: 8px; opacity: 0.8; }
+
+        /* ==========================================================================
+           HUD CORE (Reticle, Box, Compass)
            ========================================================================== */
         #hud-container { position: absolute; width: 100vw; height: 100dvh; z-index: 5; pointer-events: none; filter: drop-shadow(var(--hud-glow)); }
         .svg-icon { vector-effect: non-scaling-stroke; stroke-width: 1.2px; fill: none; stroke: var(--neon-green); }
         .text-svg { fill: var(--neon-green); stroke: none; font-size: 10px; font-weight: bold; text-anchor: middle; }
 
-        /* Center Reticle & Scan Ring */
         #center-reticle { position: absolute; top: 50%; left: 50%; width: 240px; height: 240px; transform: translate(-50%, -50%); transition: transform 0.1s; }
         #scan-ring { stroke: var(--tac-orange); stroke-width: 4px; stroke-dasharray: 251; stroke-dashoffset: 251; transform: rotate(-90deg); transform-origin: center; transition: stroke-dashoffset 0.1s linear; }
         
-        #target-box { position: absolute; top: 0; left: 0; width: 80px; height: 80px; transform: translate(-50%, -50%); z-index: 4; display: none; }
-        .tgt-corner { position: absolute; width: 15px; height: 15px; border: 2px solid var(--alert-red); transition: all 0.2s; }
+        #target-box { position: absolute; top: 0; left: 0; width: 80px; height: 80px; transform: translate(-50%, -50%); z-index: 6; display: none; }
+        .tgt-corner { position: absolute; width: 15px; height: 15px; border: 2px solid var(--alert-red); }
         .tgt-tl { top:0; left:0; border-right:none; border-bottom:none; } .tgt-tr { top:0; right:0; border-left:none; border-bottom:none; }
         .tgt-bl { bottom:0; left:0; border-right:none; border-top:none; } .tgt-br { bottom:0; right:0; border-left:none; border-top:none; }
         #tgt-lock-msg { position: absolute; top: -20px; width: 100%; text-align: center; color: var(--tac-orange); font-size: 10px; font-weight: bold; animation: blink 0.5s infinite; }
 
-        /* Compass */
         #compass-tape-container { position: absolute; top: calc(var(--safe-t) + 10px); left: 50%; transform: translateX(-50%); width: 200px; height: 20px; overflow: hidden; border-left: 2px solid var(--neon-green); border-right: 2px solid var(--neon-green); }
         #compass-tape { display: flex; position: absolute; left: 100px; height: 100%; align-items: flex-end; }
         .compass-tick { width: 2px; height: 8px; background: var(--neon-green); position: absolute; bottom: 0; transform: translateX(-50%); }
@@ -61,76 +75,65 @@
         #compass-arrow { position: absolute; top: calc(var(--safe-t) + 32px); left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid var(--tac-orange); }
 
         /* ==========================================================================
-           MISSIONS & PROGRESSION (GAMIFICATION)
+           MISSIONS & UI PANELS
            ========================================================================== */
-        #mission-banner { position: absolute; top: calc(var(--safe-t) + 50px); left: 50%; transform: translateX(-50%); border: 1px solid var(--tac-orange); background: rgba(255,153,0,0.1); padding: 5px 15px; color: var(--tac-orange); font-size: 11px; font-weight: bold; text-align: center; backdrop-filter: blur(4px); box-shadow: 0 0 10px rgba(255,153,0,0.3); text-shadow: 0 0 5px var(--tac-orange); width: max-content; }
+        #mission-banner { position: absolute; top: calc(var(--safe-t) + 50px); left: 50%; transform: translateX(-50%); border: 1px solid var(--tac-orange); background: rgba(255,153,0,0.1); padding: 5px 15px; color: var(--tac-orange); font-size: 11px; font-weight: bold; text-align: center; backdrop-filter: blur(4px); white-space: nowrap; }
         
         #xp-bar-container { position: absolute; bottom: calc(var(--safe-b) + 50px); left: 50%; transform: translateX(-50%); width: 200px; height: 4px; background: rgba(0,255,204,0.2); }
         #xp-bar-fill { height: 100%; width: 0%; background: var(--neon-green); transition: width 0.5s ease; box-shadow: 0 0 8px var(--neon-green); }
         #rank-display { position: absolute; bottom: calc(var(--safe-b) + 60px); left: 50%; transform: translateX(-50%); font-size: 10px; color: var(--neon-green); font-weight: bold; }
 
-        /* ==========================================================================
-           TELEMETRY PANELS
-           ========================================================================== */
         .panel { position: absolute; z-index: 6; font-size: 11px; font-weight: 600; line-height: 1.6; text-shadow: var(--hud-glow); pointer-events: none; display: flex; flex-direction: column; }
         #panel-top-left { top: calc(var(--safe-t) + 10px); left: var(--safe-l); }
         #panel-top-right { top: calc(var(--safe-t) + 10px); right: var(--safe-r); text-align: right; align-items: flex-end; }
         #panel-bottom-left { bottom: calc(var(--safe-b) + 10px); left: var(--safe-l); }
         #panel-bottom-right { bottom: calc(var(--safe-b) + 10px); right: var(--safe-r); text-align: right; align-items: flex-end; }
-        .data-row { display: flex; justify-content: space-between; gap: 15px; width: 100%; }
+        .data-row { display: flex; justify-content: space-between; gap: 10px; width: 100%; white-space: nowrap; }
         .data-label { color: rgba(0, 255, 204, 0.7); } .data-val { color: var(--neon-green); }
         
-        .tac-btn { pointer-events: auto; cursor: pointer; width: 40px; height: 40px; margin-bottom: 10px; background: rgba(0, 255, 204, 0.05); border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 4px; display: flex; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
+        .tac-btn { pointer-events: auto; cursor: pointer; width: 40px; height: 40px; margin-bottom: 10px; background: rgba(0, 255, 204, 0.05); border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 4px; display: flex; justify-content: center; align-items: center; }
         .tac-btn:active { background: rgba(0, 255, 204, 0.3); transform: scale(0.95); }
-        
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
         /* ==========================================================================
-           INTEL CODEX (LEARNING OVERLAY)
+           INTEL CODEX & DIALOGS
            ========================================================================== */
         #intel-overlay { position: absolute; top:0; left:0; width: 100vw; height: 100dvh; background: rgba(5,5,5,0.9); z-index: 9998; display: none; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(10px); padding: 20px; }
-        .intel-box { border: 1px solid var(--neon-green); background: rgba(0,255,204,0.05); padding: 20px; max-width: 500px; width: 100%; box-shadow: 0 0 20px rgba(0,255,204,0.2); position: relative; }
-        .intel-header { border-bottom: 1px solid var(--neon-green); padding-bottom: 10px; margin-bottom: 15px; font-size: 18px; color: var(--neon-green); text-shadow: var(--hud-glow); font-weight: bold; display: flex; justify-content: space-between;}
-        .intel-body { font-size: 13px; line-height: 1.6; margin-bottom: 20px; min-height: 100px;}
+        .intel-box { border: 1px solid var(--neon-green); background: rgba(0,255,204,0.05); padding: 20px; max-width: 500px; width: 100%; box-shadow: 0 0 20px rgba(0,255,204,0.2); }
+        .intel-header { border-bottom: 1px solid var(--neon-green); padding-bottom: 10px; margin-bottom: 15px; font-size: 16px; color: var(--neon-green); font-weight: bold; display: flex; justify-content: space-between;}
+        .intel-body { font-size: 13px; line-height: 1.6; margin-bottom: 20px; min-height: 100px; color: var(--neon-green); }
         .intel-reward { color: var(--tac-orange); font-weight: bold; margin-bottom: 15px; text-shadow: 0 0 5px var(--tac-orange); font-size: 14px; text-align: center; animation: blink 1s infinite;}
-        .intel-btn { width: 100%; padding: 12px; background: var(--neon-green); color: var(--bg-black); border: none; font-weight: bold; font-family: inherit; font-size: 14px; cursor: pointer; text-transform: uppercase; letter-spacing: 2px; }
+        .intel-btn { width: 100%; padding: 12px; background: var(--neon-green); color: var(--bg-black); border: none; font-weight: bold; cursor: pointer; letter-spacing: 2px; }
 
-        /* DIALOGS */
         #dialog-layer { position: absolute; top:0; left:0; width: 100vw; height: 100dvh; background: rgba(0,0,0,0.9); z-index: 9999; display: flex; justify-content: center; align-items: center; pointer-events: auto; }
-        .mil-box { border: 2px solid var(--tac-orange); padding: 25px; width: 85%; max-width: 400px; text-align: center; background: rgba(10,10,10,0.9); box-shadow: 0 0 20px rgba(255,153,0,0.2); }
+        .mil-box { border: 2px solid var(--tac-orange); padding: 25px; width: 85%; max-width: 400px; text-align: center; background: rgba(10,10,10,0.9); }
         .mil-box h2 { color: var(--tac-orange); font-size: 18px; margin-bottom: 15px; border-bottom: 1px solid rgba(255,153,0,0.3); padding-bottom: 10px; }
         .mil-box p { color: var(--neon-green); font-size: 13px; margin-bottom: 20px; line-height: 1.5; text-align: left;}
-        .dialog-btn { width: 100%; padding: 12px; border: 1px solid var(--tac-orange); background: transparent; color: var(--tac-orange); font-weight: bold; font-family: inherit; cursor: pointer; letter-spacing: 1px; }
+        .dialog-btn { width: 100%; padding: 12px; border: 1px solid var(--tac-orange); background: transparent; color: var(--tac-orange); font-weight: bold; cursor: pointer; letter-spacing: 1px; }
         .dialog-btn:active { background: var(--tac-orange); color: var(--bg-black); }
-        .hidden { display: none !important; }
     </style>
 </head>
 <body>
 
-    <!-- LAYER 1: Camera & Effects -->
     <video id="bg-camera" autoplay playsinline muted></video>
     <div id="vfx-scanlines" class="vfx-layer"></div>
     <div id="vfx-flash" class="vfx-layer"></div>
-
-    <!-- LAYER 2: 3D Engine -->
     <canvas id="webgl-canvas"></canvas>
 
-    <!-- LAYER 3: Targeting & Gamification HUD -->
+    <!-- Auto-Labeling Layer -->
+    <div id="labels-container"></div>
+
     <div id="target-box">
         <div class="tgt-corner tgt-tl"></div><div class="tgt-corner tgt-tr"></div>
         <div class="tgt-corner tgt-bl"></div><div class="tgt-corner tgt-br"></div>
-        <div id="tgt-lock-msg" class="hidden" data-i18n="msg_scanning">DATA-LINK...</div>
+        <div id="tgt-lock-msg" style="display:none;" data-i18n="msg_scanning">DOWNLOADING...</div>
     </div>
 
     <div id="hud-container">
-        <!-- Mission Banner -->
-        <div id="mission-banner"><span data-i18n="bounty">任務目標:</span> <span id="bounty-name">---</span></div>
-
-        <!-- Compass -->
+        <div id="mission-banner"><span data-i18n="bounty">MISSION:</span> <span id="bounty-name">---</span></div>
         <div id="compass-tape-container"><div id="compass-tape"></div></div>
         <div id="compass-arrow"></div>
 
-        <!-- Center Reticle with Scan Progress -->
         <svg id="center-reticle" viewBox="0 0 240 240">
             <circle id="scan-ring" cx="120" cy="120" r="40" fill="none" />
             <circle cx="120" cy="120" r="110" class="svg-icon" stroke-dasharray="2, 6" stroke-opacity="0.5"/>
@@ -141,17 +144,15 @@
             <text x="120" y="218" class="text-svg" id="hud-txt-bottom" data-i18n="hint_scan">對準目標 3 秒以攔截情報</text>
         </svg>
 
-        <!-- Player Progression -->
         <div id="rank-display"><span id="txt-rank">Rookie</span> [XP: <span id="txt-xp">0</span>]</div>
         <div id="xp-bar-container"><div id="xp-bar-fill"></div></div>
     </div>
 
-    <!-- LAYER 4: Telemetry Panels -->
     <div id="panel-top-left" class="panel">
         <div class="tac-btn" id="btn-lang"><svg viewBox="0 0 24 24" class="svg-icon" style="width:20px"><path d="M12 2L2 22h20z"/><circle cx="12" cy="15" r="2"/></svg></div>
         <div class="data-row"><span class="data-label">SYS</span><span class="data-val" id="tel-sys">ONLINE</span></div>
-        <div class="data-row"><span class="data-label" data-i18n="lbl_lat">LAT</span><span class="data-val" id="tel-lat">--.----</span></div>
-        <div class="data-row"><span class="data-label" data-i18n="lbl_lon">LON</span><span class="data-val" id="tel-lon">--.----</span></div>
+        <div class="data-row"><span class="data-label" data-i18n="lbl_lat">LAT</span><span class="data-val" id="tel-lat">ACQUIRING...</span></div>
+        <div class="data-row"><span class="data-label" data-i18n="lbl_lon">LON</span><span class="data-val" id="tel-lon">ACQUIRING...</span></div>
     </div>
     <div id="panel-top-right" class="panel">
         <div class="tac-btn" id="btn-audio"><svg viewBox="0 0 24 24" class="svg-icon" id="audio-icon" style="width:20px"><path d="M11 5L6 9H2v6h4l5 4V5z M15.5 12c0-1.5-1-2.8-2.5-3.3v6.6c1.5-.5 2.5-1.8 2.5-3.3z"/></svg></div>
@@ -168,7 +169,7 @@
         <div class="data-row"><span class="data-label" data-i18n="lbl_rng">RNG</span><span class="data-val" id="tel-rng">--- km</span></div>
     </div>
 
-    <!-- LAYER 9998: INTEL CODEX (LEARNING) -->
+    <!-- INTEL OVERLAY -->
     <div id="intel-overlay">
         <div class="intel-box">
             <div class="intel-header"><span data-i18n="intel_title">機密情報解鎖</span> <span id="intel-class">[CLASS]</span></div>
@@ -178,51 +179,47 @@
         </div>
     </div>
 
-    <!-- LAYER 9999: INIT DIALOG -->
+    <!-- BOOT DIALOG -->
     <div id="dialog-layer">
         <div class="mil-box" id="dialog-box">
             <h2 id="dialog-title" data-i18n="title_boot">軌道情報局終端機</h2>
-            <p id="dialog-text" data-i18n="desc_boot">特工，歡迎登入。<br>您的任務是掃描並識別地球軌道上的未知航天器。<br>系統需要授權相機與感測器連線。</p>
+            <p id="dialog-text" data-i18n="desc_boot">特工，歡迎登入。<br>您的任務是掃描並識別地球軌道上的航天器。<br>需要相機與感測器授權以連線。</p>
             <button class="dialog-btn" id="dialog-btn-ok" data-i18n="btn_accept">授權並登入 (INITIATE)</button>
         </div>
     </div>
 
 <script>
 /**
- * ORBITAL INTELLIGENCE TERMINAL - Gamified AR Tracker
- * Single HTML File. No external assets. Pure DOM/WebGL magic.
+ * ORBITAL INTELLIGENCE TERMINAL - Fixed Sensor Core & Auto-Targeting
  */
 
-/* ==========================================================================
-   1. GAME STATE, PROGRESSION & LORE DB
-   ========================================================================== */
 const SYS = {
-    locale: "en", audio: true, zoom: 1.0, maxZoom: 8.0, 
+    locale: "zh-Hant", audio: true, zoom: 1.0, maxZoom: 8.0, 
     geo: { lat: 0, lon: 0, alt: 0 }, orient: { alpha:0, beta:0, gamma:0 }, offset: { alpha:0, beta:0, gamma:0 },
-    sats: [], targetSat: null, bountySat: null, 
-    scanProgress: 0, isScanning: false, isPaused: false
+    sats: [], targetSat: null, bountySat: null,
+    scanProgress: 0, isScanning: false, isPaused: false,
+    labelPool: [] // Store DOM elements for auto-labels
 };
 
 const PLAYER = { xp: 0, level: 0, scannedIDs: [] };
 const RANKS = ["Rookie (新兵)", "Field Agent (外勤特工)", "Orbital Analyst (軌道分析師)", "Space Command (太空指揮官)", "Overlord (星際霸主)"];
 
-// Educational Lore Database (Dual Language)
 const LORE_DB = {
     "zh-Hant": {
-        "STARLINK": { class: "通訊陣列 (LEO)", desc: "Starlink 是由 SpaceX 構建的低軌道巨型衛星網，旨在提供全球覆蓋的低延遲寬頻網路。它們距離地表僅約 500 公里，因此移動速度極快。當它們剛發射時，會在夜空中形成著名的『星鏈列車』。" },
-        "ISS": { class: "軌道棲息地 (Habitable)", desc: "國際太空站 (ISS) 是人類在太空中最大的人造物體，耗資超過千億美元。它以每秒 7.6 公里的驚人速度繞地球飛行，每天大約可以看見 16 次日出與日落。站內通常駐留著進行各種微重力科學實驗的太空人。" },
-        "HUBBLE": { class: "深空觀測器 (Telescope)", desc: "哈伯太空望遠鏡 (HST) 自 1990 年發射以來，徹底改變了人類對宇宙的認知。由於位於大氣層外，它能拍攝到極度清晰的深空星系影像，證明了宇宙正在加速膨脹。" },
-        "NOAA": { class: "氣象觀測網 (Weather)", desc: "NOAA 衛星屬於氣象與環境監測衛星。它們通常運行在『極地軌道』，這意味著它們會由北極向南極繞行，隨著地球自轉，這類衛星能在幾天內掃描整個地球表面，是天氣預報的關鍵。" },
-        "TIANGONG": { class: "軌道棲息地 (Habitable)", desc: "天宮太空站是中國自主建設的長期近地軌道太空站。其核心艙『天和』為太空人提供了生活與科學實驗的空間，是太空中唯二長期有人駐留的設施。" },
-        "UNKNOWN": { class: "未分類航天器 (Generic)", desc: "該航天器的確切機密資料尚未解密。地球軌道上目前有數萬顆人造物體，包括科學衛星、軍事間諜衛星，甚至是被遺棄的火箭推進器殘骸（太空垃圾）。隨時留意天空，特工。" }
+        "STARLINK": { class: "通訊陣列 (LEO)", desc: "Starlink 距離地表僅約 500 公里，移動速度極快，為全球提供低延遲網路。" },
+        "ISS": { class: "軌道棲息地 (Manned)", desc: "國際太空站 (ISS) 以每秒 7.6 公里的速度繞行地球，每天可看見 16 次日出。" },
+        "HUBBLE": { class: "深空觀測器 (Telescope)", desc: "哈伯太空望遠鏡位於大氣層外，幫助人類計算出宇宙的年齡與膨脹速度。" },
+        "NOAA": { class: "氣象觀測網 (Weather)", desc: "NOAA 衛星運行在『極地軌道』，隨地球自轉可掃描全球地表，用於氣候預測。" },
+        "TIANGONG": { class: "軌道棲息地 (Manned)", desc: "天宮太空站是太空中唯二長期有人駐留的人造設施。" },
+        "UNKNOWN": { class: "未分類航天器 (Generic)", desc: "該目標資料未解密，可能為科學衛星、軍事間諜衛星或太空垃圾。持續掃描，特工。" }
     },
     "en": {
-        "STARLINK": { class: "COMM ARRAY (LEO)", desc: "Starlink is a satellite internet constellation constructed by SpaceX. Orbiting at only ~500km altitude (Low Earth Orbit), they move extremely fast across the sky. After launch, they form a spectacular 'train' of lights." },
-        "ISS": { class: "HABITAT (Manned)", desc: "The International Space Station is the largest modular space station in low Earth orbit. Traveling at 7.6 km/s, astronauts aboard experience 16 sunrises and sunsets every day while conducting microgravity research." },
-        "HUBBLE": { class: "TELESCOPE (Observatory)", desc: "The Hubble Space Telescope (HST) revolutionized astronomy. Operating outside Earth's atmospheric distortion, it has provided the most detailed images of deep space and helped determine the age of the universe." },
-        "NOAA": { class: "WEATHER SENSOR (Polar)", desc: "NOAA satellites monitor global weather and climate. Operating in 'Polar Orbits', they fly over the poles while the Earth spins beneath them, allowing them to scan the entire planet's surface every few days." },
-        "TIANGONG": { class: "HABITAT (Manned)", desc: "Tiangong is a space station constructed by China in low Earth orbit. Its core module 'Tianhe' provides living quarters and laboratories, making it one of the only two permanently inhabited structures in space." },
-        "UNKNOWN": { class: "UNCLASSIFIED ASSET", desc: "Detailed intel on this asset is classified or unavailable. Earth's orbit contains tens of thousands of objects, from spy satellites to defunct rocket bodies (space debris). Keep scanning, Operative." }
+        "STARLINK": { class: "COMM ARRAY (LEO)", desc: "Starlink operates at ~500km altitude. They move extremely fast, providing global internet." },
+        "ISS": { class: "HABITAT (Manned)", desc: "The ISS travels at 7.6 km/s. Astronauts aboard experience 16 sunrises a day." },
+        "HUBBLE": { class: "TELESCOPE (Observatory)", desc: "Hubble operates outside atmospheric distortion, revealing the universe's expansion." },
+        "NOAA": { class: "WEATHER SENSOR (Polar)", desc: "NOAA satellites fly over the poles to monitor global weather and climate." },
+        "TIANGONG": { class: "HABITAT (Manned)", desc: "Tiangong is one of the only two permanently inhabited structures in space." },
+        "UNKNOWN": { class: "UNCLASSIFIED ASSET", desc: "Detailed intel classified. May be a spy satellite, science probe, or orbital debris." }
     }
 };
 
@@ -231,34 +228,31 @@ const I18N = {
         "lbl_lat":"緯度", "lbl_lon":"經度", "lbl_az":"方位", "lbl_el":"仰角", "lbl_fov":"視野", "lbl_tme":"時間", "lbl_sat":"目標數", "lbl_rng":"距離",
         "hud_up": "目標", "hint_scan": "將目標保持在準心 3 秒以攔截情報", "hint_scanning": "資料鏈傳輸中...",
         "bounty": "懸賞任務:", "bounty_find": "尋找並攔截", "bounty_any": "任意未知衛星",
-        "title_boot": "軌道情報局終端機", "desc_boot": "特工，歡迎登入。<br>您的任務是掃描並識別地球軌道上的航天器。<br>我們需要相機與感測器權限以校準軌道。", "btn_accept": "授權並登入 (INITIATE)",
-        "intel_title": "機密情報解鎖", "btn_continue": "繼續執行任務", "msg_lock": "鎖定", "msg_scanning": "資料下載中...",
-        "rank_up": "階級提升！"
+        "title_boot": "軌道情報局終端機", "desc_boot": "特工，歡迎登入。<br>您的任務是掃描並識別地球軌道上的航天器。<br>系統需要授權相機與感測器。", "btn_accept": "授權並登入 (INITIATE)",
+        "intel_title": "機密情報解鎖", "btn_continue": "繼續執行任務", "msg_scanning": "資料下載中...", "rank_up": "階級提升！"
     },
     "en": {
         "lbl_lat":"LAT", "lbl_lon":"LON", "lbl_az":"AZ", "lbl_el":"EL", "lbl_fov":"FOV", "lbl_tme":"TME", "lbl_sat":"TRK", "lbl_rng":"RNG",
-        "hud_up": "TGT", "hint_scan": "HOLD TARGET IN CENTER FOR 3 SEC TO SCAN", "hint_scanning": "DATA-LINK IN PROGRESS...",
-        "bounty": "ACTIVE DIRECTIVE:", "bounty_find": "Locate & Scan", "bounty_any": "Any Unknown Satellite",
-        "title_boot": "ORBITAL INTEL TERMINAL", "desc_boot": "Welcome, Operative.<br>Your mission is to scan and classify orbital assets.<br>Camera and sensor authorization required.", "btn_accept": "INITIATE SEQUENCE",
-        "intel_title": "INTEL UNLOCKED", "btn_continue": "RESUME MISSION", "msg_lock": "LOCKED", "msg_scanning": "DOWNLOADING...",
-        "rank_up": "PROMOTION!"
+        "hud_up": "TGT", "hint_scan": "HOLD TARGET IN CENTER FOR 3 SEC", "hint_scanning": "DATA-LINK IN PROGRESS...",
+        "bounty": "ACTIVE DIRECTIVE:", "bounty_find": "Locate & Scan", "bounty_any": "Any Satellite",
+        "title_boot": "ORBITAL INTEL TERMINAL", "desc_boot": "Welcome, Operative.<br>Your mission is to classify orbital assets.<br>Camera and sensor access required.", "btn_accept": "INITIATE SEQUENCE",
+        "intel_title": "INTEL UNLOCKED", "btn_continue": "RESUME MISSION", "msg_scanning": "DOWNLOADING...", "rank_up": "PROMOTION!"
     }
 };
 
 /* ==========================================================================
-   2. CORE SYSTEM & UI
+   UI, AUDIO & SAVES
    ========================================================================== */
 const UI = {
     init: () => {
-        const cachedLang = localStorage.getItem('TAC_LANG');
-        SYS.locale = cachedLang || (navigator.languages.some(l => l.includes('zh')) ? "zh-Hant" : "en");
+        const cached = localStorage.getItem('TAC_LANG');
+        SYS.locale = cached || (navigator.languages.some(l => l.includes('zh')) ? "zh-Hant" : "en");
         UI.applyLang();
         document.getElementById('btn-lang').onclick = () => {
             SYS.locale = SYS.locale === "en" ? "zh-Hant" : "en";
             localStorage.setItem('TAC_LANG', SYS.locale); UI.applyLang(); Audio.beep(); Game.updateBountyUI();
         };
 
-        // Render Compass
         let tapeHTML = '';
         for(let i=0; i<=360; i+=15) {
             tapeHTML += `<div class="compass-tick" style="left: ${i*4}px"></div>`;
@@ -266,30 +260,31 @@ const UI = {
         }
         document.getElementById('compass-tape').innerHTML = tapeHTML;
 
-        // Load Save Data
+        // Label Pool for Auto-Targeting
+        const container = document.getElementById('labels-container');
+        for(let i=0; i<15; i++) {
+            let el = document.createElement('div'); el.className = 'ar-label';
+            let nameSpan = document.createElement('span');
+            let distSpan = document.createElement('span'); distSpan.className = 'ar-dist';
+            el.appendChild(nameSpan); el.appendChild(distSpan);
+            container.appendChild(el);
+            SYS.labelPool.push({ el, nameSpan, distSpan, active: false });
+        }
+
         const save = JSON.parse(localStorage.getItem('TAC_SAVE') || '{"xp":0, "level":0, "scannedIDs":[]}');
         PLAYER.xp = save.xp; PLAYER.level = save.level; PLAYER.scannedIDs = save.scannedIDs;
         UI.updateRank();
     },
     applyLang: () => { document.querySelectorAll('[data-i18n]').forEach(el => { if(I18N[SYS.locale][el.getAttribute('data-i18n')]) el.innerHTML = I18N[SYS.locale][el.getAttribute('data-i18n')]; }); },
-    flash: (color = 'var(--neon-green)') => {
-        const f = document.getElementById('vfx-flash'); f.style.background = color; f.style.opacity = 1; f.style.transition = 'none';
-        setTimeout(() => { f.style.transition = 'opacity 0.6s ease-out'; f.style.opacity = 0; }, 50);
-    },
+    flash: (c = 'var(--neon-green)') => { const f = document.getElementById('vfx-flash'); f.style.background = c; f.style.opacity = 1; f.style.transition = 'none'; setTimeout(() => { f.style.transition = 'opacity 0.6s'; f.style.opacity = 0; }, 50); },
     updateRank: () => {
         document.getElementById('txt-xp').innerText = PLAYER.xp;
         document.getElementById('txt-rank').innerText = RANKS[Math.min(PLAYER.level, RANKS.length-1)];
-        const nextXp = (PLAYER.level + 1) * 200;
-        const prevXp = PLAYER.level * 200;
-        const pct = Math.min(100, Math.max(0, ((PLAYER.xp - prevXp) / (nextXp - prevXp)) * 100));
-        document.getElementById('xp-bar-fill').style.width = pct + '%';
-    },
-    saveGame: () => { localStorage.setItem('TAC_SAVE', JSON.stringify(PLAYER)); }
+        const nXp = (PLAYER.level + 1) * 200; const pXp = PLAYER.level * 200;
+        document.getElementById('xp-bar-fill').style.width = Math.min(100, Math.max(0, ((PLAYER.xp - pXp) / (nXp - pXp)) * 100)) + '%';
+    }
 };
 
-/* ==========================================================================
-   3. AUDIO (Web Audio API)
-   ========================================================================== */
 const Audio = {
     ctx: null, master: null, scanOsc: null, scanGain: null,
     init: () => {
@@ -298,168 +293,82 @@ const Audio = {
             Audio.ctx = new (window.AudioContext || window.webkitAudioContext)();
             Audio.master = Audio.ctx.createGain(); Audio.master.connect(Audio.ctx.destination);
             if(Audio.ctx.state === 'suspended') Audio.ctx.resume();
-            document.getElementById('btn-audio').onclick = () => {
-                SYS.audio = !SYS.audio; Audio.master.gain.value = SYS.audio ? 1 : 0;
-                document.getElementById('audio-icon').style.opacity = SYS.audio ? 1 : 0.3;
-            };
+            document.getElementById('btn-audio').onclick = () => { SYS.audio = !SYS.audio; Audio.master.gain.value = SYS.audio ? 1 : 0; document.getElementById('audio-icon').style.opacity = SYS.audio ? 1 : 0.3; };
         } catch(e) { SYS.audio = false; }
     },
-    beep: (f=800, t='square', d=0.1, vol=0.1) => {
+    beep: (f=800, t='square', d=0.1, v=0.1) => {
         if(!SYS.audio || !Audio.ctx) return;
         const o = Audio.ctx.createOscillator(); const g = Audio.ctx.createGain();
-        o.type = t; o.frequency.setValueAtTime(f, Audio.ctx.currentTime);
-        g.gain.setValueAtTime(0, Audio.ctx.currentTime); g.gain.linearRampToValueAtTime(vol, Audio.ctx.currentTime + 0.02); g.gain.exponentialRampToValueAtTime(0.001, Audio.ctx.currentTime + d);
+        o.type = t; o.frequency.value = f;
+        g.gain.setValueAtTime(0, Audio.ctx.currentTime); g.gain.linearRampToValueAtTime(v, Audio.ctx.currentTime + 0.02); g.gain.exponentialRampToValueAtTime(0.001, Audio.ctx.currentTime + d);
         o.connect(g); g.connect(Audio.master); o.start(); o.stop(Audio.ctx.currentTime + d);
     },
     startScan: () => {
         if(!SYS.audio || !Audio.ctx || Audio.scanOsc) return;
         Audio.scanOsc = Audio.ctx.createOscillator(); Audio.scanGain = Audio.ctx.createGain();
         Audio.scanOsc.type = 'triangle'; Audio.scanOsc.frequency.setValueAtTime(200, Audio.ctx.currentTime);
-        Audio.scanOsc.frequency.linearRampToValueAtTime(800, Audio.ctx.currentTime + 3); // Pitch up over 3s
+        Audio.scanOsc.frequency.linearRampToValueAtTime(800, Audio.ctx.currentTime + 3);
         Audio.scanGain.gain.setValueAtTime(0.05, Audio.ctx.currentTime);
         Audio.scanOsc.connect(Audio.scanGain); Audio.scanGain.connect(Audio.master); Audio.scanOsc.start();
     },
-    stopScan: () => {
-        if(Audio.scanOsc) { Audio.scanOsc.stop(); Audio.scanOsc = null; }
-    },
+    stopScan: () => { if(Audio.scanOsc) { Audio.scanOsc.stop(); Audio.scanOsc = null; } },
     success: () => { Audio.stopScan(); Audio.beep(1200, 'square', 0.1, 0.2); setTimeout(()=>Audio.beep(1800, 'square', 0.4, 0.2), 100); }
 };
 
 /* ==========================================================================
-   4. HARDWARE SENSORS & TLE DATA
-   ========================================================================== */
-const Sensors = {
-    init: async () => {
-        // GPS
-        if(navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(p => {
-                SYS.geo.lat = p.coords.latitude; SYS.geo.lon = p.coords.longitude; SYS.geo.alt = p.coords.altitude || 0;
-            }, e => {}, { enableHighAccuracy: true });
-        }
-        // Camera
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } });
-            const vid = document.getElementById('bg-camera'); vid.srcObject = stream; vid.style.opacity = 1;
-        } catch(e) { document.getElementById('tel-warn').innerText = '[CAM_ERR]'; }
-        
-        // Gyro
-        const startGyro = () => {
-            window.addEventListener('deviceorientation', e => {
-                if(e.alpha === null) return;
-                const d2r = Math.PI/180; let a = e.alpha;
-                if(e.webkitCompassHeading !== undefined) a = 360 - e.webkitCompassHeading;
-                else if(e.absolute) a = 360 - e.alpha;
-                SYS.orient.alpha = a * d2r; SYS.orient.beta = e.beta * d2r; SYS.orient.gamma = e.gamma * d2r;
-            });
-        };
-        if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-            try { const r = await DeviceOrientationEvent.requestPermission(); if(r === 'granted') startGyro(); } catch(e){}
-        } else startGyro();
-    },
-    fetchTLE: async () => {
-        try {
-            const res = await fetch('https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle');
-            const txt = await res.text(); const lines = txt.split(/\r?\n/);
-            for(let i=0; i<lines.length && SYS.sats.length < 300; i+=3) {
-                if(!lines[i+2]) continue;
-                try { SYS.sats.push({ name: lines[i].trim(), satrec: satellite.twoline2satrec(lines[i+1].trim(), lines[i+2].trim()) }); } catch(e){}
-            }
-            document.getElementById('tel-sat-count').innerText = SYS.sats.length;
-            Game.assignBounty();
-        } catch(e) { document.getElementById('tel-warn').innerText = '[DATA_ERR]'; }
-    }
-};
-
-/* ==========================================================================
-   5. GAMIFICATION LOGIC (Missions & Scanning)
+   GAME LOGIC & DATA
    ========================================================================== */
 const Game = {
     assignBounty: () => {
         if(SYS.sats.length === 0) return;
-        // Prioritize known educational targets
         const targets = ["STARLINK", "ISS", "HUBBLE", "NOAA", "TIANGONG"];
         const keyword = targets[Math.floor(Math.random() * targets.length)];
         const candidates = SYS.sats.filter(s => s.name.includes(keyword));
-        if(candidates.length > 0) SYS.bountySat = candidates[Math.floor(Math.random() * candidates.length)];
-        else SYS.bountySat = SYS.sats[Math.floor(Math.random() * SYS.sats.length)]; // Random fallback
+        SYS.bountySat = candidates.length > 0 ? candidates[Math.floor(Math.random() * candidates.length)] : SYS.sats[Math.floor(Math.random() * SYS.sats.length)];
         Game.updateBountyUI();
     },
     updateBountyUI: () => {
         if(!SYS.bountySat) return;
-        let prefix = I18N[SYS.locale]['bounty_find'];
-        document.getElementById('bounty-name').innerText = `${prefix} [${SYS.bountySat.name.substring(0,15)}]`;
-        UI.flash('rgba(255,153,0,0.5)'); // Orange flash for new mission
+        document.getElementById('bounty-name').innerText = `${I18N[SYS.locale]['bounty_find']} [${SYS.bountySat.name.substring(0,15)}]`;
+        UI.flash('rgba(255,153,0,0.5)');
     },
-    getType: (name) => {
-        for(let key in LORE_DB["en"]) { if(name.includes(key)) return key; }
-        return "UNKNOWN";
-    },
+    getType: (name) => { for(let k in LORE_DB["en"]) { if(name.includes(k)) return k; } return "UNKNOWN"; },
     processScan: (delta) => {
         if(SYS.isPaused) return;
-        const ring = document.getElementById('scan-ring');
-        const hint = document.getElementById('hud-txt-bottom');
+        const ring = document.getElementById('scan-ring'); const hint = document.getElementById('hud-txt-bottom');
         const lockMsg = document.getElementById('tgt-lock-msg');
 
         if(SYS.isScanning && SYS.targetSat) {
             SYS.scanProgress += delta;
-            if(SYS.scanProgress >= 3000) { // 3 Seconds to scan
-                SYS.scanProgress = 3000;
-                Game.unlockIntel(SYS.targetSat);
+            if(SYS.scanProgress >= 3000) {
+                SYS.scanProgress = 3000; Game.unlockIntel(SYS.targetSat);
             } else {
-                // Update visuals
-                const pct = SYS.scanProgress / 3000;
-                ring.style.strokeDashoffset = 251 - (251 * pct);
-                ring.style.stroke = 'var(--neon-green)';
-                hint.innerText = I18N[SYS.locale]['hint_scanning'];
-                hint.style.fill = 'var(--tac-orange)';
-                lockMsg.classList.remove('hidden');
-                
-                // Shake target box slightly
-                const box = document.getElementById('target-box');
-                box.style.transform = `translate(-50%, -50%) translate(${(Math.random()-0.5)*4}px, ${(Math.random()-0.5)*4}px)`;
+                ring.style.strokeDashoffset = 251 - (251 * (SYS.scanProgress/3000)); ring.style.stroke = 'var(--neon-green)';
+                hint.innerText = I18N[SYS.locale]['hint_scanning']; hint.style.fill = 'var(--tac-orange)'; lockMsg.style.display = 'block';
+                document.getElementById('target-box').style.transform = `translate(-50%, -50%) translate(${(Math.random()-0.5)*4}px, ${(Math.random()-0.5)*4}px)`;
             }
         } else {
-            SYS.scanProgress = Math.max(0, SYS.scanProgress - delta * 2); // Quick decay
-            ring.style.strokeDashoffset = 251 - (251 * (SYS.scanProgress/3000));
-            ring.style.stroke = 'var(--tac-orange)';
-            hint.innerText = I18N[SYS.locale]['hint_scan'];
-            hint.style.fill = 'var(--neon-green)';
-            lockMsg.classList.add('hidden');
+            SYS.scanProgress = Math.max(0, SYS.scanProgress - delta * 2);
+            ring.style.strokeDashoffset = 251 - (251 * (SYS.scanProgress/3000)); ring.style.stroke = 'var(--tac-orange)';
+            hint.innerText = I18N[SYS.locale]['hint_scan']; hint.style.fill = 'var(--neon-green)'; lockMsg.style.display = 'none';
         }
     },
     unlockIntel: (sat) => {
         SYS.isPaused = true; Audio.success(); UI.flash();
-        
-        // Calculate XP
-        let isBounty = (SYS.bountySat === sat);
-        let xpGained = isBounty ? 150 : 50;
-        
-        // Prevent farming same sat
-        if(PLAYER.scannedIDs.includes(sat.name)) xpGained = 10; 
-        else PLAYER.scannedIDs.push(sat.name);
-
+        let isBounty = (SYS.bountySat === sat); let xpGained = isBounty ? 150 : 50;
+        if(PLAYER.scannedIDs.includes(sat.name)) xpGained = 10; else PLAYER.scannedIDs.push(sat.name);
         PLAYER.xp += xpGained;
         
-        // Level up check
-        let nextLevelXp = (PLAYER.level + 1) * 200;
-        if(PLAYER.xp >= nextLevelXp) {
-            PLAYER.level++;
-            setTimeout(() => { UI.flash('rgba(255,215,0,0.8)'); Audio.beep(2000, 'square', 0.5); document.getElementById('dialog-title').innerText = I18N[SYS.locale]['rank_up']; }, 500);
+        if(PLAYER.xp >= (PLAYER.level + 1) * 200) {
+            PLAYER.level++; setTimeout(() => { UI.flash('rgba(255,215,0,0.8)'); Audio.beep(2000, 'square', 0.5); document.getElementById('dialog-title').innerText = I18N[SYS.locale]['rank_up']; }, 500);
         }
-
-        UI.updateRank(); UI.saveGame();
-
-        // Show Intel Modal
-        const typeKey = Game.getType(sat.name);
-        const lore = LORE_DB[SYS.locale][typeKey];
+        UI.updateRank(); localStorage.setItem('TAC_SAVE', JSON.stringify(PLAYER));
         
-        document.getElementById('intel-class').innerText = lore.class;
-        document.getElementById('intel-xp').innerText = xpGained;
+        const typeKey = Game.getType(sat.name); const lore = LORE_DB[SYS.locale][typeKey];
+        document.getElementById('intel-class').innerText = lore.class; document.getElementById('intel-xp').innerText = xpGained;
         document.getElementById('intel-overlay').style.display = 'flex';
         
-        // Typewriter effect
-        const textEl = document.getElementById('intel-text');
-        textEl.innerHTML = `<strong>[TARGET]: ${sat.name}</strong><br><br>`;
+        const textEl = document.getElementById('intel-text'); textEl.innerHTML = `<strong>[TARGET]: ${sat.name}</strong><br><br>`;
         let i = 0; const txt = lore.desc;
         const typeWriter = setInterval(() => {
             if(i < txt.length) { textEl.innerHTML += txt.charAt(i); i++; Audio.beep(3000 + Math.random()*500, 'square', 0.02, 0.01); }
@@ -467,25 +376,23 @@ const Game = {
         }, 20);
 
         document.getElementById('btn-close-intel').onclick = () => {
-            clearInterval(typeWriter);
-            document.getElementById('intel-overlay').style.display = 'none';
+            clearInterval(typeWriter); document.getElementById('intel-overlay').style.display = 'none';
             SYS.isPaused = false; SYS.scanProgress = 0; SYS.isScanning = false;
-            document.getElementById('target-box').style.transform = `translate(-50%, -50%)`; // Reset shake
+            document.getElementById('target-box').style.transform = `translate(-50%, -50%)`;
             if(isBounty) Game.assignBounty();
         };
     }
 };
 
 /* ==========================================================================
-   6. 3D RENDERER (Three.js)
+   3D RENDERER & AR LABELS
    ========================================================================== */
 const Graphics = {
     scene: null, camera: null, renderer: null, mesh: null,
     init: () => {
         const cvs = document.getElementById('webgl-canvas');
         Graphics.renderer = new THREE.WebGLRenderer({ canvas: cvs, alpha: true, antialias: true });
-        Graphics.renderer.setSize(window.innerWidth, window.innerHeight);
-        Graphics.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        Graphics.renderer.setSize(window.innerWidth, window.innerHeight); Graphics.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         Graphics.scene = new THREE.Scene();
         Graphics.camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 10000);
         Graphics.camera.rotation.order = 'YXZ'; 
@@ -493,22 +400,21 @@ const Graphics = {
         const geo = new THREE.PlaneGeometry(3, 3); 
         const mat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, side: THREE.DoubleSide, transparent: true });
         Graphics.mesh = new THREE.InstancedMesh(geo, mat, 300);
-        Graphics.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-        Graphics.scene.add(Graphics.mesh);
+        Graphics.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); Graphics.scene.add(Graphics.mesh);
         
-        window.addEventListener('resize', () => {
-            Graphics.camera.aspect = window.innerWidth/window.innerHeight; Graphics.camera.updateProjectionMatrix();
-            Graphics.renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+        window.addEventListener('resize', () => { Graphics.camera.aspect = window.innerWidth/window.innerHeight; Graphics.camera.updateProjectionMatrix(); Graphics.renderer.setSize(window.innerWidth, window.innerHeight); });
     },
     update: () => {
         if(SYS.isPaused) return;
-        const date = new Date();
-        const obsGd = { longitude: SYS.geo.lon * Math.PI/180, latitude: SYS.geo.lat * Math.PI/180, height: SYS.geo.alt/1000 };
+        const date = new Date(); const obsGd = { longitude: SYS.geo.lon * Math.PI/180, latitude: SYS.geo.lat * Math.PI/180, height: SYS.geo.alt/1000 };
         const gmst = satellite.gstime(date);
         
         let dummy = new THREE.Object3D(); let closestDist = Infinity; let newTarget = null;
         const R = 500; const camDir = new THREE.Vector3(0,0,-1).applyQuaternion(Graphics.camera.quaternion);
+
+        // Reset Label Pool
+        SYS.labelPool.forEach(l => l.active = false);
+        let onScreenSats = [];
 
         for(let i=0; i<SYS.sats.length; i++) {
             const sat = SYS.sats[i];
@@ -524,16 +430,17 @@ const Graphics = {
                 const z = -R * Math.cos(look.azimuth) * Math.cos(look.elevation);
                 dummy.position.set(x, y, z); dummy.lookAt(0,0,0);
                 
-                // Color Logic (Bounty is Orange, others are White/Green based on eclipse)
                 if(sat === SYS.bountySat) Graphics.mesh.setColorAt(i, new THREE.Color(0xFF9900));
                 else Graphics.mesh.setColorAt(i, new THREE.Color(0x00FFCC));
-                
                 dummy.updateMatrix(); Graphics.mesh.setMatrixAt(i, dummy.matrix);
 
                 const satDir = new THREE.Vector3(x,y,z).normalize();
-                const dist = camDir.distanceTo(satDir);
-                // Reticle capture radius (larger if zoomed in)
-                if(dist < closestDist && dist < (0.3 / SYS.zoom)) { closestDist = dist; newTarget = { sat:sat, dist:look.rangeSat, vec:dummy.position.clone() }; }
+                const distToCenter = camDir.distanceTo(satDir);
+                
+                // Track for Labels
+                onScreenSats.push({ sat, distToCenter, range: look.rangeSat, vec: dummy.position.clone() });
+
+                if(distToCenter < closestDist && distToCenter < (0.3 / SYS.zoom)) { closestDist = distToCenter; newTarget = { sat, dist:look.rangeSat, vec:dummy.position.clone() }; }
             } else {
                 dummy.position.set(0,-1000,0); dummy.updateMatrix(); Graphics.mesh.setMatrixAt(i, dummy.matrix);
             }
@@ -541,34 +448,45 @@ const Graphics = {
         Graphics.mesh.instanceMatrix.needsUpdate = true;
         if(Graphics.mesh.instanceColor) Graphics.mesh.instanceColor.needsUpdate = true;
 
-        // Target Logic
+        // Auto-Labeling rendering
+        onScreenSats.sort((a,b) => a.distToCenter - b.distToCenter); // Closest to center first
+        let labelIndex = 0;
+        for(let s of onScreenSats) {
+            if(labelIndex >= SYS.labelPool.length) break;
+            const p = s.vec.project(Graphics.camera);
+            if(p.z < 1) { // In front of camera
+                const l = SYS.labelPool[labelIndex];
+                const sx = (p.x * .5 + .5) * window.innerWidth;
+                const sy = (p.y * -.5 + .5) * window.innerHeight;
+                l.el.style.transform = `translate(-50%, -50%) translate(${sx}px, ${sy}px)`;
+                l.nameSpan.innerText = s.sat.name.substring(0, 10);
+                l.distSpan.innerText = `${s.range.toFixed(0)} km`;
+                l.el.className = s.sat === SYS.bountySat ? 'ar-label bounty' : 'ar-label';
+                l.el.style.opacity = 1;
+                l.active = true;
+                labelIndex++;
+            }
+        }
+        // Hide unused labels
+        SYS.labelPool.forEach(l => { if(!l.active) l.el.style.opacity = 0; });
+
+        // Targeting Box rendering
         const box = document.getElementById('target-box');
         if(newTarget) {
             if(SYS.targetSat !== newTarget.sat) { 
                 SYS.targetSat = newTarget.sat; Audio.beep(1200, 'square', 0.1); 
                 document.getElementById('reticle-inner').style.stroke = 'var(--alert-red)';
-                document.getElementById('center-reticle').style.transform = `translate(-50%, -50%) scale(1.1)`; // Kick back
-                setTimeout(()=>document.getElementById('center-reticle').style.transform = `translate(-50%, -50%) scale(1)`, 100);
+                document.getElementById('center-reticle').style.transform = `translate(-50%, -50%) scale(1.1)`; setTimeout(()=>document.getElementById('center-reticle').style.transform = `translate(-50%, -50%) scale(1)`, 100);
             }
-            
             document.getElementById('tel-rng').innerText = newTarget.dist.toFixed(1) + ' km';
             
-            // Project 3D to 2D
             const p = newTarget.vec.clone().project(Graphics.camera);
             if(p.z < 1) {
-                const sx = (p.x * .5 + .5) * window.innerWidth; const sy = (p.y * -.5 + .5) * window.innerHeight;
-                // Only move box if not actively scanning (freeze box during scan shake)
-                if(!SYS.isScanning || SYS.scanProgress === 0) box.style.transform = `translate(-50%, -50%) translate(${sx}px, ${sy}px)`;
+                if(!SYS.isScanning || SYS.scanProgress === 0) box.style.transform = `translate(-50%, -50%) translate(${(p.x * .5 + .5) * window.innerWidth}px, ${(p.y * -.5 + .5) * window.innerHeight}px)`;
                 box.style.display = 'block';
-
-                // Check if perfectly centered for Data-Link (dist < 0.08)
-                if(closestDist < (0.08 / SYS.zoom)) {
-                    if(!SYS.isScanning) { SYS.isScanning = true; Audio.startScan(); }
-                } else {
-                    if(SYS.isScanning) { SYS.isScanning = false; Audio.stopScan(); }
-                }
+                if(closestDist < (0.08 / SYS.zoom)) { if(!SYS.isScanning) { SYS.isScanning = true; Audio.startScan(); } } 
+                else { if(SYS.isScanning) { SYS.isScanning = false; Audio.stopScan(); } }
             } else box.style.display = 'none';
-
         } else {
             SYS.targetSat = null; box.style.display = 'none'; document.getElementById('tel-rng').innerText = '--- km';
             document.getElementById('reticle-inner').style.stroke = 'var(--neon-green)';
@@ -580,65 +498,87 @@ const Graphics = {
 };
 
 /* ==========================================================================
-   7. INPUT & HUD UPDATE
+   MAIN LOOP & BOOT
    ========================================================================== */
 let lastTime = performance.now();
 function loop() {
     requestAnimationFrame(loop);
     const now = performance.now(); const delta = now - lastTime; lastTime = now;
-    
     if(SYS.isPaused) return;
 
     // Smooth Gyro
-    const o = SYS.orient; const s = SYS.offset;
-    const cx = o.beta + s.beta; const cy = o.alpha + s.alpha; const cz = -(o.gamma + s.gamma);
+    const cx = SYS.orient.beta + SYS.offset.beta; const cy = SYS.orient.alpha + SYS.offset.alpha; const cz = -(SYS.orient.gamma + SYS.offset.gamma);
     if(Graphics.camera) Graphics.camera.rotation.set(cx, cy, cz, 'YXZ');
     
-    // HUD Updates
     let az = (cy * 180 / Math.PI) % 360; if(az < 0) az += 360;
     document.getElementById('compass-tape').style.transform = `translateX(${-az * 4}px)`;
     document.getElementById('tel-az').innerText = az.toFixed(1) + '°';
     document.getElementById('tel-el').innerText = (cx * 180 / Math.PI).toFixed(1) + '°';
-    
-    const d = new Date();
-    document.getElementById('tel-time').innerText = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+    const d = new Date(); document.getElementById('tel-time').innerText = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
 
-    Graphics.update();
-    Game.processScan(delta);
+    Graphics.update(); Game.processScan(delta);
 }
 
-/* ==========================================================================
-   8. BOOT SEQUENCE
-   ========================================================================== */
 window.onload = () => {
     UI.init();
     
-    const mc = new Hammer(document.body); mc.get('pinch').set({ enable: true });
-    let startZ = 1.0;
+    // Zoom control
+    const mc = new Hammer(document.body); mc.get('pinch').set({ enable: true }); let startZ = 1.0;
     mc.on('pinchstart', () => { startZ = SYS.zoom; });
-    mc.on('pinchmove', e => {
-        SYS.zoom = Math.max(1.0, Math.min(SYS.maxZoom, startZ * e.scale));
-        if(Graphics.camera) { Graphics.camera.fov = 75 / SYS.zoom; Graphics.camera.updateProjectionMatrix(); document.getElementById('tel-fov').innerText = Graphics.camera.fov.toFixed(1)+'°';}
-    });
+    mc.on('pinchmove', e => { SYS.zoom = Math.max(1.0, Math.min(SYS.maxZoom, startZ * e.scale)); if(Graphics.camera) { Graphics.camera.fov = 75 / SYS.zoom; Graphics.camera.updateProjectionMatrix(); document.getElementById('tel-fov').innerText = Graphics.camera.fov.toFixed(1)+'°';} });
 
-    // Double tap to Calibrate North
-    mc.on('doubletap', () => {
-        SYS.offset.alpha = -SYS.orient.alpha; SYS.offset.beta = -SYS.orient.beta; SYS.offset.gamma = -SYS.orient.gamma;
-        UI.flash('var(--tac-orange)'); Audio.beep(1500, 'square', 0.2);
-    });
+    // Double tap to Calibrate
+    mc.on('doubletap', () => { SYS.offset.alpha = -SYS.orient.alpha; SYS.offset.beta = -SYS.orient.beta; SYS.offset.gamma = -SYS.orient.gamma; UI.flash('var(--tac-orange)'); Audio.beep(1500, 'square', 0.2); });
 
-    document.getElementById('dialog-btn-ok').onclick = async () => {
+    document.getElementById('dialog-btn-ok').onclick = () => {
         document.getElementById('dialog-layer').style.display = 'none';
-        if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{});
+        
+        // 1. CRITICAL: Request Gyro Synchronously inside the click handler for iOS Safari
+        const startGyro = () => {
+            window.addEventListener('deviceorientation', e => {
+                if(e.alpha === null) return;
+                const d2r = Math.PI/180; let a = e.alpha;
+                if(e.webkitCompassHeading !== undefined) a = 360 - e.webkitCompassHeading; else if(e.absolute) a = 360 - e.alpha;
+                SYS.orient.alpha = a * d2r; SYS.orient.beta = e.beta * d2r; SYS.orient.gamma = e.gamma * d2r;
+            });
+        };
+        if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            DeviceOrientationEvent.requestPermission().then(r => { if(r === 'granted') startGyro(); }).catch(()=>{});
+        } else startGyro();
+
+        // 2. Audio Init
         Audio.init(); Audio.beep();
-        
-        await Sensors.init();
-        await Sensors.fetchTLE();
+
+        // 3. Fullscreen
+        if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{});
+
+        // 4. Async Data Fetch (Does not block Gyro anymore)
         Graphics.init();
-        UI.flash();
-        
-        lastTime = performance.now();
-        loop();
+        lastTime = performance.now(); loop(); // Start loop immediately so UI updates
+
+        // GPS Fetch (Non-blocking)
+        if(navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(p => {
+                SYS.geo.lat = p.coords.latitude; SYS.geo.lon = p.coords.longitude; SYS.geo.alt = p.coords.altitude || 0;
+                document.getElementById('tel-lat').innerText = SYS.geo.lat.toFixed(4); document.getElementById('tel-lon').innerText = SYS.geo.lon.toFixed(4);
+            }, () => { document.getElementById('tel-warn').innerText = '[GPS_ERR]'; }, { enableHighAccuracy: true });
+        }
+
+        // Camera Fetch (Non-blocking)
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } }).then(stream => {
+            const vid = document.getElementById('bg-camera'); vid.srcObject = stream; vid.style.opacity = 1;
+        }).catch(() => { document.getElementById('tel-warn').innerText = '[CAM_ERR]'; });
+
+        // TLE Fetch (Non-blocking)
+        fetch('https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle').then(res => res.text()).then(txt => {
+            const lines = txt.split(/\r?\n/);
+            for(let i=0; i<lines.length && SYS.sats.length < 300; i+=3) {
+                if(!lines[i+2]) continue;
+                try { SYS.sats.push({ name: lines[i].trim(), satrec: satellite.twoline2satrec(lines[i+1].trim(), lines[i+2].trim()) }); } catch(e){}
+            }
+            document.getElementById('tel-sat-count').innerText = SYS.sats.length; Game.assignBounty();
+            UI.flash(); // Flash screen when data arrives
+        }).catch(() => { document.getElementById('tel-warn').innerText = '[DATA_ERR]'; });
     };
 };
 </script>
