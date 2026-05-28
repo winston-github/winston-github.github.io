@@ -3,22 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KaiCanvas Master Pro - 絲滑漢字風骨畫布</title>
+    <title>KaiCanvas Master Elite - 漢字刀鋒骨架畫布</title>
     <style>
         body { margin: 0; background: #1a1a1a; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
         .container { position: relative; width: 95vw; height: 85vh; }
-        /* 嚴格純白背景 */
         canvas { background: #ffffff !important; cursor: crosshair; touch-action: none; width: 100%; height: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.5); border: 2px solid #333; }
         .info { position: absolute; top: -55px; left: 0; width: 100%; color: #bbb; font-size: 14px; text-align: center; pointer-events: none; line-height: 1.5; font-weight: bold; }
-        button { position: absolute; bottom: -55px; left: 50%; transform: translateX(-50%); padding: 10px 24px; font-size: 14px; background: #222; color: #ccc; border: 1px solid #444; border-radius: 4px; cursor: pointer; }
-        button:active { background: #333; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="info">✒️ <b>KaiCanvas Master Pro (雙層邊緣包絡線 · 物理極致抗鋸齒)</b><br><span>已引入微觀邊緣羽化融合技術，全面磨平向量生硬鋸齒，線條絲滑圓潤</span></div>
+        <div class="info">✒️ <b>KaiCanvas Master Elite (切鋒入筆 · 針尖出鋒)</b><br><span>已全面移除起筆貢丸圓結與收尾蠟筆鈍頭，實現正統毛筆「露鋒切入」與「驚鴻利芒」</span></div>
         <canvas id="paintCanvas"></canvas>
-        <button onclick="clearCanvas()">洗筆清空</button>
     </div>
 
 <script>
@@ -32,17 +28,14 @@
         canvas.height = rect.height * dpr;
         ctx.scale(dpr, dpr);
         
-        // 初始化純白畫布
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // 核心設定：開啟硬體抗鋸齒優化
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
     }
 
     let isPainting = false;
-    let points = []; // 儲存近期軌跡點用於貝茲平滑化
+    let points = []; 
     let currentX = 0, currentY = 0;
     let currentWidth = 12;
     
@@ -50,15 +43,14 @@
     let lastRightX = null, lastRightY = null;
     let lastAngle = null;
 
-    // 【大師級核心物理參數】
+    // 【極致刀鋒物理參數】
     const MAX_WIDTH = 34;
-    const MIN_WIDTH = 3.5;
-    const POSITION_INERTIA = 0.26; // 位置平滑阻尼
-    const WIDTH_INERTIA = 0.14;    // 變寬平滑阻尼
+    const MIN_WIDTH = 1.0;         // 終極版將極限寬度壓入 1 像素（消滅蠟筆頭）
+    const POSITION_INERTIA = 0.28; // 位置平滑阻尼
+    const WIDTH_INERTIA = 0.15;    // 變寬平滑阻尼
 
-    // 墨色層次配置（核心：用兩層不同濃度的墨水融和，消滅鋸齒）
-    const CORE_INK = "rgba(15, 15, 15, 0.98)";   // 98% 實心主核心
-    const SMOOTH_INK = "rgba(15, 15, 15, 0.14)"; // 14% 邊緣微觀抗鋸齒羽化層
+    const CORE_INK = "rgba(15, 15, 15, 1.0)";   
+    const SMOOTH_INK = "rgba(15, 15, 15, 0.14)"; 
 
     window.addEventListener('resize', resizeCanvas);
     setTimeout(resizeCanvas, 100);
@@ -74,16 +66,13 @@
         
         currentX = pos.x;
         currentY = pos.y;
-        currentWidth = MAX_WIDTH * 0.45;
+        currentWidth = 1.5; // 【核心修正一：落紙瞬間寬度極小，消滅起筆大圓結】
         
         points = [{ x: currentX, y: currentY, w: currentWidth }];
         
         lastLeftX = null; lastLeftY = null;
         lastRightX = null; lastRightY = null;
         lastAngle = null;
-
-        // 起筆微頓圓點（同樣套用抗鋸齒雙層渲染）
-        drawSmoothDot(currentX, currentY, currentWidth / 2);
     }
 
     function draw(e) {
@@ -95,7 +84,6 @@
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < 0.4) return;
 
-        // 軌跡與筆寬物理慣性濾波
         const prevX = currentX;
         const prevY = currentY;
         currentX = currentX + dx * POSITION_INERTIA;
@@ -103,13 +91,22 @@
 
         const moveAngle = Math.atan2(currentY - prevY, currentX - prevX);
 
+        // 決定目標筆寬
         let targetWidth = MAX_WIDTH - Math.log1p(dist * 1.5) * 6.5;
         if (targetWidth < MIN_WIDTH) targetWidth = MIN_WIDTH;
         if (targetWidth > MAX_WIDTH) targetWidth = MAX_WIDTH;
 
-        // 永字八法幾何約束（橫細直粗）
-        const angleDiff = Math.abs(Math.sin(moveAngle - (-Math.PI / 4))); 
-        targetWidth = targetWidth * (1.0 - angleDiff * 0.24);
+        // 【核心修正二：起筆切鋒過渡】
+        // 如果剛開始移動（點數少於 6 個），筆寬不立刻放大，而是由細到粗「漸進切入」
+        // 這會自然形成書法入筆時那種帥氣的斜刀切面（露鋒起筆），完美消滅圓結
+        if (points.length < 6) {
+            targetWidth = MIN_WIDTH + (targetWidth - MIN_WIDTH) * (points.length / 6);
+        } else {
+            // 漢字橫細直粗約束
+            const angleDiff = Math.abs(Math.sin(moveAngle - (-Math.PI / 4))); 
+            targetWidth = targetWidth * (1.0 - angleDiff * 0.24);
+        }
+
         currentWidth = currentWidth + (targetWidth - currentWidth) * WIDTH_INERTIA;
 
         points.push({ x: currentX, y: currentY, w: currentWidth });
@@ -119,15 +116,13 @@
         const nx = -Math.sin(moveAngle);
         const ny = Math.cos(moveAngle);
 
-        // 核心幾何點
         const curLeftX = currentX + nx * radius;
         const curLeftY = currentY + ny * radius;
         const curRightX = currentX - nx * radius;
         const curRightY = currentY - ny * radius;
 
         if (lastLeftX !== null) {
-            // 【第一層：外圍微觀包絡線 —— 專職消滅邊緣硬鋸齒】
-            // 向外多擴展 1.2 像素，使用極低透明度墨水進行羽化融合
+            // 雙層抗鋸齒包絡線焊接
             const smoothLeftX = curLeftX + nx * 1.2;
             const smoothLeftY = curLeftY + ny * 1.2;
             const smoothRightX = curRightX - nx * 1.2;
@@ -146,7 +141,6 @@
             ctx.closePath();
             ctx.fill();
 
-            // 【第二層：主核心實心包絡線】
             ctx.fillStyle = CORE_INK;
             ctx.beginPath();
             ctx.moveTo(lastLeftX - nx * 0.1, lastLeftY - ny * 0.1);
@@ -156,25 +150,24 @@
             ctx.closePath();
             ctx.fill();
 
-            // 【第三層：中軸二次貝茲核心骨架（徹底壓實橫向中段缝隙）】
+            // 中軸二次貝茲核心
             ctx.strokeStyle = CORE_INK;
-            ctx.lineWidth = currentWidth - 0.3;
+            ctx.lineWidth = Math.max(0.1, currentWidth - 0.3);
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             ctx.beginPath();
             ctx.moveTo(prevX, prevY);
             if (points.length === 3) {
-                // 利用前兩點的中點進行貝茲平滑，讓中軸線與多邊形完美貼合，毫無鋸齒
-                const xc = (points[0].x + points[1].x) / 2;
-                const yc = (points[0].y + points[1].y) / 2;
-                ctx.quadraticCurveTo(points[0].x, points[0].y, xc, yc);
+                const xc = (points.x + points.x) / 2;
+                const yc = (points.y + points.y) / 2;
+                ctx.quadraticCurveTo(points.x, points.y, xc, yc);
             } else {
                 ctx.lineTo(currentX, currentY);
             }
             ctx.stroke();
         }
 
-        // 漢字捺腳特化外部塑形
+        // 捺腳特化外部塑形
         if (moveAngle > 0.4 && moveAngle < 1.2 && currentWidth > MAX_WIDTH * 0.45) {
             ctx.fillStyle = CORE_INK;
             ctx.beginPath();
@@ -189,27 +182,42 @@
         lastAngle = moveAngle;
     }
 
-    // 剛勁刀鋒出鋒收尾（同樣完美融入抗鋸齒磨邊）
+    // 【核心修正三：極限微米收尖出鋒 —— 徹底消滅蠟筆頭】
     function stopDrawing() {
         if (!isPainting) return;
 
-        if (lastLeftX !== null && currentWidth > MIN_WIDTH * 1.1) {
+        if (lastLeftX !== null && currentWidth > 1.5) {
             let tailX = currentX;
             let tailY = currentY;
             let tailW = currentWidth;
-            const steps = 16; 
+            const steps = 24; // 增加出鋒精細步數
 
             for (let k = 1; k <= steps; k++) {
                 const ratio = k / steps;
-                // 反向平方根拋物線收束模型（消滅火焰形）
-                const curveFactor = 1.0 - Math.sqrt(ratio); 
-                tailW = MIN_WIDTH + (currentWidth - MIN_WIDTH) * curveFactor;
                 
-                tailX += Math.cos(lastAngle) * (tailW * 0.15);
-                tailY += Math.sin(lastAngle) * (tailW * 0.15);
+                // 完美的雙曲線遞減模型：前半段保持風骨，最後 5% 進行極限微米級收束
+                const curveFactor = 1.0 - Math.pow(ratio, 0.45); 
+                tailW = currentWidth * curveFactor;
+                
+                // 順著慣性角度前進
+                tailX += Math.cos(lastAngle) * (Math.max(0.4, tailW) * 0.18);
+                tailY += Math.sin(lastAngle) * (Math.max(0.4, tailW) * 0.18);
 
-                if (tailW < 0.4) break;
-                drawSmoothDot(tailX, tailY, tailW / 2);
+                // 即使寬度小於 1，依然渲染至 0.2 像素以下，直到完全消失
+                if (tailW < 0.15) break;
+
+                const r = tailW / 2;
+                
+                // 雙層抗鋸齒微米圓點覆蓋，確保出鋒末端像銀針一樣銳利、滑順
+                ctx.fillStyle = SMOOTH_INK;
+                ctx.beginPath();
+                ctx.arc(tailX, tailY, r + 0.5, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = CORE_INK;
+                ctx.beginPath();
+                ctx.arc(tailX, tailY, r, 0, Math.PI * 2);
+                ctx.fill();
             }
         }
 
@@ -220,32 +228,12 @@
         lastAngle = null;
     }
 
-    // 專職繪製帶有物理抗鋸齒微暈的實心圓點公用函式
-    function drawSmoothDot(cx, cy, r) {
-        // 外層抗鋸齒層（稍微拓寬）
-        ctx.fillStyle = SMOOTH_INK;
-        ctx.beginPath();
-        ctx.arc(cx, cy, r + 0.8, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 內層實心層
-        ctx.fillStyle = CORE_INK;
-        ctx.beginPath();
-        ctx.arc(cx, cy, r, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
     function getCanvasPos(e) {
         const rect = canvas.getBoundingClientRect();
         return {
             x: e.clientX - rect.left,
             y: e.clientY - rect.top
         };
-    }
-
-    function clearCanvas() {
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 </script>
 </body>
