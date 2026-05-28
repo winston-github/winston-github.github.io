@@ -3,21 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KaiCanvas Pro - 漢字幾何時間骨架演算</title>
+    <title>KaiCanvas Anti-Bamboo - 流線無節書法演算畫布</title>
     <style>
         body { margin: 0; background: #111; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
         .container { position: relative; width: 95vw; height: 85vh; }
-        /* 核心要求：無論早晚，永遠保持純白背景 */
+        /* 承前啟後：無論早晚，永遠保持純白背景 */
         canvas { background: #ffffff !important; cursor: crosshair; touch-action: none; width: 100%; height: 100%; box-shadow: 0 20px 50px rgba(0,0,0,0.3); border: 2px solid #222; }
         .info { position: absolute; top: -55px; left: 0; width: 100%; color: #aaa; font-size: 14px; text-align: center; pointer-events: none; line-height: 1.5; font-weight: bold; }
-        .info span { color: #ff3b30; }
+        .info span { color: #00ffcc; }
         button { position: absolute; bottom: -55px; left: 50%; transform: translateX(-50%); padding: 10px 24px; font-size: 14px; background: #222; color: #ccc; border: 1px solid #444; border-radius: 4px; cursor: pointer; }
         button:active { background: #333; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="info">✒️ <b>KaiCanvas Pro (時間力道累積與漢字方向外部塑形)</b><br><span>起筆、折角、捺腳請微作停頓，演算法會隨時間自動塑形出楷書筆鋒</span></div>
+        <div class="info">✒️ <b>KaiCanvas (多邊形包絡線 · 徹底杜絕竹節蟲感)</b><br><span>全面引入物理動量與非圓形多邊形蒙皮，線條挺拔絲滑，完美消除串珠生硬感</span></div>
         <canvas id="paintCanvas"></canvas>
         <button onclick="clearCanvas()">洗筆清空</button>
     </div>
@@ -33,17 +33,23 @@
         canvas.height = rect.height * dpr;
         ctx.scale(dpr, dpr);
         ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, canvas.width, canvas.height); // 初始化純白背景
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
     let isPainting = false;
-    let lastX = 0, lastY = 0, lastTime = 0;
     
-    // 物理力道與幾何參數
-    let virtualPressure = 0.2; // 即時累積的虛擬力道 (0.0 ~ 1.0)
-    const MAX_STROKE_WIDTH = 36;
-    const MIN_STROKE_WIDTH = 3.5;
-    const TIME_ACCUMULATION_RATE = 0.015; // 每毫秒時間停頓所累積的力道增加率
+    // 【反竹節蟲核心控制變數】
+    let currentX = 0, currentY = 0;       // 經動量濾波後的平滑物理座標
+    let currentWidth = 12;                // 經動量濾波後的平滑筆寬
+    let lastLeftX = null, lastLeftY = null;   // 上一幀左側包絡線邊緣點
+    let lastRightX = null, lastRightY = null; // 上一幀右側包絡線邊緣點
+    let lastAngle = null;
+
+    // 書法物理力道參數
+    const MAX_WIDTH = 32;
+    const MIN_WIDTH = 4.0;
+    const POSITION_INERTIA = 0.25; // 座標物理慣性（數值越小，線條越圓潤去手震）
+    const WIDTH_INERTIA = 0.08;    // 筆寬形變動量（關鍵：極低變化率，完全消滅竹節蟲忽大忽小的疙瘩）
 
     window.addEventListener('resize', resizeCanvas);
     setTimeout(resizeCanvas, 100);
@@ -56,155 +62,138 @@
     function startDrawing(e) {
         isPainting = true;
         const pos = getCanvasPos(e);
-        lastX = pos.x;
-        lastY = pos.y;
-        lastTime = Date.now();
-        virtualPressure = 0.35; // 起筆給予初始落筆力道
         
-        // 渲染落筆瞬间的「逆鋒起筆」微小頓點
-        renderInkFootprint(lastX, lastY, MAX_STROKE_WIDTH * virtualPressure * 0.5, 0, 0);
+        // 初始化濾波器
+        currentX = pos.x;
+        currentY = pos.y;
+        currentWidth = MAX_WIDTH * 0.45; // 起筆給予適度肉感
+        
+        lastLeftX = null; lastLeftY = null;
+        lastRightX = null; lastRightY = null;
+        lastAngle = null;
+
+        // 起筆微頓圓點處理
+        ctx.fillStyle = "rgba(18, 18, 18, 0.98)";
+        ctx.beginPath();
+        ctx.arc(currentX, currentY, currentWidth / 2, 0, Math.PI * 2);
+        ctx.fill();
     }
 
     function draw(e) {
         if (!isPainting) return;
 
         const pos = getCanvasPos(e);
-        const now = Date.now();
-        const dx = pos.x - lastX;
-        const dy = pos.y - lastY;
+        
+        // 1. 物理動量濾波（第一道防線：消除手動突變與顫抖造成的軌跡鋸齒）
+        const targetX = pos.x;
+        const targetY = pos.y;
+        const dx = targetX - currentX;
+        const dy = targetY - currentY;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        const dt = Math.max(1, now - lastTime);
-
-        // 【核心演算一：時間累積力道系統（彎折與停頓控制）】
-        if (dist < 1.5) {
-            // 手指幾乎沒動（停頓、折角、捺腳準備出鋒時）
-            // 力道隨時間迅速堆疊，模擬毛筆按壓、墨水向外撐開筆畫邊緣的外部塑形
-            virtualPressure += dt * TIME_ACCUMULATION_RATE;
-            if (virtualPressure > 1.0) virtualPressure = 1.0;
-        } else {
-            // 手指快速移動時（滑行、快速撇掠）
-            // 力道迅速衰減（提筆），線條隨之變細
-            const speed = dist / dt;
-            virtualPressure -= speed * 0.08;
-            if (virtualPressure < 0.1) virtualPressure = 0.1;
-        }
-
-        // 依據累積力道計算精確筆寬
-        const currentWidth = MIN_STROKE_WIDTH + (MAX_STROKE_WIDTH - MIN_STROKE_WIDTH) * virtualPressure;
-
-        // 計算漢字實際運筆方向（永字八法方向幾何）
-        const moveAngle = Math.atan2(dy, dx);
         
-        // 超採樣插值，確保軌跡平滑
-        const steps = Math.ceil(dist * 2.0) || 1;
-        for (let i = 0; i <= steps; i++) {
-            const t = i / steps;
-            const curX = lastX + dx * t;
-            const curY = lastY + dy * t;
-            
-            // 【核心演算二：中中文字實際方向外部塑形（幾何剪切）】
-            // 根據目前移動角度，自動對線條外型進行非對稱修正（不再是呆板的圓形）
-            renderInkFootprint(curX, curY, currentWidth, moveAngle, dist);
-        }
+        if (dist < 0.5) return; // 濾除極微小微顫
 
-        lastX = pos.x;
-        lastY = pos.y;
-        lastTime = now;
-    }
+        // 座標平滑逼近
+        currentX = currentX + dx * POSITION_INERTIA;
+        currentY = currentY + dy * POSITION_INERTIA;
 
-    // 【核心漢字幾何外部塑形引擎】
-    function renderInkFootprint(x, y, width, angle, dist) {
-        const r = width / 2;
-        ctx.save();
-        ctx.translate(x, y);
+        // 計算平滑後的即時移動角度與速度
+        const moveAngle = Math.atan2(currentY - (currentY - dy * POSITION_INERTIA), currentX - (currentX - dx * POSITION_INERTIA));
+        const speed = dist; // 由於時間幀穩定，位移即等效速度
+
+        // 2. 筆寬動量濾波（第二道防線：徹底消滅竹節蟲的核心！）
+        // 限制寬度變化的加速度，讓線條變粗變細的過程極度絲滑、連續
+        let targetWidth = MAX_WIDTH - Math.log1p(speed * 1.8) * 6.0;
+        if (targetWidth < MIN_WIDTH) targetWidth = MIN_WIDTH;
+        if (targetWidth > MAX_WIDTH) targetWidth = MAX_WIDTH;
+
+        // 融入漢字結構特徵：橫細直粗
+        const angleDiff = Math.abs(Math.sin(moveAngle - (-Math.PI / 4))); 
+        targetWidth = targetWidth * (1.0 - angleDiff * 0.22);
+
+        // 寬度平滑逼近（WIDTH_INERTIA 極小，確保絕對不會產生中段肉瘤）
+        currentWidth = currentWidth + (targetWidth - currentWidth) * WIDTH_INERTIA;
+
+        // 3. 多邊形包絡線蒙皮引擎（第三道防線：廢除圓形堆疊，改用左右法線切面焊接）
+        const radius = currentWidth / 2;
         
-        // 將畫布旋轉至運筆方向，方便進行非對稱幾何塑形
-        ctx.rotate(angle);
+        // 計算垂直於目前運筆方向的法線向量（左右兩側的法線方向）
+        const nx = -Math.sin(moveAngle);
+        const ny = Math.cos(moveAngle);
 
-        // 建立封閉的「外部形體多邊形」
-        ctx.beginPath();
+        // 計算目前這一點的左右邊緣外輪廓座標
+        const curLeftX = currentX + nx * radius;
+        const curLeftY = currentY + ny * radius;
+        const curRightX = currentX - nx * radius;
+        const curRightY = currentY - ny * radius;
 
-        // 根據移動方向（漢字筆劃屬性）動態改變外輪廓
-        // 這裡大幅收斂了外圍擴散，直接用高密度實色填充，保證邊緣扎實
-        ctx.fillStyle = "rgba(15, 15, 15, 0.98)"; 
+        ctx.fillStyle = "rgba(18, 18, 18, 0.98)";
 
-        // 判定中文字實際方向特徵：
-        // 1. 橫（向右偏）：角度在 -0.5 到 0.5 弧度之間 -> 塑形為「橫細」，兩端微方
-        // 2. 捺（向右下）：角度在 0.5 到 1.2 弧度之間 -> 右下側外擴，形成「捺腳扁平切面」
-        // 3. 撇（向左下）：角度在 2.0 到 3.0 弧度之間 -> 尾端迅速收尖
-        // 4. 彎折/急停：dist趨近於0 -> 自動往右下方偏移（模擬楷書折角「頓筆」的外擴突起）
+        if (lastLeftX !== null) {
+            // 【多邊形焊接】將上一幀的左右點與這一幀的左右點，焊接成一塊平滑挺拔的封閉多邊形
+            ctx.beginPath();
+            ctx.moveTo(lastLeftX, lastLeftY);
+            ctx.lineTo(curLeftX, curLeftY);
+            ctx.lineTo(curRightX, curRightY);
+            ctx.lineTo(lastRightX, lastRightY);
+            ctx.closePath();
+            ctx.fill();
 
-        let aspect = 1.0; 
-        if (dist < 0.1) {
-            // 停頓與彎折：模擬楷書「折」的方角。向右下方（約45度）額外延伸出一個幾何切面
-            ctx.ellipse(r * 0.15, r * 0.15, r * 1.1, r * 0.85, Math.PI / 4, 0, Math.PI * 2);
-        } else {
-            // 移動狀態下的漢字筆畫特化
-            if (angle > 0.4 && angle < 1.3) {
-                // 【捺法特化】往右下。右側肥厚，左側扁平，形成標準的三角捺腳
-                ctx.moveTo(-r * 0.6, -r * aspect);
-                ctx.lineTo(r * 1.3, r * 0.4);  // 捺腳向外突出
-                ctx.lineTo(r * 0.4, r * 1.2);  // 捺刀切面
-                ctx.lineTo(-r * 0.6, r * 0.6);
-            } else if (Math.abs(angle) < 0.4) {
-                // 【橫法特化】往正右。上下壓扁（橫細），維持運筆挺拔感
-                aspect = 0.65;
-                ctx.ellipse(0, 0, r, r * aspect, 0, 0, Math.PI * 2);
-            } else if (angle > 1.8 && angle < 2.8) {
-                // 【撇法特化】往左下。前端飽滿，後端極端收束
-                ctx.ellipse(0, 0, r * 1.1, r * 0.5, -Math.PI / 6, 0, Math.PI * 2);
-            } else {
-                // 一般直畫或通用筆畫：保持厚實的扁橢圓側鋒
-                ctx.ellipse(0, 0, r * 1.05, r * 0.8, 0, 0, Math.PI * 2);
-            }
-        }
-        
-        ctx.fill();
-        ctx.restore();
-
-        // 萬束細節微拉絲（完全收斂擴散，僅在內部產生微弱絲縷痕跡）
-        if (dist > 3.0 && r > 4) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(angle);
-            ctx.fillStyle = "rgba(25, 25, 25, 0.4)";
-            for (let j = 0; j < 5; j++) {
-                let offset = (Math.random() - 0.5) * r * 1.2;
-                ctx.fillRect(offset, (Math.random() - 0.5) * 2, Math.random() * 2 + 1, 1);
-            }
-            ctx.restore();
-        }
-    }
-
-    // 提筆出鋒演算（如：橫畫收筆回鋒、彈鉤）
-    function stopDrawing() {
-        if (!isPainting) return;
-        
-        const Math_PI = Math.PI;
-        // 檢查最後的慣性，若是向上或左上彈出，觸發「鉤法」特化形體
-        if (Date.now() - lastTime < 50 && virtualPressure > 0.2) {
-            ctx.save();
-            ctx.fillStyle = "rgba(15, 15, 15, 0.98)";
-            let tailX = lastX;
-            let tailY = lastY;
-            let tailR = (MIN_STROKE_WIDTH + (MAX_STROKE_WIDTH - MIN_STROKE_WIDTH) * virtualPressure) / 2;
-            
-            // 自動往左上或右上踢出銳利的鉤芒
-            for (let k = 0; k < 10; k++) {
-                tailX -= tailR * 0.22; // 向左彈
-                tailY -= tailR * 0.18; // 向上挑
-                tailR *= 0.75;          // 快速收尖
-                if (tailR < 0.5) break;
-                
+            // 如果角度彎折較大，自動補上流線弧度，防止折角出現中空斷裂
+            if (lastAngle !== null && Math.abs(moveAngle - lastAngle) > 0.1) {
                 ctx.beginPath();
-                ctx.arc(tailX, tailY, tailR, 0, Math_PI * 2);
+                ctx.arc(currentX, currentY, radius, 0, Math.PI * 2);
                 ctx.fill();
             }
-            ctx.restore();
+        }
+
+        // 【漢字特化外部塑形：捺腳特化處理】
+        // 當向右下運筆且速度變慢、力道變大時，在右下方自動生成漂亮的三角捺刀形體，而非圓球
+        if (moveAngle > 0.4 && moveAngle < 1.2 && currentWidth > MAX_WIDTH * 0.5) {
+            ctx.beginPath();
+            ctx.moveTo(curLeftX, curLeftY);
+            ctx.lineTo(currentX + nx * radius * 1.25, currentY + ny * radius * 1.1); // 外模塑形拉伸
+            ctx.lineTo(curRightX, curRightY);
+            ctx.fill();
+        }
+
+        // 更新歷史包絡線邊緣點，供下一幀焊接使用
+        lastLeftX = curLeftX; lastLeftY = curLeftY;
+        lastRightX = curRightX; lastRightY = curRightY;
+        lastAngle = moveAngle;
+    }
+
+    // 提筆出鋒演算（如：俐落的撇與收尾的鉤）
+    function stopDrawing() {
+        if (!isPainting) return;
+
+        // 若最後一刻有速度與力道，順著最後的角度，渲染出乾淨俐落、毫無突變的收尖
+        if (lastLeftX !== null && currentWidth > MIN_WIDTH * 1.5) {
+            ctx.fillStyle = "rgba(18, 18, 18, 0.98)";
+            let tailX = currentX;
+            let tailY = currentY;
+            let tailW = currentWidth;
+            const nx = -Math.sin(lastAngle);
+            const ny = Math.cos(lastAngle);
+
+            // 完美的剛性幾何收窄，12 步之內將筆畫收歸至 0，形成如尖刀般的撇與捺尾
+            for (let k = 0; k < 12; k++) {
+                tailX += Math.cos(lastAngle) * (tailW * 0.25);
+                tailY += Math.sin(lastAngle) * (tailW * 0.25);
+                tailW *= 0.72; // 指數級平滑收縮
+                if (tailW < 0.6) break;
+
+                const r = tailW / 2;
+                ctx.beginPath();
+                ctx.arc(tailX, tailY, r, 0, Math.PI * 2);
+                ctx.fill();
+            }
         }
 
         isPainting = false;
-        virtualPressure = 0.2;
+        lastLeftX = null; lastLeftY = null;
+        lastRightX = null; lastRightY = null;
+        lastAngle = null;
     }
 
     function getCanvasPos(e) {
