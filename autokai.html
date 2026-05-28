@@ -3,21 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KaiCanvas Anti-Bamboo - 流線無節書法演算畫布</title>
+    <title>KaiCanvas Master - 正宗漢字風骨畫布</title>
     <style>
-        body { margin: 0; background: #111; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
+        body { margin: 0; background: #1a1a1a; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
         .container { position: relative; width: 95vw; height: 85vh; }
-        /* 承前啟後：無論早晚，永遠保持純白背景 */
-        canvas { background: #ffffff !important; cursor: crosshair; touch-action: none; width: 100%; height: 100%; box-shadow: 0 20px 50px rgba(0,0,0,0.3); border: 2px solid #222; }
-        .info { position: absolute; top: -55px; left: 0; width: 100%; color: #aaa; font-size: 14px; text-align: center; pointer-events: none; line-height: 1.5; font-weight: bold; }
-        .info span { color: #00ffcc; }
+        /* 嚴格純白，不論早晚 */
+        canvas { background: #ffffff !important; cursor: crosshair; touch-action: none; width: 100%; height: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.5); border: 2px solid #333; }
+        .info { position: absolute; top: -55px; left: 0; width: 100%; color: #bbb; font-size: 14px; text-align: center; pointer-events: none; line-height: 1.5; font-weight: bold; }
+        .info span { color: #ff453a; }
         button { position: absolute; bottom: -55px; left: 50%; transform: translateX(-50%); padding: 10px 24px; font-size: 14px; background: #222; color: #ccc; border: 1px solid #444; border-radius: 4px; cursor: pointer; }
         button:active { background: #333; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="info">✒️ <b>KaiCanvas (多邊形包絡線 · 徹底杜絕竹節蟲感)</b><br><span>全面引入物理動量與非圓形多邊形蒙皮，線條挺拔絲滑，完美消除串珠生硬感</span></div>
+        <div class="info">✒️ <b>KaiCanvas Master (亞像素黑度修正 · 拋物線俐落出鋒)</b><br><span>已修正中段白線抗鋸齒瑕疵，提筆自動演示正統「刀鋒掠尾」，告別蠟燭火焰</span></div>
         <canvas id="paintCanvas"></canvas>
         <button onclick="clearCanvas()">洗筆清空</button>
     </div>
@@ -32,24 +32,27 @@
         canvas.width = rect.width * dpr;
         canvas.height = rect.height * dpr;
         ctx.scale(dpr, dpr);
+        
+        // 強制實心純白底色，防止透明干擾
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
     let isPainting = false;
-    
-    // 【反竹節蟲核心控制變數】
-    let currentX = 0, currentY = 0;       // 經動量濾波後的平滑物理座標
-    let currentWidth = 12;                // 經動量濾波後的平滑筆寬
-    let lastLeftX = null, lastLeftY = null;   // 上一幀左側包絡線邊緣點
-    let lastRightX = null, lastRightY = null; // 上一幀右側包絡線邊緣點
+    let currentX = 0, currentY = 0;
+    let currentWidth = 12;
+    let lastLeftX = null, lastLeftY = null;
+    let lastRightX = null, lastRightY = null;
     let lastAngle = null;
 
-    // 書法物理力道參數
-    const MAX_WIDTH = 32;
-    const MIN_WIDTH = 4.0;
-    const POSITION_INERTIA = 0.25; // 座標物理慣性（數值越小，線條越圓潤去手震）
-    const WIDTH_INERTIA = 0.08;    // 筆寬形變動量（關鍵：極低變化率，完全消滅竹節蟲忽大忽小的疙瘩）
+    // 【風骨特化物理參數】
+    const MAX_WIDTH = 34;
+    const MIN_WIDTH = 3.5;
+    const POSITION_INERTIA = 0.28; // 位置平滑阻尼
+    const WIDTH_INERTIA = 0.12;    // 寬度變化速度限制（杜絕突變）
+
+    // 墨色設定：使用高飽和純焦墨，杜絕半透明重疊空隙
+    const INK_COLOR = "rgba(12, 12, 12, 1.0)";
 
     window.addEventListener('resize', resizeCanvas);
     setTimeout(resizeCanvas, 100);
@@ -63,17 +66,15 @@
         isPainting = true;
         const pos = getCanvasPos(e);
         
-        // 初始化濾波器
         currentX = pos.x;
         currentY = pos.y;
-        currentWidth = MAX_WIDTH * 0.45; // 起筆給予適度肉感
+        currentWidth = MAX_WIDTH * 0.45;
         
         lastLeftX = null; lastLeftY = null;
         lastRightX = null; lastRightY = null;
         lastAngle = null;
 
-        // 起筆微頓圓點處理
-        ctx.fillStyle = "rgba(18, 18, 18, 0.98)";
+        ctx.fillStyle = INK_COLOR;
         ctx.beginPath();
         ctx.arc(currentX, currentY, currentWidth / 2, 0, Math.PI * 2);
         ctx.fill();
@@ -83,107 +84,118 @@
         if (!isPainting) return;
 
         const pos = getCanvasPos(e);
-        
-        // 1. 物理動量濾波（第一道防線：消除手動突變與顫抖造成的軌跡鋸齒）
-        const targetX = pos.x;
-        const targetY = pos.y;
-        const dx = targetX - currentX;
-        const dy = targetY - currentY;
+        const dx = pos.x - currentX;
+        const dy = pos.y - currentY;
         const dist = Math.sqrt(dx * dx + dy * dy);
         
-        if (dist < 0.5) return; // 濾除極微小微顫
+        if (dist < 0.4) return;
 
-        // 座標平滑逼近
+        // 軌跡慣性平滑化
+        const prevX = currentX;
+        const prevY = currentY;
         currentX = currentX + dx * POSITION_INERTIA;
         currentY = currentY + dy * POSITION_INERTIA;
 
-        // 計算平滑後的即時移動角度與速度
-        const moveAngle = Math.atan2(currentY - (currentY - dy * POSITION_INERTIA), currentX - (currentX - dx * POSITION_INERTIA));
-        const speed = dist; // 由於時間幀穩定，位移即等效速度
+        const moveAngle = Math.atan2(currentY - prevY, currentX - prevX);
 
-        // 2. 筆寬動量濾波（第二道防線：徹底消滅竹節蟲的核心！）
-        // 限制寬度變化的加速度，讓線條變粗變細的過程極度絲滑、連續
-        let targetWidth = MAX_WIDTH - Math.log1p(speed * 1.8) * 6.0;
+        // 計算基礎目標寬度
+        let targetWidth = MAX_WIDTH - Math.log1p(dist * 1.5) * 6.0;
         if (targetWidth < MIN_WIDTH) targetWidth = MIN_WIDTH;
         if (targetWidth > MAX_WIDTH) targetWidth = MAX_WIDTH;
 
-        // 融入漢字結構特徵：橫細直粗
+        // 融入永字八法幾何優化（橫細直粗）
         const angleDiff = Math.abs(Math.sin(moveAngle - (-Math.PI / 4))); 
-        targetWidth = targetWidth * (1.0 - angleDiff * 0.22);
+        targetWidth = targetWidth * (1.0 - angleDiff * 0.25);
 
-        // 寬度平滑逼近（WIDTH_INERTIA 極小，確保絕對不會產生中段肉瘤）
+        // 限制寬度變化率
         currentWidth = currentWidth + (targetWidth - currentWidth) * WIDTH_INERTIA;
 
-        // 3. 多邊形包絡線蒙皮引擎（第三道防線：廢除圓形堆疊，改用左右法線切面焊接）
         const radius = currentWidth / 2;
-        
-        // 計算垂直於目前運筆方向的法線向量（左右兩側的法線方向）
         const nx = -Math.sin(moveAngle);
         const ny = Math.cos(moveAngle);
 
-        // 計算目前這一點的左右邊緣外輪廓座標
+        // 計算目前包絡線外邊緣座標
         const curLeftX = currentX + nx * radius;
         const curLeftY = currentY + ny * radius;
         const curRightX = currentX - nx * radius;
         const curRightY = currentY - ny * radius;
 
-        ctx.fillStyle = "rgba(18, 18, 18, 0.98)";
+        ctx.fillStyle = INK_COLOR;
+        ctx.strokeStyle = INK_COLOR;
 
         if (lastLeftX !== null) {
-            // 【多邊形焊接】將上一幀的左右點與這一幀的左右點，焊接成一塊平滑挺拔的封閉多邊形
+            // 1. 【焊接修正：增設 0.2px 微幅外張，消滅橫向白線】
             ctx.beginPath();
-            ctx.moveTo(lastLeftX, lastLeftY);
-            ctx.lineTo(curLeftX, curLeftY);
-            ctx.lineTo(curRightX, curRightY);
-            ctx.lineTo(lastRightX, lastRightY);
+            ctx.moveTo(lastLeftX - nx * 0.2, lastLeftY - ny * 0.2);
+            ctx.lineTo(curLeftX + nx * 0.2, curLeftY + ny * 0.2);
+            ctx.lineTo(curRightX - nx * 0.2, curRightY - ny * 0.2);
+            ctx.lineTo(lastRightX + nx * 0.2, lastRightY + ny * 0.2);
             ctx.closePath();
             ctx.fill();
 
-            // 如果角度彎折較大，自動補上流線弧度，防止折角出現中空斷裂
-            if (lastAngle !== null && Math.abs(moveAngle - lastAngle) > 0.1) {
+            // 2. 【核心雙保險：沿中軸線補實一條實心骨架】
+            // 這一條線能徹底壓死所有焊接產生的抗鋸齒亞像素白邊，讓線條中段飽滿黑亮！
+            ctx.lineWidth = currentWidth - 0.5;
+            ctx.beginPath();
+            ctx.moveTo(prevX, prevY);
+            ctx.lineTo(currentX, currentY);
+            ctx.stroke();
+
+            // 曲率過大時的流暢補弧
+            if (lastAngle !== null && Math.abs(moveAngle - lastAngle) > 0.08) {
                 ctx.beginPath();
                 ctx.arc(currentX, currentY, radius, 0, Math.PI * 2);
                 ctx.fill();
             }
         }
 
-        // 【漢字特化外部塑形：捺腳特化處理】
-        // 當向右下運筆且速度變慢、力道變大時，在右下方自動生成漂亮的三角捺刀形體，而非圓球
-        if (moveAngle > 0.4 && moveAngle < 1.2 && currentWidth > MAX_WIDTH * 0.5) {
+        // 捺腳特化外部塑形（朝右下，且筆劃變粗時）
+        if (moveAngle > 0.4 && moveAngle < 1.2 && currentWidth > MAX_WIDTH * 0.45) {
             ctx.beginPath();
             ctx.moveTo(curLeftX, curLeftY);
-            ctx.lineTo(currentX + nx * radius * 1.25, currentY + ny * radius * 1.1); // 外模塑形拉伸
+            ctx.lineTo(currentX + nx * radius * 1.28, currentY + ny * radius * 1.15); 
             ctx.lineTo(curRightX, curRightY);
             ctx.fill();
         }
 
-        // 更新歷史包絡線邊緣點，供下一幀焊接使用
         lastLeftX = curLeftX; lastLeftY = curLeftY;
         lastRightX = curRightX; lastRightY = curRightY;
         lastAngle = moveAngle;
     }
 
-    // 提筆出鋒演算（如：俐落的撇與收尾的鉤）
+    // 【出鋒演算法大翻修：消除蠟燭火焰，重塑剛勁刀鋒掠尾】
     function stopDrawing() {
         if (!isPainting) return;
 
-        // 若最後一刻有速度與力道，順著最後的角度，渲染出乾淨俐落、毫無突變的收尖
-        if (lastLeftX !== null && currentWidth > MIN_WIDTH * 1.5) {
-            ctx.fillStyle = "rgba(18, 18, 18, 0.98)";
+        if (lastLeftX !== null && currentWidth > MIN_WIDTH * 1.2) {
+            ctx.fillStyle = INK_COLOR;
             let tailX = currentX;
             let tailY = currentY;
             let tailW = currentWidth;
-            const nx = -Math.sin(lastAngle);
-            const ny = Math.cos(lastAngle);
+            
+            // 出鋒拉長的步數
+            const steps = 15; 
 
-            // 完美的剛性幾何收窄，12 步之內將筆畫收歸至 0，形成如尖刀般的撇與捺尾
-            for (let k = 0; k < 12; k++) {
-                tailX += Math.cos(lastAngle) * (tailW * 0.25);
-                tailY += Math.sin(lastAngle) * (tailW * 0.25);
-                tailW *= 0.72; // 指數級平滑收縮
-                if (tailW < 0.6) break;
+            for (let k = 1; k <= steps; k++) {
+                const ratio = k / steps;
 
+                // 核心數學修正：不再使用直線等比縮小（火焰形）
+                // 改用「反向平方根函數」，讓筆畫前半段維持飽滿度，最後 15% 瞬間聚攏收窄
+                // 這完美對應了書法提筆時，筆毫先平滑過渡、最後俐落彈開的「刀鋒特徵」
+                const curveFactor = 1.0 - Math.sqrt(ratio); 
+                tailW = MIN_WIDTH + (currentWidth - MIN_WIDTH) * curveFactor;
+                
+                // 順著最後一幀的角度慣性前進
+                tailX += Math.cos(lastAngle) * (tailW * 0.16);
+                tailY += Math.sin(lastAngle) * (tailW * 0.16);
+
+                if (tailW < 0.5) break;
+
+                // 採用法線切面覆蓋出鋒，杜絕圓球收尾產生的肉疙瘩
                 const r = tailW / 2;
+                const tx = -Math.sin(lastAngle) * r;
+                const ty = Math.cos(lastAngle) * r;
+
                 ctx.beginPath();
                 ctx.arc(tailX, tailY, r, 0, Math.PI * 2);
                 ctx.fill();
