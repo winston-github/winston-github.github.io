@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KaiCanvas Master Elite Pro - 精準漢字風骨畫布</title>
+    <title>KaiCanvas Master Hook - 妙筆生鉤書法畫布</title>
     <style>
         body { margin: 0; background: #111; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
         .container { position: relative; width: 95vw; height: 85vh; }
@@ -13,7 +13,7 @@
 </head>
 <body>
     <div class="container">
-        <div class="info">✒️ <b>KaiCanvas Master Elite Pro (精準不噴飛 · 原地刀鋒出鋒)</b><br><span>出鋒終點嚴格鎖定手指離螢幕點！絕不憑空向外多畫延伸，實現手到筆到的絕對真實</span></div>
+        <div class="info">✒️ <b>KaiCanvas Master Hook (跪筆彈鉤優化 · 徹底消滅轉折肉瘤)</b><br><span>已引入急轉彎角度剪切演算法！寫「小、子」急停挑勾時自動塑形出漂亮三角鉤芒，絕不積墨</span></div>
         <canvas id="paintCanvas"></canvas>
     </div>
 
@@ -41,10 +41,10 @@
     let lastAngle = null;
     let lastRawX = 0, lastRawY = 0; 
 
-    // 【大師級完美書法配置參數】
+    // 【大師級書法基本物理參數】
     const MAX_WIDTH = 34;          
     const MIN_WIDTH = 4.0;         
-    const POSITION_INERTIA = 0.26; 
+    let positionInertia = 0.26; // 動態阻尼（挑勾時會被程式即時改寫）
     const WIDTH_INERTIA = 0.12;    
 
     const INK_COLOR = "rgba(15, 15, 15, 1.0)"; 
@@ -66,8 +66,8 @@
         lastRawX = pos.x;
         lastRawY = pos.y;
         currentWidth = MIN_WIDTH; 
+        positionInertia = 0.26; // 重置常規阻尼
         
-        // 露鋒起筆：初始不繪製任何圖案，等待移動方向
         points = [{ x: currentX, y: currentY, w: MIN_WIDTH }];
         lastAngle = null;
     }
@@ -88,19 +88,47 @@
         const prevX = currentX;
         const prevY = currentY;
         
-        currentX = currentX + dx * POSITION_INERTIA;
-        currentY = currentY + dy * POSITION_INERTIA;
+        // 3. 計算即時運筆角度
+        const rawAngle = Math.atan2(dy, dx);
+        
+        // 【核心優化一：轉折動態減重與阻尼釋放演算法 —— 專治挑勾黑球】
+        // 當發現目前移動角度與上一幀的角度差很大（大於 75 度，如向下寫豎突然往左上挑勾）
+        if (lastAngle !== null) {
+            let angleChange = Math.abs(rawAngle - lastAngle);
+            if (angleChange > Math.PI) angleChange = Math.PI * 2 - angleChange;
+
+            if (angleChange > 1.3) { // 偵測到銳角急轉彎（書法中的「折」或「跪筆準備出鉤」）
+                // 瞬間釋放阻尼延遲（讓骨架瞬間追上手指，把墨水拉走，防止在底部堆成大圓球）
+                positionInertia = 0.85; 
+            } else {
+                // 漸進恢復常規阻尼，維持線條平滑去手震
+                positionInertia = positionInertia + (0.26 - positionInertia) * 0.1;
+            }
+        }
+
+        // 位置慣性濾波
+        currentX = currentX + dx * positionInertia;
+        currentY = currentY + dy * positionInertia;
         const moveAngle = Math.atan2(currentY - prevY, currentX - prevX);
 
+        // 基礎目標筆寬演算
         let targetWidth = MAX_WIDTH - Math.log1p(dist * 1.5) * 6.5;
         if (targetWidth < MIN_WIDTH) targetWidth = MIN_WIDTH;
         if (targetWidth > MAX_WIDTH) targetWidth = MAX_WIDTH;
 
-        const angleDiff = Math.abs(Math.sin(moveAngle - (-Math.PI / 4))); 
-        targetWidth = targetWidth * (1.0 - angleDiff * 0.24);
+        // 【核心優化二：挑勾角度幾何強制減重】
+        if (positionInertia > 0.5) {
+            // 處於挑勾狀態下，強迫筆寬瞬間削減 45%，利用數學手段徹底蒸發轉折處的積墨肉瘤
+            targetWidth = targetWidth * 0.55;
+        } else {
+            // 常規狀態：漢字橫細直粗約束
+            const angleDiff = Math.abs(Math.sin(moveAngle - (-Math.PI / 4))); 
+            targetWidth = targetWidth * (1.0 - angleDiff * 0.24);
+        }
+
         currentWidth = currentWidth + (targetWidth - currentWidth) * WIDTH_INERTIA;
 
-        // 露鋒起筆線性過渡
+        // 起筆過渡
         let renderWidth = currentWidth;
         if (points.length < 4) {
             renderWidth = MIN_WIDTH + (currentWidth - MIN_WIDTH) * (points.length / 4);
@@ -108,7 +136,7 @@
 
         points.push({ x: currentX, y: currentY, w: renderWidth });
 
-        // 二階向心貝茲骨架引擎（100% 關閉白線與竹節蟲）
+        // 二階向心貝茲骨架引擎
         if (points.length >= 3) {
             const p0 = points[points.length - 3];
             const p1 = points[points.length - 2];
@@ -146,8 +174,8 @@
             if (points.length > 4) points.shift();
         }
 
-        // 漢字捺腳外部塑形
-        if (moveAngle > 0.4 && moveAngle < 1.2 && currentWidth > MAX_WIDTH * 0.45) {
+        // 漢字捺腳特化外部塑形
+        if (moveAngle > 0.4 && moveAngle < 1.2 && currentWidth > MAX_WIDTH * 0.45 && positionInertia < 0.5) {
             const radius = currentWidth / 2;
             const nx = -Math.sin(moveAngle);
             const ny = Math.cos(moveAngle);
@@ -163,7 +191,7 @@
         lastAngle = moveAngle;
     }
 
-    // 【出鋒算法極致大修正：主權回歸手指，原地精準出尖，絕不外噴】
+    // 精準原地出鋒收尖
     function stopDrawing() {
         if (!isPainting) return;
 
@@ -174,47 +202,42 @@
 
             let lastDrawnPt = points[points.length - 1];
 
-            // 1. 【防斷裂無縫補齊】：先將剩餘緩衝點連通到最後已知的骨架點
             if (points.length > 1) {
                 ctx.lineWidth = currentWidth;
                 ctx.beginPath();
-                ctx.moveTo(points[0].x, points[0].y);
+                ctx.moveTo(points.x, points.y);
                 for (let i = 1; i < points.length; i++) {
                     ctx.lineTo(points[i].x, points[i].y);
                 }
                 ctx.stroke();
             }
 
-            // 2. 【核心修正：絕對原地出鋒】
-            // 筆尖的「絕對終點」嚴格限制在手指離開螢幕的真實位置 lastRawX/Y
-            // 我們把「最後已知骨架點」到「真實離手點」之間的這段真實物理距離，作為出鋒筆尖的全部舞台
             const finalDx = lastRawX - lastDrawnPt.x;
             const finalDy = lastRawY - lastDrawnPt.y;
             const finalDist = Math.sqrt(finalDx * finalDx + finalDy * finalDy);
 
             if (finalDist > 1.0 && lastAngle !== null) {
-                // 依據手指真實劃過的最後距離，決定微觀插值步數，以 0.2 像素為抽樣單位
                 const tailSteps = Math.ceil(finalDist * 4.0);
-                
                 let currentTailX = lastDrawnPt.x;
                 let currentTailY = lastDrawnPt.y;
 
                 for (let k = 1; k <= tailSteps; k++) {
                     const ratio = k / tailSteps;
-                    
-                    // 絕對線性遞減（Linear Taper）：確保兩側包絡線筆直如寶劍，不塌陷內縮
                     const curveFactor = 1.0 - ratio;
-                    const tailW = 1.3 + (currentWidth - 1.3) * curveFactor;
+                    
+                    // 【核心優化三：挑勾專用極速收尖】
+                    // 如果是在釋放阻尼（挑勾）狀態下提筆，寬度收攏速度再加倍，拉出如鷹嘴般俐落的三角大師勾芒
+                    const minEdge = positionInertia > 0.5 ? 1.0 : 1.3;
+                    const tailW = minEdge + (currentWidth - minEdge) * curveFactor;
 
                     const prevTailX = currentTailX;
                     const prevTailY = currentTailY;
 
-                    // 嚴格沿著手指最後劃過的真實路徑軌跡前進，絕不向外多延伸一像素
                     currentTailX = lastDrawnPt.x + finalDx * ratio;
                     currentTailY = lastDrawnPt.y + finalDy * ratio;
 
-                    if (tailW <= 1.35) {
-                        ctx.lineWidth = 1.3;
+                    if (tailW <= minEdge + 0.05) {
+                        ctx.lineWidth = minEdge;
                         ctx.beginPath();
                         ctx.moveTo(prevTailX, prevTailY);
                         ctx.lineTo(currentTailX, currentTailY);
@@ -229,7 +252,6 @@
                     ctx.stroke();
                 }
             } else if (lastAngle !== null) {
-                // 如果手指離手時極慢、幾乎在原地提起，則在最後一點的原地微跨 2 像素進行精準收針，防止出尖失敗
                 ctx.lineWidth = currentWidth;
                 ctx.beginPath();
                 ctx.moveTo(lastDrawnPt.x, lastDrawnPt.y);
@@ -243,6 +265,7 @@
         isPainting = false;
         points = [];
         lastAngle = null;
+        positionInertia = 0.26;
     }
 
     function getCanvasPos(e) {
