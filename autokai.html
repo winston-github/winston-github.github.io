@@ -3,17 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KaiCanvas IronClad - 鐵證如山書法畫布</title>
+    <title>KaiCanvas Master Supreme - 大成風骨書法畫布</title>
     <style>
-        body { margin: 0; background: #1a1a1a; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
+        body { margin: 0; background: #111; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
         .container { position: relative; width: 95vw; height: 85vh; }
-        canvas { background: #ffffff !important; cursor: crosshair; touch-action: none; width: 100%; height: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.5); border: 2px solid #333; }
-        .info { position: absolute; top: -55px; left: 0; width: 100%; color: #bbb; font-size: 14px; text-align: center; pointer-events: none; line-height: 1.5; font-weight: bold; }
+        /* 嚴格純白畫布，不受時間環境干擾 */
+        canvas { background: #ffffff !important; cursor: crosshair; touch-action: none; width: 100%; height: 100%; box-shadow: 0 25px 70px rgba(0,0,0,0.6); border: 2px solid #222; }
+        .info { position: absolute; top: -55px; left: 0; width: 100%; color: #aaa; font-size: 14px; text-align: center; pointer-events: none; line-height: 1.5; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="info">✒️ <b>KaiCanvas IronClad (緩衝點全面清空焊接 · 物理絕對不斷節)</b><br><span>提筆瞬間強行封死二階貝茲留白漏洞！不論運筆速度多瘋狂，結尾都絕對 100% 完美相連</span></div>
+        <div class="info">✒️ <b>KaiCanvas Master Supreme (露鋒切入起筆 · 剛性線性出鋒)</b><br><span>徹底消滅起筆貢丸圓結與收尾內縮蠟筆頭！回歸正統繁體楷書之快刀長劍鋒芒</span></div>
         <canvas id="paintCanvas"></canvas>
     </div>
 
@@ -41,11 +42,11 @@
     let lastAngle = null;
     let lastRawX = 0, lastRawY = 0; 
 
-    // 【大師級黃金物理參數配置】
-    const MAX_WIDTH = 34;          
-    const MIN_WIDTH = 4.0;         
-    const POSITION_INERTIA = 0.26; 
-    const WIDTH_INERTIA = 0.12;    
+    // 【大師級完美書法粗細配置】
+    const MAX_WIDTH = 34;          // 飽滿厚實最大肉感寬度
+    const MIN_WIDTH = 4.0;         // 扎實銳利最小骨感寬度
+    const POSITION_INERTIA = 0.26; // 位置阻尼
+    const WIDTH_INERTIA = 0.12;    // 變寬阻尼
 
     const INK_COLOR = "rgba(15, 15, 15, 1.0)"; 
 
@@ -67,7 +68,8 @@
         lastRawY = pos.y;
         currentWidth = MIN_WIDTH; 
         
-        // 初始記錄點
+        // 【核心優化一：起筆完全不畫任何圖案】
+        // 只記錄起始座標，徹底連根拔除起筆的貢丸大圓結
         points = [{ x: currentX, y: currentY, w: MIN_WIDTH }];
         lastAngle = null;
     }
@@ -92,17 +94,30 @@
         currentY = currentY + dy * POSITION_INERTIA;
         const moveAngle = Math.atan2(currentY - prevY, currentX - prevX);
 
+        // 計算目標筆寬
         let targetWidth = MAX_WIDTH - Math.log1p(dist * 1.5) * 6.5;
         if (targetWidth < MIN_WIDTH) targetWidth = MIN_WIDTH;
         if (targetWidth > MAX_WIDTH) targetWidth = MAX_WIDTH;
 
+        // 漢字橫細直粗特徵約束
         const angleDiff = Math.abs(Math.sin(moveAngle - (-Math.PI / 4))); 
         targetWidth = targetWidth * (1.0 - angleDiff * 0.24);
+
+        // 寬度平滑逼近
+        const prevWidth = currentWidth;
         currentWidth = currentWidth + (targetWidth - currentWidth) * WIDTH_INERTIA;
 
-        points.push({ x: currentX, y: currentY, w: currentWidth });
+        // 【核心優化二：露鋒切入起筆過渡】
+        // 如果剛開始動（歷史點少於 4 個），強迫筆寬從極細線性撐開
+        // 配合手指移動的方向，會自然在起點拉出一條流暢優雅的「斜刀切鋒入筆」，精緻絕倫
+        let renderWidth = currentWidth;
+        if (points.length < 4) {
+            renderWidth = MIN_WIDTH + (currentWidth - MIN_WIDTH) * (points.length / 4);
+        }
 
-        // 貝茲曲線主繪製引擎
+        points.push({ x: currentX, y: currentY, w: renderWidth });
+
+        // 二階向心貝茲骨架引擎（100% 免疫橫白線與竹節蟲，消滅直線折角）
         if (points.length >= 3) {
             const p0 = points[points.length - 3];
             const p1 = points[points.length - 2];
@@ -140,7 +155,7 @@
             if (points.length > 4) points.shift();
         }
 
-        // 漢字捺腳外部塑形
+        // 漢字捺腳特化外部塑形
         if (moveAngle > 0.4 && moveAngle < 1.2 && currentWidth > MAX_WIDTH * 0.45) {
             const radius = currentWidth / 2;
             const nx = -Math.sin(moveAngle);
@@ -157,7 +172,7 @@
         lastAngle = moveAngle;
     }
 
-    // 【終極解決方案：強制全數據清空焊接】
+    // 【核心優化三：長跨度剛性線性出鋒 —— 徹底斬斷蠟筆內縮頭】
     function stopDrawing() {
         if (!isPainting) return;
 
@@ -166,15 +181,13 @@
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
 
-            // 1. 【破壞斷層死穴的核心】：
-            // 不管 points 裡面因為沒湊滿 3 個點剩下了多少軌跡，提筆瞬間一律「強制全部用直線一條拉通畫出來」
-            // 並且強行一路連線連到手指最後離開螢幕的真實物理點(lastRawX/Y)，不留任何時空漏洞！
+            // 數據不中斷清空焊接
             let lastDrawnPt = points[points.length - 1];
             ctx.lineWidth = currentWidth;
 
             if (points.length > 1) {
                 ctx.beginPath();
-                ctx.moveTo(points[0].x, points[0].y);
+                ctx.moveTo(points.x, points.y);
                 for (let i = 1; i < points.length; i++) {
                     ctx.lineTo(points[i].x, points[i].y);
                 }
@@ -187,31 +200,37 @@
                 ctx.stroke();
             }
 
-            // 2. 確定出鋒的絕對無縫起點
             let startX = lastRawX;
             let startY = lastRawY;
 
-            // 3. 順暢地延展拋物線利芒
+            // 啟動正統書法線性出尖
             if (lastAngle !== null && currentWidth > MIN_WIDTH * 1.1) {
                 let tailX = startX;
                 let tailY = startY;
                 let tailW = currentWidth;
-                const steps = 18; 
+                
+                // 將收尾長度大幅拉長到 28 步，給予線條充足的剛性舒展空間
+                const steps = 28; 
 
                 for (let k = 1; k <= steps; k++) {
                     const ratio = k / steps;
-                    const curveFactor = 1.0 - Math.pow(ratio, 0.6); 
-                    const nextW = MIN_WIDTH + (currentWidth - MIN_WIDTH) * curveFactor;
+                    
+                    // 關鍵修正：將原本內凹的等比收縮改為「絕對線性遞減（Linear Decay）」
+                    // 這能保證筆尖兩側的包絡線像一把拉直的長劍劍刃，呈現出完美的剛勁挺直
+                    // 當寬度縮小到 1.3 像素時（黃金圓面筆鋒），隨即俐落斷開，絕不留原子筆死細線
+                    const curveFactor = 1.0 - ratio; 
+                    const nextW = 1.3 + (currentWidth - 1.3) * curveFactor;
 
                     const prevTailX = tailX;
                     const prevTailY = tailY;
                     
-                    tailX += Math.cos(lastAngle) * (tailW * 0.16);
-                    tailY += Math.sin(lastAngle) * (tailW * 0.16);
+                    // 順著切線幾何慣性穩步前進
+                    tailX += Math.cos(lastAngle) * (currentWidth * 0.16);
+                    tailY += Math.sin(lastAngle) * (currentWidth * 0.16);
                     tailW = nextW;
 
-                    if (tailW < 1.2) {
-                        ctx.lineWidth = 1.2;
+                    if (tailW <= 1.35) {
+                        ctx.lineWidth = 1.3;
                         ctx.beginPath();
                         ctx.moveTo(prevTailX, prevTailY);
                         ctx.lineTo(tailX, tailY);
