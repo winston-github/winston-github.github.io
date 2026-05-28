@@ -1,56 +1,279 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>KaiCanvas Final Fix</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>KaiCanvas Master Hook - 妙筆生鉤書法畫布</title>
     <style>
-        body { margin: 0; background: #111; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        canvas { background: #fff; touch-action: none; width: 95vw; height: 85vh; border: 2px solid #222; }
+        body { margin: 0; background: #111; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
+        .container { position: relative; width: 95vw; height: 85vh; }
+        canvas { background: #ffffff !important; cursor: crosshair; touch-action: none; width: 100%; height: 100%; box-shadow: 0 25px 70px rgba(0,0,0,0.6); border: 2px solid #222; }
+        .info { position: absolute; top: -55px; left: 0; width: 100%; color: #aaa; font-size: 14px; text-align: center; pointer-events: none; line-height: 1.5; font-weight: bold; }
     </style>
 </head>
 <body>
-    <canvas id="paintCanvas"></canvas>
+    <div class="container">
+        <div class="info">✒️ <b>KaiCanvas Master Hook (跪筆彈鉤優化 · 徹底消滅轉折肉瘤)</b><br><span>已引入急轉彎角度剪切演算法！寫「小、子」急停挑勾時自動塑形出漂亮三角鉤芒，絕不積墨</span></div>
+        <canvas id="paintCanvas"></canvas>
+    </div>
+
 <script>
     const canvas = document.getElementById('paintCanvas');
     const ctx = canvas.getContext('2d');
-    let isDrawing = false, points = [];
     
-    // 初始化與高清設定
-    function setup() {
+    function resizeCanvas() {
         const dpr = window.devicePixelRatio || 2;
         const rect = canvas.getBoundingClientRect();
         canvas.width = rect.width * dpr;
         canvas.height = rect.height * dpr;
         ctx.scale(dpr, dpr);
-        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, rect.width, rect.height);
+        
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
     }
-    setup();
 
-    // 處理指標事件
-    canvas.addEventListener('pointerdown', e => { isDrawing = true; points = [{x: e.offsetX, y: e.offsetY, w: 4}]; });
+    let isPainting = false;
+    let points = []; 
+    let currentX = 0, currentY = 0;
+    let currentWidth = 4.0;
+    let lastAngle = null;
+    let lastRawX = 0, lastRawY = 0; 
+
+    // 【大師級書法基本物理參數】
+    const MAX_WIDTH = 34;          
+    const MIN_WIDTH = 4.0;         
+    let positionInertia = 0.26; // 動態阻尼（挑勾時會被程式即時改寫）
+    const WIDTH_INERTIA = 0.12;    
+
+    const INK_COLOR = "rgba(15, 15, 15, 1.0)"; 
+
+    window.addEventListener('resize', resizeCanvas);
+    setTimeout(resizeCanvas, 100);
+
+    canvas.addEventListener('pointerdown', startDrawing);
     canvas.addEventListener('pointermove', draw);
-    canvas.addEventListener('pointerup', () => isDrawing = false);
+    canvas.addEventListener('pointerup', stopDrawing);
+    canvas.addEventListener('pointercancel', stopDrawing);
+
+    function startDrawing(e) {
+        isPainting = true;
+        const pos = getCanvasPos(e);
+        
+        currentX = pos.x;
+        currentY = pos.y;
+        lastRawX = pos.x;
+        lastRawY = pos.y;
+        currentWidth = MIN_WIDTH; 
+        positionInertia = 0.26; // 重置常規阻尼
+        
+        points = [{ x: currentX, y: currentY, w: MIN_WIDTH }];
+        lastAngle = null;
+    }
 
     function draw(e) {
-        if (!isDrawing) return;
-        const x = e.offsetX, y = e.offsetY;
-        const last = points[points.length - 1];
-        const dist = Math.hypot(x - last.x, y - last.y);
-        if (dist < 1) return;
+        if (!isPainting) return;
 
-        // 核心修正：動態切換連接方式，大彎用 round，急轉用 bevel
-        const angle = Math.abs(Math.atan2(y - last.y, x - last.x));
-        ctx.lineJoin = angle > 0.5 ? 'bevel' : 'round'; // 動態削平肉瘤
-        ctx.lineCap = 'round';
-        ctx.lineWidth = Math.max(2, 30 - dist * 2);
-        ctx.strokeStyle = '#000';
+        const pos = getCanvasPos(e);
+        lastRawX = pos.x; 
+        lastRawY = pos.y;
 
-        ctx.beginPath();
-        ctx.moveTo(last.x, last.y);
-        ctx.lineTo(x, y);
-        ctx.stroke();
-        points.push({x, y});
+        const lastPt = points[points.length - 1];
+        const dx = pos.x - lastPt.x;
+        const dy = pos.y - lastPt.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 0.4) return;
+
+        const prevX = currentX;
+        const prevY = currentY;
+        
+        // 3. 計算即時運筆角度
+        const rawAngle = Math.atan2(dy, dx);
+        
+        // 【核心優化一：轉折動態減重與阻尼釋放演算法 —— 專治挑勾黑球】
+        // 當發現目前移動角度與上一幀的角度差很大（大於 75 度，如向下寫豎突然往左上挑勾）
+        if (lastAngle !== null) {
+            let angleChange = Math.abs(rawAngle - lastAngle);
+            if (angleChange > Math.PI) angleChange = Math.PI * 2 - angleChange;
+
+            if (angleChange > 1.3) { // 偵測到銳角急轉彎（書法中的「折」或「跪筆準備出鉤」）
+                // 瞬間釋放阻尼延遲（讓骨架瞬間追上手指，把墨水拉走，防止在底部堆成大圓球）
+                positionInertia = 0.85; 
+            } else {
+                // 漸進恢復常規阻尼，維持線條平滑去手震
+                positionInertia = positionInertia + (0.26 - positionInertia) * 0.1;
+            }
+        }
+
+        // 位置慣性濾波
+        currentX = currentX + dx * positionInertia;
+        currentY = currentY + dy * positionInertia;
+        const moveAngle = Math.atan2(currentY - prevY, currentX - prevX);
+
+        // 基礎目標筆寬演算
+        let targetWidth = MAX_WIDTH - Math.log1p(dist * 1.5) * 6.5;
+        if (targetWidth < MIN_WIDTH) targetWidth = MIN_WIDTH;
+        if (targetWidth > MAX_WIDTH) targetWidth = MAX_WIDTH;
+
+        // 【核心優化二：挑勾角度幾何強制減重】
+        if (positionInertia > 0.5) {
+            // 處於挑勾狀態下，強迫筆寬瞬間削減 45%，利用數學手段徹底蒸發轉折處的積墨肉瘤
+            targetWidth = targetWidth * 0.55;
+        } else {
+            // 常規狀態：漢字橫細直粗約束
+            const angleDiff = Math.abs(Math.sin(moveAngle - (-Math.PI / 4))); 
+            targetWidth = targetWidth * (1.0 - angleDiff * 0.24);
+        }
+
+        currentWidth = currentWidth + (targetWidth - currentWidth) * WIDTH_INERTIA;
+
+        // 起筆過渡
+        let renderWidth = currentWidth;
+        if (points.length < 4) {
+            renderWidth = MIN_WIDTH + (currentWidth - MIN_WIDTH) * (points.length / 4);
+        }
+
+        points.push({ x: currentX, y: currentY, w: renderWidth });
+
+        // 二階向心貝茲骨架引擎
+        if (points.length >= 3) {
+            const p0 = points[points.length - 3];
+            const p1 = points[points.length - 2];
+            const p2 = points[points.length - 1];
+
+            const xc = (p1.x + p2.x) / 2;
+            const yc = (p1.y + p2.y) / 2;
+
+            const chordLength = Math.sqrt((xc - p0.x) * (xc - p0.x) + (yc - p0.y) * (yc - p0.y));
+            const steps = Math.ceil(chordLength * 4.5) || 1;
+
+            ctx.strokeStyle = INK_COLOR;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            let bPrevX = p0.x;
+            let bPrevY = p0.y;
+
+            for (let i = 1; i <= steps; i++) {
+                const t = i / steps;
+                const curX = (1 - t) * (1 - t) * p0.x + 2 * (1 - t) * t * p1.x + t * t * xc;
+                const curY = (1 - t) * (1 - t) * p0.y + 2 * (1 - t) * t * p1.y + t * t * yc;
+
+                ctx.lineWidth = p0.w + (p1.w - p0.w) * t;
+
+                ctx.beginPath();
+                ctx.moveTo(bPrevX, bPrevY);
+                ctx.lineTo(curX, curY);
+                ctx.stroke();
+
+                bPrevX = curX;
+                bPrevY = curY;
+            }
+
+            if (points.length > 4) points.shift();
+        }
+
+        // 漢字捺腳特化外部塑形
+        if (moveAngle > 0.4 && moveAngle < 1.2 && currentWidth > MAX_WIDTH * 0.45 && positionInertia < 0.5) {
+            const radius = currentWidth / 2;
+            const nx = -Math.sin(moveAngle);
+            const ny = Math.cos(moveAngle);
+            ctx.fillStyle = INK_COLOR;
+            ctx.beginPath();
+            ctx.moveTo(currentX + nx * radius, currentY + ny * radius);
+            ctx.lineTo(currentX + nx * radius * 1.26, currentY + ny * radius * 1.15); 
+            ctx.lineTo(currentX - nx * radius, currentY - ny * radius);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        lastAngle = moveAngle;
+    }
+
+    // 精準原地出鋒收尖
+    function stopDrawing() {
+        if (!isPainting) return;
+
+        if (points.length > 0) {
+            ctx.strokeStyle = INK_COLOR;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            let lastDrawnPt = points[points.length - 1];
+
+            if (points.length > 1) {
+                ctx.lineWidth = currentWidth;
+                ctx.beginPath();
+                ctx.moveTo(points.x, points.y);
+                for (let i = 1; i < points.length; i++) {
+                    ctx.lineTo(points[i].x, points[i].y);
+                }
+                ctx.stroke();
+            }
+
+            const finalDx = lastRawX - lastDrawnPt.x;
+            const finalDy = lastRawY - lastDrawnPt.y;
+            const finalDist = Math.sqrt(finalDx * finalDx + finalDy * finalDy);
+
+            if (finalDist > 1.0 && lastAngle !== null) {
+                const tailSteps = Math.ceil(finalDist * 4.0);
+                let currentTailX = lastDrawnPt.x;
+                let currentTailY = lastDrawnPt.y;
+
+                for (let k = 1; k <= tailSteps; k++) {
+                    const ratio = k / tailSteps;
+                    const curveFactor = 1.0 - ratio;
+                    
+                    // 【核心優化三：挑勾專用極速收尖】
+                    // 如果是在釋放阻尼（挑勾）狀態下提筆，寬度收攏速度再加倍，拉出如鷹嘴般俐落的三角大師勾芒
+                    const minEdge = positionInertia > 0.5 ? 1.0 : 1.3;
+                    const tailW = minEdge + (currentWidth - minEdge) * curveFactor;
+
+                    const prevTailX = currentTailX;
+                    const prevTailY = currentTailY;
+
+                    currentTailX = lastDrawnPt.x + finalDx * ratio;
+                    currentTailY = lastDrawnPt.y + finalDy * ratio;
+
+                    if (tailW <= minEdge + 0.05) {
+                        ctx.lineWidth = minEdge;
+                        ctx.beginPath();
+                        ctx.moveTo(prevTailX, prevTailY);
+                        ctx.lineTo(currentTailX, currentTailY);
+                        ctx.stroke();
+                        break;
+                    }
+
+                    ctx.lineWidth = tailW;
+                    ctx.beginPath();
+                    ctx.moveTo(prevTailX, prevTailY);
+                    ctx.lineTo(currentTailX, currentTailY);
+                    ctx.stroke();
+                }
+            } else if (lastAngle !== null) {
+                ctx.lineWidth = currentWidth;
+                ctx.beginPath();
+                ctx.moveTo(lastDrawnPt.x, lastDrawnPt.y);
+                const tx = lastDrawnPt.x + Math.cos(lastAngle) * 2;
+                const ty = lastDrawnPt.y + Math.sin(lastAngle) * 2;
+                ctx.lineTo(tx, ty);
+                ctx.stroke();
+            }
+        }
+
+        isPainting = false;
+        points = [];
+        lastAngle = null;
+        positionInertia = 0.26;
+    }
+
+    function getCanvasPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
     }
 </script>
 </body>
