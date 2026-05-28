@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KaiCanvas Master Elite - 漢字刀鋒骨架畫布</title>
+    <title>KaiCanvas IronCore - 漢字鐵骨畫布</title>
     <style>
         body { margin: 0; background: #1a1a1a; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
         .container { position: relative; width: 95vw; height: 85vh; }
@@ -13,7 +13,7 @@
 </head>
 <body>
     <div class="container">
-        <div class="info">✒️ <b>KaiCanvas Master Elite (切鋒入筆 · 針尖出鋒)</b><br><span>已全面移除起筆貢丸圓結與收尾蠟筆鈍頭，實現正統毛筆「露鋒切入」與「驚鴻利芒」</span></div>
+        <div class="info">✒️ <b>KaiCanvas IronCore (100% 骨肉同步 · 切線錐形出鋒)</b><br><span>找回上一版完美粗細！全面封鎖橫白線，結尾導入剛性切線延伸，絕不禿頭</span></div>
         <canvas id="paintCanvas"></canvas>
     </div>
 
@@ -37,17 +37,17 @@
     let isPainting = false;
     let points = []; 
     let currentX = 0, currentY = 0;
-    let currentWidth = 12;
+    let currentWidth = 14; // 回歸饱滿的初始寬度
     
     let lastLeftX = null, lastLeftY = null;
     let lastRightX = null, lastRightY = null;
     let lastAngle = null;
 
-    // 【極致刀鋒物理參數】
-    const MAX_WIDTH = 34;
-    const MIN_WIDTH = 1.0;         // 終極版將極限寬度壓入 1 像素（消滅蠟筆頭）
-    const POSITION_INERTIA = 0.28; // 位置平滑阻尼
-    const WIDTH_INERTIA = 0.15;    // 變寬平滑阻尼
+    // 【回歸上一版完美骨肉感參數】
+    const MAX_WIDTH = 34;          // 飽滿厚實最大寬度
+    const MIN_WIDTH = 3.5;         // 鎖定扎實下限，過細會引發白線
+    const POSITION_INERTIA = 0.28; // 軌跡平滑阻尼
+    const WIDTH_INERTIA = 0.14;    // 變寬平滑阻尼
 
     const CORE_INK = "rgba(15, 15, 15, 1.0)";   
     const SMOOTH_INK = "rgba(15, 15, 15, 0.14)"; 
@@ -66,13 +66,16 @@
         
         currentX = pos.x;
         currentY = pos.y;
-        currentWidth = 1.5; // 【核心修正一：落紙瞬間寬度極小，消滅起筆大圓結】
+        currentWidth = MAX_WIDTH * 0.45; // 起筆直接給予厚實肉感，消滅空心死結
         
         points = [{ x: currentX, y: currentY, w: currentWidth }];
         
         lastLeftX = null; lastLeftY = null;
         lastRightX = null; lastRightY = null;
         lastAngle = null;
+
+        // 起筆雙層抗鋸齒圓點
+        drawSmoothDot(currentX, currentY, currentWidth / 2);
     }
 
     function draw(e) {
@@ -91,21 +94,14 @@
 
         const moveAngle = Math.atan2(currentY - prevY, currentX - prevX);
 
-        // 決定目標筆寬
+        // 速度反比筆寬演算
         let targetWidth = MAX_WIDTH - Math.log1p(dist * 1.5) * 6.5;
         if (targetWidth < MIN_WIDTH) targetWidth = MIN_WIDTH;
         if (targetWidth > MAX_WIDTH) targetWidth = MAX_WIDTH;
 
-        // 【核心修正二：起筆切鋒過渡】
-        // 如果剛開始移動（點數少於 6 個），筆寬不立刻放大，而是由細到粗「漸進切入」
-        // 這會自然形成書法入筆時那種帥氣的斜刀切面（露鋒起筆），完美消滅圓結
-        if (points.length < 6) {
-            targetWidth = MIN_WIDTH + (targetWidth - MIN_WIDTH) * (points.length / 6);
-        } else {
-            // 漢字橫細直粗約束
-            const angleDiff = Math.abs(Math.sin(moveAngle - (-Math.PI / 4))); 
-            targetWidth = targetWidth * (1.0 - angleDiff * 0.24);
-        }
+        // 漢字橫細直粗約束
+        const angleDiff = Math.abs(Math.sin(moveAngle - (-Math.PI / 4))); 
+        targetWidth = targetWidth * (1.0 - angleDiff * 0.24);
 
         currentWidth = currentWidth + (targetWidth - currentWidth) * WIDTH_INERTIA;
 
@@ -122,7 +118,7 @@
         const curRightY = currentY - ny * radius;
 
         if (lastLeftX !== null) {
-            // 雙層抗鋸齒包絡線焊接
+            // 1. 外圍羽化包絡線（消除硬邊鋸齒）
             const smoothLeftX = curLeftX + nx * 1.2;
             const smoothLeftY = curLeftY + ny * 1.2;
             const smoothRightX = curRightX - nx * 1.2;
@@ -141,18 +137,20 @@
             ctx.closePath();
             ctx.fill();
 
+            // 2. 主核心實心多邊形（前後幀微幅重疊 0.3px）
             ctx.fillStyle = CORE_INK;
             ctx.beginPath();
-            ctx.moveTo(lastLeftX - nx * 0.1, lastLeftY - ny * 0.1);
-            ctx.lineTo(curLeftX + nx * 0.1, curLeftY + ny * 0.1);
-            ctx.lineTo(curRightX - nx * 0.1, curRightY - ny * 0.1);
-            ctx.lineTo(lastRightX + nx * 0.1, lastRightY + ny * 0.1);
+            ctx.moveTo(lastLeftX - nx * 0.3, lastLeftY - ny * 0.3);
+            ctx.lineTo(curLeftX + nx * 0.3, curLeftY + ny * 0.3);
+            ctx.lineTo(curRightX - nx * 0.3, curRightY - ny * 0.3);
+            ctx.lineTo(lastRightX + nx * 0.3, lastRightY + ny * 0.3);
             ctx.closePath();
             ctx.fill();
 
-            // 中軸二次貝茲核心
+            // 3. 【一勞永逸：100% 骨肉同步中軸線】
+            // 寬度直接與實體半徑同寬，從最底層徹底壓死所有抗鋸齒白邊，橫白線絕不可能死灰復燃
             ctx.strokeStyle = CORE_INK;
-            ctx.lineWidth = Math.max(0.1, currentWidth - 0.3);
+            ctx.lineWidth = currentWidth; 
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             ctx.beginPath();
@@ -182,42 +180,65 @@
         lastAngle = moveAngle;
     }
 
-    // 【核心修正三：極限微米收尖出鋒 —— 徹底消滅蠟筆頭】
+    // 【出鋒算法全面兵變：引入剛性向量切面收尖，徹底斬斷蠟筆頭】
     function stopDrawing() {
         if (!isPainting) return;
 
-        if (lastLeftX !== null && currentWidth > 1.5) {
+        if (lastLeftX !== null && currentWidth > MIN_WIDTH) {
+            ctx.fillStyle = CORE_INK;
             let tailX = currentX;
             let tailY = currentY;
             let tailW = currentWidth;
-            const steps = 24; // 增加出鋒精細步數
+            
+            // 增加步進密度，拉長出鋒距離
+            const steps = 20; 
+            const nx = -Math.sin(lastAngle);
+            const ny = Math.cos(lastAngle);
+
+            let lastTailLeftX = lastLeftX;
+            let lastTailLeftY = lastLeftY;
+            let lastTailRightX = lastRightX;
+            let lastTailRightY = lastRightY;
 
             for (let k = 1; k <= steps; k++) {
                 const ratio = k / steps;
                 
-                // 完美的雙曲線遞減模型：前半段保持風骨，最後 5% 進行極限微米級收束
-                const curveFactor = 1.0 - Math.pow(ratio, 0.45); 
+                // 使用立方的流暢收束曲線，前半段維持厚度，後段流暢聚攏
+                const curveFactor = 1.0 - Math.pow(ratio, 0.7); 
                 tailW = currentWidth * curveFactor;
-                
-                // 順著慣性角度前進
-                tailX += Math.cos(lastAngle) * (Math.max(0.4, tailW) * 0.18);
-                tailY += Math.sin(lastAngle) * (Math.max(0.4, tailW) * 0.18);
 
-                // 即使寬度小於 1，依然渲染至 0.2 像素以下，直到完全消失
-                if (tailW < 0.15) break;
+                // 順著切線方向大步邁進，給予筆尖拉長的骨架空間
+                tailX += Math.cos(lastAngle) * (currentWidth * 0.15);
+                tailY += Math.sin(lastAngle) * (currentWidth * 0.15);
+
+                if (tailW < 0.2) break;
 
                 const r = tailW / 2;
-                
-                // 雙層抗鋸齒微米圓點覆蓋，確保出鋒末端像銀針一樣銳利、滑順
-                ctx.fillStyle = SMOOTH_INK;
+                const curTailLeftX = tailX + nx * r;
+                const curTailLeftY = tailY + ny * r;
+                const curTailRightX = tailX - nx * r;
+                const curTailRightY = tailY - ny * r;
+
+                // 改用「向量梯形焊接」來拉出結尾，廢除圓形堆疊，尾端直接收歸至無窮小點
                 ctx.beginPath();
-                ctx.arc(tailX, tailY, r + 0.5, 0, Math.PI * 2);
+                ctx.moveTo(lastTailLeftX, lastTailLeftY);
+                ctx.lineTo(curTailLeftX, curTailLeftY);
+                ctx.lineTo(curTailRightX, curTailRightY);
+                ctx.lineTo(lastTailRightX, lastTailRightY);
+                ctx.closePath();
                 ctx.fill();
 
-                ctx.fillStyle = CORE_INK;
+                // 補齊邊緣抗鋸齒羽化層
+                ctx.fillStyle = SMOOTH_INK;
                 ctx.beginPath();
-                ctx.arc(tailX, tailY, r, 0, Math.PI * 2);
+                ctx.arc(tailX, tailY, r + 1.0, 0, Math.PI * 2);
                 ctx.fill();
+                ctx.fillStyle = CORE_INK;
+
+                lastTailLeftX = curTailLeftX;
+                lastTailLeftY = curTailLeftY;
+                lastTailRightX = curTailRightX;
+                lastTailRightY = curTailRightY;
             }
         }
 
@@ -226,6 +247,18 @@
         lastLeftX = null; lastLeftY = null;
         lastRightX = null; lastRightY = null;
         lastAngle = null;
+    }
+
+    function drawSmoothDot(cx, cy, r) {
+        ctx.fillStyle = SMOOTH_INK;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r + 0.8, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = CORE_INK;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
     }
 
     function getCanvasPos(e) {
