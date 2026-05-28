@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KaiCanvas Curves Ultra - 完美無暇鐵骨畫布</title>
+    <title>KaiCanvas IronClad - 鐵證如山書法畫布</title>
     <style>
         body { margin: 0; background: #1a1a1a; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
         .container { position: relative; width: 95vw; height: 85vh; }
@@ -13,7 +13,7 @@
 </head>
 <body>
     <div class="container">
-        <div class="info">✒️ <b>KaiCanvas Curves Ultra (防斷節高速焊接 · 完美書法骨肉)</b><br><span>已修正高速觸控事件中斷瑕疵！即使極速撇捺出鋒也絕對不脫節、不分叉成兩截</span></div>
+        <div class="info">✒️ <b>KaiCanvas IronClad (緩衝點全面清空焊接 · 物理絕對不斷節)</b><br><span>提筆瞬間強行封死二階貝茲留白漏洞！不論運筆速度多瘋狂，結尾都絕對 100% 完美相連</span></div>
         <canvas id="paintCanvas"></canvas>
     </div>
 
@@ -39,7 +39,7 @@
     let currentX = 0, currentY = 0;
     let currentWidth = 4.0;
     let lastAngle = null;
-    let lastRawX = 0, lastRawY = 0; // 新增：記錄手指在未進行濾波前的「絕對最後真實座標」
+    let lastRawX = 0, lastRawY = 0; 
 
     // 【大師級黃金物理參數配置】
     const MAX_WIDTH = 34;          
@@ -67,6 +67,7 @@
         lastRawY = pos.y;
         currentWidth = MIN_WIDTH; 
         
+        // 初始記錄點
         points = [{ x: currentX, y: currentY, w: MIN_WIDTH }];
         lastAngle = null;
     }
@@ -75,7 +76,7 @@
         if (!isPainting) return;
 
         const pos = getCanvasPos(e);
-        lastRawX = pos.x; // 即時更新手指物理真實終點，用作提筆時的斷裂焊接
+        lastRawX = pos.x; 
         lastRawY = pos.y;
 
         const lastPt = points[points.length - 1];
@@ -87,12 +88,10 @@
         const prevX = currentX;
         const prevY = currentY;
         
-        // 物理位置濾波
         currentX = currentX + dx * POSITION_INERTIA;
         currentY = currentY + dy * POSITION_INERTIA;
         const moveAngle = Math.atan2(currentY - prevY, currentX - prevX);
 
-        // 速度反比寬度演算
         let targetWidth = MAX_WIDTH - Math.log1p(dist * 1.5) * 6.5;
         if (targetWidth < MIN_WIDTH) targetWidth = MIN_WIDTH;
         if (targetWidth > MAX_WIDTH) targetWidth = MAX_WIDTH;
@@ -103,7 +102,7 @@
 
         points.push({ x: currentX, y: currentY, w: currentWidth });
 
-        // 二階貝茲動態中點插值路徑
+        // 貝茲曲線主繪製引擎
         if (points.length >= 3) {
             const p0 = points[points.length - 3];
             const p1 = points[points.length - 2];
@@ -113,7 +112,6 @@
             const yc = (p1.y + p2.y) / 2;
 
             const chordLength = Math.sqrt((xc - p0.x) * (xc - p0.x) + (yc - p0.y) * (yc - p0.y));
-            // 高精細度超採樣
             const steps = Math.ceil(chordLength * 4.5) || 1;
 
             ctx.strokeStyle = INK_COLOR;
@@ -142,7 +140,7 @@
             if (points.length > 4) points.shift();
         }
 
-        // 漢字捺腳特化外部塑形
+        // 漢字捺腳外部塑形
         if (moveAngle > 0.4 && moveAngle < 1.2 && currentWidth > MAX_WIDTH * 0.45) {
             const radius = currentWidth / 2;
             const nx = -Math.sin(moveAngle);
@@ -159,68 +157,74 @@
         lastAngle = moveAngle;
     }
 
-    // 【高速出鋒焊接函式 —— 徹底消滅兩截、斷頭漏洞】
+    // 【終極解決方案：強制全數據清空焊接】
     function stopDrawing() {
         if (!isPainting) return;
 
-        const lastPt = points[points.length - 1];
-
-        if (lastAngle !== null && currentWidth > MIN_WIDTH * 1.1) {
+        if (points.length > 0) {
             ctx.strokeStyle = INK_COLOR;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
 
-            // 【核心焊接魔法】：
-            // 如果濾波器與手指真實離螢幕位置(lastRawX)落差太大（判定為高速撇捺掠出）
-            // 在啟動錐形出鋒前，先強制拉一條過渡線段，把這個空間斷層「銲接咬死」，消滅兩截斷痕
-            const gapDist = Math.sqrt((lastRawX - lastPt.x) * (lastRawX - lastPt.x) + (lastRawY - lastPt.y) * (lastRawY - lastPt.y));
-            let startX = lastPt.x;
-            let startY = lastPt.y;
+            // 1. 【破壞斷層死穴的核心】：
+            // 不管 points 裡面因為沒湊滿 3 個點剩下了多少軌跡，提筆瞬間一律「強制全部用直線一條拉通畫出來」
+            // 並且強行一路連線連到手指最後離開螢幕的真實物理點(lastRawX/Y)，不留任何時空漏洞！
+            let lastDrawnPt = points[points.length - 1];
+            ctx.lineWidth = currentWidth;
 
-            if (gapDist > 5.0) {
-                ctx.lineWidth = currentWidth;
+            if (points.length > 1) {
                 ctx.beginPath();
-                ctx.moveTo(lastPt.x, lastPt.y);
+                ctx.moveTo(points[0].x, points[0].y);
+                for (let i = 1; i < points.length; i++) {
+                    ctx.lineTo(points[i].x, points[i].y);
+                }
                 ctx.lineTo(lastRawX, lastRawY);
                 ctx.stroke();
-                
-                // 將出鋒的起始點移至真實物理離手點，保持力道慣性一體化
-                startX = lastRawX;
-                startY = lastRawY;
+            } else {
+                ctx.beginPath();
+                ctx.moveTo(lastDrawnPt.x, lastDrawnPt.y);
+                ctx.lineTo(lastRawX, lastRawY);
+                ctx.stroke();
             }
 
-            let tailX = startX;
-            let tailY = startY;
-            let tailW = currentWidth;
-            const steps = 20; 
+            // 2. 確定出鋒的絕對無縫起點
+            let startX = lastRawX;
+            let startY = lastRawY;
 
-            for (let k = 1; k <= steps; k++) {
-                const ratio = k / steps;
-                const curveFactor = 1.0 - Math.pow(ratio, 0.6); 
-                const nextW = MIN_WIDTH + (currentWidth - MIN_WIDTH) * curveFactor;
+            // 3. 順暢地延展拋物線利芒
+            if (lastAngle !== null && currentWidth > MIN_WIDTH * 1.1) {
+                let tailX = startX;
+                let tailY = startY;
+                let tailW = currentWidth;
+                const steps = 18; 
 
-                const prevTailX = tailX;
-                const prevTailY = tailY;
-                
-                // 順著最後軌跡的角度前進，拉出毛筆尖的利芒
-                tailX += Math.cos(lastAngle) * (tailW * 0.16);
-                tailY += Math.sin(lastAngle) * (tailW * 0.16);
-                tailW = nextW;
+                for (let k = 1; k <= steps; k++) {
+                    const ratio = k / steps;
+                    const curveFactor = 1.0 - Math.pow(ratio, 0.6); 
+                    const nextW = MIN_WIDTH + (currentWidth - MIN_WIDTH) * curveFactor;
 
-                if (tailW < 1.2) {
-                    ctx.lineWidth = 1.2;
+                    const prevTailX = tailX;
+                    const prevTailY = tailY;
+                    
+                    tailX += Math.cos(lastAngle) * (tailW * 0.16);
+                    tailY += Math.sin(lastAngle) * (tailW * 0.16);
+                    tailW = nextW;
+
+                    if (tailW < 1.2) {
+                        ctx.lineWidth = 1.2;
+                        ctx.beginPath();
+                        ctx.moveTo(prevTailX, prevTailY);
+                        ctx.lineTo(tailX, tailY);
+                        ctx.stroke();
+                        break;
+                    }
+
+                    ctx.lineWidth = tailW;
                     ctx.beginPath();
                     ctx.moveTo(prevTailX, prevTailY);
                     ctx.lineTo(tailX, tailY);
                     ctx.stroke();
-                    break;
                 }
-
-                ctx.lineWidth = tailW;
-                ctx.beginPath();
-                ctx.moveTo(prevTailX, prevTailY);
-                ctx.lineTo(tailX, tailY);
-                ctx.stroke();
             }
         }
 
