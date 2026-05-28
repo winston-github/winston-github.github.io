@@ -3,18 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KaiCanvas Master Supreme - 大成風骨書法畫布</title>
+    <title>KaiCanvas Master Elite Pro - 精準漢字風骨畫布</title>
     <style>
         body { margin: 0; background: #111; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
         .container { position: relative; width: 95vw; height: 85vh; }
-        /* 嚴格純白畫布，不受時間環境干擾 */
         canvas { background: #ffffff !important; cursor: crosshair; touch-action: none; width: 100%; height: 100%; box-shadow: 0 25px 70px rgba(0,0,0,0.6); border: 2px solid #222; }
         .info { position: absolute; top: -55px; left: 0; width: 100%; color: #aaa; font-size: 14px; text-align: center; pointer-events: none; line-height: 1.5; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="info">✒️ <b>KaiCanvas Master Supreme (露鋒切入起筆 · 剛性線性出鋒)</b><br><span>徹底消滅起筆貢丸圓結與收尾內縮蠟筆頭！回歸正統繁體楷書之快刀長劍鋒芒</span></div>
+        <div class="info">✒️ <b>KaiCanvas Master Elite Pro (精準不噴飛 · 原地刀鋒出鋒)</b><br><span>出鋒終點嚴格鎖定手指離螢幕點！絕不憑空向外多畫延伸，實現手到筆到的絕對真實</span></div>
         <canvas id="paintCanvas"></canvas>
     </div>
 
@@ -42,11 +41,11 @@
     let lastAngle = null;
     let lastRawX = 0, lastRawY = 0; 
 
-    // 【大師級完美書法粗細配置】
-    const MAX_WIDTH = 34;          // 飽滿厚實最大肉感寬度
-    const MIN_WIDTH = 4.0;         // 扎實銳利最小骨感寬度
-    const POSITION_INERTIA = 0.26; // 位置阻尼
-    const WIDTH_INERTIA = 0.12;    // 變寬阻尼
+    // 【大師級完美書法配置參數】
+    const MAX_WIDTH = 34;          
+    const MIN_WIDTH = 4.0;         
+    const POSITION_INERTIA = 0.26; 
+    const WIDTH_INERTIA = 0.12;    
 
     const INK_COLOR = "rgba(15, 15, 15, 1.0)"; 
 
@@ -68,8 +67,7 @@
         lastRawY = pos.y;
         currentWidth = MIN_WIDTH; 
         
-        // 【核心優化一：起筆完全不畫任何圖案】
-        // 只記錄起始座標，徹底連根拔除起筆的貢丸大圓結
+        // 露鋒起筆：初始不繪製任何圖案，等待移動方向
         points = [{ x: currentX, y: currentY, w: MIN_WIDTH }];
         lastAngle = null;
     }
@@ -94,22 +92,15 @@
         currentY = currentY + dy * POSITION_INERTIA;
         const moveAngle = Math.atan2(currentY - prevY, currentX - prevX);
 
-        // 計算目標筆寬
         let targetWidth = MAX_WIDTH - Math.log1p(dist * 1.5) * 6.5;
         if (targetWidth < MIN_WIDTH) targetWidth = MIN_WIDTH;
         if (targetWidth > MAX_WIDTH) targetWidth = MAX_WIDTH;
 
-        // 漢字橫細直粗特徵約束
         const angleDiff = Math.abs(Math.sin(moveAngle - (-Math.PI / 4))); 
         targetWidth = targetWidth * (1.0 - angleDiff * 0.24);
-
-        // 寬度平滑逼近
-        const prevWidth = currentWidth;
         currentWidth = currentWidth + (targetWidth - currentWidth) * WIDTH_INERTIA;
 
-        // 【核心優化二：露鋒切入起筆過渡】
-        // 如果剛開始動（歷史點少於 4 個），強迫筆寬從極細線性撐開
-        // 配合手指移動的方向，會自然在起點拉出一條流暢優雅的「斜刀切鋒入筆」，精緻絕倫
+        // 露鋒起筆線性過渡
         let renderWidth = currentWidth;
         if (points.length < 4) {
             renderWidth = MIN_WIDTH + (currentWidth - MIN_WIDTH) * (points.length / 4);
@@ -117,7 +108,7 @@
 
         points.push({ x: currentX, y: currentY, w: renderWidth });
 
-        // 二階向心貝茲骨架引擎（100% 免疫橫白線與竹節蟲，消滅直線折角）
+        // 二階向心貝茲骨架引擎（100% 關閉白線與竹節蟲）
         if (points.length >= 3) {
             const p0 = points[points.length - 3];
             const p1 = points[points.length - 2];
@@ -155,7 +146,7 @@
             if (points.length > 4) points.shift();
         }
 
-        // 漢字捺腳特化外部塑形
+        // 漢字捺腳外部塑形
         if (moveAngle > 0.4 && moveAngle < 1.2 && currentWidth > MAX_WIDTH * 0.45) {
             const radius = currentWidth / 2;
             const nx = -Math.sin(moveAngle);
@@ -172,7 +163,7 @@
         lastAngle = moveAngle;
     }
 
-    // 【核心優化三：長跨度剛性線性出鋒 —— 徹底斬斷蠟筆內縮頭】
+    // 【出鋒算法極致大修正：主權回歸手指，原地精準出尖，絕不外噴】
     function stopDrawing() {
         if (!isPainting) return;
 
@@ -181,59 +172,52 @@
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
 
-            // 數據不中斷清空焊接
             let lastDrawnPt = points[points.length - 1];
-            ctx.lineWidth = currentWidth;
 
+            // 1. 【防斷裂無縫補齊】：先將剩餘緩衝點連通到最後已知的骨架點
             if (points.length > 1) {
+                ctx.lineWidth = currentWidth;
                 ctx.beginPath();
-                ctx.moveTo(points.x, points.y);
+                ctx.moveTo(points[0].x, points[0].y);
                 for (let i = 1; i < points.length; i++) {
                     ctx.lineTo(points[i].x, points[i].y);
                 }
-                ctx.lineTo(lastRawX, lastRawY);
-                ctx.stroke();
-            } else {
-                ctx.beginPath();
-                ctx.moveTo(lastDrawnPt.x, lastDrawnPt.y);
-                ctx.lineTo(lastRawX, lastRawY);
                 ctx.stroke();
             }
 
-            let startX = lastRawX;
-            let startY = lastRawY;
+            // 2. 【核心修正：絕對原地出鋒】
+            // 筆尖的「絕對終點」嚴格限制在手指離開螢幕的真實位置 lastRawX/Y
+            // 我們把「最後已知骨架點」到「真實離手點」之間的這段真實物理距離，作為出鋒筆尖的全部舞台
+            const finalDx = lastRawX - lastDrawnPt.x;
+            const finalDy = lastRawY - lastDrawnPt.y;
+            const finalDist = Math.sqrt(finalDx * finalDx + finalDy * finalDy);
 
-            // 啟動正統書法線性出尖
-            if (lastAngle !== null && currentWidth > MIN_WIDTH * 1.1) {
-                let tailX = startX;
-                let tailY = startY;
-                let tailW = currentWidth;
+            if (finalDist > 1.0 && lastAngle !== null) {
+                // 依據手指真實劃過的最後距離，決定微觀插值步數，以 0.2 像素為抽樣單位
+                const tailSteps = Math.ceil(finalDist * 4.0);
                 
-                // 將收尾長度大幅拉長到 28 步，給予線條充足的剛性舒展空間
-                const steps = 28; 
+                let currentTailX = lastDrawnPt.x;
+                let currentTailY = lastDrawnPt.y;
 
-                for (let k = 1; k <= steps; k++) {
-                    const ratio = k / steps;
+                for (let k = 1; k <= tailSteps; k++) {
+                    const ratio = k / tailSteps;
                     
-                    // 關鍵修正：將原本內凹的等比收縮改為「絕對線性遞減（Linear Decay）」
-                    // 這能保證筆尖兩側的包絡線像一把拉直的長劍劍刃，呈現出完美的剛勁挺直
-                    // 當寬度縮小到 1.3 像素時（黃金圓面筆鋒），隨即俐落斷開，絕不留原子筆死細線
-                    const curveFactor = 1.0 - ratio; 
-                    const nextW = 1.3 + (currentWidth - 1.3) * curveFactor;
+                    // 絕對線性遞減（Linear Taper）：確保兩側包絡線筆直如寶劍，不塌陷內縮
+                    const curveFactor = 1.0 - ratio;
+                    const tailW = 1.3 + (currentWidth - 1.3) * curveFactor;
 
-                    const prevTailX = tailX;
-                    const prevTailY = tailY;
-                    
-                    // 順著切線幾何慣性穩步前進
-                    tailX += Math.cos(lastAngle) * (currentWidth * 0.16);
-                    tailY += Math.sin(lastAngle) * (currentWidth * 0.16);
-                    tailW = nextW;
+                    const prevTailX = currentTailX;
+                    const prevTailY = currentTailY;
+
+                    // 嚴格沿著手指最後劃過的真實路徑軌跡前進，絕不向外多延伸一像素
+                    currentTailX = lastDrawnPt.x + finalDx * ratio;
+                    currentTailY = lastDrawnPt.y + finalDy * ratio;
 
                     if (tailW <= 1.35) {
                         ctx.lineWidth = 1.3;
                         ctx.beginPath();
                         ctx.moveTo(prevTailX, prevTailY);
-                        ctx.lineTo(tailX, tailY);
+                        ctx.lineTo(currentTailX, currentTailY);
                         ctx.stroke();
                         break;
                     }
@@ -241,9 +225,18 @@
                     ctx.lineWidth = tailW;
                     ctx.beginPath();
                     ctx.moveTo(prevTailX, prevTailY);
-                    ctx.lineTo(tailX, tailY);
+                    ctx.lineTo(currentTailX, currentTailY);
                     ctx.stroke();
                 }
+            } else if (lastAngle !== null) {
+                // 如果手指離手時極慢、幾乎在原地提起，則在最後一點的原地微跨 2 像素進行精準收針，防止出尖失敗
+                ctx.lineWidth = currentWidth;
+                ctx.beginPath();
+                ctx.moveTo(lastDrawnPt.x, lastDrawnPt.y);
+                const tx = lastDrawnPt.x + Math.cos(lastAngle) * 2;
+                const ty = lastDrawnPt.y + Math.sin(lastAngle) * 2;
+                ctx.lineTo(tx, ty);
+                ctx.stroke();
             }
         }
 
