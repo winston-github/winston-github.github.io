@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KaiCanvas IronCore Pro - 鐵骨流線畫布</title>
+    <title>KaiCanvas Curves - 圓潤風骨書法畫布</title>
     <style>
         body { margin: 0; background: #1a1a1a; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
         .container { position: relative; width: 95vw; height: 85vh; }
@@ -13,7 +13,7 @@
 </head>
 <body>
     <div class="container">
-        <div class="info">✒️ <b>KaiCanvas IronCore Pro (微觀分段骨架 · 100% 免疫橫白線)</b><br><span>找回完美粗細感！徹底拔除多邊形瑕疵，起筆尖銳藏鋒，結尾俐落出鋒</span></div>
+        <div class="info">✒️ <b>KaiCanvas Curves (二階貝茲路徑插值 · 徹底消滅直線折角)</b><br><span>全面升級動態幾何控制點，曲線圓潤流暢如絲綢，起筆尖銳，出鋒剛勁</span></div>
         <canvas id="paintCanvas"></canvas>
     </div>
 
@@ -35,15 +35,15 @@
     }
 
     let isPainting = false;
-    let currentX = 0, currentY = 0;
-    let currentWidth = 4.0; // 【核心修正一：初始寬度極小，徹底消滅起筆大圓點】
+    let points = []; // 儲存歷史平滑點，用於計算貝茲曲線
+    let currentWidth = 4.0;
     let lastAngle = null;
 
-    // 【找回最完美的書法粗細配置】
-    const MAX_WIDTH = 34;          // 飽滿厚實最大寬度
-    const MIN_WIDTH = 4.0;         // 扎實銳利最小寬度
-    const POSITION_INERTIA = 0.26; // 軌跡平滑阻尼（消除手震）
-    const WIDTH_INERTIA = 0.12;    // 變寬平滑阻尼（消滅竹節蟲）
+    // 【大師級書法配置參數】
+    const MAX_WIDTH = 34;          
+    const MIN_WIDTH = 4.0;         
+    const POSITION_INERTIA = 0.26; // 位置平滑阻尼
+    const WIDTH_INERTIA = 0.12;    // 變寬平滑阻尼
 
     const INK_COLOR = "rgba(15, 15, 15, 1.0)"; 
 
@@ -59,9 +59,9 @@
         isPainting = true;
         const pos = getCanvasPos(e);
         
-        currentX = pos.x;
-        currentY = pos.y;
-        currentWidth = MIN_WIDTH; // 下筆瞬間從極細開始，杜絕貢丸死結
+        // 初始化點集合
+        points = [{ x: pos.x, y: pos.y, w: MIN_WIDTH }];
+        currentWidth = MIN_WIDTH; // 下筆極細，杜絕圓結
         lastAngle = null;
     }
 
@@ -69,71 +69,87 @@
         if (!isPainting) return;
 
         const pos = getCanvasPos(e);
-        const dx = pos.x - currentX;
-        const dy = pos.y - currentY;
+        const lastPt = points[points.length - 1];
+        
+        // 1. 位置動量濾波（消除手震）
+        const dx = pos.x - lastPt.x;
+        const dy = pos.y - lastPt.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < 0.4) return;
 
-        const prevX = currentX;
-        const prevY = currentY;
-        
-        // 軌跡動量濾波
-        currentX = currentX + dx * POSITION_INERTIA;
-        currentY = currentY + dy * POSITION_INERTIA;
+        const nextX = lastPt.x + dx * POSITION_INERTIA;
+        const nextY = lastPt.y + dy * POSITION_INERTIA;
+        const moveAngle = Math.atan2(nextY - lastPt.y, nextX - lastPt.x);
 
-        const moveAngle = Math.atan2(currentY - prevY, currentX - prevX);
-
-        // 速度反比筆寬演算
+        // 2. 寬度動量濾波（消除竹節蟲）
         let targetWidth = MAX_WIDTH - Math.log1p(dist * 1.5) * 6.5;
         if (targetWidth < MIN_WIDTH) targetWidth = MIN_WIDTH;
         if (targetWidth > MAX_WIDTH) targetWidth = MAX_WIDTH;
 
-        // 融入永字八法幾何（橫細直粗）
+        // 漢字橫細直粗特徵
         const angleDiff = Math.abs(Math.sin(moveAngle - (-Math.PI / 4))); 
         targetWidth = targetWidth * (1.0 - angleDiff * 0.24);
-
-        // 寬度平滑逼近
-        const prevWidth = currentWidth;
+        
         currentWidth = currentWidth + (targetWidth - currentWidth) * WIDTH_INERTIA;
 
-        // 【核心修正二：微觀分段中軸渲染 —— 100% 封殺橫白線與竹節蟲】
-        // 廢除多邊形。在兩點之間進行極高密度的微線段拆解，利用連續的 stroke 進行焊接
-        // 由於底層完全是原生平滑線段重疊，在物理上絕對不會產生多邊形的抗鋸齒橫白線
-        // 且因為寬度變化被 WIDTH_INERTIA 牢牢鎖定，邊緣呈現刀切般的平滑（無竹節蟲）
-        const steps = Math.ceil(dist * 2.0);
-        ctx.strokeStyle = INK_COLOR;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
+        // 將平滑後的點推入歷史集合
+        points.push({ x: nextX, y: nextY, w: currentWidth });
 
-        for (let i = 1; i <= steps; i++) {
-            const t = i / steps;
-            const tPrev = (i - 1) / steps;
+        // 【核心優化：二階貝茲路徑微觀渲染 —— 徹底消滅直線折角】
+        // 當收集滿 3 個平滑點時，利用前兩點的中點與當前點，建構一條完美的圓弧貝茲曲線
+        if (points.length >= 3) {
+            const p0 = points[points.length - 3];
+            const p1 = points[points.length - 2];
+            const p2 = points[points.length - 1];
 
-            // 內插座標
-            const x0 = prevX + (currentX - prevX) * tPrev;
-            const y0 = prevY + (currentY - prevY) * tPrev;
-            const x1 = prevX + (currentX - prevX) * t;
-            const y1 = prevY + (currentY - prevY) * t;
+            // 計算二次貝茲曲線的控制點（中點焊接法）
+            const xc = (p1.x + p2.x) / 2;
+            const yc = (p1.y + p2.y) / 2;
 
-            // 內插筆寬
-            ctx.lineWidth = prevWidth + (currentWidth - prevWidth) * t;
+            // 依據這段弧線的弦長，決定超採樣的精細步數
+            const chordLength = Math.sqrt((xc - p0.x) * (xc - p0.x) + (yc - p0.y) * (yc - p0.y));
+            const steps = Math.ceil(chordLength * 2.5) || 1;
 
-            ctx.beginPath();
-            ctx.moveTo(x0, y0);
-            ctx.lineTo(x1, y1);
-            ctx.stroke();
+            ctx.strokeStyle = INK_COLOR;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            let prevX = p0.x;
+            let prevY = p0.y;
+
+            for (let i = 1; i <= steps; i++) {
+                const t = i / steps;
+
+                // 標準二次貝茲曲線公式：將生硬折角完全融化為流暢圓弧
+                const curX = (1 - t) * (1 - t) * p0.x + 2 * (1 - t) * t * p1.x + t * t * xc;
+                const curY = (1 - t) * (1 - t) * p0.y + 2 * (1 - t) * t * p1.y + t * t * yc;
+
+                // 筆寬沿著圓弧路徑流暢內插
+                ctx.lineWidth = p0.w + (p1.w - p0.w) * t;
+
+                ctx.beginPath();
+                ctx.moveTo(prevX, prevY);
+                ctx.lineTo(curX, curY);
+                ctx.stroke();
+
+                prevX = curX;
+                prevY = curY;
+            }
+
+            // 保持陣列長度，防止記憶體溢出
+            if (points.length > 4) points.shift();
         }
 
-        // 漢字捺腳特化外部塑形（在連續骨架外側進行局部的多邊形修飾）
+        // 漢字捺腳特化外部塑形
         if (moveAngle > 0.4 && moveAngle < 1.2 && currentWidth > MAX_WIDTH * 0.45) {
             const radius = currentWidth / 2;
             const nx = -Math.sin(moveAngle);
             const ny = Math.cos(moveAngle);
             ctx.fillStyle = INK_COLOR;
             ctx.beginPath();
-            ctx.moveTo(currentX + nx * radius, currentY + ny * radius);
-            ctx.lineTo(currentX + nx * radius * 1.26, currentY + ny * radius * 1.15); 
-            ctx.lineTo(currentX - nx * radius, currentY - ny * radius);
+            ctx.moveTo(nextX + nx * radius, nextY + ny * radius);
+            ctx.lineTo(nextX + nx * radius * 1.26, nextY + ny * radius * 1.15); 
+            ctx.lineTo(nextX - nx * radius, nextY - ny * radius);
             ctx.closePath();
             ctx.fill();
         }
@@ -141,31 +157,27 @@
         lastAngle = moveAngle;
     }
 
-    // 【核心修正三：拋物線動態延伸出鋒 —— 徹底消滅原子筆頭與蠟筆頭】
+    // 拋物線動態延伸出鋒
     function stopDrawing() {
         if (!isPainting) return;
 
-        // 提筆時，若最後仍有足夠的筆寬，啟動毛筆物理聚攏出鋒
+        const lastPt = points[points.length - 1];
+
         if (lastAngle !== null && currentWidth > MIN_WIDTH * 1.1) {
             ctx.strokeStyle = INK_COLOR;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
 
-            let tailX = currentX;
-            let tailY = currentY;
+            let tailX = lastPt.x;
+            let tailY = lastPt.y;
             let tailW = currentWidth;
             const steps = 18; 
 
             for (let k = 1; k <= steps; k++) {
                 const ratio = k / steps;
-                
-                // 改用拋物線反向立方衰減：前半段維持厚度，後段流暢收窄
-                // 並且絕對不強行壓到 0。當寬度小於 1.2 像素時立刻優雅終止
-                // 這能保證筆尖留下一點點極微小的毛筆「筆鋒圓面」，看起來絕對是剛挺的刀鋒，而非原子筆死線
                 const curveFactor = 1.0 - Math.pow(ratio, 0.6); 
                 const nextW = MIN_WIDTH + (currentWidth - MIN_WIDTH) * curveFactor;
 
-                // 順著切線方向前進，拉出毛筆出尖的長度
                 const prevTailX = tailX;
                 const prevTailY = tailY;
                 tailX += Math.cos(lastAngle) * (tailW * 0.16);
@@ -173,7 +185,6 @@
                 tailW = nextW;
 
                 if (tailW < 1.2) {
-                    // 在最後一刻，拉出一條極短的剛性收束尖芒，隨即優雅斷開
                     ctx.lineWidth = 1.2;
                     ctx.beginPath();
                     ctx.moveTo(prevTailX, prevTailY);
@@ -191,6 +202,7 @@
         }
 
         isPainting = false;
+        points = [];
         lastAngle = null;
     }
 
