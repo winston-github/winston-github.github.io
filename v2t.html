@@ -3,11 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>兒童雙語注音大字報 - 專業版</title>
+    <title>專業雙語注音轉錄系統</title>
     <style>
         /* ==========================================
-           1. 現代隱性骨架與動態視窗防禦 (防網址列裁切)
+           1. 現代隱性骨架與動態視窗防禦
            ========================================== */
+        :root {
+            --bg-color1: #0f172a; 
+            --bg-color2: #1e293b; 
+            --text-main: #f8fafc;
+            --text-zhuyin: #cbd5e1;
+            --tone-color: #38bdf8;
+            --panel-bg: rgba(15, 23, 42, 0.85);
+        }
+
         * {
             box-sizing: border-box;
             -webkit-tap-highlight-color: transparent;
@@ -16,8 +25,9 @@
         }
 
         body {
-            background-color: #0f172a;
-            color: #f8fafc;
+            background-color: var(--bg-color1);
+            background-image: radial-gradient(circle at center, var(--bg-color1) 0%, var(--bg-color2) 100%);
+            color: var(--text-main);
             font-family: 'PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
             height: 100dvh;
             min-height: 100dvh;
@@ -30,161 +40,150 @@
             overscroll-behavior: none;
         }
 
+        /* ==========================================
+           2. 系統狀態與動態提示列
+           ========================================== */
         #statusBanner {
             width: 100%;
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             color: #94a3b8;
-            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
             font-weight: 600;
-            padding: 10px 0;
-            font-size: 1rem;
+            padding: 14px 0;
+            font-size: 1.1rem;
             letter-spacing: 2px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
             transition: all 0.3s ease;
             flex-shrink: 0;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            z-index: 10;
+        }
+        #statusBanner svg {
+            width: 22px; height: 22px;
+            stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;
         }
         body.state-listening #statusBanner {
             color: #4ade80;
-            background: rgba(16, 185, 129, 0.1);
-            border-bottom: 1px solid rgba(74, 222, 128, 0.3);
-        }
-        body.state-locked #statusBanner {
-            color: #fbbf24;
-            background: rgba(245, 158, 11, 0.1);
-            border-bottom: 1px solid rgba(251, 191, 36, 0.3);
+            background: rgba(16, 185, 129, 0.15);
+            border-bottom: 1px solid rgba(74, 222, 128, 0.4);
+            text-shadow: 0 0 10px rgba(74, 222, 128, 0.3);
         }
 
+        /* 旋轉動畫：用於載入雲端字典 */
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .spin { animation: spin 1.5s linear infinite; }
+
+        /* ==========================================
+           3. 全新平滑滾動顯示容器與 CSS contents 結構
+           ========================================== */
         #displayContainer {
             flex: 1 1 auto;
             width: 100%;
             max-width: 1400px;
             overflow-y: auto;
-            padding: 24px;
+            padding: 30px 24px;
             overscroll-behavior-y: contain;
             display: flex;
             flex-direction: column;
-            justify-content: flex-start;
-            align-items: center;
-            transition: all 0.3s ease;
+            scroll-behavior: smooth;
         }
+        
+        #displayContainer::-webkit-scrollbar { width: 8px; }
+        #displayContainer::-webkit-scrollbar-track { background: transparent; }
+        #displayContainer::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
 
-        #wrapper {
-            width: 100%;
-        }
-
-        .speech-line {
+        #textWrapper {
             display: flex;
             flex-wrap: wrap;
-            justify-content: flex-start;
-            align-items: center;
+            align-items: flex-end;
+            align-content: flex-start;
+            gap: 20px 12px;
             width: 100%;
-            gap: 24px 16px;
-            margin-bottom: 32px;
-            padding-bottom: 24px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         }
 
+        #finalAnchor, #interimAnchor { display: contents; }
+
         /* ==========================================
-           2. 台灣標準教科書級別注音字體排版 CSS
+           4. 台灣標準教科書級別注音字體排版 CSS
            ========================================== */
-        .char-box {
-            display: inline-grid;
-            grid-template-columns: auto auto;
+        .ruby-container {
+            display: inline-flex;
             align-items: center;
-            position: relative;
-            margin: 0 2px;
+            font-family: "標楷體", "DFKai-SB", 'Microsoft JhengHei', serif;
+            transition: all 0.2s ease;
         }
 
-        .char-zh {
-            font-size: 5rem;
-            font-weight: 700;
-            width: 5rem;
-            height: 5rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            line-height: 1;
-            color: #f8fafc;
+        .ruby-char {
+            font-size: 4.5rem;
+            font-weight: bold;
+            color: var(--text-main);
+            text-shadow: 0 0 15px rgba(255,255,255,0.2);
+            line-height: 1.1;
         }
-        .char-box.is-final .char-zh { color: #f1f5f9; }
-        .char-box.is-interim .char-zh { color: #475569; }
 
-        .char-bpmf-container {
+        .ruby-zhuyin {
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            position: relative;
-            padding-left: 4px;
-            min-width: 1.6rem;
-            height: 100%;
-        }
-
-        .bpmf-symbols {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            line-height: 0.85;
-        }
-        .bpmf-symbols span {
-            font-size: 1.4rem;
-            color: #94a3b8;
-            font-weight: 600;
-        }
-        .char-box.is-interim .bpmf-symbols span { color: #334155; }
-
-        .bpmf-tone {
-            position: absolute;
-            right: -0.5rem;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: #38bdf8;
-        }
-
-        .bpmf-tone-light {
-            font-size: 1.3rem;
+            margin-left: 8px;
+            font-size: 1.6rem;
             line-height: 1;
-            margin-bottom: 2px;
-            color: #38bdf8;
+            color: var(--text-zhuyin);
+            position: relative;
             font-weight: bold;
         }
 
-        .char-box.is-english .char-zh {
-            font-size: 3.5rem;
-            width: auto;
-            height: 5rem;
-            padding: 0 8px;
-            display: inline-block;
-            line-height: 5rem;
-            letter-spacing: 1px;
-            color: #f59e0b;
+        .zhuyin-symbol { position: relative; }
+        
+        /* 輕聲精準定位：正上方置中 */
+        .zhuyin-symbol.tone-light { 
+            position: absolute; 
+            top: -1.1em; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            color: var(--tone-color);
+            font-size: 1.2em;
+        }
+        /* 四聲精準定位：右側垂直置中 */
+        .zhuyin-symbol.tone-mark { 
+            position: absolute; 
+            right: -1.2em; 
+            top: 50%; 
+            transform: translateY(-50%); 
+            color: var(--tone-color);
+            font-size: 1.1em;
         }
 
-        .char-box.is-punctuation .char-zh {
-            color: #64748b !important;
-            width: auto;
-            padding: 0 6px;
-        }
+        .ruby-container.is-interim { opacity: 0.65; transform: scale(0.96); }
+        .ruby-container.is-interim .ruby-char { color: #94a3b8; text-shadow: none; }
+        .ruby-container.is-interim .ruby-zhuyin { color: #64748b; }
+
+        .ruby-container.is-english .ruby-char { font-size: 3.5rem; color: #fcd34d; padding: 0 6px; letter-spacing: 1px; font-family: 'Microsoft JhengHei', sans-serif; }
+        .ruby-container.is-punctuation .ruby-char { font-size: 3.5rem; color: #64748b; padding: 0 4px; }
 
         /* ==========================================
-           3. 高階 iOS 風格控制面板與按鈕
+           5. 高階 iOS 風格控制面板與專業按鈕
            ========================================== */
         #controlPanel {
             flex-shrink: 0;
             width: 100%;
-            max-width: 900px;
+            max-width: 1000px;
             display: flex;
             gap: 16px;
             padding: 20px 24px calc(20px + env(safe-area-inset-bottom));
-            background: #1e293b;
-            border-radius: 24px 24px 0 0;
-            box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.3);
-            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            background: var(--panel-bg);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border-radius: 30px 30px 0 0;
+            box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.4);
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            z-index: 10;
         }
 
         .magic-btn {
@@ -193,50 +192,103 @@
             font-size: 1.2rem;
             font-weight: 700;
             border: none;
-            border-radius: 16px;
+            border-radius: 18px;
             cursor: pointer;
             color: #ffffff;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            gap: 10px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 6px 15px rgba(0,0,0,0.2);
+            letter-spacing: 1px;
         }
-        .magic-btn:active {
-            transform: scale(0.95);
-            opacity: 0.85;
+        .magic-btn:active { transform: scale(0.95); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+        .magic-btn svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+
+        .btn-primary { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        body.state-listening .btn-primary { background: linear-gradient(135deg, #ef4444, #dc2626); box-shadow: 0 0 20px rgba(239, 68, 68, 0.4); }
+        .btn-secondary { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+        .btn-danger { background: linear-gradient(135deg, #64748b, #475569); }
+
+        /* ==========================================
+           6. 手機版自適應優化
+           ========================================== */
+        @media (max-width: 768px) {
+            .ruby-char { font-size: 3.2rem; }
+            .ruby-zhuyin { font-size: 1.1rem; margin-left: 6px; }
+            .zhuyin-symbol.tone-light { top: -1.1em; font-size: 1.1em; }
+            .zhuyin-symbol.tone-mark { right: -1.1em; font-size: 1em; }
+            .ruby-container.is-english .ruby-char { font-size: 2.5rem; }
+            .ruby-container.is-punctuation .ruby-char { font-size: 2.5rem; }
+            #controlPanel { padding: 15px 15px calc(15px + env(safe-area-inset-bottom)); gap: 10px; border-radius: 20px 20px 0 0;}
+            .magic-btn { padding: 12px 4px; font-size: 1rem; border-radius: 14px;}
+            .magic-btn svg { width: 20px; height: 20px; }
         }
-
-        #listenBtn { background: linear-gradient(135deg, #10b981, #059669); color: #ffffff; }
-        body.state-listening #listenBtn { background: linear-gradient(135deg, #ef4444, #dc2626); }
-        
-        #lockBtn { background: linear-gradient(135deg, #f59e0b, #d97706); color: #ffffff; }
-        body.state-locked #lockBtn { background: linear-gradient(135deg, #475569, #334155); }
-
-        #clearBtn { background: linear-gradient(135deg, #64748b, #475569); color: #ffffff; }
     </style>
 </head>
-<body class="state-locked">
+<body>
 
-<div id="statusBanner">🔒 系統狀態：魔法定型中（唯讀）</div>
+<div id="statusBanner">
+    <svg id="icon-status" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <span id="statusText">系統已就緒：點擊下方按鈕開始</span>
+</div>
 
 <div id="displayContainer">
-    <div id="wrapper">
-        <div class="speech-line" id="activeLine"></div>
+    <div id="textWrapper">
+        <span id="finalAnchor"></span>
+        <span id="interimAnchor"></span>
     </div>
 </div>
 
 <div id="controlPanel">
-    <button id="listenBtn" class="magic-btn" onclick="ControlSystem.startListen()">🟢 開始轉錄</button>
-    <button id="lockBtn" class="magic-btn" onclick="ControlSystem.lockSystem()">🔒 鎖定</button>
-    <button id="clearBtn" class="magic-btn" onclick="ControlSystem.clearSystem()">🗑️ 清空歷史</button>
+    <button id="btn-mic" class="magic-btn btn-primary" onclick="ControlSystem.toggleMic()">
+        <svg id="icon-mic" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+        <span id="text-mic">開始聆聽</span>
+    </button>
+    <button id="btn-copy" class="magic-btn btn-secondary" onclick="ControlSystem.copyText()">
+        <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <span id="text-copy">複製全文</span>
+    </button>
+    <button id="btn-clear" class="magic-btn btn-danger" onclick="ControlSystem.clearSystem()">
+        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+        <span>清除畫面</span>
+    </button>
 </div>
 
 <script>
 // ==========================================
-// 字典設定區塊：單字與多音字詞庫
+// 1. 字典設定與擴充掛載機制 (整合 Kemdict 與教育部資源)
 // ==========================================
+const SVG_ICONS = {
+    idle: `<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>`,
+    rec: `<circle cx="12" cy="12" r="4"/><path d="M16 8v8a4 4 0 0 1-8 0V8a4 4 0 0 1 8 0z"/><line x1="12" y1="20" x2="12" y2="22"/>`,
+    error: `<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>`,
+    cloud: `<path d="M21 12a9 9 0 1 1-6.219-8.56"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/>`
+};
+
+let currentMaxPhraseLen = 6;
+const PHRASE_BPMF_DICT = {
+    // 台灣常用高頻詞彙覆寫 (核心保底)
+    "什麼": "ㄕㄣˊ,ㄇㄜ˙", "怎麼": "ㄗㄣˇ,ㄇㄜ˙", "為什麼": "ㄨㄟˋ,ㄕㄣˊ,ㄇㄜ˙",
+    "我們": "ㄨㄛˇ,ㄇㄣ˙", "你們": "ㄋㄧˇ,ㄇㄣ˙", "他們": "ㄊㄚ,ㄇㄣ˙", "她們": "ㄊㄚ,ㄇㄣ˙",
+    "這麼": "ㄓㄜˋ,ㄇㄜ˙", "那麼": "ㄋㄚˋ,ㄇㄜ˙", "真的": "ㄓㄣ,ㄉㄜ˙", "好的": "ㄏㄠˇ,ㄉㄜ˙",
+    "是的": "ㄕˋ,ㄉㄜ˙", "知道": "ㄓ,ㄉㄠˋ", "覺得": "ㄐㄩㄝˊ,ㄉㄜ˙", "了解": "ㄌㄧㄠˇ,ㄐㄧㄝˇ",
+    "亂七八糟": "ㄌㄨㄢˋ,ㄑㄧ,ㄅㄚ,ㄗㄠ", "莫名其妙": "ㄇㄛˋ,ㄇㄧㄥˊ,ㄑㄧˊ,ㄇㄧㄠˋ",
+    "一模一樣": "ㄧˋ,ㄇㄨˊ,ㄧˊ,ㄧㄤˋ", "為了": "ㄨㄟˋ,ㄌㄜ˙", "除了": "ㄔㄨˊ,ㄌㄜ˙", 
+    "來了": "ㄌㄞˊ,ㄌㄜ˙", "慢慢地": "ㄇㄢˋ,ㄇㄢˋ,ㄉㄜ˙", "一會兒": "ㄧ,ㄏㄨㄟˇ,ㄦˊ",
+    "頭髮": "ㄊㄡˊ,ㄈㄚˇ", "理髮": "ㄌㄧˇ,ㄈㄚˇ", "發現": "ㄈㄚ,ㄒㄧㄢˋ",
+    "著火": "ㄓㄠˊ,ㄏㄨㄛˇ", "著急": "ㄓㄠ,ㄐㄧˊ", "沿著": "ㄧㄢˊ,ㄓㄜ˙",
+    "看著": "ㄎㄢˋ,ㄓㄜ˙", "聽著": "ㄊㄧㄥ,ㄓㄜ˙", "睡覺": "ㄕㄨㄟˋ,ㄐㄧㄠˋ"
+};
+
+const TAIWAN_PARTICLES = {
+    "ㄌㄚ˙": "啦", "ㄌㄧㄝ˙": "咧", "ㄏㄡ": "齁", "ㄛ˙": "喔", "ㄟ": "欸",
+    "ㄇㄚ˙": "嘛嗎", "ㄅㄚ˙": "吧", "ㄧㄝ˙": "耶", "ㄧㄚ˙": "呀", "ㄨㄚ˙": "哇",
+    "ㄌㄨㄛ˙": "囉", "ㄋㄜ˙": "呢", "ㄉㄜ˙": "的得地", "ㄌㄜ˙": "了", "ㄓㄜ˙": "著",
+    "ㄚ˙": "啊", "ㄨㄛˇ": "我", "ㄋㄧˇ": "你妳", "ㄊㄚ": "他她牠它", "ㄕˋ": "是"
+};
+
 const BOPOMOFO_COMPRESSED_DICT = {
     "ㄅㄚ": "八巴吧叭疤笆芭粑扒峇捌", "ㄅㄚˊ": "拔跋鈸菝鼥", "ㄅㄚˇ": "把靶", "ㄅㄚˋ": "爸霸罷壩靶灞鈀", "ㄅㄚ˙": "吧嗎",
     "ㄅㄛ": "波玻剝缽播菠撥餑礡", "ㄅㄛˊ": "伯博勃脖舶薄駁帛泊渤箔搏亳孛雹礴馞髆鑮", "ㄅㄛˇ": "跛簸箥", "ㄅㄛˋ": "檗蘗擘", "ㄅㄛ˙": "卜",
@@ -351,7 +403,7 @@ const BOPOMOFO_COMPRESSED_DICT = {
     "ㄌㄟˊ": "雷壘擂纍", "ㄌㄟˇ": "累蕾儡", "ㄌㄟˋ": "類淚酹",
     "ㄌㄥˊ": "稜棱", "ㄌㄥˇ": "冷", "ㄌㄥˋ": "愣",
     "ㄌㄧ": "哩", "ㄌㄧˊ": "里李離釐梨黎籬罹藜黧", "ㄌㄧˇ": "理裡禮鯉醴", "ㄌㄧˋ": "力立利例麗歷粒莉栗厲吏勵荔瀝蠣笠癘詈蒞",
-    "ㄌㄧㄠˊ": "聊療遼寮僚寥撩嘹獠", "ㄌㄧㄠˇ": "燎蓼瞭", "ㄌㄧㄠˋ": "料廖鐐撂",
+    "ㄌㄧㄠˊ": "聊療遼寮僚寥撩嘹獠", "ㄌㄧㄠˇ": "燎瞭", "ㄌㄧㄠˋ": "料廖鐐撂",
     "ㄌㄧㄝˋ": "列裂劣獵烈冽咧趔",
     "ㄌㄧㄢˊ": "連聯蓮憐廉簾漣鐮", "ㄌㄧㄢˇ": "臉斂褫襝", "ㄌㄧㄢˋ": "練戀鏈鍊煉殮瀲",
     "ㄌㄧㄣˊ": "林臨淋鄰麟磷鱗霖", "ㄌㄧㄣˇ": "凜廩廄", "ㄌㄧㄣˋ": "吝賃藺",
@@ -576,172 +628,95 @@ const BOPOMOFO_COMPRESSED_DICT = {
     "ㄨㄣ": "溫瘟馧", "ㄨㄣˊ": "文聞紋蚊雯", "ㄨㄣˇ": "吻穩紊刎", "ㄨㄣˋ": "問汶璺",
     "ㄨㄤ": "汪", "ㄨㄤˊ": "王亡", "ㄨㄤˇ": "網往枉惘罔輞", "ㄨㄤˋ": "旺忘妄望",
     "ㄨㄥ": "翁嗡滃", "ㄨㄥˋ": "甕",
-    "ㄩ": "迂淤紆", "ㄩˊ": "魚於娛餘輿余漁愚愉榆渝隅妤", "ㄩˇ": "宇羽雨予與語禹庾傴", "ㄩˋ": "玉預育域獄遇御愈欲寓裕譽鬱籲癒馭芋浴慾",
+    "ㄩ": "迂淤紆", "ㄩˊ": "魚於娛餘輿余漁愚愉榆渝隅妤", "ㄩˇ": "宇羽雨予與語禹庾傴", "ㄩˋ": "玉預育域獄遇遇御愈欲寓裕譽鬱籲癒馭芋浴慾",
     "ㄩㄝ": "約曰", "ㄩㄝˋ": "月越樂閱躍悅嶽粵鈅",
     "ㄩㄢ": "冤淵鴛鳶", "ㄩㄢˊ": "元原源園圓員緣援猿垣黿沅", "ㄩㄢˇ": "遠", "ㄩㄢˋ": "院願怨苑媛",
     "ㄩㄣ": "暈氳", "ㄩㄣˊ": "雲勻芸筠", "ㄩㄣˇ": "允隕殞狁", "ㄩㄣˋ": "運孕韻蘊熨",
     "ㄩㄥ": "擁庸傭雍臃鏞", "ㄩㄥˇ": "勇湧踴永泳詠蛹", "ㄩㄥˋ": "用"
 };
 
-const PHRASE_BPMF_DICT = {
-    "了解": "ㄌㄧㄠˇ,ㄐㄧㄝˇ",
-    "了結": "ㄌㄧㄠˇ,ㄐㄧㄝˊ",
-    "了不起": "ㄌㄧㄠˇ,ㄅㄨˋ,ㄑㄧˇ",
-    "受不了": "ㄕㄡˋ,ㄅㄨˋ,ㄌㄧㄠˇ",
-    "為了": "ㄨㄟˋ,ㄌㄜ˙",
-    "除了": "ㄔㄨˊ,ㄌㄜ˙",
-    "來了": "ㄌㄞˊ,ㄌㄜ˙",
-    
-    "銀行": "ㄧㄣˊ,ㄏㄤˊ",
-    "行業": "ㄏㄤˊ,ㄧㄝˋ",
-    "內行": "ㄋㄟˋ,ㄏㄤˊ",
-    "外行": "ㄨㄞˋ,ㄏㄤˊ",
-    "商行": "ㄕㄤ,ㄏㄤˊ",
-    "自行車": "ㄗˋ,ㄒㄧㄥˊ,ㄔㄜ",
-    "行為": "ㄒㄧㄥˊ,ㄨㄟˊ",
-    "飛行": "ㄈㄟ,ㄒㄧㄥˊ",
-
-    "長大": "ㄓㄤˇ,ㄉㄚˋ",
-    "長度": "ㄔㄤˊ,ㄉㄨˋ",
-    "董事長": "ㄉㄨㄥˇ,ㄕˋ,ㄓㄤˇ",
-    "生長": "ㄕㄥ,ㄓㄤˇ",
-    "長輩": "ㄓㄤˇ,ㄅㄟˋ",
-    "班長": "ㄅㄢ,ㄓㄤˇ",
-    "長江": "ㄔㄤˊ,ㄐㄧㄤ",
-    "長久": "ㄔㄤˊ,ㄐㄧㄡˇ",
-
-    "重新": "ㄔㄨㄥˊ,ㄒㄧㄣ",
-    "重複": "ㄔㄨㄥˊ,ㄈㄨˋ",
-    "重疊": "ㄔㄨㄥˊ,ㄉㄧㄝˊ",
-    "重要": "ㄓㄨㄥˋ,ㄧㄠˋ",
-    "重量": "ㄓㄨㄥˋ,ㄌㄧㄤˋ",
-    "重心": "ㄓㄨㄥˋ,ㄒㄧㄣ",
-
-    "覺得": "ㄐㄩㄝˊ,ㄉㄜ˙",
-    "記得": "ㄐㄧˋ,ㄉㄜ˙",
-    "懂得": "ㄉㄨㄥˇ,ㄉㄜ˙",
-    "取得": "ㄑㄩˇ,ㄉㄜˊ",
-    "得到": "ㄉㄜˊ,ㄉㄠˋ",
-    "總得": "ㄗㄨㄥˇ,ㄉㄟˇ",
-    "得要": "ㄉㄟˇ,ㄧㄠˋ",
-
-    "地方": "ㄉㄧˋ,ㄈㄤ",
-    "地球": "ㄉㄧˋ,ㄑㄧㄡˊ",
-    "慢慢地": "ㄇㄢˋ,ㄇㄢˋ,ㄉㄜ˙",
-    "目的地": "ㄇㄨˋ,ㄉㄧˋ,ㄉㄧˋ",
-    "快速地": "ㄎㄨㄞˋ,ㄙㄨˋ,ㄉㄜ˙",
-
-    "會計": "ㄎㄨㄞˋ,ㄐㄧˋ",
-    "一會兒": "ㄧ,ㄏㄨㄟˇ,ㄦˊ",
-    "開會": "ㄎㄞ,ㄏㄨㄟˋ",
-    "晚會": "ㄨㄢˇ,ㄏㄨㄟˋ",
-
-    "頭髮": "ㄊㄡˊ,ㄈㄚˇ",
-    "理髮": "ㄌㄧˇ,ㄈㄚˇ",
-    "發現": "ㄈㄚ,ㄒㄧㄢˋ",
-    "發生": "ㄈㄚ,ㄕㄥ",
-    "發布": "ㄈㄚ,ㄅㄨˋ",
-    "出發": "ㄔㄨ,ㄈㄚ",
-    "打發": "ㄉㄚˇ,ㄈㄚ˙",
-
-    "著火": "ㄓㄠˊ,ㄏㄨㄛˇ",
-    "著急": "ㄓㄠ,ㄐㄧˊ",
-    "著涼": "ㄓㄠ,ㄌㄧㄤˊ",
-    "著名": "ㄓㄨˋ,ㄇㄧㄥˊ",
-    "著作": "ㄓㄨˋ,ㄗㄨㄛˋ",
-    "沿著": "ㄧㄢˊ,ㄓㄜ˙",
-    "看著": "ㄎㄢˋ,ㄓㄜ˙",
-    "聽著": "ㄊㄧㄥ,ㄓㄜ˙",
-
-    "相片": "ㄒㄧㄤˋ,ㄆㄧㄢˋ",
-    "照相": "ㄓㄠˋ,ㄒㄧㄤˋ",
-    "互相": "ㄏㄨˋ,ㄒㄧㄤ",
-    "相信": "ㄒㄧㄤ,ㄒㄧㄣˋ",
-    "相同": "ㄒㄧㄤ,ㄊㄨㄥˊ",
-
-    "轉動": "ㄓㄨㄢˇ,ㄉㄨㄥˋ",
-    "轉身": "ㄓㄨㄢˇ,ㄕㄣ",
-    "轉圈": "ㄓㄨㄢˋ,ㄑㄩㄢ",
-    "傳記": "ㄓㄨㄢˋ,ㄐㄧˋ",
-    "傳說": "ㄔㄨㄢˊ,ㄕㄨㄛ",
-
-    "睡覺": "ㄕㄨㄟˋ,ㄐㄧㄠˋ",
-    "午覺": "ㄨˇ,ㄐㄧㄠˋ",
-    "感覺": "ㄍㄢˇ,ㄐㄩㄝˊ",
-    "知覺": "ㄓ,ㄐㄩㄝˊ",
-
-    "主角": "ㄓㄨˇ,ㄐㄩㄝˊ",
-    "角色": "ㄐㄩㄝˊ,ㄙㄜˋ",
-    "角度": "ㄐㄧㄠˇ,ㄉㄨˋ",
-    "角落": "ㄐㄧㄠˇ,ㄌㄨㄛˋ",
-    
-    "參與": "ㄘㄢ,ㄩˋ",
-    "與會": "ㄩˋ,ㄏㄨㄟˋ",
-    "給予": "ㄐㄧˇ,ㄩˇ",
-    "供給": "ㄍㄨㄥ,ㄐㄧˇ",
-    "交給": "ㄐㄧㄠ,ㄍㄟˇ",
-    "還給": "ㄏㄨㄢˊ,ㄍㄟˇ",
-
-    "音樂": "ㄧㄣ,ㄩㄝˋ",
-    "樂器": "ㄩㄝˋ,ㄑㄧˋ",
-    "快樂": "ㄎㄨㄞˋ,ㄌㄜˋ",
-    "樂觀": "ㄌㄜˋ,ㄍㄨㄢ",
-
-    "好人": "ㄏㄠˇ,ㄖㄣˊ",
-    "好壞": "ㄏㄠˇ,ㄏㄨㄞˋ",
-    "愛好": "ㄞˋ,ㄏㄠˋ",
-    "好奇": "ㄏㄠˋ,ㄑㄧˊ",
-
-    "當作": "ㄉㄤˋ,ㄗㄨㄛˋ",
-    "上當": "ㄕㄤˋ,ㄉㄤˋ",
-    "當時": "ㄉㄤ,ㄕˊ",
-    "當然": "ㄉㄤ,然",
-
-    "多少": "ㄉㄨㄛ,ㄕㄠˇ",
-    "很少": "ㄏㄣˇ,ㄕㄠˇ",
-    "少年": "ㄕㄠˋ,ㄋㄧㄢˊ",
-    "少數": "ㄕㄠˇ,ㄕㄨˋ",
-    
-    "空白": "ㄎㄨㄥ,ㄅㄞˊ",
-    "天空": "ㄊㄧㄢ,ㄎㄨㄥ",
-    "有空": "ㄧㄡˇ,ㄎㄨㄥˋ",
-    "空閒": "ㄎㄨㄥˋ,ㄒㄧㄢˊ",
-    
-    "只有": "ㄓˇ,ㄧㄡˇ",
-    "只能": "ㄓˇ,ㄋㄥˊ",
-    "一隻": "ㄧ,ㄓ"
-};
-
-// ==========================================
-// 字典編譯與解析引擎 (Max Match Algorithm)
-// ==========================================
 const charToBpmfCache = {};
+for (const [bpmf, chars] of Object.entries(TAIWAN_PARTICLES)) {
+    for (let char of chars) charToBpmfCache[char] = bpmf;
+}
 for (const [bpmf, chars] of Object.entries(BOPOMOFO_COMPRESSED_DICT)) {
-    for (let i = 0; i < chars.length; i++) {
-        const char = chars[i];
-        if (!charToBpmfCache[char]) {
-            charToBpmfCache[char] = bpmf;
-        }
+    for (let char of chars) {
+        if (!charToBpmfCache[char]) charToBpmfCache[char] = bpmf;
     }
 }
 
+// 非同步載入教育部雲端詞彙與成語字典
+(async function initExternalDict() {
+    const iconEl = document.getElementById('icon-status');
+    const textEl = document.getElementById('statusText');
+    
+    try {
+        textEl.innerText = "正在同步教育部雲端成語字典...";
+        iconEl.innerHTML = SVG_ICONS.cloud;
+        iconEl.classList.add('spin');
+        
+        const url = "https://raw.githubusercontent.com/kemdict/kemdict-data-ministry-of-education/main/dict_mini.json";
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Network load failed");
+        
+        const data = await response.json();
+        
+        const processEntry = (word, bpmf) => {
+            if (!word || !bpmf || typeof word !== 'string') return;
+            let cleanBpmf = "";
+            if (Array.isArray(bpmf)) cleanBpmf = bpmf.join(',');
+            else if (typeof bpmf === 'string') {
+                cleanBpmf = bpmf.replace(/（[^）]*）|\([^)]*\)|<[^>]+>/g, '').trim().split(/[\s　_]+/).filter(s => s).join(',');
+            }
+            if (!cleanBpmf || cleanBpmf.split(',').length !== word.length) return;
+            
+            PHRASE_BPMF_DICT[word] = cleanBpmf;
+            if (word.length > currentMaxPhraseLen) currentMaxPhraseLen = word.length;
+        };
+
+        if (Array.isArray(data)) {
+            data.forEach(item => {
+                if (Array.isArray(item) && item.length >= 2) processEntry(item[0], item[1]);
+                else if (typeof item === 'object' && item !== null) {
+                    let word = item['title'] || item['word'] || item['t'] || item['字詞'];
+                    let bpmf = item['bopomofo'] || item['bpmf'] || item['pinyin'] || item['p'] || item['注音'];
+                    if (!bpmf && item['heteronyms'] && item['heteronyms'][0]) bpmf = item['heteronyms'][0]['bopomofo'];
+                    if (word && bpmf) processEntry(word, bpmf);
+                }
+            });
+        } else if (typeof data === 'object') {
+            for (let word in data) processEntry(word, data[word]);
+        }
+        
+        textEl.innerText = "系統已就緒：點擊下方按鈕開始";
+    } catch(err) {
+        console.warn("雲端字典載入異常，將使用核心詞庫", err);
+        textEl.innerText = "連線字典異常，使用核心詞庫（就緒）";
+    } finally {
+        iconEl.innerHTML = SVG_ICONS.idle;
+        iconEl.classList.remove('spin');
+    }
+})();
+
+// ==========================================
+// 2. 顯示渲染引擎與分詞演算法 (Max Match)
+// ==========================================
 function parseSentence(text) {
     let result = [];
     let i = 0;
-    const maxPhraseLen = 6; 
-
     while (i < text.length) {
         let matched = false;
-        for (let len = Math.min(maxPhraseLen, text.length - i); len >= 2; len--) {
+        let limit = Math.min(currentMaxPhraseLen, text.length - i);
+        for (let len = limit; len >= 2; len--) {
             let word = text.slice(i, i + len);
             if (PHRASE_BPMF_DICT[word]) {
                 let bpmfs = PHRASE_BPMF_DICT[word].split(',');
-                for (let j = 0; j < len; j++) {
-                    result.push({ char: word[j], bpmf: bpmfs[j] });
+                if (bpmfs.length === len) {
+                    for (let j = 0; j < len; j++) result.push({ char: word[j], bpmf: bpmfs[j] });
+                    i += len;
+                    matched = true;
+                    break;
                 }
-                i += len;
-                matched = true;
-                break;
             }
         }
         if (!matched) {
@@ -753,25 +728,71 @@ function parseSentence(text) {
     return result;
 }
 
-// ==========================================
-// 系統控制與渲染引擎 (完美回歸穩定版)
-// ==========================================
+function extractBpmf(bpmfString) {
+    if (!bpmfString) return { symbols: [], lightTone: '', markTone: '' };
+    let lightTone = '', markTone = '', symbols = [];
+    for (let char of bpmfString) {
+        if (char === '˙') lightTone = '˙';
+        else if (['ˊ', 'ˇ', 'ˋ'].includes(char)) markTone = char;
+        else symbols.push(char);
+    }
+    return { symbols, lightTone, markTone };
+}
 
+function createCharBox(char, bpmfString, isInterim, isPunctuation = false, isEnglish = false) {
+    const box = document.createElement('div');
+    box.className = `ruby-container ${isInterim ? 'is-interim' : ''} ${isPunctuation ? 'is-punctuation' : ''} ${isEnglish ? 'is-english' : ''}`;
+    
+    if (isEnglish || isPunctuation || !bpmfString) {
+        box.innerHTML = `<div class="ruby-char">${char}</div>`;
+        return box;
+    }
+
+    const { symbols, lightTone, markTone } = extractBpmf(bpmfString);
+    let zhuyinHtml = `<div class="ruby-zhuyin">`;
+    if (lightTone) zhuyinHtml += `<span class="zhuyin-symbol tone-light">${lightTone}</span>`;
+    symbols.forEach(sym => zhuyinHtml += `<span class="zhuyin-symbol">${sym}</span>`);
+    if (markTone) zhuyinHtml += `<span class="zhuyin-symbol tone-mark">${markTone}</span>`;
+    zhuyinHtml += `</div>`;
+
+    box.innerHTML = `<div class="ruby-char">${char}</div>${zhuyinHtml}`;
+    return box;
+}
+
+function parseTokensToNodes(text, isInterim = false) {
+    if (!text || text === "undefined") return [];
+    const tokens = text.match(/[\u4e00-\u9fa5]+|[a-zA-Z0-9]+|[，。！？、：；]/g) || [];
+    let nodes = [];
+    tokens.forEach(token => {
+        if (/^[a-zA-Z0-9]+$/.test(token)) nodes.push(createCharBox(token, '', isInterim, false, true));
+        else if (/^[，。！？、：；]$/.test(token)) nodes.push(createCharBox(token, '', isInterim, true, false));
+        else {
+            const parsedItems = parseSentence(token);
+            parsedItems.forEach(item => nodes.push(createCharBox(item.char, item.bpmf, isInterim, false, false)));
+        }
+    });
+    return nodes;
+}
+
+function scrollToBottom() {
+    const container = document.getElementById('displayContainer');
+    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+}
+
+// ==========================================
+// 3. 系統控制與語音 API (修復無限重啟與 Race Condition)
+// ==========================================
 const ControlSystem = (() => {
-    let activeLineElement = document.getElementById('activeLine');
-    let isUserLocked = true;
-    let hasPermissionError = false; 
-    let lastSpeechTime = Date.now();
-    let timeoutTimer = null;
-    let coolDownLock = false;
-    let isMicRestarting = false; // 新增：全局重啟冷卻鎖，防止雙重觸發
-
-    // 核心快取緩衝字串
-    let finalTranscriptCache = '';
-    let interimTranscriptCache = '';
-
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const finalAnchor = document.getElementById('finalAnchor');
+    const interimAnchor = document.getElementById('interimAnchor');
+    const statusText = document.getElementById('statusText');
+    const iconStatus = document.getElementById('icon-status');
+    const textMic = document.getElementById('text-mic');
+    
+    let fullTextCache = '';
+    let isUserRequestedStop = true;
     let recognition = null;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (SpeechRecognition) {
         recognition = new SpeechRecognition();
@@ -779,348 +800,92 @@ const ControlSystem = (() => {
         recognition.continuous = true;
         recognition.interimResults = true;
 
-        recognition.onresult = (event) => {
-            if (isUserLocked) return;
+        recognition.onstart = () => {
+            document.body.className = "state-listening";
+            statusText.innerText = "正在即時聆聽與轉錄...";
+            iconStatus.innerHTML = SVG_ICONS.rec;
+            textMic.innerText = "暫停轉錄";
+        };
 
-            lastSpeechTime = Date.now(); 
-            let interim = '';
-            let final = '';
+        recognition.onresult = (event) => {
+            let interimHTML = document.createDocumentFragment();
+            let finalAdded = false;
 
             for (let i = event.resultIndex; i < event.results.length; ++i) {
-                if (event.results[i] && event.results[i][0]) {
-                    const transcriptPiece = event.results[i][0].transcript;
-                    
-                    if (typeof transcriptPiece === 'undefined' || transcriptPiece === null) {
-                        continue;
-                    }
-                    
-                    if (event.results[i].isFinal) {
-                        final += transcriptPiece;
-                    } else {
-                        interim += transcriptPiece;
-                    }
+                let transcript = event.results[i][0].transcript;
+                if (typeof transcript === 'undefined') continue;
+                
+                if (event.results[i].isFinal) {
+                    let nodes = parseTokensToNodes(transcript, false);
+                    nodes.forEach(n => finalAnchor.appendChild(n));
+                    finalAdded = true;
+                    fullTextCache += transcript;
+                } else {
+                    let nodes = parseTokensToNodes(transcript, true);
+                    nodes.forEach(n => interimHTML.appendChild(n));
                 }
             }
 
-            if (final.length > 0) finalTranscriptCache += final;
-            interimTranscriptCache = interim;
-            
-            renderPipeline(finalTranscriptCache || '', interimTranscriptCache || '');
+            interimAnchor.innerHTML = '';
+            interimAnchor.appendChild(interimHTML);
+            if (finalAdded || interimHTML.childNodes.length > 0) scrollToBottom();
         };
 
         recognition.onerror = (event) => {
-            console.warn("語音辨識非致命性狀況:", event.error);
-            
-            // 修正：忽略 no-speech 錯誤，交給 onend 做安全的緩衝重啟即可
-            if (event.error === 'no-speech') {
-                return; 
-            }
-
-            // 嚴重的權限或設備拒絕錯誤，必須徹底關閉防線
-            if (event.error === 'not-allowed' || event.error === 'service-not-allowed' || event.error === 'audio-capture') {
-                hasPermissionError = true;
-                ControlSystem.lockSystem(); 
-                document.getElementById('statusBanner').innerText = "⚠️ 麥克風未授權或設備受阻";
-                document.getElementById('listenBtn').innerText = "⚠️ 需授權";
+            console.warn("Speech API Error:", event.error);
+            if (event.error === 'not-allowed' || event.error === 'audio-capture') {
+                isUserRequestedStop = true;
+                document.body.className = "";
+                statusText.innerText = "麥克風存取被拒絕，請檢查權限配置";
+                iconStatus.innerHTML = SVG_ICONS.error;
+                textMic.innerText = "授權異常";
             }
         };
 
         recognition.onend = () => {
-            // 如果使用者已手動關閉或無權限，徹底終止重啟
-            if (isUserLocked || hasPermissionError) {
-                isMicRestarting = false;
-                return;
+            if (!isUserRequestedStop) {
+                try { recognition.start(); } catch(e) {}
+            } else {
+                document.body.className = "";
+                statusText.innerText = "系統已暫停：隨時點擊按鈕繼續";
+                iconStatus.innerHTML = SVG_ICONS.idle;
+                textMic.innerText = "開始轉錄";
             }
-
-            // 如果已經在準備重啟的排程中，跳過本次請求（打破無限重啟迴圈的關鍵）
-            if (isMicRestarting) return;
-            isMicRestarting = true;
-
-            // 核心防禦：拉長至 800ms 的冷卻時間，讓瀏覽器底層音訊進程有時間完全釋放
-            setTimeout(() => {
-                try {
-                    if (!isUserLocked && !hasPermissionError) {
-                        recognition.start();
-                        console.log("🔄 麥克風已安全自動重啟");
-                    }
-                } catch(e) {
-                    console.warn("麥克風重啟併發衝突攔截:", e);
-                } finally {
-                    isMicRestarting = false; // 解鎖
-                }
-            }, 800);
         };
     }
 
-    // ==== 核心字典快取機制 (最大配對演算法) ====
-    const charToBpmfCache = {};
-    for (const [bpmf, chars] of Object.entries(BOPOMOFO_COMPRESSED_DICT)) {
-        for (let i = 0; i < chars.length; i++) {
-            const char = chars[i];
-            // 保留字典中第一個出現的注音為預設發音，確保單字讀音正確
-            if (!charToBpmfCache[char]) {
-                charToBpmfCache[char] = bpmf;
-            }
-        }
-    }
-
-    function parseSentence(text) {
-        let result = [];
-        let i = 0;
-        const maxPhraseLen = 6; 
-
-        while (i < text.length) {
-            let matched = false;
-            // 優先從長詞開始比對，若命中則整個詞的注音一起定案
-            for (let len = Math.min(maxPhraseLen, text.length - i); len >= 2; len--) {
-                let word = text.slice(i, i + len);
-                if (typeof PHRASE_BPMF_DICT !== 'undefined' && PHRASE_BPMF_DICT[word]) {
-                    let bpmfs = PHRASE_BPMF_DICT[word].split(',');
-                    for (let j = 0; j < len; j++) {
-                        result.push({ char: word[j], bpmf: bpmfs[j] });
-                    }
-                    i += len;
-                    matched = true;
-                    break;
-                }
-            }
-            // 如果沒有成詞，就退回使用單字字典的最常用預設音
-            if (!matched) {
-                let char = text[i];
-                result.push({ char: char, bpmf: charToBpmfCache[char] || "" });
-                i++;
-            }
-        }
-        return result;
-    }
-
-    function renderPipeline(finalText, interimText) {
-        if (!activeLineElement) return;
-
-        const fragment = document.createDocumentFragment();
-
-        processTokens(finalText, true, fragment);
-        processTokens(interimText, false, fragment);
-
-        activeLineElement.innerHTML = '';
-        activeLineElement.appendChild(fragment);
-
-        autoScalePipeline();
-    }
-
-    function processTokens(text, isFinal, fragmentParent) {
-        if (!text || typeof text !== 'string') return;
-        if (text === "undefined") return;
-
-        // 【唯一差異】將正則表達式的中文字加上 + 號，讓系統可以整塊讀入中文字去解析破音詞
-        const tokens = text.match(/[\u4e00-\u9fa5]+|[a-zA-Z]+|[，。！？、]/g) || [];
-
-        tokens.forEach(token => {
-            if (!token || token === "undefined") return;
-
-            if (/^[a-zA-Z]+$/.test(token)) {
-                const charBox = document.createElement('div');
-                charBox.className = `char-box ${isFinal ? 'is-final' : 'is-interim'} is-english`;
-                charBox.innerHTML = `<div class="char-zh">${token}</div>`;
-                fragmentParent.appendChild(charBox);
-            } 
-            else if (/^[，。！？、]$/.test(token)) {
-                const charBox = document.createElement('div');
-                charBox.className = `char-box ${isFinal ? 'is-final' : 'is-interim'} is-punctuation`;
-                charBox.innerHTML = `<div class="char-zh">${token}</div>`;
-                fragmentParent.appendChild(charBox);
-            }
-            else {
-                // 原本的 parseBopomofo 被升級為 parseSentence，完美保留所有 DOM 生成邏輯
-                const parsedItems = parseSentence(token);
-                parsedItems.forEach(item => {
-                    const charBox = document.createElement('div');
-                    charBox.className = `char-box ${isFinal ? 'is-final' : 'is-interim'}`;
-                    const bpmfString = item.bpmf;
-
-                    if (bpmfString) {
-                        let bpmfSymbolsHtml = '';
-                        let toneHtml = '';
-
-                        if (bpmfString.endsWith('˙')) {
-                            bpmfSymbolsHtml += `<span class="bpmf-tone-light">˙</span>`;
-                            const mainTones = bpmfString.slice(0, -1);
-                            for (let sym of mainTones) { bpmfSymbolsHtml += `<span>${sym}</span>`; }
-                        } 
-                        else if (/[ˊˇˋ]/.test(bpmfString)) {
-                            const toneChar = bpmfString.match(/[ˊˇˋ]/)[0];
-                            const mainTones = bpmfString.replace(/[ˊˇˋ]/, '');
-                            for (let sym of mainTones) { bpmfSymbolsHtml += `<span>${sym}</span>`; }
-                            toneHtml = `<span class="bpmf-tone">${toneChar}</span>`;
-                        } 
-                        else {
-                            for (let sym of bpmfString) { bpmfSymbolsHtml += `<span>${sym}</span>`; }
-                        }
-
-                        charBox.innerHTML = `
-                            <div class="char-zh">${item.char}</div>
-                            <div class="char-bpmf-container">
-                                <div class="bpmf-symbols">${bpmfSymbolsHtml}</div>
-                                ${toneHtml}
-                            </div>
-                        `;
-                    } else {
-                        charBox.innerHTML = `<div class="char-zh">${item.char}</div>`;
-                    }
-                    fragmentParent.appendChild(charBox);
-                });
-            }
-        });
-    }
-
-    function autoScalePipeline() {
-        const container = document.getElementById('displayContainer');
-        const wrapper = document.getElementById('wrapper');
-        const boxes = container.querySelectorAll('.char-box:not(.is-english):not(.is-punctuation)');
-        const englishBoxes = container.querySelectorAll('.char-box.is-english');
-
-        let currentFontRem = 5.0; 
-        setElementSizes(currentFontRem, boxes, englishBoxes);
-
-        while (wrapper.offsetHeight > container.offsetHeight && currentFontRem > 2.2) {
-            currentFontRem -= 0.2;
-            setElementSizes(currentFontRem, boxes, englishBoxes);
-        }
-        container.scrollTop = container.scrollHeight; 
-    }
-
-    function setElementSizes(rem, boxes, englishBoxes) {
-        boxes.forEach(box => {
-            const zhNode = box.querySelector('.char-zh');
-            if (zhNode) {
-                zhNode.style.fontSize = `${rem}rem`;
-                zhNode.style.width = `${rem}rem`;
-                zhNode.style.height = `${rem}rem`;
-            }
-            const symbols = box.querySelector('.bpmf-symbols');
-            if (symbols) {
-                symbols.querySelectorAll('span:not(.bpmf-tone-light)').forEach(s => s.style.fontSize = `${rem * 0.26}rem`);
-            }
-            const lightTone = box.querySelector('.bpmf-tone-light');
-            if (lightTone) lightTone.style.fontSize = `${rem * 0.28}rem`;
-            
-            const normalTone = box.querySelector('.bpmf-tone');
-            if (normalTone) normalTone.style.fontSize = `${rem * 0.24}rem`;
-        });
-        englishBoxes.forEach(box => {
-            const engNode = box.querySelector('.char-zh');
-            if (engNode) {
-                engNode.style.fontSize = `${rem * 0.7}rem`;
-                engNode.style.height = `${rem}rem`;
-                engNode.style.lineHeight = `${rem}rem`;
-            }
-        });
-    }
-
-    function startTimeoutChecker() {
-        if (timeoutTimer) clearInterval(timeoutTimer);
-        timeoutTimer = setInterval(() => {
-            if (!isUserLocked && (Date.now() - lastSpeechTime > 3500) && activeLineElement.children.length > 0) {
-                activeLineElement.removeAttribute('id');
-
-                finalTranscriptCache = '';
-                interimTranscriptCache = '';
-
-                const newLine = document.createElement('div');
-                newLine.className = 'speech-line';
-                newLine.id = 'activeLine';
-                document.getElementById('wrapper').appendChild(newLine);
-                activeLineElement = newLine;
-
-                lastSpeechTime = Date.now();
-            }
-        }, 1000);
-    }
-
     return {
-        startListen: () => {
-            if (!SpeechRecognition || coolDownLock) {
-                if(!SpeechRecognition) alert("此瀏覽器不支援 Web Speech API，推薦在 Chrome 或 Edge 中開啟。");
-                return;
-            }
-            coolDownLock = true;
-            setTimeout(() => coolDownLock = false, 300);
-
-            hasPermissionError = false; 
-
-            if (isUserLocked) {
-                isUserLocked = false;
-                document.body.className = "state-listening";
-                document.getElementById('statusBanner').innerText = "🎙️ 系統狀態：正在即時聆聽並翻譯注音...";
-                document.getElementById('listenBtn').innerText = "🛑 停止轉錄";
-                document.getElementById('lockBtn').innerText = "🔒 鎖定定型";
-
-                lastSpeechTime = Date.now();
-                startTimeoutChecker();
-                
-                isMicRestarting = false; // 重設鎖狀態
-                try { recognition.start(); } catch(e) { console.log(e); }
+        toggleMic: () => {
+            if (!SpeechRecognition) { alert("此瀏覽器不支援 Web Speech API，推薦在 Chrome / Edge 中開啟。"); return; }
+            if (isUserRequestedStop) {
+                isUserRequestedStop = false;
+                try { recognition.start(); } catch(e) {}
             } else {
-                ControlSystem.lockSystem();
+                isUserRequestedStop = true;
+                try { recognition.stop(); } catch(e) {}
             }
         },
 
-        lockSystem: () => {
-            if (coolDownLock) return;
-            coolDownLock = true;
-            setTimeout(() => coolDownLock = false, 300);
-
-            isUserLocked = true;
-            document.body.className = "state-locked";
-            document.getElementById('statusBanner').innerText = "🔒 系統狀態：魔法定型中（唯讀）";
-            document.getElementById('listenBtn').innerText = "🟢 開始轉錄";
-
-            if (timeoutTimer) clearInterval(timeoutTimer);
+        copyText: () => {
+            const currentInterimText = Array.from(interimAnchor.childNodes).map(n => n.textContent.trim()).join('');
+            const textToCopy = fullTextCache + currentInterimText;
+            if (!textToCopy) { alert("目前沒有內容可以複製！"); return; }
             
-            isMicRestarting = false; 
-            try { recognition.stop(); } catch(e) { console.log(e); }
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const btn = document.getElementById('btn-copy');
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" stroke="currentColor" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg> <span style="font-weight:bold;">複製成功！</span>`;
+                btn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+                setTimeout(() => { btn.innerHTML = originalHtml; btn.style.background = ''; }, 2000);
+            });
         },
 
         clearSystem: () => {
-            if (coolDownLock) return;
-            coolDownLock = true;
-            setTimeout(() => coolDownLock = false, 300);
-
-            if (timeoutTimer) clearInterval(timeoutTimer);
-
-            document.getElementById('wrapper').innerHTML = '<div class="speech-line" id="activeLine"></div>';
-            activeLineElement = document.getElementById('activeLine');
-
-            finalTranscriptCache = '';
-            interimTranscriptCache = '';
-
-            if (!isUserLocked) {
-                lastSpeechTime = Date.now();
-                startTimeoutChecker();
-                // 修正：此處直接 abort() 會觸發 onend，交給 onend 內部的 800ms 緩衝機制去重新 start 即可
-                try { recognition.abort(); } catch(e) { console.log(e); }
-            } else {
-                autoScalePipeline(); 
-            }
-        },
-
-        triggerResizeScale: () => {
-            autoScalePipeline();
+            finalAnchor.innerHTML = '';
+            interimAnchor.innerHTML = '';
+            fullTextCache = '';
         }
     };
-})();
-
-(() => {
-    let resizeTimeout = null;
-    window.addEventListener('resize', () => {
-        if (resizeTimeout) clearTimeout(resizeTimeout);
-        resizeTimeout = setTimeout(() => {
-            ControlSystem.triggerResizeScale();
-        }, 150);
-    });
-    window.addEventListener('orientationchange', () => {
-        setTimeout(() => ControlSystem.triggerResizeScale(), 300);
-    });
 })();
 </script>
 </body>
