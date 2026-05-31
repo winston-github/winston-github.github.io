@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
-<title>3D 閃算賽車：極限檢定 V3</title>
+<title>3D 閃算賽車：極限檢定 V3 (Pro Edition)</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
@@ -208,7 +208,7 @@ svg.icon-inline { vertical-align: text-bottom; margin-right: 6px; flex-shrink: 0
 </div>
 
 <div id="game-hud-view" class="view-layer">
-  <div id="hud-score-bar">分數：<span class="score-val" id="hud-score-val">0</span></div>
+  <div id="hud-score-bar">總分：<span class="score-val" id="hud-score-val">0</span></div>
   <div id="hud-timer-area">
     <div id="hud-timer-text">剩餘：<span class="timer-val" id="hud-timer-val">180</span>s</div>
     <div id="hud-timer-bar"><div id="hud-timer-fill" style="width:100%;"></div></div>
@@ -292,9 +292,7 @@ const GAME_VERSION = "MIND_MATH_v3";
 const STORAGE_KEY = "math_racing_records_v3";
 const XOR_MASK = 0x55AA55AA;
 const BREATHING_GAP = 300;
-const THINKING_TIME = 3.5;
 const BULLET_APPROACH_SPEED = 15;
-const BULLET_TRIGGER_DIST = BULLET_APPROACH_SPEED * THINKING_TIME;
 
 // SVGs
 const SVG_WARN = '<svg class="icon-inline" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>';
@@ -303,30 +301,31 @@ const SVG_CROSS = '<svg class="icon-inline" viewBox="0 0 24 24" width="14" heigh
 const SVG_TROPHY = '<svg class="icon-inline" viewBox="0 0 24 24" width="28" height="28" fill="#d4a830"><path d="M19 3h-2V1h-2v2H9V1H7v2H5c-1.1 0-2 .9-2 2v6c0 2.2 1.8 4 4 4h2v2c0 1.6 1.1 3 2.6 3.8L9 23h6l-2.6-2.2c1.5-.8 2.6-2.2 2.6-3.8v-2h2c2.2 0 4-1.8 4-4V5c0-1.1-.9-2-2-2zm-2 8h-2V5h2v6zM7 11H5V5h2v6z"/></svg>';
 const SVG_BULB = '<svg class="icon-inline" viewBox="0 0 24 24" width="16" height="16" fill="#d4a830"><path d="M9 21c0 .5.4 1 1 1h4c.6 0 1-.5 1-1v-1H9v1zm3-19C8.1 2 5 5.1 5 9c0 2.4 1.2 4.5 3 5.7V17c0 .6.4 1 1 1h6c.6 0 1-.4 1-1v-2.3c1.8-1.3 3-3.4 3-5.7 0-3.9-3.1-7-7-7z"/></svg>';
 
-// 調整難度配置：11~20段極限強化
+// 真實賽制的及格標準 (passReq = 最低需答對題數)
 const EXAM_LEVELS = {
-    1:  { levelId: 1,  name: "心算 10 級", type: "ADD_ONLY",     totalQ: 30, passScore: 70,  minDigits: 1, maxDigits: 1, rows: 4,  ops: ["+"],      baseSpeed: 18, slateMode: "full",   themeHue: 210, cadenceTime: 1.2, restTime: 2.2 },
-    2:  { levelId: 2,  name: "心算 9 級",  type: "ADD_ONLY",     totalQ: 30, passScore: 70,  minDigits: 1, maxDigits: 1, rows: 5,  ops: ["+"],      baseSpeed: 20, slateMode: "full",   themeHue: 210, cadenceTime: 1.2, restTime: 2.2 },
-    3:  { levelId: 3,  name: "心算 8 級",  type: "ADD_SUB",      totalQ: 30, passScore: 70,  minDigits: 1, maxDigits: 1, rows: 6,  ops: ["+", "-"], baseSpeed: 22, slateMode: "full",   themeHue: 215, cadenceTime: 1.1, restTime: 2.0 },
-    4:  { levelId: 4,  name: "心算 7 級",  type: "ADD_SUB",      totalQ: 30, passScore: 70,  minDigits: 1, maxDigits: 2, rows: 4,  ops: ["+", "-"], baseSpeed: 24, slateMode: "full",   themeHue: 215, cadenceTime: 1.0, restTime: 2.0 },
-    5:  { levelId: 5,  name: "心算 6 級",  type: "ADD_SUB",      totalQ: 30, passScore: 70,  minDigits: 1, maxDigits: 2, rows: 6,  ops: ["+", "-"], baseSpeed: 26, slateMode: "fading", themeHue: 220, cadenceTime: 0.9, restTime: 1.8 },
-    6:  { levelId: 6,  name: "心算 5 級",  type: "MIXED_THREE",  totalQ: 60, passScore: 330, addSub: { minDigits: 2, maxDigits: 2, rows: 4, ops: ["+", "-"] }, mul: { multiplicandDigits: 2, multiplierDigits: 1 }, div: { dividendDigits: 3, divisorDigits: 1 }, baseSpeed: 28, slateMode: "fading", themeHue: 35, cadenceTime: 0.85, restTime: 1.8 },
-    7:  { levelId: 7,  name: "心算 4 級",  type: "MIXED_THREE",  totalQ: 60, passScore: 330, addSub: { minDigits: 2, maxDigits: 2, rows: 6, ops: ["+", "-"] }, mul: { multiplicandDigits: 3, multiplierDigits: 1 }, div: { dividendDigits: 3, divisorDigits: 1 }, baseSpeed: 30, slateMode: "fading", themeHue: 35, cadenceTime: 0.85, restTime: 1.8 },
-    8:  { levelId: 8,  name: "心算 3 級",  type: "MIXED_THREE",  totalQ: 60, passScore: 330, addSub: { minDigits: 2, maxDigits: 2, rows: 8, ops: ["+", "-"] }, mul: { multiplicandDigits: 2, multiplierDigits: 2 }, div: { dividendDigits: 4, divisorDigits: 2 }, baseSpeed: 32, slateMode: "fading", themeHue: 38, cadenceTime: 0.8, restTime: 1.6 },
-    9:  { levelId: 9,  name: "心算 2 級",  type: "MIXED_THREE",  totalQ: 60, passScore: 330, addSub: { minDigits: 2, maxDigits: 3, rows: 10, ops: ["+", "-"] }, mul: { multiplicandDigits: 3, multiplierDigits: 2 }, div: { dividendDigits: 4, divisorDigits: 2 }, baseSpeed: 34, slateMode: "fading", themeHue: 40, cadenceTime: 0.75, restTime: 1.5 },
-    10: { levelId: 10, name: "心算 1 級",  type: "MIXED_THREE",  totalQ: 60, passScore: 300, addSub: { minDigits: 2, maxDigits: 4, rows: 10, ops: ["+", "-"] }, mul: { multiplicandDigits: 3, multiplierDigits: 2 }, div: { dividendDigits: 5, divisorDigits: 2 }, baseSpeed: 36, slateMode: "fading", themeHue: 42, cadenceTime: 0.7, restTime: 1.5 },
+    1:  { levelId: 1,  name: "心算 10 級", type: "ADD_ONLY",     totalQ: 30, passReq: 21,  minDigits: 1, maxDigits: 1, rows: 4,  ops: ["+"],      baseSpeed: 18, slateMode: "full",   themeHue: 210, cadenceTime: 1.2, restTime: 2.2 },
+    2:  { levelId: 2,  name: "心算 9 級",  type: "ADD_ONLY",     totalQ: 30, passReq: 21,  minDigits: 1, maxDigits: 1, rows: 5,  ops: ["+"],      baseSpeed: 20, slateMode: "full",   themeHue: 210, cadenceTime: 1.2, restTime: 2.2 },
+    3:  { levelId: 3,  name: "心算 8 級",  type: "ADD_SUB",      totalQ: 30, passReq: 21,  minDigits: 1, maxDigits: 1, rows: 6,  ops: ["+", "-"], baseSpeed: 22, slateMode: "full",   themeHue: 215, cadenceTime: 1.1, restTime: 2.0 },
+    4:  { levelId: 4,  name: "心算 7 級",  type: "ADD_SUB",      totalQ: 30, passReq: 21,  minDigits: 1, maxDigits: 2, rows: 4,  ops: ["+", "-"], baseSpeed: 24, slateMode: "full",   themeHue: 215, cadenceTime: 1.0, restTime: 2.0 },
+    5:  { levelId: 5,  name: "心算 6 級",  type: "ADD_SUB",      totalQ: 30, passReq: 21,  minDigits: 1, maxDigits: 2, rows: 6,  ops: ["+", "-"], baseSpeed: 26, slateMode: "fading", themeHue: 220, cadenceTime: 0.9, restTime: 1.8 },
+    
+    6:  { levelId: 6,  name: "心算 5 級",  type: "MIXED_THREE",  totalQ: 60, passReq: 42, addSub: { minDigits: 2, maxDigits: 2, rows: 4, ops: ["+", "-"] }, mul: { multiplicandDigits: 2, multiplierDigits: 1 }, div: { dividendDigits: 3, divisorDigits: 1 }, baseSpeed: 28, slateMode: "fading", themeHue: 35, cadenceTime: 0.85, restTime: 1.8 },
+    7:  { levelId: 7,  name: "心算 4 級",  type: "MIXED_THREE",  totalQ: 60, passReq: 42, addSub: { minDigits: 2, maxDigits: 2, rows: 6, ops: ["+", "-"] }, mul: { multiplicandDigits: 3, multiplierDigits: 1 }, div: { dividendDigits: 3, divisorDigits: 1 }, baseSpeed: 30, slateMode: "fading", themeHue: 35, cadenceTime: 0.85, restTime: 1.8 },
+    8:  { levelId: 8,  name: "心算 3 級",  type: "MIXED_THREE",  totalQ: 60, passReq: 42, addSub: { minDigits: 2, maxDigits: 2, rows: 8, ops: ["+", "-"] }, mul: { multiplicandDigits: 2, multiplierDigits: 2 }, div: { dividendDigits: 4, divisorDigits: 2 }, baseSpeed: 32, slateMode: "fading", themeHue: 38, cadenceTime: 0.8, restTime: 1.6 },
+    9:  { levelId: 9,  name: "心算 2 級",  type: "MIXED_THREE",  totalQ: 60, passReq: 42, addSub: { minDigits: 2, maxDigits: 3, rows: 10, ops: ["+", "-"] }, mul: { multiplicandDigits: 3, multiplierDigits: 2 }, div: { dividendDigits: 4, divisorDigits: 2 }, baseSpeed: 34, slateMode: "fading", themeHue: 40, cadenceTime: 0.75, restTime: 1.5 },
+    10: { levelId: 10, name: "心算 1 級",  type: "MIXED_THREE",  totalQ: 60, passReq: 42, addSub: { minDigits: 2, maxDigits: 4, rows: 10, ops: ["+", "-"] }, mul: { multiplicandDigits: 3, multiplierDigits: 2 }, div: { dividendDigits: 5, divisorDigits: 2 }, baseSpeed: 36, slateMode: "fading", themeHue: 42, cadenceTime: 0.7, restTime: 1.5 },
     
     // 魔鬼級段位
-    11: { levelId: 11, name: "心算 一段",  type: "DAN_RANK",     totalQ: 90, passScore: 420,  addSub: { minDigits: 2, maxDigits: 4, rows: 10, ops: ["+", "-"] }, mulTotalDigits: 6, divTotalDigits: 6, baseSpeed: 38, slateMode: "none", themeHue: 0,   cadenceTime: 0.65, restTime: 1.3 },
-    12: { levelId: 12, name: "心算 二段",  type: "DAN_RANK",     totalQ: 90, passScore: 480,  addSub: { minDigits: 2, maxDigits: 4, rows: 10, ops: ["+", "-"] }, mulTotalDigits: 6, divTotalDigits: 6, baseSpeed: 40, slateMode: "none", themeHue: 0,   cadenceTime: 0.65, restTime: 1.3 },
-    13: { levelId: 13, name: "心算 三段",  type: "DAN_RANK",     totalQ: 90, passScore: 540,  addSub: { minDigits: 3, maxDigits: 4, rows: 10, ops: ["+", "-"] }, mulTotalDigits: 7, divTotalDigits: 7, baseSpeed: 42, slateMode: "none", themeHue: 355, cadenceTime: 0.65, restTime: 1.3 },
-    14: { levelId: 14, name: "心算 四段",  type: "DAN_RANK",     totalQ: 90, passScore: 620,  addSub: { minDigits: 3, maxDigits: 4, rows: 10, ops: ["+", "-"] }, mulTotalDigits: 7, divTotalDigits: 7, baseSpeed: 44, slateMode: "none", themeHue: 355, cadenceTime: 0.65, restTime: 1.3 },
-    15: { levelId: 15, name: "心算 五段",  type: "DAN_RANK",     totalQ: 90, passScore: 700,  addSub: { minDigits: 3, maxDigits: 5, rows: 10, ops: ["+", "-"] }, mulTotalDigits: 8, divTotalDigits: 8, baseSpeed: 46, slateMode: "none", themeHue: 350, cadenceTime: 0.55, restTime: 1.2 },
-    16: { levelId: 16, name: "心算 六段",  type: "DAN_RANK",     totalQ: 90, passScore: 800,  addSub: { minDigits: 3, maxDigits: 5, rows: 10, ops: ["+", "-"] }, mulTotalDigits: 8, divTotalDigits: 8, baseSpeed: 48, slateMode: "none", themeHue: 350, cadenceTime: 0.55, restTime: 1.2 },
-    17: { levelId: 17, name: "心算 七段",  type: "DAN_RANK",     totalQ: 90, passScore: 900,  addSub: { minDigits: 4, maxDigits: 5, rows: 10, ops: ["+", "-"] }, mulTotalDigits: 9, divTotalDigits: 9, baseSpeed: 50, slateMode: "none", themeHue: 345, cadenceTime: 0.55, restTime: 1.2 },
-    18: { levelId: 18, name: "心算 八段",  type: "DAN_RANK",     totalQ: 90, passScore: 1000, addSub: { minDigits: 4, maxDigits: 5, rows: 10, ops: ["+", "-"] }, mulTotalDigits: 9, divTotalDigits: 9, baseSpeed: 52, slateMode: "none", themeHue: 340, cadenceTime: 0.5, restTime: 1.0 },
-    19: { levelId: 19, name: "心算 九段",  type: "DAN_RANK",     totalQ: 90, passScore: 1200, addSub: { minDigits: 4, maxDigits: 6, rows: 10, ops: ["+", "-"] }, mulTotalDigits: 10, divTotalDigits: 10, baseSpeed: 55, slateMode: "none", themeHue: 335, cadenceTime: 0.5, restTime: 1.0 },
-    20: { levelId: 20, name: "心算 十段",  type: "DAN_RANK",     totalQ: 90, passScore: 1400, addSub: { minDigits: 4, maxDigits: 6, rows: 10, ops: ["+", "-"] }, mulTotalDigits: 10, divTotalDigits: 10, baseSpeed: 60, slateMode: "none", themeHue: 330, cadenceTime: 0.5, restTime: 1.0 }
+    11: { levelId: 11, name: "心算 一段",  type: "DAN_RANK",     totalQ: 90, passReq: 63,  addSub: { minDigits: 2, maxDigits: 4, rows: 10, ops: ["+", "-"] }, mulTotalDigits: 6, divTotalDigits: 6, baseSpeed: 38, slateMode: "none", themeHue: 0,   cadenceTime: 0.65, restTime: 1.3 },
+    12: { levelId: 12, name: "心算 二段",  type: "DAN_RANK",     totalQ: 90, passReq: 66,  addSub: { minDigits: 2, maxDigits: 4, rows: 10, ops: ["+", "-"] }, mulTotalDigits: 6, divTotalDigits: 6, baseSpeed: 40, slateMode: "none", themeHue: 0,   cadenceTime: 0.65, restTime: 1.3 },
+    13: { levelId: 13, name: "心算 三段",  type: "DAN_RANK",     totalQ: 90, passReq: 69,  addSub: { minDigits: 3, maxDigits: 4, rows: 10, ops: ["+", "-"] }, mulTotalDigits: 7, divTotalDigits: 7, baseSpeed: 42, slateMode: "none", themeHue: 355, cadenceTime: 0.65, restTime: 1.3 },
+    14: { levelId: 14, name: "心算 四段",  type: "DAN_RANK",     totalQ: 90, passReq: 72,  addSub: { minDigits: 3, maxDigits: 4, rows: 10, ops: ["+", "-"] }, mulTotalDigits: 7, divTotalDigits: 7, baseSpeed: 44, slateMode: "none", themeHue: 355, cadenceTime: 0.65, restTime: 1.3 },
+    15: { levelId: 15, name: "心算 五段",  type: "DAN_RANK",     totalQ: 90, passReq: 75,  addSub: { minDigits: 3, maxDigits: 5, rows: 10, ops: ["+", "-"] }, mulTotalDigits: 8, divTotalDigits: 8, baseSpeed: 46, slateMode: "none", themeHue: 350, cadenceTime: 0.55, restTime: 1.2 },
+    16: { levelId: 16, name: "心算 六段",  type: "DAN_RANK",     totalQ: 90, passReq: 78,  addSub: { minDigits: 3, maxDigits: 5, rows: 10, ops: ["+", "-"] }, mulTotalDigits: 8, divTotalDigits: 8, baseSpeed: 48, slateMode: "none", themeHue: 350, cadenceTime: 0.55, restTime: 1.2 },
+    17: { levelId: 17, name: "心算 七段",  type: "DAN_RANK",     totalQ: 90, passReq: 81,  addSub: { minDigits: 4, maxDigits: 5, rows: 10, ops: ["+", "-"] }, mulTotalDigits: 9, divTotalDigits: 9, baseSpeed: 50, slateMode: "none", themeHue: 345, cadenceTime: 0.55, restTime: 1.2 },
+    18: { levelId: 18, name: "心算 八段",  type: "DAN_RANK",     totalQ: 90, passReq: 84,  addSub: { minDigits: 4, maxDigits: 5, rows: 10, ops: ["+", "-"] }, mulTotalDigits: 9, divTotalDigits: 9, baseSpeed: 52, slateMode: "none", themeHue: 340, cadenceTime: 0.5, restTime: 1.0 },
+    19: { levelId: 19, name: "心算 九段",  type: "DAN_RANK",     totalQ: 90, passReq: 86,  addSub: { minDigits: 4, maxDigits: 6, rows: 10, ops: ["+", "-"] }, mulTotalDigits: 10, divTotalDigits: 10, baseSpeed: 55, slateMode: "none", themeHue: 335, cadenceTime: 0.5, restTime: 1.0 },
+    20: { levelId: 20, name: "心算 十段",  type: "DAN_RANK",     totalQ: 90, passReq: 88,  addSub: { minDigits: 4, maxDigits: 6, rows: 10, ops: ["+", "-"] }, mulTotalDigits: 10, divTotalDigits: 10, baseSpeed: 60, slateMode: "none", themeHue: 330, cadenceTime: 0.5, restTime: 1.0 }
 };
 
 function generateStringHash(str) {
@@ -490,6 +489,7 @@ function hueToHex(hue, lightness) {
 let currentGameState = "MENU", targetLane = 1, currentSpeed = 0, baseSpeed = 20, gameTimer = 180, accumulatedTime = 0, combo = 0;
 let isBlindMode = false, isReviewMode = false, reviewQuestions = [], colorBlindMode = 'DEFAULT';
 let speedLocked = false, lockedSpeed = 0, questionInProgress = false, baseFov = 60;
+let waitingForGatesToAppear = false;
 let _score = 0, _shadowScore = 0;
 function getScore() { if ((_score ^ XOR_MASK) !== _shadowScore) { _score=0; _shadowScore=0^XOR_MASK; } return _score; }
 function setScore(val) { _score = val; _shadowScore = val ^ XOR_MASK; }
@@ -734,13 +734,18 @@ function spawnEnergyWall(value, stepIndex, zPos) {
     wall.material.needsUpdate = true; wall.position.set(0, 2.5, zPos); wall.userData = { type: 'energyWall', value: value, stepIndex: stepIndex, collided: false, spawnTime: performance.now() };
     scene.add(wall); activeWalls.push(wall);
 }
-function spawnAnswerGates(correctAnswer, question, zPos) {
+function spawnAnswerGates(correctAnswer, question, zPos, thinkingTime) {
     let wrongs = generateSmartWrongAnswers(correctAnswer, question), correctLane = randInt(0, 2), wrongIdx = 0;
     for (let lane = 0; lane < 3; lane++) {
         let gate = GameObjectPool.spawn('answerGate'), val, isCorr;
         if (lane === correctLane) { val = correctAnswer; isCorr = true; } else { val = wrongs[wrongIdx]; isCorr = false; wrongIdx++; }
         gate.material.color.setHex(0x445566); gate.material.opacity = 0.8; gate.material.needsUpdate = true;
-        gate.position.set(lanePositions[lane], 3.5, zPos); gate.userData = { type: 'answerGate', lane: lane, value: val, isCorrect: isCorr, question: question, collided: false, spawnTime: performance.now() };
+        gate.position.set(lanePositions[lane], 3.5, zPos); 
+        gate.userData = { type: 'answerGate', lane: lane, value: val, isCorrect: isCorr, question: question, collided: false, triggerDist: BULLET_APPROACH_SPEED * thinkingTime, isScalingUp: false };
+        
+        // 如果前面還有加減法牆，就先隱形；如果是乘除法則直接出現
+        if (waitingForGatesToAppear) { gate.visible = false; } else { gate.visible = true; gate.scale.set(1,1,1); }
+        
         scene.add(gate); activeGates.push(gate);
     }
     awaitingAnswerGate = true; correctGateAnswer = correctAnswer;
@@ -749,11 +754,14 @@ function spawnAnswerGates(correctAnswer, question, zPos) {
 function updateGateLabels() {
     let w = window.innerWidth, h = window.innerHeight, labelIdx = 0;
     for (let i = 0; i < activeGates.length; i++) {
-        let gate = activeGates[i]; if (!gate || !gate.visible || gate.userData.collided) continue;
+        let gate = activeGates[i]; 
+        // 隱藏狀態、或者已經碰撞就不畫標籤
+        if (!gate || !gate.visible || gate.userData.collided || gate.scale.x < 0.5) continue;
+        
         let pos = gate.position.clone(), distToCam = camera.position.distanceTo(pos);
         pos.y += 4; pos.project(camera); let sx = (pos.x * 0.5 + 0.5) * w, sy = (-pos.y * 0.5 + 0.5) * h;
         if (pos.z < 1 && sx > -100 && sx < w + 100 && sy > -100 && sy < h + 100 && labelIdx < 3) {
-            let lbl = gateLabelPool[labelIdx]; lbl.textContent = gate.userData.value; // 無前綴，防止遮蔽視覺
+            let lbl = gateLabelPool[labelIdx]; lbl.textContent = gate.userData.value;
             let scale = Math.max(0.4, Math.min(2.0, 30 / distToCam));
             lbl.style.transform = 'translate3d(' + sx.toFixed(0) + 'px,' + sy.toFixed(0) + 'px,0) translate(-50%,-50%) scale(' + scale.toFixed(2) + ')';
             lbl.classList.remove('pool-hidden'); labelIdx++;
@@ -800,7 +808,7 @@ function resetGameVariables() {
     firstHalfCorrect = 0; firstHalfTotal = 0; secondHalfCorrect = 0; secondHalfTotal = 0; mulDivCorrect = 0; mulDivTotal = 0;
     currentAddSubQuestion = null; currentAddSubStepIndex = 0; awaitingAnswerGate = false; correctGateAnswer = 0; targetLane = 1;
     inBulletTime = false; vignetteTimer = 0; recoveryTimer = 0; speedLocked = false; lockedSpeed = 0; questionInProgress = false;
-    audioQueue = []; audioProcessing = false; StateSnapshotManager.clear();
+    audioQueue = []; audioProcessing = false; waitingForGatesToAppear = false; StateSnapshotManager.clear();
 }
 function getSlateMode() { if (!currentLevelConfig) return 'full'; let id = currentLevelConfig.levelId; if (id <= 5) return 'full'; if (id <= 10) return 'fading'; return 'none'; }
 function initGateLabelPool() {
@@ -839,27 +847,40 @@ function spawnNextQuestion() {
     if (!speedLocked) currentSpeed = targetSpeed;
     lockedSpeed = currentSpeed; speedLocked = true; questionInProgress = true;
     let startZ = currentQuestionIndex === 0 ? -60 : -(lockedSpeed * (currentLevelConfig ? currentLevelConfig.restTime : 2.0) + 20);
+    
+    // 清除上題 2D 痕跡
+    let slate = document.getElementById('mental-slate'); if (slate) slate.innerHTML = '';
+    
     if (q.type === 'ADD_SUB' || q.type === 'ADD_ONLY') batchSpawnAddSub(q, startZ); else batchSpawnMulDiv(q, startZ);
 }
 function batchSpawnAddSub(question, startZ) {
     let cadence = currentLevelConfig ? currentLevelConfig.cadenceTime : 1.0, steps = question.steps, cumZ = startZ;
     currentAddSubQuestion = question; currentAddSubStepIndex = 0; runningTotal = 0; awaitingAnswerGate = false;
-    let slate = document.getElementById('mental-slate'); if (slate) slate.innerHTML = '';
+    waitingForGatesToAppear = true; // 加減法光牆未耗盡前，答案閘門隱形
     for (let i = 0; i < steps.length; i++) {
         let gapTime = Math.max(cadence, estimateSpeechDuration(steps[i])), gapZ = Math.max(8, lockedSpeed * gapTime);
         if (i > 0) cumZ -= gapZ; spawnEnergyWall(steps[i], i, cumZ);
     }
-    let gateZ = Math.min(cumZ - 15, cumZ - (lockedSpeed * 1.5));
-    spawnAnswerGates(question.finalAnswer, question, gateZ);
+    // 預留 1.5秒衝刺期 + 3.0秒決策期
+    let thinkingTime = 3.0;
+    let gateZ = cumZ - (lockedSpeed * 1.5) - (BULLET_APPROACH_SPEED * thinkingTime);
+    spawnAnswerGates(question.finalAnswer, question, gateZ, thinkingTime);
 }
 function batchSpawnMulDiv(question, startZ) {
     currentAddSubQuestion = null; runningTotal = 0; awaitingAnswerGate = false;
+    waitingForGatesToAppear = false; // 乘除法沒有牆，閘門直接出現
+    
     let nfz = document.getElementById('number-flash-zone');
     if (nfz) {
         if (flashTimeout) { clearTimeout(flashTimeout); flashTimeout = null; }
         nfz.textContent = question.expression + ' = ?'; nfz.style.opacity = '1'; nfz.style.color = '#ffffff'; nfz.style.fontSize = 'clamp(24px,6vw,48px)';
     }
-    spawnAnswerGates(question.finalAnswer, question, startZ);
+    // 動態給予十段等高位數玩家極長的滯空運算時間 (最高可達10秒)
+    let totalDigits = (question.multiplicandDigits || 0) + (question.multiplierDigits || 0) + (question.dividendDigits || 0) + (question.divisorDigits || 0);
+    let thinkingTime = Math.max(3.5, totalDigits * 0.8);
+    let gateZ = startZ - (lockedSpeed * 1.0) - (BULLET_APPROACH_SPEED * thinkingTime);
+    
+    spawnAnswerGates(question.finalAnswer, question, gateZ, thinkingTime);
 }
 
 function handleWallCollision(wall) {
@@ -871,7 +892,7 @@ function handleWallCollision(wall) {
     flashNumber(displayText, value < 0 ? 'negative' : 'positive');
     playAbsorbSound(); spawnComboEffect('+' + combo + ' HIT', '#44ccff');
     let comboHud = document.getElementById('combo-hud'); if (comboHud) { comboHud.textContent = 'COMBO ×' + combo; comboHud.classList.add('visible'); }
-    // Zero-Stuck: 立即設為不可見，但迴圈中會馬上回收。
+    // Zero-Stuck: 立即設為不可見，但交由 gameLoop 主線程回收。
     wall.visible = false;
 }
 function addSlateEntry(value) {
@@ -887,10 +908,7 @@ function addSlateEntry(value) {
 
 function handleGateCollision(gate) {
     if (gate.userData.collided) return;
-    for (let i = activeGates.length - 1; i >= 0; i--) {
-        let g = activeGates[i];
-        if (g) { g.userData.collided = true; g.visible = false; }
-    }
+    for (let i = activeGates.length - 1; i >= 0; i--) { let g = activeGates[i]; if (g) { g.userData.collided = true; g.visible = false; } }
     exitBulletTime(); awaitingAnswerGate = false; questionInProgress = false; speedLocked = false;
     let nfz = document.getElementById('number-flash-zone'); if (nfz) nfz.style.opacity = '0';
     for (let j = 0; j < gateLabelPool.length; j++) if(gateLabelPool[j]) gateLabelPool[j].classList.add('pool-hidden');
@@ -900,12 +918,12 @@ function handleGateCollision(gate) {
         setScore(getScore() + pts); playCorrectGateSound(); spawnComboEffect('+' + pts + (combo > 3 ? ' ×' + combo : ''), '#22cc44');
         totalCorrect++; if (q && (q.type === 'MUL' || q.type === 'DIV')) mulDivCorrect++;
     } else {
-        // 修復：懲罰分數改為極致合理的 -20 分
+        // 扣除合理的 20 分懲罰
         setScore(Math.max(0, getScore() - 20)); combo = 0; totalWrong++;
         let comboHud = document.getElementById('combo-hud'); if (comboHud) comboHud.classList.remove('visible');
         let wq = JSON.parse(JSON.stringify(q)); wq.playerAnswer = gate.userData.value; wrongPool.push(wq);
         triggerVignetteFlash(); playWrongGateSound(); spawnComboEffect('-20', '#cc3333'); flashNumber('正確：' + correctGateAnswer, 'correction'); 
-        // 賦予 1.2 秒的寬限恢復期
+        // 賦予 1.2 秒寬限恢復期
         recoveryTimer = 1.2;
     }
     if (q && (q.type === 'MUL' || q.type === 'DIV')) mulDivTotal++;
@@ -914,7 +932,7 @@ function handleGateCollision(gate) {
     totalAnswered++; if (accumulatedTime < 90000) { firstHalfTotal++; if (isCorrect) firstHalfCorrect++; } else { secondHalfTotal++; if (isCorrect) secondHalfCorrect++; }
     currentQuestionIndex++; StateSnapshotManager.capture();
     
-    // 如果答對，且沒有恢復期，100ms 後生成下一題
+    // 正確且無冷卻，0.1秒後生成下一題
     if (isCorrect && recoveryTimer <= 0) { setTimeout(function() { if ((currentGameState === 'PLAYING' || currentGameState === 'REVIEW_MODE') && currentQuestionIndex < questionQueue.length) spawnNextQuestion(); }, 100); }
 }
 
@@ -932,11 +950,29 @@ function gameLoop(currentTime) {
         if (recoveryTimer <= 0) { recoveryTimer = 0; if (currentQuestionIndex < questionQueue.length && activeWalls.length === 0 && activeGates.length === 0) spawnNextQuestion(); }
     }
 
-    let nearestGateDist = 9999;
-    for (let i = 0; i < activeGates.length; i++) { let d = -activeGates[i].position.z; if (d < nearestGateDist && d > 0 && !activeGates[i].userData.collided) nearestGateDist = d; }
+    // 狀態機轉換：加減法光牆全數吃完，顯示選項
+    if (waitingForGatesToAppear && activeWalls.length === 0 && activeGates.length > 0) {
+        waitingForGatesToAppear = false;
+        flashNumber('＝ ？', 'neutral'); // 提示玩家運算結束
+        for(let i=0; i<activeGates.length; i++) {
+            activeGates[i].visible = true; activeGates[i].scale.set(0.01, 0.01, 0.01); activeGates[i].userData.isScalingUp = true;
+        }
+    }
     
-    // 影音同步鎖定：確保「所有的加減牆壁都被吸收完畢」後，子彈時間才允許觸發，避免語音提早脫節。
-    if (activeWalls.length === 0 && activeGates.length > 0 && nearestGateDist < BULLET_TRIGGER_DIST && nearestGateDist > 0 && !inBulletTime) enterBulletTime();
+    // 閘門從小放大動畫
+    for(let i=0; i<activeGates.length; i++) {
+        if(activeGates[i].userData.isScalingUp) {
+            let s = activeGates[i].scale.x + 0.15;
+            if (s >= 1.0) { s = 1.0; activeGates[i].userData.isScalingUp = false; }
+            activeGates[i].scale.set(s, s, s);
+        }
+    }
+
+    let nearestGateDist = 9999, triggerD = 0;
+    for (let i = 0; i < activeGates.length; i++) { let d = -activeGates[i].position.z; if (d < nearestGateDist && d > 0 && !activeGates[i].userData.collided) { nearestGateDist = d; triggerD = activeGates[i].userData.triggerDist; } }
+    
+    // 影音同步鎖定：必須在看得見閘門、且達到設定觸發距時才啟動子彈時間
+    if (activeGates.length > 0 && activeGates[0].visible && nearestGateDist < triggerD && nearestGateDist > 0 && !inBulletTime) enterBulletTime();
 
     if (inBulletTime) {
         effectiveSpeed = BULLET_APPROACH_SPEED; trackScrollSpeed = moveSpeed * 0.6;
@@ -1030,7 +1066,7 @@ function renderLevelButtons() {
     let grid = document.getElementById('level-grid'); if (!grid) return; grid.innerHTML = '';
     for (let id = 1; id <= 20; id++) {
         let lv = EXAM_LEVELS[id], btn = document.createElement('div'); btn.className = 'level-btn';
-        btn.innerHTML = '<div class="lv-name">Lv.' + id + ' ' + lv.name + '</div><div class="lv-info">及格：' + lv.passScore + '分</div>'; btn.setAttribute('data-level', id);
+        btn.innerHTML = '<div class="lv-name">Lv.' + id + ' ' + lv.name + '</div><div class="lv-info">及格：' + lv.passReq + '題</div>'; btn.setAttribute('data-level', id);
         btn.addEventListener('click', function() {
             currentLevelId = parseInt(this.getAttribute('data-level'));
             let lvConfig = EXAM_LEVELS[currentLevelId]; if (lvConfig && lvConfig.slateMode === 'none') { isBlindMode = false; let bt = document.getElementById('blind-toggle'); if (bt) bt.classList.remove('on'); }
@@ -1049,17 +1085,15 @@ function computeRadarStats() {
 }
 function renderFinalReport() {
     let rg = document.getElementById('report-grid'), rt = document.getElementById('report-title'); if (!rg) return;
-    let sc = getScore(), passed = currentLevelConfig ? sc >= currentLevelConfig.passScore : false;
+    let passed = currentLevelConfig ? totalCorrect >= currentLevelConfig.passReq : false;
     if (isReviewMode) { rt.innerHTML = '錯題檢討成果報告'; } else { rt.innerHTML = passed ? (SVG_TROPHY + '檢定通過！') : '檢定結算報告書'; }
     rg.innerHTML = '<div class="rl">檢定級階：</div><div class="rv">' + (currentLevelConfig ? currentLevelConfig.name : '') + '</div>' +
-        '<div class="rl">最終得分：</div><div class="rv ' + (passed?'pass':'fail') + '">' + sc + ' 分</div>' +
-        '<div class="rl">及格標準：</div><div class="rv">' + (currentLevelConfig ? currentLevelConfig.passScore : 0) + ' 分</div>' +
-        '<div class="rl">答對題數：</div><div class="rv">' + totalCorrect + '</div>' +
-        '<div class="rl">答錯題數：</div><div class="rv">' + totalWrong + '</div>' +
+        '<div class="rl">最終得分：</div><div class="rv ' + (passed?'pass':'fail') + '">' + getScore() + ' 分</div>' +
+        '<div class="rl">答對/總題數：</div><div class="rv ' + (passed?'pass':'fail') + '">' + totalCorrect + ' / ' + questionQueue.length + ' 題</div>' +
+        '<div class="rl">及格標準：</div><div class="rv">' + (currentLevelConfig ? currentLevelConfig.passReq : 0) + ' 題</div>' +
         '<div class="rl">完美預判：</div><div class="rv">' + totalPerfect + '</div>' +
-        '<div class="rl">總作答數：</div><div class="rv">' + totalAnswered + '</div>' +
         '<div class="rl">預判率：</div><div class="rv">' + (totalAnswered > 0 ? Math.round(totalPerfect/totalAnswered*100) : 0) + '%</div>' +
-        (isBlindMode ? '<div class="rl">模式：</div><div class="rv" style="color:#ffd700;">盲測 ×1.5</div>' : '') +
+        (isBlindMode ? '<div class="rl">模式：</div><div class="rv" style="color:#ffd700;">盲測加成生效</div>' : '') +
         '<div class="rl">結果：</div><div class="rv ' + (passed?'pass':'fail') + '">' + (isReviewMode ? '檢討完畢' : (passed ? (SVG_CHECK + '合格') : (SVG_CROSS + '未通過'))) + '</div>';
     drawRadarChart('radar-canvas', computeRadarStats());
     let tags = analyzeWrongPool(wrongPool); renderWeaknessTags(tags);
@@ -1122,8 +1156,8 @@ function generateCertificate(name, lvName, score, blind) {
 function showCertificateOverlay(canvas) { let ov = document.getElementById('certificate-overlay'), img = document.getElementById('cert-img'); if (ov && img) { try { img.src = canvas.toDataURL('image/jpeg', 0.92); ov.classList.add('active'); } catch(e){} } }
 
 function saveRecord(name) {
-    let sc = getScore(), passed = currentLevelConfig ? sc >= currentLevelConfig.passScore : false;
-    let record = { id: Date.now(), name: name, levelId: currentLevelId, levelName: currentLevelConfig ? currentLevelConfig.name : '', score: sc, date: new Date().toLocaleDateString(), pass: passed, isBlindMode: isBlindMode, isReview: isReviewMode, wrongPool: JSON.parse(JSON.stringify(wrongPool)) };
+    let passed = currentLevelConfig ? totalCorrect >= currentLevelConfig.passReq : false;
+    let record = { id: Date.now(), name: name, levelId: currentLevelId, levelName: currentLevelConfig ? currentLevelConfig.name : '', score: getScore(), date: new Date().toLocaleDateString(), pass: passed, isBlindMode: isBlindMode, isReview: isReviewMode, wrongPool: JSON.parse(JSON.stringify(wrongPool)), correct: totalCorrect, total: questionQueue.length };
     record.hashSign = generateStringHash(record.name + '|' + record.levelId + '|' + record.score + '|' + record.date + GAME_SALT);
     let records = loadRecordsRaw(); records.push(record); try { localStorage.setItem(STORAGE_KEY, JSON.stringify(records)); } catch(e){}
 }
@@ -1135,10 +1169,11 @@ function loadRecords() {
 function renderHistoryUI() {
     let container = document.getElementById('history-list'); if (!container) return; let records = loadRecords();
     if (records.length === 0) { container.innerHTML = '<p style="text-align:center;color:#88bbcc;">尚無歷史紀錄</p>'; return; }
-    let html = '<table class="hist-table"><thead><tr><th>' + SVG_CHECK + '</th><th>姓名</th><th>級階</th><th>分數</th><th>日期</th><th>結果</th><th>錯題</th></tr></thead><tbody>';
+    let html = '<table class="hist-table"><thead><tr><th>' + SVG_CHECK + '</th><th>姓名</th><th>級階</th><th>總分</th><th>答對</th><th>結果</th><th>錯題</th></tr></thead><tbody>';
     for (let i = 0; i < records.length; i++) {
         let r = records[i], wc = (r.wrongPool && r.wrongPool.length > 0) ? r.wrongPool.length : 0, pT = r._tampered ? (SVG_WARN + '異常') : (r.isReview ? '檢討' : (r.pass ? (SVG_CHECK + '合格') : (SVG_CROSS + '未過')));
-        html += '<tr' + (r._tampered ? ' class="tampered"' : '') + '><td><input type="checkbox" class="history-check" data-id="' + r.id + '" ' + (wc===0?'disabled':'') + '/></td><td>' + (r.name||'-') + '</td><td>' + (r.levelName||'Lv.'+r.levelId) + '</td><td>' + r.score + '</td><td>' + (r.date||'-') + '</td><td>' + pT + '</td><td>' + wc + '</td></tr>';
+        let correctStr = (r.correct !== undefined && r.total !== undefined) ? (r.correct + '/' + r.total) : '-';
+        html += '<tr' + (r._tampered ? ' class="tampered"' : '') + '><td><input type="checkbox" class="history-check" data-id="' + r.id + '" ' + (wc===0?'disabled':'') + '/></td><td>' + (r.name||'-') + '</td><td>' + (r.levelName||'Lv.'+r.levelId) + '</td><td>' + r.score + '</td><td>' + correctStr + '</td><td>' + pT + '</td><td>' + wc + '</td></tr>';
     }
     container.innerHTML = html + '</tbody></table>';
     container.querySelectorAll('.history-check').forEach(function(cb) { cb.addEventListener('change', function() { let any = false; container.querySelectorAll('.history-check:checked').forEach(function(){ any=true; }); let btn = document.getElementById('btn-review-run'); if (btn) btn.disabled = !any; }); });
@@ -1148,7 +1183,7 @@ function clearAllHistory() { try { localStorage.removeItem(STORAGE_KEY); } catch
 function exportSaveGameCode() {
     try {
         let raw = localStorage.getItem(STORAGE_KEY); if (!raw) return ''; let records = JSON.parse(raw);
-        let opt = records.map(function(r) { return { n:r.name, l:r.levelId, s:r.score, d:r.date, p:r.pass?1:0, b:r.isBlindMode?1:0, w: r.wrongPool ? r.wrongPool.map(function(w){ if(w.type==='ADD_SUB'||w.type==='ADD_ONLY') return {t:0,dg:w.digits,rw:w.rows,st:w.steps,fa:w.finalAnswer}; else if(w.type==='MUL') return {t:1,a:w.multiplicand,b:w.multiplier,fa:w.finalAnswer}; else return {t:2,a:w.dividend,b:w.divisor,fa:w.finalAnswer}; }) : [] }; });
+        let opt = records.map(function(r) { return { n:r.name, l:r.levelId, s:r.score, d:r.date, p:r.pass?1:0, b:r.isBlindMode?1:0, c:r.correct, q:r.total, w: r.wrongPool ? r.wrongPool.map(function(w){ if(w.type==='ADD_SUB'||w.type==='ADD_ONLY') return {t:0,dg:w.digits,rw:w.rows,st:w.steps,fa:w.finalAnswer}; else if(w.type==='MUL') return {t:1,a:w.multiplicand,b:w.multiplier,fa:w.finalAnswer}; else return {t:2,a:w.dividend,b:w.divisor,fa:w.finalAnswer}; }) : [] }; });
         let json = JSON.stringify(opt), b64 = btoa(encodeURIComponent(json).replace(/%([0-9A-F]{2})/g, function(m,p){ return String.fromCharCode(parseInt(p,16)); }));
         return GAME_VERSION + '#' + b64 + '#' + generateStringHash(b64);
     } catch(e) { return ''; }
@@ -1160,7 +1195,7 @@ function importSaveGameCode(code) {
         if (generateStringHash(parts[1]) !== parts[2]) { alert('校驗失敗，代碼可能已損壞！'); return false; }
         let decoded = decodeURIComponent(atob(parts[1]).split('').map(function(c){ return '%'+('00'+c.charCodeAt(0).toString(16)).slice(-2); }).join(''));
         let records = JSON.parse(decoded).map(function(o) {
-            let r = { id: Date.now()+Math.random()*10000, name:o.n, levelId:o.l, levelName: EXAM_LEVELS[o.l]?EXAM_LEVELS[o.l].name:'Lv.'+o.l, score:o.s, date:o.d, pass:o.p===1, isBlindMode:o.b===1, isReview:false, wrongPool: o.w ? o.w.map(function(w){ if(w.t===0) return {type:'ADD_SUB',digits:w.dg,rows:w.rw,steps:w.st,finalAnswer:w.fa}; else if(w.t===1) return {type:'MUL',multiplicand:w.a,multiplier:w.b,finalAnswer:w.fa,multiplicandDigits:String(w.a).length,multiplierDigits:String(w.b).length}; else return {type:'DIV',dividend:w.a,divisor:w.b,finalAnswer:w.fa,dividendDigits:String(w.a).length,divisorDigits:String(w.b).length}; }) : [], hashSign:'' };
+            let r = { id: Date.now()+Math.random()*10000, name:o.n, levelId:o.l, levelName: EXAM_LEVELS[o.l]?EXAM_LEVELS[o.l].name:'Lv.'+o.l, score:o.s, date:o.d, pass:o.p===1, isBlindMode:o.b===1, isReview:false, correct: o.c||0, total: o.q||0, wrongPool: o.w ? o.w.map(function(w){ if(w.t===0) return {type:'ADD_SUB',digits:w.dg,rows:w.rw,steps:w.st,finalAnswer:w.fa}; else if(w.t===1) return {type:'MUL',multiplicand:w.a,multiplier:w.b,finalAnswer:w.fa,multiplicandDigits:String(w.a).length,multiplierDigits:String(w.b).length}; else return {type:'DIV',dividend:w.a,divisor:w.b,finalAnswer:w.fa,dividendDigits:String(w.a).length,divisorDigits:String(w.b).length}; }) : [], hashSign:'' };
             r.hashSign = generateStringHash(r.name+'|'+r.levelId+'|'+r.score+'|'+r.date + GAME_SALT); return r;
         });
         localStorage.setItem(STORAGE_KEY, JSON.stringify(records)); return true;
@@ -1199,7 +1234,6 @@ function renderCalmReview(questions) {
 }
 
 function setupEventListeners() {
-    // Synth Pre-warming and Audio Context Unlock
     let unlockAudio = function() { 
         ensureAudioCtx(); 
         playStartupSound(); 
