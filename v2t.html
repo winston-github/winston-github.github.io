@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>專業雙語注音轉錄系統 - 瀑布流置頂版</title>
+    <title>專業雙語注音轉錄系統 - 瀑布流平滑區塊版</title>
     <style>
         /* ==========================================
            1. 現代隱性骨架與動態視窗防禦
@@ -12,7 +12,7 @@
             --bg-color1: #0f172a; 
             --bg-color2: #1e293b; 
             --text-main: #f8fafc;
-            --text-zhuyin: #ffffff; /* 強化注音對比，改為純白 */
+            --text-zhuyin: #ffffff; 
             --tone-color: #38bdf8;
             --panel-bg: rgba(15, 23, 42, 0.85);
         }
@@ -78,7 +78,7 @@
         .spin { animation: spin 1.5s linear infinite; }
 
         /* ==========================================
-           3. 瀑布流顯示容器 (新句子在最上面)
+           3. 瀑布流顯示容器與平滑區塊動畫
            ========================================== */
         #displayContainer {
             flex: 1 1 auto;
@@ -87,7 +87,7 @@
             overflow-y: auto;
             padding: 30px 24px;
             overscroll-behavior-y: contain;
-            display: block; /* 改為 block 以支援瀑布流佈局 */
+            display: block; 
             scroll-behavior: smooth;
         }
         
@@ -97,40 +97,66 @@
 
         #linesContainer {
             display: flex;
-            flex-direction: column; /* 由上往下排列 */
+            flex-direction: column; 
             width: 100%;
         }
 
+        /* 透過 CSS Grid 達成高度 0 到 auto 的極致平滑滑動 */
+        .speech-line-wrapper {
+            display: grid;
+            grid-template-rows: 0fr;
+            opacity: 0;
+            margin-bottom: 0;
+            transition: grid-template-rows 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), 
+                        margin-bottom 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), 
+                        opacity 0.6s ease;
+        }
+
+        .speech-line-wrapper.active {
+            grid-template-rows: 1fr;
+            opacity: 1;
+            margin-bottom: 16px;
+        }
+
+        /* 獨立句子區塊 (氣泡/對話框風格) */
         .speech-line {
+            min-height: 0; 
+            overflow: hidden; 
             display: flex;
             flex-wrap: wrap;
-            align-items: flex-end; /* 讓所有字底部切齊 */
+            align-items: flex-end; 
             align-content: flex-start;
             width: 100%;
-            margin-bottom: 16px;
-            padding-bottom: 16px;
-            border-bottom: 1px dashed rgba(255,255,255,0.1);
-            animation: fadeInDown 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        .speech-line:first-child {
-            border-bottom: none; /* 第一排不加底線，保持畫面乾淨 */
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 0 24px; 
+            background: rgba(30, 41, 59, 0.4);
+            transition: padding 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.4s ease;
         }
 
-        @keyframes fadeInDown {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
+        .speech-line-wrapper.active .speech-line {
+            padding: 20px 24px;
+        }
+
+        /* 奇偶背景色區隔 */
+        .speech-line-wrapper:nth-child(even) .speech-line { background: rgba(15, 23, 42, 0.6); }
+
+        /* 最新的一句發出淺藍色高亮光暈 */
+        .speech-line-wrapper:first-child .speech-line {
+            background: rgba(56, 189, 248, 0.1);
+            border-color: rgba(56, 189, 248, 0.25);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
         }
 
         .final-anchor, .interim-anchor { display: contents; }
 
         /* ==========================================
-           4. 台灣標準教科書級別注音字體排版 CSS (防重疊絕對對齊)
+           4. 台灣標準教科書級別注音字體排版 CSS
            ========================================== */
         .ruby-container {
             display: inline-flex;
-            align-items: flex-end; /* 【修正痛點】強制底部切齊，解決高低不均 */
-            height: 5.8rem; /* 固定容器高度，確保不管有沒有注音都排得一模一樣高 */
+            align-items: flex-end; 
+            height: 5.8rem; 
             margin-right: 12px;
             margin-bottom: 8px;
             font-family: "標楷體", "DFKai-SB", 'Microsoft JhengHei', serif;
@@ -142,7 +168,7 @@
             font-weight: bold;
             color: var(--text-main);
             line-height: 1; 
-            height: 4.5rem; /* 固定中文字本身高度 */
+            height: 4.5rem; 
             display: flex;
             align-items: flex-end;
             text-shadow: 0 0 15px rgba(255,255,255,0.2);
@@ -158,20 +184,18 @@
             line-height: 1;
             color: var(--text-zhuyin);
             position: relative;
-            font-weight: 900; /* 【修正痛點】注音加到最粗，大幅提升辨識度 */
+            font-weight: 900; 
             text-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
-            
-            /* 【防重疊核心】為四聲和輕聲預先買好空間，絕對不會再黏到下一個字 */
             padding-right: 0.9em; 
             padding-top: 0.8em;
-            height: 4.5rem; /* 對齊中文字高度 */
+            height: 4.5rem; 
         }
 
         .zhuyin-symbol { position: relative; }
         
         .zhuyin-symbol.tone-light { 
             position: absolute; 
-            top: 0.1em; /* 定位在預留好的 padding 內 */
+            top: 0.1em; 
             left: 50%; 
             transform: translateX(-50%); 
             color: var(--tone-color);
@@ -179,7 +203,7 @@
         }
         .zhuyin-symbol.tone-mark { 
             position: absolute; 
-            right: 0; /* 定位在預留好的 padding 內 */
+            right: 0; 
             top: 50%; 
             transform: translateY(-50%); 
             color: var(--tone-color);
@@ -191,20 +215,10 @@
         .ruby-container.is-interim .ruby-zhuyin { color: #cbd5e1; }
 
         .ruby-container.is-english .ruby-char { 
-            font-size: 3.5rem; 
-            color: #fcd34d; 
-            padding: 0 8px; 
-            letter-spacing: 1px; 
-            font-family: 'Microsoft JhengHei', sans-serif; 
-            white-space: pre-wrap; /* 完美保留英文與空白 */
-            align-items: center;
+            font-size: 3.5rem; color: #fcd34d; padding: 0 8px; letter-spacing: 1px; 
+            font-family: 'Microsoft JhengHei', sans-serif; white-space: pre-wrap; align-items: center;
         }
-        .ruby-container.is-punctuation .ruby-char { 
-            font-size: 3.5rem; 
-            color: #64748b; 
-            padding: 0 4px; 
-            align-items: center;
-        }
+        .ruby-container.is-punctuation .ruby-char { font-size: 3.5rem; color: #64748b; padding: 0 4px; align-items: center;}
 
         /* ==========================================
            5. 高階 iOS 風格控制面板與專業按鈕
@@ -226,21 +240,8 @@
         }
 
         .magic-btn {
-            flex: 1;
-            padding: 16px 8px;
-            font-size: 1.2rem;
-            font-weight: 700;
-            border: none;
-            border-radius: 18px;
-            cursor: pointer;
-            color: #ffffff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 6px 15px rgba(0,0,0,0.2);
-            letter-spacing: 1px;
+            flex: 1; padding: 16px 8px; font-size: 1.2rem; font-weight: 700; border: none; border-radius: 18px; cursor: pointer; color: #ffffff;
+            display: flex; align-items: center; justify-content: center; gap: 10px; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 6px 15px rgba(0,0,0,0.2); letter-spacing: 1px;
         }
         .magic-btn:active { transform: scale(0.95); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
         .magic-btn svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
@@ -254,18 +255,11 @@
            6. 手機版自適應優化
            ========================================== */
         @media (max-width: 768px) {
+            .speech-line-wrapper.active .speech-line { padding: 16px 16px; }
             .ruby-container { height: 4.8rem; margin-right: 8px; margin-bottom: 4px; }
             .ruby-char { font-size: 3.2rem; height: 3.2rem; }
-            .ruby-zhuyin { 
-                font-size: 1.35rem; /* 手機版進一步放大注音比例，極致清晰 */
-                margin-left: 6px; 
-                padding-right: 0.9em; 
-                padding-top: 0.7em;
-                height: 3.2rem;
-            }
-            .ruby-container.is-english .ruby-char { font-size: 2.5rem; height: auto; }
-            .ruby-container.is-punctuation .ruby-char { font-size: 2.5rem; height: auto; }
-            
+            .ruby-zhuyin { font-size: 1.35rem; margin-left: 6px; padding-right: 0.9em; padding-top: 0.7em; height: 3.2rem;}
+            .ruby-container.is-english .ruby-char, .ruby-container.is-punctuation .ruby-char { font-size: 2.5rem; height: auto; }
             #controlPanel { padding: 15px 15px calc(15px + env(safe-area-inset-bottom)); gap: 10px; border-radius: 20px 20px 0 0;}
             .magic-btn { padding: 12px 4px; font-size: 1rem; border-radius: 14px;}
             .magic-btn svg { width: 20px; height: 20px; }
@@ -280,7 +274,6 @@
 </div>
 
 <div id="displayContainer">
-    <!-- 新的瀑布流架構，最上方永遠是正在說的話 -->
     <div id="linesContainer"></div>
 </div>
 
@@ -300,9 +293,6 @@
 </div>
 
 <script>
-// ==========================================
-// 1. 字典設定與精準發音覆寫掛載機制
-// ==========================================
 const SVG_ICONS = {
     idle: `<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>`,
     rec: `<circle cx="12" cy="12" r="4"/><path d="M16 8v8a4 4 0 0 1-8 0V8a4 4 0 0 1 8 0z"/><line x1="12" y1="20" x2="12" y2="22"/>`,
@@ -312,8 +302,15 @@ const SVG_ICONS = {
 
 let currentMaxPhraseLen = 6;
 
-// 台灣口語與慣用高頻詞彙 (優先確保不出錯)
+// 高權重破音與輕聲處理詞庫
 const PHRASE_BPMF_DICT = {
+    "媽媽": "ㄇㄚ,ㄇㄚ˙", "爸爸": "ㄅㄚˋ,ㄅㄚ˙", "奶奶": "ㄋㄞˇ,ㄋㄞ˙", "哥哥": "ㄍㄜ,ㄍㄜ˙",
+    "姊姊": "ㄐㄧㄝˇ,ㄐㄧㄝ˙", "姐姐": "ㄐㄧㄝˇ,ㄐㄧㄝ˙", "弟弟": "ㄉㄧˋ,ㄉㄧ˙", "妹妹": "ㄇㄟˋ,ㄇㄟ˙",
+    "叔叔": "ㄕㄨˊ,ㄕㄨ˙", "嬸嬸": "ㄕㄣˇ,ㄕㄣ˙", "伯伯": "ㄅㄛˊ,ㄅㄛ˙", "爺爺": "ㄧㄝˊ,ㄧㄝ˙",
+    "姑姑": "ㄍㄨ,ㄍㄨ˙", "舅舅": "ㄐㄧㄡˋ,ㄐㄧㄡ˙", "阿姨": "ㄚ,ㄧˊ", "老婆": "ㄌㄠˇ,ㄆㄛ˙", 
+    "老公": "ㄌㄠˇ,ㄍㄨㄥ", "太太": "ㄊㄞˋ,ㄊㄞ˙", "星星": "ㄒㄧㄥ,ㄒㄧㄥ˙", "寶寶": "ㄅㄠˇ,ㄅㄠ˙", 
+    "謝謝": "ㄒㄧㄝˋ,ㄒㄧㄝ˙", "看看": "ㄎㄢˋ,ㄎㄢ˙", "聽聽": "ㄊㄧㄥ,ㄊㄧㄥ˙", "朋友": "ㄆㄥˊ,ㄧㄡˇ", 
+    "衣服": "ㄧ,ㄈㄨ˙", "漂亮": "ㄆㄧㄠˋ,ㄌㄧㄤ˙", "東西": "ㄉㄨㄥ,ㄒㄧ", "關係": "ㄍㄨㄢ,ㄒㄧ˙",
     "什麼": "ㄕㄣˊ,ㄇㄜ˙", "怎麼": "ㄗㄣˇ,ㄇㄜ˙", "為什麼": "ㄨㄟˋ,ㄕㄣˊ,ㄇㄜ˙",
     "我們": "ㄨㄛˇ,ㄇㄣ˙", "你們": "ㄋㄧˇ,ㄇㄣ˙", "他們": "ㄊㄚ,ㄇㄣ˙", "她們": "ㄊㄚ,ㄇㄣ˙",
     "這麼": "ㄓㄜˋ,ㄇㄜ˙", "那麼": "ㄋㄚˋ,ㄇㄜ˙", "真的": "ㄓㄣ,ㄉㄜ˙", "好的": "ㄏㄠˇ,ㄉㄜ˙",
@@ -322,14 +319,10 @@ const PHRASE_BPMF_DICT = {
     "一會兒": "ㄧ,ㄏㄨㄟˇ,ㄦˊ", "頭髮": "ㄊㄡˊ,ㄈㄚˇ", "理髮": "ㄌㄧˇ,ㄈㄚˇ", "發現": "ㄈㄚ,ㄒㄧㄢˋ",
     "著火": "ㄓㄠˊ,ㄏㄨㄛˇ", "著急": "ㄓㄠ,ㄐㄧˊ", "沿著": "ㄧㄢˊ,ㄓㄜ˙", "看著": "ㄎㄢˋ,ㄓㄜ˙",
     "聽著": "ㄊㄧㄥ,ㄓㄜ˙", "睡覺": "ㄕㄨㄟˋ,ㄐㄧㄠˋ", "多少": "ㄉㄨㄛ,ㄕㄠˇ", "一隻": "ㄧ,ㄓ",
-    
-    // 名人與政要名稱
     "清德": "ㄑㄧㄥ,ㄉㄜˊ", "英九": "ㄧㄥ,ㄐㄧㄡˇ", "建仁": "ㄐㄧㄢˋ,ㄖㄣˊ", "文哲": "ㄨㄣˊ,ㄓㄜˊ", 
     "國瑜": "ㄍㄨㄛˊ,ㄩˊ", "萬安": "ㄨㄢˋ,ㄢ", "其邁": "ㄑㄧˊ,ㄇㄞˋ", "友宜": "ㄧㄡˇ,ㄧˊ", 
     "水扁": "ㄕㄨㄟˇ,ㄅㄧㄢˇ", "登輝": "ㄉㄥ,ㄏㄨㄟ", "依林": "ㄧ,ㄌㄧㄣˊ", "杰倫": "ㄐㄧㄝˊ,ㄌㄨㄣˊ", 
     "韶涵": "ㄕㄠˊ,ㄏㄢˊ", "心凌": "ㄒㄧㄣ,ㄌㄧㄥˊ", "惠妹": "ㄏㄨㄟˋ,ㄇㄟˋ",
-    
-    // 菜市場名與要求的人名 (與百家姓單字拼在一起會組成完美配對)
     "心媛": "ㄒㄧㄣ,ㄩㄢˊ", "建億": "ㄐㄧㄢˋ,ㄧˋ", "修情": "ㄒㄧㄡ,ㄑㄧㄥˊ", "育銓": "ㄩˋ,ㄑㄩㄢˊ", 
     "芷嫣": "ㄓˇ,ㄧㄢ", "子豪": "ㄗˇ,ㄏㄠˊ", "家銘": "ㄐㄧㄚ,ㄇㄧㄥˊ", "麗月": "ㄌㄧˋ,ㄩㄝˋ", 
     "月華": "ㄩㄝˋ,ㄏㄨㄚˊ", "言謙": "ㄧㄢˊ,ㄑㄧㄢ", "安中": "ㄢ,ㄓㄨㄥ", "雅婷": "ㄧㄚˇ,ㄊㄧㄥˊ", 
@@ -338,17 +331,12 @@ const PHRASE_BPMF_DICT = {
     "志明": "ㄓˋ,ㄇㄧㄥˊ", "春嬌": "ㄔㄨㄣ,ㄐㄧㄠ"
 };
 
-// 【絕對核心防禦】台灣人絕對不念錯的強制單字與百家姓覆寫表
 const TAIWAN_COMMON_CHARS = {
-    // 修正系統常見誤判的怪音
     "誰": "ㄕㄟˊ", "說": "ㄕㄨㄛ", "和": "ㄏㄢˋ", "血": "ㄒㄧㄝˇ", "崖": "ㄧㄚˊ",
     "液": "ㄧㄝˋ", "仔": "ㄗˇ", "哪": "ㄋㄚˇ", "那": "ㄋㄚˋ", "這": "ㄓㄜˋ",
     "著": "ㄓㄜ˙", "括": "ㄍㄨㄚ", "癌": "ㄞˊ", "期": "ㄑㄧˊ", "擊": "ㄐㄧˊ",
     "什": "ㄕㄣˊ", "麼": "ㄇㄜ˙", "楢": "ㄧㄡˊ", "圳": "ㄗㄨㄣˋ", "堃": "ㄎㄨㄣ",
-    "龘": "ㄉㄚˊ", "煊": "ㄒㄩㄢ", "妍": "ㄧㄢˊ", "媛": "ㄩㄢˊ", "芷": "ㄓˇ",
-    "嫣": "ㄧㄢ", "銓": "ㄑㄩㄢˊ", 
-    
-    // 百家姓氏 (最高優先級鎖定發音，避免變音)
+    "龘": "ㄉㄚˊ", "煊": "ㄒㄩㄢ", "妍": "ㄧㄢˊ", "媛": "ㄩㄢˊ", "芷": "ㄓˇ", "嫣": "ㄧㄢ", "銓": "ㄑㄩㄢˊ", 
     "劉": "ㄌㄧㄡˊ", "李": "ㄌㄧˇ", "里": "ㄌㄧˇ", "陳": "ㄔㄣˊ", "林": "ㄌㄧㄣˊ", 
     "黃": "ㄏㄨㄤˊ", "張": "ㄓㄤ", "吳": "ㄨˊ", "郭": "ㄍㄨㄛ", "洪": "ㄏㄨㄥˊ", 
     "翁": "ㄨㄥ", "盧": "ㄌㄨˊ", "蕭": "ㄒㄧㄠ", "潘": "ㄆㄢ", "蔣": "ㄐㄧㄤˇ", 
@@ -357,8 +345,6 @@ const TAIWAN_COMMON_CHARS = {
     "楊": "ㄧㄤˊ", "趙": "ㄓㄠˋ", "徐": "ㄒㄩˊ", "孫": "ㄙㄨㄣ", "馬": "ㄇㄚˇ", 
     "朱": "ㄓㄨ", "許": "ㄒㄩˇ", "鄭": "ㄓㄥˋ", "王": "ㄨㄤˊ", "游": "ㄧㄡˊ", 
     "邱": "ㄑㄧㄡ", "謝": "ㄒㄧㄝˋ",
-
-    // 台灣常用語尾助詞與代名詞輕聲化
     "啦": "ㄌㄚ˙", "咧": "ㄌㄧㄝ˙", "齁": "ㄏㄡ", "喔": "ㄛ˙", "欸": "ㄟ",
     "嘛": "ㄇㄚ˙", "嗎": "ㄇㄚ˙", "吧": "ㄅㄚ˙", "耶": "ㄧㄝ˙", "呀": "ㄧㄚ˙",
     "哇": "ㄨㄚ˙", "囉": "ㄌㄨㄛ˙", "呢": "ㄋㄜ˙", "的": "ㄉㄜ˙", "得": "ㄉㄜ˙",
@@ -366,7 +352,6 @@ const TAIWAN_COMMON_CHARS = {
     "妳": "ㄋㄧˇ", "他": "ㄊㄚ", "她": "ㄊㄚ", "牠": "ㄊㄚ", "它": "ㄊㄚ", "是": "ㄕˋ"
 };
 
-// 壓縮版核心基礎字典
 const BOPOMOFO_COMPRESSED_DICT = {
     "ㄅㄚ": "八巴吧叭疤笆芭粑扒峇捌", "ㄅㄚˊ": "拔跋鈸菝鼥", "ㄅㄚˇ": "把靶", "ㄅㄚˋ": "爸霸罷壩靶灞鈀",
     "ㄅㄛ": "波玻剝缽播菠撥餑礡", "ㄅㄛˊ": "伯博勃脖舶薄駁帛泊渤箔搏亳孛雹礴馞髆鑮", "ㄅㄛˇ": "跛簸箥", "ㄅㄛˋ": "檗蘗擘", "ㄅㄛ˙": "卜",
@@ -507,6 +492,7 @@ const BOPOMOFO_COMPRESSED_DICT = {
     "ㄍㄨㄟ": "規歸龜圭閨瑰硅鮭", "ㄍㄨㄟˇ": "鬼軌詭晷癸簋", "ㄍㄨㄟˋ": "櫃貴桂跪鱖檜",
     "ㄍㄨㄣ": "昆袞", "ㄍㄨㄣˇ": "滾緄", "ㄍㄨㄣˋ": "棍",
     "ㄍㄨㄛ": "鍋郭聒蟈", "ㄍㄨㄛˊ": "國膕", "ㄍㄨㄛˇ": "果裹槨猓", "ㄍㄨㄛˋ": "過",
+    "ㄍㄨㄥ": "工公功攻供宮恭躬龔", "ㄍㄨㄥˇ": "鞏拱汞", "ㄍㄨㄥˋ": "共貢",
     "ㄎㄚ": "卡喀", "ㄎㄚˇ": "咯",
     "ㄎㄞ": "開揩", "ㄎㄞˇ": "楷凱鎧剴慨", "ㄎㄞˋ": "鍇",
     "ㄎㄢ": "看刊勘堪龕", "ㄎㄢˇ": "坎砍侃檻", "ㄎㄢˋ": "闞",
@@ -523,6 +509,7 @@ const BOPOMOFO_COMPRESSED_DICT = {
     "ㄎㄨㄟ": "虧窺盔巋", "ㄎㄨㄟˊ": "奎葵魁夔逵馗", "ㄎㄨㄟˇ": "跬", "ㄎㄨㄟˋ": "愧饋潰匱聵",
     "ㄎㄨㄣ": "坤鯤崑", "ㄎㄨㄣˇ": "捆梱閫", "ㄎㄨㄣˋ": "困睏",
     "ㄎㄨㄛˋ": "闊擴廓鞹",
+    "ㄎㄨㄥ": "空", "ㄎㄨㄥˇ": "孔恐", "ㄎㄨㄥˋ": "控空白",
     "ㄏㄚ": "哈蛤", "ㄏㄚˇ": "鉿",
     "ㄏㄞ": "嗨咳", "ㄏㄞˊ": "孩還骸", "ㄏㄞˇ": "海醢", "ㄏㄞˋ": "害駭氦亥",
     "ㄏㄢ": "憨酣頇", "ㄏㄢˊ": "寒含函韓涵汗邯邗", "ㄏㄢˇ": "喊罕頷", "ㄏㄢˋ": "漢憾悍捍焊翰旱撼瀚",
@@ -540,6 +527,7 @@ const BOPOMOFO_COMPRESSED_DICT = {
     "ㄏㄨㄟ": "灰恢揮輝徽暉麾", "ㄏㄨㄟˊ": "回迴蛔洄", "ㄏㄨㄟˇ": "悔毀虺", "ㄏㄨㄟˋ": "匯會彙惠慧繪卉晦賄諱穢彗薈誨",
     "ㄏㄨㄣ": "婚昏葷閽", "ㄏㄨㄣˊ": "魂渾", "ㄏㄨㄣˋ": "混諢",
     "ㄏㄨㄛ": "豁劐", "ㄏㄨㄛˊ": "活", "ㄏㄨㄛˇ": "火夥", "ㄏㄨㄛˋ": "或貨獲禍霍惑藿",
+    "ㄏㄨㄥ": "烘轟哄", "ㄏㄨㄥˊ": "紅洪宏鴻虹泓弘", "ㄏㄨㄥˇ": "哄", "ㄏㄨㄥˋ": "鬨",
     "ㄐㄧ": "機基積激飢雞蹟肌跡磯緝嘰畸稽畿羈唧箕", "ㄐㄧˇ": "幾己擠戟", "ㄐㄧˋ": "記計季際技寄劑忌祭既紀繼驥悸伎霽薊",
     "ㄐㄧㄚ": "家加佳嘉夾枷痂笳袈迦鎵", "ㄐㄧㄚˊ": "頰莢鋏戛", "ㄐㄧㄚˇ": "假甲鉀胛賈岬", "ㄐㄧㄚˋ": "價架駕嫁稼",
     "ㄐㄧㄢ": "尖間堅煎肩兼艱監箋緘殲濺", "ㄐㄧㄢˇ": "檢簡減剪揀撿鹼繭儉瞼柬筧", "ㄐㄧㄢˋ": "件建健見鍵劍箭漸薦鑑鑒踐賤腱餞",
@@ -551,6 +539,7 @@ const BOPOMOFO_COMPRESSED_DICT = {
     "ㄐㄩ": "居拘局菊舉矩句具聚劇據巨拒距離車駒鞠狙罝", "ㄐㄩˊ": "橘桔鋦", "ㄐㄩˇ": "沮咀莒", "ㄐㄩˋ": "懼鋸俱炬倨遽踞颶",
     "ㄐㄩㄢ": "捐娟鵑涓鐫", "ㄐㄩㄢˇ": "捲卷", "ㄐㄩㄢˋ": "眷倦絹雋",
     "ㄐㄩㄝˊ": "決絕掘爵訣崛抉蕨倔鐝", "ㄐㄩㄣ": "均軍君鈞龜", "ㄐㄩㄣˋ": "俊峻菌郡駿浚竣",
+    "ㄐㄩㄥ": "扃", "ㄐㄩㄥˇ": "窘炯迥",
     "ㄑㄧ": "七奇其騎起啟氣器企汽棄欺妻漆戚悽淒棲沏蹊", "ㄑㄧˊ": "旗祈棋齊崎歧臍鰭麒淇岐", "ㄑㄧˇ": "乞豈杞", "ㄑㄧˋ": "泣契砌憩迄",
     "ㄑㄧㄚ": "掐", "ㄑㄧㄚˋ": "恰洽髂",
     "ㄑㄧㄢ": "千牽鉛前錢潛淺遣欠歉簽遷謙籤僉阡釬", "ㄑㄧㄢˊ": "乾虔鉗騸", "ㄑㄧㄢˇ": "譴繾", "ㄑㄧㄢˋ": "嵌縴茜塹",
@@ -563,6 +552,7 @@ const BOPOMOFO_COMPRESSED_DICT = {
     "ㄑㄩㄢ": "圈悛", "ㄑㄩㄢˊ": "全權泉拳痊顴蜷荃", "ㄑㄩㄢˇ": "犬畎", "ㄑㄩㄢˋ": "勸券",
     "ㄑㄩㄝ": "缺闋", "ㄑㄩㄝˊ": "瘸", "ㄑㄩㄝˋ": "卻確鵲雀榷",
     "ㄑㄩㄣˊ": "群", "ㄑㄩㄣˇ": "裙",
+    "ㄑㄩㄥˊ": "窮瓊穹",
     "ㄒㄧ": "西希息習席洗喜細戲系吸稀犧夕析悉矽錫膝熙嘻醯", "ㄒㄧˊ": "媳襲檄", "ㄒㄧˇ": "徙璽銑", "ㄒㄧˋ": "隙繫",
     "ㄒㄧㄚ": "瞎蝦", "ㄒㄧㄚˊ": "峽俠狹霞暇匣狎瑕轄", "ㄒㄧㄚˋ": "下夏嚇廈",
     "ㄒㄧㄢ": "先仙鮮掀纖氙秈", "ㄒㄧㄢˊ": "閒嫌咸弦銜舷閑賢鹹涎癇", "ㄒㄧㄢˇ": "顯險蘚獮", "ㄒㄧㄢˋ": "現線縣限羨獻陷餡腺莧霰",
@@ -576,6 +566,7 @@ const BOPOMOFO_COMPRESSED_DICT = {
     "ㄒㄩㄢ": "宣軒喧萱暄", "ㄒㄩㄢˊ": "旋懸玄璇", "ㄒㄩㄢˇ": "選癬", "ㄒㄩㄢˋ": "炫絢碹",
     "ㄒㄩㄝ": "靴薛削", "ㄒㄩㄝˊ": "學穴噱", "ㄒㄩㄝˇ": "雪", "ㄒㄩㄝˋ": "謔",
     "ㄒㄩㄣ": "勳熏薰葷醺", "ㄒㄩㄣˊ": "詢循巡鱘潯旬", "ㄒㄩㄣˇ": "筍", "ㄒㄩㄣˋ": "訓訊迅速遜殉巽蕈",
+    "ㄒㄩㄥ": "兄兇胸匈", "ㄒㄩㄥˊ": "熊雄",
     "ㄓ": "知只之汁隻支芝枝脂蜘織肢", "ㄓˊ": "直值植殖指執職姪躑", "ㄓˇ": "止紙趾址芷軹", "ㄓˋ": "至志致制製治智質秩緻滯置稚摯痔峙炙擲帙躓",
     "ㄓㄚ": "扎炸渣紮喳吒", "ㄓㄚˊ": "閘鍘札", "ㄓㄚˇ": "眨醡", "ㄓㄚˋ": "榨詐柵乍蚱",
     "ㄓㄞ": "摘齋", "ㄓㄞˊ": "宅翟", "ㄓㄞˇ": "窄", "ㄓㄞˋ": "債寨砦",
@@ -593,6 +584,7 @@ const BOPOMOFO_COMPRESSED_DICT = {
     "ㄓㄨㄟ": "追錐騅椎", "ㄓㄨㄟˋ": "墜綴贅惴",
     "ㄓㄨㄣ": "諄迍", "ㄓㄨㄣˇ": "準",
     "ㄓㄨㄛ": "桌捉卓拙倬", "ㄓㄨㄛˊ": "濁酌啄琢灼茁濯鐲擢",
+    "ㄓㄨㄥ": "中終鐘忠鍾衷", "ㄓㄨㄥˇ": "種腫踵", "ㄓㄨㄥˋ": "重中種眾",
     "ㄔ": "吃痴癡蚩鴟哧", "ㄔˊ": "遲池持匙弛馳踟墀", "ㄔˇ": "尺齒恥侈", "ㄔˋ": "斥赤翅叱熾敕啻彳",
     "ㄔㄚ": "插差叉嚓", "ㄔㄚˊ": "茶查察茬搽碴槎", "ㄔㄚˇ": "衩鑔", "ㄔㄚˋ": "岔剎詫汊",
     "ㄔㄞ": "拆釵", "ㄔㄞˊ": "柴豺儕", "ㄔㄞˇ": "蠆", "ㄔㄞˋ": "瘥",
@@ -609,6 +601,7 @@ const BOPOMOFO_COMPRESSED_DICT = {
     "ㄔㄨㄟ": "吹炊", "ㄔㄨㄟˊ": "垂錘槌陲",
     "ㄔㄨㄣ": "春椿蝽", "ㄔㄨㄣˊ": "唇純醇鶉淳", "ㄔㄨㄣˇ": "蠢",
     "ㄔㄨㄛ": "戳撮", "ㄔㄨㄛˊ": "銼", "ㄔㄨㄛˋ": "綽輟啜齪",
+    "ㄔㄨㄥ": "充沖衝", "ㄔㄨㄥˊ": "蟲重", "ㄔㄨㄥˇ": "寵",
     "ㄕ": "師詩獅施屍濕失虱蓍", "ㄕˊ": "十時石實識史使食拾蝕什寔鰣", "ㄕˇ": "始駛屎矢", "ㄕˋ": "事市室試適釋式世士示勢視誓飾噬柿嗜侍拭",
     "ㄕㄚ": "沙殺啥紗煞鯊砂莎", "ㄕㄚˇ": "傻", "ㄕㄚˋ": "廈霎",
     "ㄕㄞ": "篩釃", "ㄕㄞˇ": "色", "ㄕㄞˋ": "曬",
@@ -634,6 +627,7 @@ const BOPOMOFO_COMPRESSED_DICT = {
     "ㄖㄨㄟ": "蕊", "ㄖㄨㄟˋ": "瑞銳睿蚋",
     "ㄖㄨㄣˋ": "潤閏",
     "ㄖㄨㄛˋ": "若偌篛",
+    "ㄖㄨㄥˊ": "容榮融絨溶蓉熔", "ㄖㄨㄥˇ": "冗",
     "ㄗ": "資姿滋孜茲諮吱髭錙", "ㄗˇ": "子紫籽姊梓滓", "ㄗˋ": "字自恣漬眥",
     "ㄗㄚ": "扎匝咂", "ㄗㄚˊ": "雜砸",
     "ㄗㄞ": "災栽哉", "ㄗㄞˇ": "宰載崽", "ㄗㄞˋ": "在再",
@@ -649,6 +643,7 @@ const BOPOMOFO_COMPRESSED_DICT = {
     "ㄗㄨㄟˇ": "嘴", "ㄗㄨㄟˋ": "最罪醉蕞",
     "ㄗㄨㄣ": "尊遵樽鱒", "ㄗㄨㄣˇ": "撙",
     "ㄗㄨㄛ": "作嘬", "ㄗㄨㄛˊ": "昨笮", "ㄗㄨㄛˇ": "左佐撮", "ㄗㄨㄛˋ": "做坐座柞酢",
+    "ㄗㄨㄥ": "宗蹤棕", "ㄗㄨㄥˇ": "總", "ㄗㄨㄥˋ": "縱粽",
     "ㄘ": "疵呲", "ㄘˊ": "詞慈辭瓷磁茨雌鶿", "ㄘˇ": "此", "ㄘˋ": "次刺賜伺",
     "ㄘㄚ": "擦嚓",
     "ㄘㄞ": "猜", "ㄘㄞˊ": "才財裁材", "ㄘㄞˇ": "採彩踩睬", "ㄘㄞˋ": "菜蔡",
@@ -662,6 +657,7 @@ const BOPOMOFO_COMPRESSED_DICT = {
     "ㄘㄨㄟ": "催摧崔", "ㄘㄨㄟˇ": "璀", "ㄘㄨㄟˋ": "脆翠粹悴萃淬",
     "ㄘㄨㄣ": "村皴", "ㄘㄨㄣˊ": "存", "ㄘㄨㄣˇ": "忖", "ㄘㄨㄣˋ": "寸",
     "ㄘㄨㄛ": "搓蹉", "ㄘㄨㄛˊ": "痤鹺", "ㄘㄨㄛˇ": "脞", "ㄘㄨㄛˋ": "挫錯措",
+    "ㄘㄨㄥ": "聰蔥匆", "ㄘㄨㄥˊ": "從叢",
     "ㄙ": "絲司私撕思斯嘶鷥鍶", "ㄙˇ": "死", "ㄙˋ": "四似寺肆飼駟祀泗",
     "ㄙㄚ": "撒", "ㄙㄚˇ": "灑", "ㄙㄚˋ": "薩颯卅",
     "ㄙㄞ": "塞腮鰓", "ㄙㄞˋ": "賽",
@@ -675,6 +671,7 @@ const BOPOMOFO_COMPRESSED_DICT = {
     "ㄙㄨㄟ": "雖綏尿", "ㄙㄨㄟˊ": "隨", "ㄙㄨㄟˇ": "髓", "ㄙㄨㄟˋ": "碎歲穗遂隧邃祟",
     "ㄙㄨㄣ": "孫蓀", "ㄙㄨㄣˇ": "損隼", "ㄙㄨㄣˋ": "遜",
     "ㄙㄨㄛ": "唆梭縮蓑", "ㄙㄨㄛˇ": "索鎖所瑣",
+    "ㄙㄨㄥ": "松鬆", "ㄙㄨㄥˇ": "聳悚", "ㄙㄨㄥˋ": "送頌誦訟",
     "ㄚ": "阿啊腌", "ㄚˊ": "啊", "ㄚˇ": "啊", "ㄚˋ": "啊",
     "ㄛ": "喔噢", "ㄛˊ": "哦俄", "ㄛˋ": "嚄",
     "ㄜ": "婀蚵屙", "ㄜˊ": "鵝蛾額峨莪", "ㄜˇ": "噁", "ㄜˋ": "惡餓扼鄂遏噩顎堊諤愕萼",
@@ -718,10 +715,10 @@ for (const [bpmf, chars] of Object.entries(BOPOMOFO_COMPRESSED_DICT)) {
     }
 }
 for (const [char, bpmf] of Object.entries(TAIWAN_COMMON_CHARS)) {
-    charToBpmfCache[char] = bpmf;
+    charToBpmfCache[char] = bpmf; // 最高權重覆寫
 }
 
-// 非同步載入教育部雲端詞彙與成語字典
+// 雲端詞彙與成語字典掛載
 (async function initExternalDict() {
     const iconEl = document.getElementById('icon-status');
     const textEl = document.getElementById('statusText');
@@ -839,7 +836,6 @@ function createCharBox(char, bpmfString, isInterim, isPunctuation = false, isEng
 function parseTokensToNodes(text, isInterim = false) {
     if (!text || text === "undefined") return [];
     
-    // 全新強化的分詞引擎：完美將英文(包含空白、連字符號) 與中文切割
     const tokens = text.match(/[\u4e00-\u9fa5]+|[a-zA-Z0-9\s'-]+|[^\u4e00-\u9fa5a-zA-Z0-9\s'-]+/g) || [];
     let nodes = [];
     tokens.forEach(token => {
@@ -856,7 +852,7 @@ function parseTokensToNodes(text, isInterim = false) {
 }
 
 // ==========================================
-// 3. 系統控制與語音 API (全新瀑布流頂層顯示邏輯)
+// 3. 系統控制與語音 API (平滑瀑布流顯示邏輯)
 // ==========================================
 const ControlSystem = (() => {
     const linesContainer = document.getElementById('linesContainer');
@@ -874,12 +870,14 @@ const ControlSystem = (() => {
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    // 建立新行的函數，並強制插在最頂端 (Prepend)
     function createNewActiveLine() {
         if (activeLine && finalAnchor && finalAnchor.childNodes.length === 0 && interimAnchor.childNodes.length === 0) {
-            return; // 避免建立無用的連續空行
+            return; 
         }
         
+        let wrapper = document.createElement('div');
+        wrapper.className = 'speech-line-wrapper';
+
         activeLine = document.createElement('div');
         activeLine.className = 'speech-line';
         
@@ -891,9 +889,13 @@ const ControlSystem = (() => {
         
         activeLine.appendChild(finalAnchor);
         activeLine.appendChild(interimAnchor);
+        wrapper.appendChild(activeLine);
         
-        // 關鍵：將新行永遠塞在最上方！舊內容會往下推
-        linesContainer.prepend(activeLine);
+        linesContainer.prepend(wrapper);
+
+        // 強制重繪以確保平滑展開動畫觸發
+        void wrapper.offsetWidth;
+        wrapper.classList.add('active');
     }
 
     if (SpeechRecognition) {
@@ -934,17 +936,14 @@ const ControlSystem = (() => {
             interimAnchor.innerHTML = '';
             interimAnchor.appendChild(interimHTML);
 
-            // 如果有新內容，滾動畫面回頂部以看清楚正在偵測的字
             if (finalAdded || interimHTML.childNodes.length > 0) {
                 document.getElementById('displayContainer').scrollTo({ top: 0, behavior: 'smooth' });
             }
 
-            // 判斷是否斷句並往下推 (標點符號觸發)
             if (finalAdded && /[。！？，、：；\n]/.test(lastFinalTranscript)) {
                 createNewActiveLine();
             }
 
-            // 停頓觸發斷句 (1.5秒沒講話，就把前面的句子確實固定下來)
             clearTimeout(lineBreakTimer);
             lineBreakTimer = setTimeout(() => {
                 if (finalAnchor && finalAnchor.childNodes.length > 0) {
