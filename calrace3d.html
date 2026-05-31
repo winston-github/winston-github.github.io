@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
-<title>3D 閃算賽車：旗艦檢定版 (V4 Ultimate Pro - Patch 1)</title>
+<title>3D 閃算賽車：旗艦檢定版 (V4 Ultimate Pro)</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
@@ -146,7 +146,7 @@ svg.icon-inline { vertical-align: text-bottom; margin-right: 8px; flex-shrink: 0
 <div id="garage-view" class="view-layer">
   <div class="panel" style="text-align:center;">
     <div class="game-title" style="font-size:clamp(22px,4vw,34px);">專屬跑車車庫</div>
-    <div style="color:#8ab;margin-bottom:15px;font-size:13px;">通關檢定即可解鎖。搭載 PMREM 物理渲染引擎。</div>
+    <div style="color:#8ab;margin-bottom:15px;font-size:13px;">通關檢定級別解鎖車體。搭載 PMREM 物理渲染引擎。</div>
     <div class="garage-grid" id="garage-grid"></div>
     <button class="btn" id="btn-garage-back" style="margin-top:15px;">返回主選單</button>
   </div>
@@ -165,6 +165,7 @@ svg.icon-inline { vertical-align: text-bottom; margin-right: 8px; flex-shrink: 0
   <div id="combo-container"></div>
   <div id="combo-hud"></div>
   <div id="vignette-flash"></div>
+  <div id="bullet-time-overlay"></div>
   <button class="btn hud-interactive" id="btn-pause" style="position:absolute;bottom:15px;right:15px;padding:12px;border-radius:50%;z-index:24;">
     <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 4h4v16H6zm8 0h4v16h-4z"/></svg>
   </button>
@@ -256,22 +257,26 @@ svg.icon-inline { vertical-align: text-bottom; margin-right: 8px; flex-shrink: 0
 <script>
 "use strict";
 (function(){
-const GAME_VERSION = "V4_ULTIMATE";
-const STORAGE_KEY = "math_racing_v4_master_data";
-const GAME_SALT = "MMRV4Secure2026";
+const GAME_VERSION = "V4_ULTIMATE_PRO";
+const STORAGE_KEY = "math_racing_v4_pro_master";
+const GAME_SALT = "MMRV4Secure2026Pro";
 let isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 let isVoiceEnabled = !isMobile;
 let isSfxEnabled = true;
 
-// 台灣標準檢定關卡 - 配速調整 (修正真實極限出題間隔)
+const SVG_CHECK = '<svg class="icon-inline" viewBox="0 0 24 24" width="16" height="16" fill="#4e8"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
+const SVG_CROSS = '<svg class="icon-inline" viewBox="0 0 24 24" width="16" height="16" fill="#e44"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>';
+const SVG_WARN = '<svg class="icon-inline" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>';
+
+// 台灣標準檢定關卡 - 配速調整 (修正真實極限出題間隔 Cadence與Rest時間緊縮)
 const EXAM_LEVELS = {
     1:  { levelId: 1,  name: "心算 10 級", type: "ADD_ONLY",     totalQ: 30, passReq: 21,  minDigits: 1, maxDigits: 1, rows: 4,  ops: ["+"],      baseSpeed: 18, slateMode: "full",  cadenceTime: 0.8, restTime: 1.2 },
     2:  { levelId: 2,  name: "心算 9 級",  type: "ADD_ONLY",     totalQ: 30, passReq: 21,  minDigits: 1, maxDigits: 1, rows: 5,  ops: ["+"],      baseSpeed: 20, slateMode: "full",  cadenceTime: 0.8, restTime: 1.2 },
     3:  { levelId: 3,  name: "心算 8 級",  type: "ADD_SUB",      totalQ: 30, passReq: 21,  minDigits: 1, maxDigits: 1, rows: 7,  ops: ["+", "-"], baseSpeed: 22, slateMode: "full",  cadenceTime: 0.8, restTime: 1.2 },
     4:  { levelId: 4,  name: "心算 7 級",  type: "ADD_SUB",      totalQ: 30, passReq: 21,  minDigits: 1, maxDigits: 2, rows: 5,  ops: ["+", "-"], baseSpeed: 24, slateMode: "full",  cadenceTime: 0.8, restTime: 1.2 },
     5:  { levelId: 5,  name: "心算 6 級",  type: "ADD_SUB",      totalQ: 30, passReq: 21,  minDigits: 1, maxDigits: 2, rows: 7,  ops: ["+", "-"], baseSpeed: 26, slateMode: "fading",cadenceTime: 0.8, restTime: 1.2 },
-    6:  { levelId: 6,  name: "心算 5 級",  type: "MIXED_THREE",  totalQ: 45, passReq: 32, addSub: { minDigits: 2, maxDigits: 2, rows: 5, ops: ["+", "-"] }, mul: { m1: 2, m2: 1 }, div: { d1: 3, d2: 1 }, baseSpeed: 28, slateMode: "fading", cadenceTime: 0.6, restTime: 1.0 },
-    7:  { levelId: 7,  name: "心算 4 級",  type: "MIXED_THREE",  totalQ: 45, passReq: 32, addSub: { minDigits: 2, maxDigits: 2, rows: 7, ops: ["+", "-"] }, mul: { m1: 3, m2: 1 }, div: { d1: 3, d2: 1 }, baseSpeed: 30, slateMode: "fading", cadenceTime: 0.6, restTime: 1.0 },
+    6:  { levelId: 6,  name: "心算 5 級",  type: "MIXED_THREE",  totalQ: 45, passReq: 32, addSub: { minDigits: 2, maxDigits: 2, rows: 5, ops: ["+", "-"] }, mul: { m1: 2, m2: 1 }, div: { d1: 3, d2: 1 }, baseSpeed: 28, slateMode: "fading", cadenceTime: 0.7, restTime: 1.0 },
+    7:  { levelId: 7,  name: "心算 4 級",  type: "MIXED_THREE",  totalQ: 45, passReq: 32, addSub: { minDigits: 2, maxDigits: 2, rows: 7, ops: ["+", "-"] }, mul: { m1: 3, m2: 1 }, div: { d1: 3, d2: 1 }, baseSpeed: 30, slateMode: "fading", cadenceTime: 0.7, restTime: 1.0 },
     8:  { levelId: 8,  name: "心算 3 級",  type: "MIXED_THREE",  totalQ: 60, passReq: 42, addSub: { minDigits: 2, maxDigits: 2, rows: 9, ops: ["+", "-"] }, mul: { m1: 2, m2: 2 }, div: { d1: 4, d2: 2 }, baseSpeed: 32, slateMode: "fading", cadenceTime: 0.6, restTime: 1.0 },
     9:  { levelId: 9,  name: "心算 2 級",  type: "MIXED_THREE",  totalQ: 60, passReq: 42, addSub: { minDigits: 2, maxDigits: 3, rows: 10, ops: ["+", "-"] }, mul: { m1: 3, m2: 2 }, div: { d1: 4, d2: 2 }, baseSpeed: 34, slateMode: "fading", cadenceTime: 0.6, restTime: 1.0 },
     10: { levelId: 10, name: "心算 1 級",  type: "MIXED_THREE",  totalQ: 60, passReq: 42, addSub: { minDigits: 2, maxDigits: 4, rows: 10, ops: ["+", "-"] }, mul: { m1: 3, m2: 2 }, div: { d1: 5, d2: 2 }, baseSpeed: 36, slateMode: "none", cadenceTime: 0.6, restTime: 1.0 },
@@ -288,7 +293,9 @@ const EXAM_LEVELS = {
     20: { levelId: 20, name: "心算 十段",  type: "MIXED_THREE",  totalQ: 90, passReq: 88,  addSub: { minDigits: 5, maxDigits: 6, rows: 10, ops: ["+", "-"] }, mul: { m1: 6, m2: 4 }, div: { d1: 10, d2: 4 }, baseSpeed: 60, slateMode: "none", cadenceTime: 0.4, restTime: 0.8 }
 };
 
+// 增加 index 0 為基礎底盤 (Chassis Only)
 const CAR_CATALOG = [
+    {name:"基礎底盤 (Lv.1 解鎖)", color:0x333333, L:4.2, W:1.8, isChassis:true},
     {name:"Toyota GR86", color:0xdc143c, L:4.2, W:1.8, hF:0.35, hH:0.65, hR:1.2, hT:0.75, wnd:0.5, bck:0.6, sp:false},
     {name:"Subaru BRZ", color:0x1e90ff, L:4.2, W:1.8, hF:0.35, hH:0.65, hR:1.2, hT:0.75, wnd:0.5, bck:0.6, sp:true},
     {name:"Mazda MX-5", color:0x8b0000, L:3.9, W:1.75, hF:0.3, hH:0.6, hR:1.1, hT:0.7, wnd:0.4, bck:0.5, sp:false},
@@ -311,7 +318,7 @@ const CAR_CATALOG = [
     {name:"Koenigsegg Jesko", color:0xffffff, L:4.8, W:2.1, hF:0.15, hH:0.4, hR:1.0, hT:0.6, wnd:0.5, bck:1.0, sp:true}
 ];
 
-let appData = { records: [], garage: { unlockedCars: Array(20).fill(false), equippedCar: 0 } };
+let appData = { records: [], garage: { unlockedCars: Array(21).fill(false), equippedCar: 0 } };
 appData.garage.unlockedCars[0] = true;
 
 function genHash(str) { let h=5381; for(let i=0;i<str.length;i++){h=((h<<5)+h+str.charCodeAt(i))&0xFFFFFFFF;} return (h>>>0).toString(16); }
@@ -337,22 +344,26 @@ function playAbsorbSound() { playTone(600+Math.random()*200, 'sine', 0.1, 0.3); 
 
 function playVoice(text, cadence) {
     if (!isVoiceEnabled || !window.speechSynthesis) return;
-    // 極限防護：出題間隔小於0.7秒或數字大於5位，不發語音，避免延遲破音
+    // 智慧防延遲破音：短間隔或長數字不發語音，逼迫大腦以視覺閃算
     if (cadence < 0.7 || text.length > 5) return;
     window.speechSynthesis.cancel();
-    let utt = new SpeechSynthesisUtterance(text); utt.lang = 'zh-TW'; utt.rate = 2.0;
+    let utt = new SpeechSynthesisUtterance(text); utt.lang = 'zh-TW'; utt.rate = 1.8;
     window.speechSynthesis.speak(utt);
 }
 
 // ======================= 遊戲核心狀態 =======================
 let currentGameState = "MENU", targetLane = 1, currentSpeed = 0, baseSpeed = 20;
-let gameTimer = 180, accumulatedTime = 0, combo = 0, score = 0, currentLevelId = 1, currentLevelConfig = null;
+let gameTimer = 180, accumulatedTime = 0, combo = 0, score = 0, consecutiveCorrects = 0;
+let currentLevelId = 1, currentLevelConfig = null;
 let isBlindMode = false, isReviewMode = false, speedLocked = false, lockedSpeed = 0, questionInProgress = false;
 let questionQueue = [], currentQuestionIndex = 0, wrongPool = [], reviewQuestions = [];
 let activeWalls = [], activeGates = [], lastFrameTime = 0, lanePositions = [-6, 0, 6];
 let totalAnswered = 0, totalCorrect = 0, isPaused = false;
 let questionTimestamps = [];
 let currentRecordId = null;
+
+// 黑洞爆衝子彈時間狀態
+let isDashing = false, gatePhaseTimer = 0, gatePhaseTotalT = 0, gatePhaseStartZ = 0;
 
 function randInt(min, max) { return Math.floor(Math.random()*(max-min+1))+min; }
 function randNum(digits) { return digits<=1 ? randInt(1,9) : randInt(Math.pow(10,digits-1), Math.pow(10,digits)-1); }
@@ -367,7 +378,19 @@ function generateAddSub(minD, maxD, rows, ops) {
     return {type:'ADD_SUB', steps:st, finalAnswer:rt};
 }
 function generateMul(m1, m2) { let a=randNum(m1), b=randNum(m2); return {type:'MUL', expr:a+' × '+b, finalAnswer:a*b}; }
-function generateDiv(d1, d2) { let div=randNum(d2); if(div===0)div=2; let quo=randNum(Math.max(1, d1-d2)), dvd=div*quo; return {type:'DIV', expr:dvd+' ÷ '+div, finalAnswer:quo}; }
+
+// 十段高精度除法完美邏輯 (保證不會溢出位數限制)
+function generateDiv(d1, d2) { 
+    let minDiv = Math.pow(10, d2 - 1), maxDiv = Math.pow(10, d2) - 1;
+    let minDvd = Math.pow(10, d1 - 1), maxDvd = Math.pow(10, d1) - 1;
+    for(let attempt=0; attempt<200; attempt++) {
+        let div = randInt(minDiv, maxDiv);
+        let minQ = Math.ceil(minDvd / div), maxQ = Math.floor(maxDvd / div);
+        if (minQ <= maxQ) { let quo = randInt(minQ, maxQ); return {type:'DIV', expr:(div*quo)+' ÷ '+div, finalAnswer:quo}; }
+    }
+    let div = randInt(minDiv, maxDiv), quo = randInt(Math.pow(10, Math.max(1, d1-d2-1)), Math.pow(10, Math.max(1, d1-d2))-1);
+    return {type:'DIV', expr:(div*quo)+' ÷ '+div, finalAnswer:quo}; 
+}
 function generateQuestions(lc) {
     let q=[]; 
     if(lc.type==='ADD_ONLY'||lc.type==='ADD_SUB'){ for(let i=0;i<lc.totalQ;i++) q.push(generateAddSub(lc.minDigits,lc.maxDigits,lc.rows,lc.ops)); }
@@ -376,11 +399,9 @@ function generateQuestions(lc) {
 }
 function genWrongs(correct) {
     let w=new Set(); w.add(correct+10); w.add(correct-10); w.add(correct+1); w.add(correct-1); if(correct>5)w.add(correct+5); w.add(correct+randInt(2,8)); 
-    if(correct>100){ w.add(correct+100); w.add(correct-100); }
-    w.delete(correct); w.delete(0);
+    if(correct>100){ w.add(correct+100); w.add(correct-100); } w.delete(correct); w.delete(0);
     let arr=Array.from(w).filter(v=>v>0); while(arr.length<2){let r=correct+randInt(1,9)*(Math.random()>0.5?1:-1); if(r>0&&r!==correct&&!arr.includes(r))arr.push(r);} 
-    arr.sort(()=>Math.random()-0.5);
-    return [arr[0],arr[1]];
+    arr.sort(()=>Math.random()-0.5); return [arr[0],arr[1]];
 }
 
 // ======================= THREE.JS 物理引擎與渲染 =======================
@@ -427,8 +448,23 @@ function init3DEngine() {
 
 function buildCarMesh(idx) {
     let conf = CAR_CATALOG[idx] || CAR_CATALOG[0]; let group = new THREE.Group();
-    let fX = -conf.L/2, rX = conf.L/2;
     
+    if (conf.isChassis) {
+        let bMat = new THREE.MeshStandardMaterial({color: 0x222222, metalness: 0.8, roughness: 0.5});
+        let base = new THREE.Mesh(new THREE.BoxGeometry(conf.W, 0.2, conf.L), bMat);
+        base.position.set(0, 0.35, 0); group.add(base);
+        let wGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.25, 24); wGeo.rotateX(Math.PI/2);
+        let tMat = new THREE.MeshStandardMaterial({color: 0x151515, roughness: 0.9});
+        let rMat = new THREE.MeshStandardMaterial({color: 0xcccccc, metalness:0.8, roughness:0.2});
+        [[-conf.L/2+0.8, conf.W/2],[-conf.L/2+0.8, -conf.W/2],[conf.L/2-0.8, conf.W/2],[conf.L/2-0.8, -conf.W/2]].forEach(p=>{
+            let w = new THREE.Mesh(wGeo, tMat); w.position.set(p[0], 0.35, p[1]);
+            let rim = new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,0.27,16), rMat); rim.rotateX(Math.PI/2); rim.position.copy(w.position);
+            group.add(w, rim);
+        });
+        group.rotation.y = Math.PI / 2; group.scale.set(1.2, 1.2, 1.2); return group;
+    }
+
+    let fX = -conf.L/2, rX = conf.L/2;
     let shape = new THREE.Shape();
     shape.moveTo(fX, 0.2); shape.lineTo(fX, conf.hF); shape.lineTo(fX+1.0, conf.hH);
     shape.lineTo(fX+1.0+conf.wnd, conf.hR); shape.lineTo(rX-conf.bck-0.5, conf.hR);
@@ -479,7 +515,6 @@ function createPlayerCar() { if(playerCar) scene.remove(playerCar); playerCar = 
 function createTrack() {
     let tc = document.createElement('canvas'); tc.width = 512; tc.height = 512; let ctx = tc.getContext('2d');
     ctx.fillStyle = '#080812'; ctx.fillRect(0,0,512,512); 
-    // 移除橫向線條，僅保留縱向車道引導虛線 (防眩光/癲癇)
     ctx.strokeStyle='#334466'; ctx.setLineDash([40,60]); ctx.lineWidth=6; 
     ctx.beginPath();ctx.moveTo(170,0);ctx.lineTo(170,512);ctx.stroke(); 
     ctx.beginPath();ctx.moveTo(342,0);ctx.lineTo(342,512);ctx.stroke();
@@ -487,7 +522,7 @@ function createTrack() {
     trackPlane = new THREE.Mesh(new THREE.PlaneGeometry(40, 1000), new THREE.MeshBasicMaterial({map:trackTexture})); trackPlane.rotation.x = -Math.PI/2; trackPlane.position.set(0, -0.1, -400); scene.add(trackPlane);
 }
 
-// 動態縮放超清晰立體文字板
+// 動態縮放超清晰立體文字板 (防段位超長數字裁切)
 function createTextPlane(text, isGate, isQuestion=false) {
     let c = document.createElement('canvas'); c.width = isQuestion?1024:512; c.height = 256; let ctx = c.getContext('2d');
     ctx.clearRect(0,0,c.width,c.height);
@@ -497,12 +532,7 @@ function createTextPlane(text, isGate, isQuestion=false) {
     let fontSize = isGate ? 110 : 150;
     ctx.font = `900 ${fontSize}px "Arial Black", sans-serif`;
     let metrics = ctx.measureText(text);
-    // 自動縮放避免高段位數字/算式溢出邊界
-    while(metrics.width > c.width - 60 && fontSize > 30) {
-        fontSize -= 5;
-        ctx.font = `900 ${fontSize}px "Arial Black", sans-serif`;
-        metrics = ctx.measureText(text);
-    }
+    while(metrics.width > c.width - 60 && fontSize > 30) { fontSize -= 5; ctx.font = `900 ${fontSize}px "Arial Black", sans-serif`; metrics = ctx.measureText(text); }
     ctx.fillText(text, c.width/2, 128);
     let tex = new THREE.CanvasTexture(c);
     let w = isQuestion ? 13.0 : (isGate ? 4.5 : 6.5);
@@ -531,14 +561,13 @@ function spawnGates(corr, zPos) {
         let v = (i===cl)?corr:ws[wi++];
         let mat = new THREE.MeshPhysicalMaterial({color:0x2288cc, transmission:0.8, opacity:1, transparent:true, roughness:0.2, ior:1.5});
         let g = new THREE.Mesh(new THREE.BoxGeometry(5, 8, 1), mat);
-        // 解答門強制只顯示答案(數字)，不帶算式
         let txt = createTextPlane(String(v), true); txt.position.z=0.6; g.add(txt);
         g.position.set(lanePositions[i], 4, zPos); g.userData={val:v, isCorr:i===cl, collided:false, corr:corr}; scene.add(g); activeGates.push(g);
     }
 }
 
 function startGame(reviewMode) {
-    clearTrack(); score=0; combo=0; accumulatedTime=0; targetLane=1; currentQuestionIndex=0; totalAnswered=0; totalCorrect=0; wrongPool=[]; questionTimestamps=[]; isReviewMode=reviewMode; currentRecordId=null;
+    clearTrack(); score=0; combo=0; consecutiveCorrects=0; accumulatedTime=0; targetLane=1; currentQuestionIndex=0; totalAnswered=0; totalCorrect=0; wrongPool=[]; questionTimestamps=[]; isReviewMode=reviewMode; currentRecordId=null; isDashing=false;
     if(reviewMode) { questionQueue=reviewQuestions.slice(); gameTimer=Math.max(60, questionQueue.length*12); currentLevelConfig=EXAM_LEVELS[1]; baseSpeed=20; } 
     else { currentLevelConfig=EXAM_LEVELS[currentLevelId]; gameTimer=180; baseSpeed=currentLevelConfig.baseSpeed; questionQueue=generateQuestions(currentLevelConfig); }
     currentSpeed=baseSpeed;
@@ -549,28 +578,24 @@ function startGame(reviewMode) {
 
 function spawnNext() {
     if(currentQuestionIndex>=questionQueue.length) return;
-    let q = questionQueue[currentQuestionIndex]; speedLocked=true; lockedSpeed=baseSpeed*1.2; questionInProgress=true;
+    let q = questionQueue[currentQuestionIndex]; speedLocked=true; lockedSpeed=baseSpeed*1.2; questionInProgress=true; isDashing=false;
     
     let cadence = currentLevelConfig.cadenceTime || 0.8;
     let rest = currentLevelConfig.restTime || 1.2;
     let z = currentQuestionIndex === 0 ? -(lockedSpeed * 2.0) : -(lockedSpeed * rest);
     
     if(q.type==='ADD_SUB'||q.type==='ADD_ONLY') {
-        for(let i=0; i<q.steps.length; i++) { 
-            spawnWall(q.steps[i], z); 
-            z -= lockedSpeed * cadence; 
-        } 
-        spawnGates(q.finalAnswer, z - lockedSpeed * 0.6);
+        for(let i=0; i<q.steps.length; i++) { spawnWall(q.steps[i], z); z -= lockedSpeed * cadence; } 
+        spawnGates(q.finalAnswer, z - lockedSpeed * rest);
     } else { 
-        // 乘除法：生成巨型算式穿透牆，然後生成解答門
         spawnQuestionWall(q.expr + ' = ?', z);
-        spawnGates(q.finalAnswer, z - lockedSpeed * 1.5); 
+        spawnGates(q.finalAnswer, z - lockedSpeed * rest); 
     }
 }
 
 function handleHitWall(w) {
     w.userData.collided = true; w.visible = false; playAbsorbSound();
-    if(w.userData.isQuestion) return; // 算式牆不計分、不報讀
+    if(w.userData.isQuestion) return; 
     
     let v = w.userData.val; score += 10; updateHUD(); 
     playVoice(v<0?"減"+Math.abs(v):String(Math.abs(v)), currentLevelConfig.cadenceTime); 
@@ -583,20 +608,21 @@ function handleHitWall(w) {
 
 function handleHitGate(g) {
     activeGates.forEach(gg=>gg.userData.collided=true); activeGates.forEach(gg=>gg.visible=false);
-    document.getElementById('mental-slate').innerHTML=''; speedLocked=false; questionInProgress=false; totalAnswered++; questionTimestamps.push(performance.now());
+    document.getElementById('mental-slate').innerHTML=''; speedLocked=false; questionInProgress=false; isDashing=false; totalAnswered++; questionTimestamps.push(performance.now());
     let qObj = questionQueue[currentQuestionIndex];
     if(g.userData.isCorr) { 
-        combo++; // 只有答對門才加 COMBO
-        totalCorrect++; 
-        score += Math.min(500, 50 + combo*20); 
+        consecutiveCorrects++; totalCorrect++; 
+        if(consecutiveCorrects >= 2) {
+            combo = consecutiveCorrects - 1; score += Math.min(500, 50 + combo*20);
+            showCombo('COMBO x'+combo, '#4f8');
+        } else {
+            combo = 0; score += 50; showCombo('CORRECT!', '#4cf');
+        }
         playCorrectSound(); 
-        showCombo('COMBO x'+combo, '#4f8'); 
     } 
     else {
-        combo=0; 
-        score = Math.max(0, score-20); 
-        playWrongSound(); 
-        showCombo('MISS', '#f44');
+        consecutiveCorrects=0; combo=0; score = Math.max(0, score-20); 
+        playWrongSound(); showCombo('MISS', '#f44');
         let v = document.getElementById('vignette-flash'); v.style.opacity=1; setTimeout(()=>v.style.opacity=0, 200);
         let wq = JSON.parse(JSON.stringify(qObj)); wq.playerAnswer = g.userData.val; wrongPool.push(wq);
     }
@@ -607,12 +633,13 @@ function handleHitGate(g) {
 function updateHUD() {
     document.getElementById('hud-score-val').textContent = score; let bar = document.getElementById('hud-timer-fill'); bar.style.width = Math.max(0, gameTimer/(isReviewMode?Math.max(60,questionQueue.length*12):180)*100)+'%';
     document.getElementById('hud-timer-val').textContent = gameTimer; document.getElementById('hud-timer-text').className = gameTimer<=30 ? 'urgent' : '';
-    let c = document.getElementById('combo-hud'); if(combo>1){ c.textContent='COMBO x'+combo; c.classList.add('visible'); }else{ c.classList.remove('visible'); }
+    let c = document.getElementById('combo-hud'); if(combo>0){ c.textContent='COMBO x'+combo; c.classList.add('visible'); }else{ c.classList.remove('visible'); }
 }
 function showCombo(txt, col) {
     let ct=document.getElementById('combo-container'), d=document.createElement('div'); d.className='combo-popup'; d.style.color=col; d.style.left=Math.random()*20+40+'%'; d.style.top=Math.random()*20+30+'%'; d.textContent=txt; ct.appendChild(d); setTimeout(()=>d.remove(), 600);
 }
 
+// 黑洞爆衝子彈時間核心 (The Bullet Time Dashing Engine)
 function renderLoop(time) {
     requestAnimationFrame(renderLoop);
     let dt = Math.min(time - lastFrameTime, 100) / 1000; lastFrameTime = time;
@@ -623,9 +650,28 @@ function renderLoop(time) {
     gameTimer = Math.max(0, (isReviewMode?Math.max(60,questionQueue.length*12):180) - Math.floor(accumulatedTime)); updateHUD();
     if(gameTimer<=0 || (currentQuestionIndex>=questionQueue.length && activeWalls.length===0 && activeGates.length===0)) { changeState('GAMEOVER'); return; }
 
-    let spd = speedLocked ? lockedSpeed : currentSpeed; if(!speedLocked) currentSpeed += (baseSpeed - currentSpeed)*0.05; trackTexture.offset.y += spd * dt * 0.05;
-    for(let i=activeWalls.length-1; i>=0; i--) { let w = activeWalls[i]; w.position.z += spd * dt; if(w.position.z > -1 && w.position.z < 2 && !w.userData.collided) handleHitWall(w); if(w.position.z > 5) { scene.remove(w); activeWalls.splice(i,1); } }
-    for(let i=activeGates.length-1; i>=0; i--) { let g = activeGates[i]; g.position.z += spd * dt; if(g.position.z > -2 && g.position.z < 2 && !g.userData.collided) { if(g.position.x === lanePositions[targetLane]) handleHitGate(g); } if(g.position.z > 5) { scene.remove(g); activeGates.splice(i,1); } }
+    if(activeWalls.length === 0 && activeGates.length > 0 && !activeGates[0].userData.collided) {
+        if(!isDashing) {
+            isDashing = true; gatePhaseTotalT = currentLevelConfig.restTime; gatePhaseTimer = gatePhaseTotalT; gatePhaseStartZ = activeGates[0].position.z;
+        }
+        gatePhaseTimer -= dt; if(gatePhaseTimer < 0) gatePhaseTimer = 0;
+        let ratio = Math.pow(gatePhaseTimer / gatePhaseTotalT, 6);
+        let zPos = gatePhaseStartZ * ratio;
+        let visualSpeed = Math.abs(gatePhaseStartZ * 6 * Math.pow(gatePhaseTimer, 5) / Math.pow(gatePhaseTotalT, 6));
+        trackTexture.offset.y += visualSpeed * dt * 0.05;
+
+        for(let i=activeGates.length-1; i>=0; i--) {
+            let g = activeGates[i]; g.position.z = zPos;
+            if(g.position.z > -2 && g.position.z < 2 && !g.userData.collided) { if(g.position.x === lanePositions[targetLane]) handleHitGate(g); }
+            if(g.position.z > 5) { scene.remove(g); activeGates.splice(i,1); }
+        }
+    } else {
+        isDashing = false;
+        let spd = speedLocked ? lockedSpeed : currentSpeed; if(!speedLocked) currentSpeed += (baseSpeed - currentSpeed)*0.05; trackTexture.offset.y += spd * dt * 0.05;
+        for(let i=activeWalls.length-1; i>=0; i--) { let w = activeWalls[i]; w.position.z += spd * dt; if(w.position.z > -1 && w.position.z < 2 && !w.userData.collided) handleHitWall(w); if(w.position.z > 5) { scene.remove(w); activeWalls.splice(i,1); } }
+        for(let i=activeGates.length-1; i>=0; i--) { let g = activeGates[i]; g.position.z += spd * dt; if(g.position.z > -2 && g.position.z < 2 && !g.userData.collided) { if(g.position.x === lanePositions[targetLane]) handleHitGate(g); } if(g.position.z > 5) { scene.remove(g); activeGates.splice(i,1); } }
+    }
+    
     if(playerCar) playerCar.position.x += (lanePositions[targetLane] - playerCar.position.x)*0.15; renderer.render(scene, camera);
 }
 
@@ -634,17 +680,11 @@ function changeState(st) {
     currentGameState = st; document.querySelectorAll('.view-layer').forEach(v=>v.classList.remove('active')); isPaused = (st === 'PAUSED');
     let vId = st.toLowerCase().replace('_','-')+'-view'; if(st==='MENU') vId='menu-view'; if(st==='PAUSED') vId='pause-overlay'; if(st==='PLAYING') vId='game-hud-view'; if(st==='DATA_SYNC') vId='data-sync-panel'; if(st==='SHOWCASE') vId='showcase-overlay';
     let el = document.getElementById(vId); if(el) el.classList.add('active');
-    
-    if(st==='MENU') { clearTrack(); }
-    if(st==='LEVEL_SELECT') { renderLevels(); }
-    if(st==='GARAGE') { renderGarage(); }
-    if(st==='HISTORY') { renderHistoryUI(); }
-    if(st==='PLAYING') { lastFrameTime = performance.now(); }
-    if(st==='GAMEOVER') { doGameOver(); }
+    if(st==='MENU') clearTrack(); if(st==='LEVEL_SELECT') renderLevels(); if(st==='GARAGE') renderGarage(); if(st==='HISTORY') renderHistoryUI(); if(st==='PLAYING') lastFrameTime = performance.now(); if(st==='GAMEOVER') doGameOver();
 }
 
 function renderLevels() { let gr = document.getElementById('level-grid'); gr.innerHTML=''; for(let i=1; i<=20; i++){ let b = document.createElement('div'); b.className='level-btn'; b.innerHTML=`<div class="lv-name">${EXAM_LEVELS[i].name}</div><div class="lv-info">及格: ${EXAM_LEVELS[i].passReq}題</div>`; b.onclick = ()=>{ currentLevelId=i; startGame(false); }; gr.appendChild(b); } }
-function renderGarage() { let gr = document.getElementById('garage-grid'); gr.innerHTML=''; for(let i=0; i<20; i++){ let c = CAR_CATALOG[i], ul = appData.garage.unlockedCars[i]; let b = document.createElement('div'); b.className = 'car-card ' + (ul ? (appData.garage.equippedCar===i?'equipped':'') : 'locked'); b.innerHTML=`<div class="car-color-block" style="background:#${c.color.toString(16).padStart(6,'0')}"></div><div class="car-name">${ul?c.name:'Lv.'+(i+1)+' 解鎖'}</div>`; if(ul) b.onclick = ()=>{ appData.garage.equippedCar=i; saveData(); createPlayerCar(); renderGarage(); }; gr.appendChild(b); } }
+function renderGarage() { let gr = document.getElementById('garage-grid'); gr.innerHTML=''; for(let i=0; i<21; i++){ let c = CAR_CATALOG[i], ul = appData.garage.unlockedCars[i]; let b = document.createElement('div'); b.className = 'car-card ' + (ul ? (appData.garage.equippedCar===i?'equipped':'') : 'locked'); let bg = c.isChassis ? '#555' : `#${c.color.toString(16).padStart(6,'0')}`; b.innerHTML=`<div class="car-color-block" style="background:${bg}"></div><div class="car-name">${ul?c.name:'Lv.'+i+' 解鎖'}</div>`; if(ul) b.onclick = ()=>{ appData.garage.equippedCar=i; saveData(); createPlayerCar(); renderGarage(); }; gr.appendChild(b); } }
 
 function computeRadar() { let acc=totalAnswered>0?totalCorrect/totalAnswered:0, vel=Math.min(1, totalAnswered/questionQueue.length), foc=1-(wrongPool.length/questionQueue.length), p=Math.random()*0.2+0.8; return [vel, acc, foc*p, acc*p, p]; }
 function drawRadar(stats) {
@@ -671,26 +711,22 @@ function saveRecord(name, id) {
 function doGameOver() {
     let pass = totalCorrect >= (currentLevelConfig?currentLevelConfig.passReq:0);
     let rg = document.getElementById('report-grid');
-    rg.innerHTML = `<div class="rl">檢定關卡：</div><div class="rv">${currentLevelConfig?currentLevelConfig.name:'-'}</div><div class="rl">最終得分：</div><div class="rv ${pass?'pass':'fail'}">${score} 分</div><div class="rl">答對題數：</div><div class="rv ${pass?'pass':'fail'}">${totalCorrect} / ${questionQueue.length}</div><div class="rl">結果判定：</div><div class="rv ${pass?'pass':'fail'}">${isReviewMode?'檢討完畢':(pass?'✔ 合格':'✘ 未通過')}</div>`;
+    rg.innerHTML = `<div class="rl">檢定關卡：</div><div class="rv">${currentLevelConfig?currentLevelConfig.name:'-'}</div><div class="rl">最終得分：</div><div class="rv ${pass?'pass':'fail'}">${score} 分</div><div class="rl">答對題數：</div><div class="rv ${pass?'pass':'fail'}">${totalCorrect} / ${questionQueue.length}</div><div class="rl">結果判定：</div><div class="rv ${pass?'pass':'fail'}">${isReviewMode?'檢討完畢':(pass?SVG_CHECK+' 合格':SVG_CROSS+' 未通過')}</div>`;
     drawRadar(computeRadar());
     let tgs = analyzeWrong(), wt = document.getElementById('weakness-tags'); wt.innerHTML='';
-    tgs.forEach(t=>{let s=document.createElement('span'); s.className='wtag'; s.innerHTML='<svg class="icon-inline" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg> '+t; wt.appendChild(s);});
+    tgs.forEach(t=>{let s=document.createElement('span'); s.className='wtag'; s.innerHTML=SVG_WARN+' '+t; wt.appendChild(s);});
     document.getElementById('advisor-text').textContent = tgs.length===0?'表現優異！建議挑戰更高級別！':'建議針對錯題進行靜態檢討，釐清計算盲點！';
     
     // 自動存檔機制 (使用完成時間當預設姓名，保障不流失)
     if(!isReviewMode) {
-        let d = new Date();
-        let defaultName = d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日 '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
-        currentRecordId = Date.now();
-        saveRecord(defaultName, currentRecordId);
+        let d = new Date(); let defaultName = d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日 '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+        currentRecordId = Date.now(); saveRecord(defaultName, currentRecordId);
     }
     
-    let saveArea = document.getElementById('save-name-area');
-    saveArea.style.display = isReviewMode ? 'none' : 'block';
-    document.getElementById('player-name-input').value = '';
+    let saveArea = document.getElementById('save-name-area'); saveArea.style.display = isReviewMode ? 'none' : 'block'; document.getElementById('player-name-input').value = '';
     
     let btnCar = document.getElementById('btn-claim-car'), btnCert = document.getElementById('btn-gen-cert');
-    if(pass && !isReviewMode && !appData.garage.unlockedCars[currentLevelId-1]) { btnCar.style.display='inline-flex'; btnCar.onclick=()=>{ appData.garage.unlockedCars[currentLevelId-1]=true; saveData(); triggerShowcase(currentLevelId-1); }; } else { btnCar.style.display='none'; }
+    if(pass && !isReviewMode && !appData.garage.unlockedCars[currentLevelId]) { btnCar.style.display='inline-flex'; btnCar.onclick=()=>{ appData.garage.unlockedCars[currentLevelId]=true; saveData(); triggerShowcase(currentLevelId); }; } else { btnCar.style.display='none'; }
     btnCert.style.display = (pass && !isReviewMode) ? 'inline-flex' : 'none';
 }
 
@@ -703,19 +739,16 @@ function triggerShowcase(idx) {
 function renderHistoryUI() {
     let ct = document.getElementById('history-list'); ct.innerHTML=''; if(appData.records.length===0){ ct.innerHTML='<p style="text-align:center;color:#8ab;">尚無紀錄</p>'; return; }
     let ht = '<table class="hist-table"><tr><th>✔</th><th>姓名</th><th>級別</th><th>得分</th><th>錯題</th></tr>';
-    // 排序：最新的在上面
     let sortedRecords = [...appData.records].sort((a,b)=>b.id-a.id);
     sortedRecords.forEach(r=>{ let t = r.hash===genHash(r.name+'|'+r.score+'|'+r.date+GAME_SALT); ht+=`<tr style="color:${t?'#fff':'#e44'}"><td><input type="checkbox" class="h-chk" data-id="${r.id}" ${r.wrongs.length?'':'disabled'}/></td><td>${r.name}</td><td>${r.lvName}</td><td>${r.score}</td><td>${r.wrongs.length}</td></tr>`; });
-    ct.innerHTML = ht+'</table>';
-    document.querySelectorAll('.h-chk').forEach(c=>c.onchange=()=>{ document.getElementById('btn-review-run').disabled = !document.querySelector('.h-chk:checked'); });
+    ct.innerHTML = ht+'</table>'; document.querySelectorAll('.h-chk').forEach(c=>c.onchange=()=>{ document.getElementById('btn-review-run').disabled = !document.querySelector('.h-chk:checked'); });
 }
 function renderReviewCards(qs) {
     let ct = document.getElementById('review-cards-container'); ct.innerHTML='';
     qs.forEach((q,i)=>{
         let c = document.createElement('div'); c.className='review-card';
         if(q.type==='ADD_SUB') { c.innerHTML=`<div class="rc-expr">錯題 #${i+1}</div>${q.steps.map(s=>`<div class="rc-step">${s>0?'+':''}${s}</div>`).join('')}<div class="rc-answer">正解: ${q.finalAnswer} | 你答: ${q.playerAnswer||'?'}</div>`; }
-        else { c.innerHTML=`<div class="rc-expr">${q.expr}=?</div><div class="rc-answer">正解: ${q.finalAnswer} | 你答: ${q.playerAnswer||'?'}</div>`; }
-        ct.appendChild(c);
+        else { c.innerHTML=`<div class="rc-expr">${q.expr}=?</div><div class="rc-answer">正解: ${q.finalAnswer} | 你答: ${q.playerAnswer||'?'}</div>`; } ct.appendChild(c);
     });
 }
 
@@ -723,8 +756,7 @@ function renderReviewCards(qs) {
 function drawCert(name, lv, sc) {
     let c=document.createElement('canvas'); c.width=1600; c.height=1100; let ctx=c.getContext('2d');
     ctx.fillStyle='#fdfaf2'; ctx.fillRect(0,0,1600,1100); ctx.strokeStyle='#c5a059'; ctx.lineWidth=15; ctx.strokeRect(40,40,1520,1020); ctx.lineWidth=4; ctx.strokeRect(60,60,1480,980);
-    ctx.fillStyle='#222'; ctx.font='bold 60px serif'; ctx.textAlign='center'; ctx.fillText('心 算 檢 定 合 格 證 書', 800, 200);
-    ctx.beginPath(); ctx.moveTo(300,240); ctx.lineTo(1300,240); ctx.stroke();
+    ctx.fillStyle='#222'; ctx.font='bold 60px serif'; ctx.textAlign='center'; ctx.fillText('心 算 檢 定 合 格 證 書', 800, 200); ctx.beginPath(); ctx.moveTo(300,240); ctx.lineTo(1300,240); ctx.stroke();
     ctx.font='35px serif'; ctx.textAlign='left'; ctx.fillText('學員姓名：'+name, 250, 400); ctx.fillText('茲參加「3D 閃算賽車：旗艦檢定」，成績核定達 '+sc+' 分。', 250, 500); ctx.fillText('核定級階：'+lv, 250, 600);
     ctx.font='28px serif'; ctx.textAlign='right'; let d=new Date(); ctx.fillText('中華民國 '+d.getFullYear()+' 年 '+(d.getMonth()+1)+' 月 '+d.getDate()+' 日', 1350, 800);
     ctx.beginPath(); ctx.arc(1200,850,50,0,Math.PI*2); ctx.strokeStyle='#c00'; ctx.lineWidth=4; ctx.stroke(); ctx.fillStyle='#c00'; ctx.font='18px serif'; ctx.textAlign='center'; ctx.fillText('官方審查章', 1200, 855);
@@ -736,11 +768,9 @@ document.addEventListener('keydown', e=>{
     if(currentGameState==='PLAYING') {
         if(['Space', 'ControlLeft', 'ControlRight'].includes(e.code) || e.key === ' ') e.preventDefault();
         if(e.ctrlKey && e.code === 'Space') e.preventDefault();
-
         const k = e.key.toLowerCase(), c = e.code;
         if(k==='a' || k==='s' || k==='arrowleft' || c==='ControlLeft' || c==='ControlRight') tLane(-1);
         if(k==='d' || k==='f' || k==='arrowright' || c==='Space') tLane(1);
-        
         if(k==='escape') changeState('PAUSED');
     }
 }, {passive: false});
@@ -769,8 +799,7 @@ document.getElementById('btn-close-cert').onclick=()=>document.getElementById('c
 document.getElementById('btn-showcase-done').onclick=()=>{ changeState('GARAGE'); };
 
 document.getElementById('btn-review-run').onclick=()=>{
-    let ids = Array.from(document.querySelectorAll('.h-chk:checked')).map(c=>parseInt(c.getAttribute('data-id')));
-    reviewQuestions=[]; appData.records.forEach(r=>{if(ids.includes(r.id))reviewQuestions.push(...r.wrongs);});
+    let ids = Array.from(document.querySelectorAll('.h-chk:checked')).map(c=>parseInt(c.getAttribute('data-id'))); reviewQuestions=[]; appData.records.forEach(r=>{if(ids.includes(r.id))reviewQuestions.push(...r.wrongs);});
     if(reviewQuestions.length>0){ renderReviewCards(reviewQuestions); changeState('REVIEW_CALM'); }
 };
 document.getElementById('btn-review-done').onclick=()=>changeState('HISTORY');
