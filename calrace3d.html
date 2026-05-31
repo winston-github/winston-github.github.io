@@ -184,7 +184,10 @@ svg.icon-inline { vertical-align: text-bottom; margin-right: 8px; flex-shrink: 0
 <div id="pause-overlay" class="view-layer" style="background:rgba(0,0,0,0.8);">
   <div class="panel" style="text-align:center;">
     <div class="game-title" style="font-size:28px;">暫停</div>
-    <div style="color:#8ab;margin-bottom:15px;font-size:13px;">按鍵操作: S/Ctrl 向左，F/空白 向右</div>
+    <div style="color:#8ab;margin-bottom:15px;font-size:13px;line-height:1.6;">
+      按鍵操作: S / Ctrl 向左，F / 空白 向右<br>
+      或直接使用數字鍵 1、2、3 快速切換對應車道
+    </div>
     <button class="btn" id="btn-resume">繼續測驗</button>
     <button class="btn danger" id="btn-quit">放棄並返回選單</button>
   </div>
@@ -381,8 +384,6 @@ function generateAddSub(minD, maxD, rows, ops) {
     let st=[], rt=0; for(let i=0;i<rows;i++){ let v=randNum(maxD); st.push(v); rt+=v; }
     return {type:'ADD_SUB', steps:st, finalAnswer:rt};
 }
-
-// 修改：支援多階段牆面的乘法/除法結構
 function generateMul(m1, m2) { 
     let a=randNum(m1), b=randNum(m2); 
     return {type:'MUL', num1: a, num2: b, op: '×', expr: a+' × '+b, finalAnswer: a*b}; 
@@ -399,7 +400,6 @@ function generateDiv(d1, d2) {
     return {type:'DIV', num1: div*quo, num2: div, op: '÷', expr: (div*quo)+' ÷ '+div, finalAnswer: quo}; 
 }
 
-// 保持 1:2:2 的真實檢定比重
 function generateQuestions(lc) {
     let q=[]; 
     if(lc.type==='ADD_ONLY'||lc.type==='ADD_SUB'){ 
@@ -587,15 +587,14 @@ function createTextPlane(text, isGate) {
 
 function clearTrack() { activeWalls.forEach(w=>scene.remove(w)); activeWalls=[]; activeGates.forEach(g=>scene.remove(g)); activeGates=[]; }
 
-// 修改：讓 spawnWall 支援字串 (專為乘除法設計)，並賦予獨立的紫色
 function spawnWall(val, zPos) {
     let isStr = typeof val === 'string';
     let isOp = isStr && (val.includes('×') || val.includes('÷'));
     let displayStr = isStr ? val : (val < 0 ? '-' + Math.abs(val) : '+' + val);
     
-    let color = 0x1188ff; // 預設藍色
-    if (val < 0 && !isStr) color = 0xff4411; // 減法紅色
-    if (isOp) color = 0xaa44ff; // 乘除運算符紫色
+    let color = 0x1188ff; 
+    if (val < 0 && !isStr) color = 0xff4411; 
+    if (isOp) color = 0xaa44ff; 
     
     let mat = new THREE.MeshPhysicalMaterial({color: color, transmission:0.8, opacity:1, transparent:true, roughness:0.1, ior:1.5});
     let w = new THREE.Mesh(new THREE.BoxGeometry(20, 8, 1), mat);
@@ -643,7 +642,6 @@ function spawnNext() {
         for(let i=0; i<q.steps.length; i++) { spawnWall(q.steps[i], z); z -= lockedSpeed * cadence; } 
         spawnGates(q.finalAnswer, z - lockedSpeed * rest);
     } else { 
-        // 乘除法：拆分為左右兩面牆，依照標準 cadence 節奏依序閃現
         spawnWall(String(q.num1), z); z -= lockedSpeed * cadence;
         spawnWall(q.op + ' ' + q.num2, z); z -= lockedSpeed * cadence;
         spawnGates(q.finalAnswer, z - lockedSpeed * rest); 
@@ -660,12 +658,11 @@ function handleHitWall(w) {
     let voiceText = isStr ? v.replace('×', '乘 ').replace('÷', '除以 ') : (v < 0 ? "減" + Math.abs(v) : String(Math.abs(v)));
     playVoice(voiceText, currentLevelConfig.cadenceTime); 
     
-    // 將算式疊加至右上角 Mental Slate
     if(!isBlindMode) {
         let sl = document.getElementById('mental-slate');
         let d = document.createElement('div'); 
         d.className = 'slate-row' + (!isStr && v < 0 ? ' neg' : ''); 
-        if (isStr && (v.includes('×') || v.includes('÷'))) d.style.color = '#f8f'; // 乘除運算符專屬粉紫高亮
+        if (isStr && (v.includes('×') || v.includes('÷'))) d.style.color = '#f8f'; 
         d.textContent = isStr ? v : (v >= 0 ? '+' : '') + v; 
         sl.appendChild(d); 
         
@@ -776,6 +773,7 @@ function renderLoop(time) {
         }
     }
 
+    // 防斷層強制結算機制
     if (activeGates.length > 0 && activeGates[0].position.z >= 2.5 && !activeGates[0].userData.collided) {
         let hitGate = activeGates.find(ag => Math.abs(ag.position.x - lanePositions[targetLane]) < 2.0) || activeGates[0];
         handleHitGate(hitGate);
@@ -919,13 +917,23 @@ function drawCert(name, lv, sc) {
     return c.toDataURL('image/jpeg', 0.9);
 }
 
+// 修正：加入鍵盤 1, 2, 3 的絕對定位切換車道功能
 document.addEventListener('keydown', e=>{
     if(currentGameState==='PLAYING') {
         if(['Space', 'ControlLeft', 'ControlRight'].includes(e.code) || e.key === ' ') e.preventDefault();
         if(e.ctrlKey && e.code === 'Space') e.preventDefault();
+        
         const k = e.key.toLowerCase(), c = e.code;
+        
+        // 相對定位切換
         if(k==='a' || k==='s' || k==='arrowleft' || c==='ControlLeft' || c==='ControlRight') tLane(-1);
         if(k==='d' || k==='f' || k==='arrowright' || c==='Space') tLane(1);
+        
+        // 絕對定位切換 (支援上方數字鍵與右側數字鍵盤)
+        if(c === 'Digit1' || c === 'Numpad1' || k === '1') targetLane = 0;
+        if(c === 'Digit2' || c === 'Numpad2' || k === '2') targetLane = 1;
+        if(c === 'Digit3' || c === 'Numpad3' || k === '3') targetLane = 2;
+        
         if(k==='escape') changeState('PAUSED');
     }
 }, {passive: false});
