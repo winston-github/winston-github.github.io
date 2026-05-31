@@ -381,20 +381,25 @@ function generateAddSub(minD, maxD, rows, ops) {
     let st=[], rt=0; for(let i=0;i<rows;i++){ let v=randNum(maxD); st.push(v); rt+=v; }
     return {type:'ADD_SUB', steps:st, finalAnswer:rt};
 }
-function generateMul(m1, m2) { let a=randNum(m1), b=randNum(m2); return {type:'MUL', expr:a+' × '+b, finalAnswer:a*b}; }
+
+// 修改：支援多階段牆面的乘法/除法結構
+function generateMul(m1, m2) { 
+    let a=randNum(m1), b=randNum(m2); 
+    return {type:'MUL', num1: a, num2: b, op: '×', expr: a+' × '+b, finalAnswer: a*b}; 
+}
 function generateDiv(d1, d2) { 
     let minDiv = Math.pow(10, d2 - 1), maxDiv = Math.pow(10, d2) - 1;
     let minDvd = Math.pow(10, d1 - 1), maxDvd = Math.pow(10, d1) - 1;
     for(let attempt=0; attempt<200; attempt++) {
         let div = randInt(minDiv, maxDiv);
         let minQ = Math.ceil(minDvd / div), maxQ = Math.floor(maxDvd / div);
-        if (minQ <= maxQ) { let quo = randInt(minQ, maxQ); return {type:'DIV', expr:(div*quo)+' ÷ '+div, finalAnswer:quo}; }
+        if (minQ <= maxQ) { let quo = randInt(minQ, maxQ); return {type:'DIV', num1: div*quo, num2: div, op: '÷', expr: (div*quo)+' ÷ '+div, finalAnswer: quo}; }
     }
     let div = randInt(minDiv, maxDiv), quo = randInt(Math.pow(10, Math.max(1, d1-d2-1)), Math.pow(10, Math.max(1, d1-d2))-1);
-    return {type:'DIV', expr:(div*quo)+' ÷ '+div, finalAnswer:quo}; 
+    return {type:'DIV', num1: div*quo, num2: div, op: '÷', expr: (div*quo)+' ÷ '+div, finalAnswer: quo}; 
 }
 
-// 修正：實際心算檢定標準比例 1 : 2 : 2 (加減算1 : 乘算2 : 除算2)
+// 保持 1:2:2 的真實檢定比重
 function generateQuestions(lc) {
     let q=[]; 
     if(lc.type==='ADD_ONLY'||lc.type==='ADD_SUB'){ 
@@ -554,7 +559,6 @@ function createPlayerCar() {
     updateCameraMode();
 }
 
-// 修正：賽道線段長度極大化 (防癲癇頻閃)
 function createTrack() {
     let tc = document.createElement('canvas'); tc.width = 512; tc.height = 512; let ctx = tc.getContext('2d');
     ctx.fillStyle = '#080812'; ctx.fillRect(0,0,512,512); 
@@ -565,8 +569,8 @@ function createTrack() {
     trackPlane = new THREE.Mesh(new THREE.PlaneGeometry(40, 1000), new THREE.MeshBasicMaterial({map:trackTexture})); trackPlane.rotation.x = -Math.PI/2; trackPlane.position.set(0, -0.1, -400); scene.add(trackPlane);
 }
 
-function createTextPlane(text, isGate, isQuestion=false) {
-    let c = document.createElement('canvas'); c.width = isQuestion?1024:512; c.height = 256; let ctx = c.getContext('2d');
+function createTextPlane(text, isGate) {
+    let c = document.createElement('canvas'); c.width = 512; c.height = 256; let ctx = c.getContext('2d');
     ctx.clearRect(0,0,c.width,c.height);
     ctx.fillStyle='#ffffff'; ctx.textAlign='center'; ctx.textBaseline='middle'; 
     ctx.shadowColor='rgba(0,100,255,0.9)'; ctx.shadowBlur=15; ctx.shadowOffsetX=2; ctx.shadowOffsetY=4;
@@ -577,24 +581,26 @@ function createTextPlane(text, isGate, isQuestion=false) {
     while(metrics.width > c.width - 60 && fontSize > 30) { fontSize -= 5; ctx.font = `900 ${fontSize}px "Arial Black", sans-serif`; metrics = ctx.measureText(text); }
     ctx.fillText(text, c.width/2, 128);
     let tex = new THREE.CanvasTexture(c);
-    let w = isQuestion ? 13.0 : (isGate ? 4.5 : 6.5);
+    let w = isGate ? 4.5 : 6.5;
     return new THREE.Mesh(new THREE.PlaneGeometry(w, isGate?2.25:3.25), new THREE.MeshBasicMaterial({map:tex, transparent:true, depthWrite:false}));
 }
 
 function clearTrack() { activeWalls.forEach(w=>scene.remove(w)); activeWalls=[]; activeGates.forEach(g=>scene.remove(g)); activeGates=[]; }
 
+// 修改：讓 spawnWall 支援字串 (專為乘除法設計)，並賦予獨立的紫色
 function spawnWall(val, zPos) {
-    let mat = new THREE.MeshPhysicalMaterial({color:val<0?0xff4411:0x1188ff, transmission:0.8, opacity:1, transparent:true, roughness:0.1, ior:1.5});
+    let isStr = typeof val === 'string';
+    let isOp = isStr && (val.includes('×') || val.includes('÷'));
+    let displayStr = isStr ? val : (val < 0 ? '-' + Math.abs(val) : '+' + val);
+    
+    let color = 0x1188ff; // 預設藍色
+    if (val < 0 && !isStr) color = 0xff4411; // 減法紅色
+    if (isOp) color = 0xaa44ff; // 乘除運算符紫色
+    
+    let mat = new THREE.MeshPhysicalMaterial({color: color, transmission:0.8, opacity:1, transparent:true, roughness:0.1, ior:1.5});
     let w = new THREE.Mesh(new THREE.BoxGeometry(20, 8, 1), mat);
-    let txt = createTextPlane(val<0 ? '-'+Math.abs(val) : '+'+val, false); txt.position.z=0.6; w.add(txt);
-    w.position.set(0, 4, zPos); w.userData={val:val, collided:false, isQuestion:false}; scene.add(w); activeWalls.push(w);
-}
-
-function spawnQuestionWall(expr, zPos) {
-    let mat = new THREE.MeshPhysicalMaterial({color:0xffaa00, transmission:0.8, opacity:1, transparent:true, roughness:0.1, ior:1.5});
-    let w = new THREE.Mesh(new THREE.BoxGeometry(20, 8, 1), mat);
-    let txt = createTextPlane(expr, false, true); txt.position.z=0.6; w.add(txt);
-    w.position.set(0, 4, zPos); w.userData={collided:false, isQuestion:true}; scene.add(w); activeWalls.push(w);
+    let txt = createTextPlane(displayStr, false); txt.position.z=0.6; w.add(txt);
+    w.position.set(0, 4, zPos); w.userData={val:val, collided:false}; scene.add(w); activeWalls.push(w);
 }
 
 function spawnGates(corr, zPos) {
@@ -637,21 +643,34 @@ function spawnNext() {
         for(let i=0; i<q.steps.length; i++) { spawnWall(q.steps[i], z); z -= lockedSpeed * cadence; } 
         spawnGates(q.finalAnswer, z - lockedSpeed * rest);
     } else { 
-        spawnQuestionWall(q.expr + ' = ?', z);
+        // 乘除法：拆分為左右兩面牆，依照標準 cadence 節奏依序閃現
+        spawnWall(String(q.num1), z); z -= lockedSpeed * cadence;
+        spawnWall(q.op + ' ' + q.num2, z); z -= lockedSpeed * cadence;
         spawnGates(q.finalAnswer, z - lockedSpeed * rest); 
     }
 }
 
 function handleHitWall(w) {
     w.userData.collided = true; w.visible = false; playAbsorbSound();
-    if(w.userData.isQuestion) return; 
     
-    let v = w.userData.val; score += 10; updateHUD(); 
-    playVoice(v<0?"減"+Math.abs(v):String(Math.abs(v)), currentLevelConfig.cadenceTime); 
+    let v = w.userData.val; 
+    score += 10; updateHUD(); 
     
+    let isStr = typeof v === 'string';
+    let voiceText = isStr ? v.replace('×', '乘 ').replace('÷', '除以 ') : (v < 0 ? "減" + Math.abs(v) : String(Math.abs(v)));
+    playVoice(voiceText, currentLevelConfig.cadenceTime); 
+    
+    // 將算式疊加至右上角 Mental Slate
     if(!isBlindMode) {
-        let sl = document.getElementById('mental-slate'), d = document.createElement('div'); d.className='slate-row'+(v<0?' neg':''); d.textContent=(v>=0?'+':'')+v; sl.appendChild(d); if(sl.children.length>8) sl.removeChild(sl.firstChild);
-        if(currentLevelConfig.slateMode==='fading') { setTimeout(()=>d.classList.add('fading'), 800); setTimeout(()=>d.remove(), 1600); }
+        let sl = document.getElementById('mental-slate');
+        let d = document.createElement('div'); 
+        d.className = 'slate-row' + (!isStr && v < 0 ? ' neg' : ''); 
+        if (isStr && (v.includes('×') || v.includes('÷'))) d.style.color = '#f8f'; // 乘除運算符專屬粉紫高亮
+        d.textContent = isStr ? v : (v >= 0 ? '+' : '') + v; 
+        sl.appendChild(d); 
+        
+        if(sl.children.length > 8) sl.removeChild(sl.firstChild);
+        if(currentLevelConfig.slateMode === 'fading') { setTimeout(()=>d.classList.add('fading'), 800); setTimeout(()=>d.remove(), 1600); }
     }
 }
 
@@ -888,7 +907,6 @@ function renderReviewCards(qs) {
     });
 }
 
-// 修正：證書日期直接用西元年顯示，蓋章文字為"心算競速"
 function drawCert(name, lv, sc) {
     let c=document.createElement('canvas'); c.width=1600; c.height=1100; let ctx=c.getContext('2d');
     ctx.fillStyle='#fdfaf2'; ctx.fillRect(0,0,1600,1100); ctx.strokeStyle='#c5a059'; ctx.lineWidth=15; ctx.strokeRect(40,40,1520,1020); ctx.lineWidth=4; ctx.strokeRect(60,60,1480,980);
