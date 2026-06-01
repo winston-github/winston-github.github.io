@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>專業雙語注音即時翻譯系統</title>
+    <title>專業即時雙向翻譯系統</title>
     <style>
         /* ==========================================
            1. 現代隱性骨架與動態視窗防禦
@@ -15,7 +15,7 @@
             --text-zhuyin: #ffffff; 
             --tone-color: #38bdf8;
             --panel-bg: rgba(15, 23, 42, 0.85);
-            --trans-color: #7dd3fc; /* 翻譯文字的專屬淺藍色 */
+            --trans-color: #7dd3fc; 
         }
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
@@ -79,7 +79,6 @@
             background: rgba(56, 189, 248, 0.12); border-left: 6px solid #38bdf8; border-color: rgba(56, 189, 248, 0.3); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
         }
 
-        /* 內容區塊分割 */
         .original-text { display: flex; flex-wrap: wrap; align-items: flex-end; align-content: flex-start; width: 100%; }
         
         .translation-text {
@@ -111,11 +110,13 @@
         .ruby-container.is-interim { opacity: 0.65; transform: scale(0.96); }
         .ruby-container.is-interim .ruby-char { color: #94a3b8; text-shadow: none; }
         .ruby-container.is-interim .ruby-zhuyin { color: #cbd5e1; }
+        
         .ruby-container.is-english .ruby-char { font-size: 3.5rem; color: #fcd34d; padding: 0 8px; letter-spacing: 1px; font-family: 'Microsoft JhengHei', sans-serif; white-space: pre-wrap; align-items: center; }
+        .ruby-container.is-foreign .ruby-char { font-size: 3.5rem; color: #f8fafc; padding: 0 8px; font-family: -apple-system, sans-serif; white-space: pre-wrap; align-items: center; }
         .ruby-container.is-punctuation .ruby-char { font-size: 3.5rem; color: #64748b; padding: 0 4px; align-items: center;}
 
         /* ==========================================
-           5. 控制面板與語系選單
+           5. 控制面板與全新語言切換器
            ========================================== */
         #controlPanel {
             flex-shrink: 0; width: 100%; max-width: 1000px; display: flex; flex-direction: column; gap: 16px;
@@ -123,10 +124,28 @@
             border-radius: 30px 30px 0 0; box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.4); border-top: 1px solid rgba(255, 255, 255, 0.08); z-index: 10;
         }
 
-        .lang-controls { display: flex; justify-content: center; align-items: center; gap: 10px; width: 100%; color: #94a3b8; font-size: 0.95rem; font-weight: bold;}
-        .lang-controls select { background: rgba(15, 23, 42, 0.6); color: #f8fafc; border: 1px solid rgba(255, 255, 255, 0.15); padding: 8px 12px; border-radius: 8px; outline: none; font-weight: bold;}
-        .btn-group { display: flex; gap: 16px; width: 100%; }
+        /* 雙向箭頭語言切換 UI */
+        .lang-switcher { 
+            display: flex; justify-content: center; align-items: center; gap: 12px; width: 100%; 
+        }
+        .lang-switcher select { 
+            background: rgba(15, 23, 42, 0.8); color: #f8fafc; border: 1px solid rgba(255, 255, 255, 0.2); 
+            padding: 10px 14px; border-radius: 12px; outline: none; font-weight: bold; font-size: 1rem;
+            flex: 1; max-width: 200px; text-align: center; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+            appearance: none; -webkit-appearance: none; cursor: pointer;
+        }
+        .lang-switcher select:focus { border-color: #38bdf8; }
+        .dir-btn {
+            background: linear-gradient(135deg, #475569, #334155); border: 1px solid rgba(255,255,255,0.1); 
+            color: #fff; width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; 
+            justify-content: center; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); flex-shrink: 0;
+        }
+        .dir-btn:active { transform: scale(0.9); }
+        .dir-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.3s ease;}
+        .dir-btn.left svg { transform: rotate(180deg); }
 
+        .btn-group { display: flex; gap: 16px; width: 100%; }
         .magic-btn {
             flex: 1; padding: 16px 8px; font-size: 1.2rem; font-weight: 700; border: none; border-radius: 18px; cursor: pointer; color: #ffffff;
             display: flex; align-items: center; justify-content: center; gap: 10px; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 6px 15px rgba(0,0,0,0.2); letter-spacing: 1px;
@@ -145,9 +164,11 @@
             .ruby-container { height: 4.8rem; margin-right: 8px; margin-bottom: 4px; }
             .ruby-char { font-size: 3.2rem; height: 3.2rem; }
             .ruby-zhuyin { font-size: 1.35rem; margin-left: 6px; padding-right: 0.9em; padding-top: 0.7em; height: 3.2rem;}
-            .ruby-container.is-english .ruby-char, .ruby-container.is-punctuation .ruby-char { font-size: 2.5rem; height: auto; }
+            .ruby-container.is-english .ruby-char, .ruby-container.is-punctuation .ruby-char, .ruby-container.is-foreign .ruby-char { font-size: 2.5rem; height: auto; }
+            
             #controlPanel { padding: 15px 15px calc(15px + env(safe-area-inset-bottom)); gap: 12px; border-radius: 20px 20px 0 0;}
-            .lang-controls { flex-wrap: wrap; gap: 8px; }
+            .lang-switcher select { font-size: 0.9rem; padding: 10px 4px; max-width: 140px;}
+            .dir-btn { width: 38px; height: 38px; }
             .magic-btn { padding: 12px 4px; font-size: 1rem; border-radius: 14px;}
             .magic-btn svg { width: 20px; height: 20px; }
         }
@@ -165,21 +186,35 @@
 </div>
 
 <div id="controlPanel">
-    <div class="lang-controls">
-        <label>🎙️ 語音輸入：</label>
-        <select id="speechLang">
-            <option value="zh-TW">中文 (台灣)</option>
-            <option value="en-US">英文 (美國)</option>
-            <option value="ja-JP">日文 (日本)</option>
+    <!-- 純淨雙向箭頭語言切換器 -->
+    <div class="lang-switcher">
+        <select id="langA">
+            <option value="zh-TW" selected>繁體中文 (台灣)</option>
+            <option value="en">英文 (English)</option>
+            <option value="ja">日文 (日本語)</option>
+            <option value="ko">韓文 (한국어)</option>
+            <option value="es">西班牙文 (Español)</option>
+            <option value="de">德文 (Deutsch)</option>
+            <option value="ru">俄文 (Русский)</option>
+            <option value="fr">法文 (Français)</option>
         </select>
-        <label style="margin-left: 10px;">✨ 翻譯目標：</label>
-        <select id="targetLang">
-            <option value="en">英文 (EN)</option>
-            <option value="zh-TW">繁體中文 (TW)</option>
-            <option value="ja">日文 (JA)</option>
-            <option value="ko">韓文 (KO)</option>
+        
+        <button id="btn-dir" class="dir-btn" onclick="ControlSystem.toggleDirection()" title="切換翻譯方向">
+            <svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+        </button>
+        
+        <select id="langB">
+            <option value="zh-TW">繁體中文 (台灣)</option>
+            <option value="en" selected>英文 (English)</option>
+            <option value="ja">日文 (日本語)</option>
+            <option value="ko">韓文 (한국어)</option>
+            <option value="es">西班牙文 (Español)</option>
+            <option value="de">德文 (Deutsch)</option>
+            <option value="ru">俄文 (Русский)</option>
+            <option value="fr">法文 (Français)</option>
         </select>
     </div>
+
     <div class="btn-group">
         <button id="btn-mic" class="magic-btn btn-primary" onclick="ControlSystem.toggleMic()">
             <svg id="icon-mic" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
@@ -198,7 +233,7 @@
 
 <script>
 // ==========================================
-// 1. 字典設定與精準發音覆寫掛載機制
+// 1. 字典設定與精準發音覆寫掛載機制 (完全保留)
 // ==========================================
 const SVG_ICONS = {
     idle: `<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>`,
@@ -656,7 +691,6 @@ const BOPOMOFO_COMPRESSED_DICT = {
     "ㄩㄥ": "擁庸傭雍臃鏞", "ㄩㄥˇ": "勇湧踴永泳詠蛹", "ㄩㄥˋ": "用"
 };
 
-// 字典掛載：覆寫順序 = 基礎 -> 雲端 -> 本地高權重防禦
 const charToBpmfCache = {};
 for (const [bpmf, chars] of Object.entries(BOPOMOFO_COMPRESSED_DICT)) {
     for (let char of chars) if (!charToBpmfCache[char]) charToBpmfCache[char] = bpmf;
@@ -666,11 +700,9 @@ for (const [char, bpmf] of Object.entries(TAIWAN_COMMON_CHARS)) {
 }
 
 (async function initExternalDict() {
-    const iconEl = document.getElementById('icon-status');
-    const textEl = document.getElementById('statusText');
+    const iconEl = document.getElementById('icon-status'); const textEl = document.getElementById('statusText');
     try {
-        textEl.innerText = "正在同步教育部雲端成語字典...";
-        iconEl.innerHTML = SVG_ICONS.cloud; iconEl.classList.add('spin');
+        textEl.innerText = "正在同步教育部雲端成語字典..."; iconEl.innerHTML = SVG_ICONS.cloud; iconEl.classList.add('spin');
         const url = "https://raw.githubusercontent.com/kemdict/kemdict-data-ministry-of-education/main/dict_mini.json";
         const response = await fetch(url);
         if (!response.ok) throw new Error("Network load failed");
@@ -742,10 +774,12 @@ function extractBpmf(bpmfString) {
     return { symbols, lightTone, markTone };
 }
 
-function createCharBox(char, bpmfString, isInterim, isPunctuation = false, isEnglish = false) {
+function createCharBox(char, bpmfString, isInterim, isPunctuation = false, isEnglish = false, isForeign = false) {
     const box = document.createElement('div');
-    box.className = `ruby-container ${isInterim ? 'is-interim' : ''} ${isPunctuation ? 'is-punctuation' : ''} ${isEnglish ? 'is-english' : ''}`;
-    if (isEnglish || isPunctuation || !bpmfString) { box.innerHTML = `<div class="ruby-char">${char}</div>`; return box; }
+    const classNameExt = isEnglish ? 'is-english' : (isForeign ? 'is-foreign' : (isPunctuation ? 'is-punctuation' : ''));
+    box.className = `ruby-container ${isInterim ? 'is-interim' : ''} ${classNameExt}`;
+    
+    if (isEnglish || isForeign || isPunctuation || !bpmfString) { box.innerHTML = `<div class="ruby-char">${char}</div>`; return box; }
 
     const { symbols, lightTone, markTone } = extractBpmf(bpmfString);
     let zhuyinHtml = `<div class="ruby-zhuyin">`;
@@ -757,91 +791,126 @@ function createCharBox(char, bpmfString, isInterim, isPunctuation = false, isEng
     return box;
 }
 
-function parseTokensToNodes(text, isInterim = false) {
+function parseTokensToNodes(text, isInterim = false, isZhInput = true) {
     if (!text || text === "undefined") return [];
-    const tokens = text.match(/[\u4e00-\u9fa5]+|[a-zA-Z0-9\s'-]+|[^\u4e00-\u9fa5a-zA-Z0-9\s'-]+/g) || [];
     let nodes = [];
+    
+    // 如果來源非中文，直接不套用注音，純顯示大字
+    if (!isZhInput) {
+        // 稍微做一下標點符號的區分，讓排版好看一點
+        const tokens = text.match(/[\s\S]/g) || [];
+        let buffer = "";
+        tokens.forEach(char => {
+            if (/^[，。！？、：；,.?!;: ]$/.test(char)) {
+                if (buffer) { nodes.push(createCharBox(buffer, '', isInterim, false, false, true)); buffer = ""; }
+                nodes.push(createCharBox(char, '', isInterim, true, false, false));
+            } else {
+                buffer += char;
+            }
+        });
+        if (buffer) nodes.push(createCharBox(buffer, '', isInterim, false, false, true));
+        return nodes;
+    }
+
+    const tokens = text.match(/[\u4e00-\u9fa5]+|[a-zA-Z0-9\s'-]+|[^\u4e00-\u9fa5a-zA-Z0-9\s'-]+/g) || [];
     tokens.forEach(token => {
-        if (/^[a-zA-Z0-9\s'-]+$/.test(token)) nodes.push(createCharBox(token, '', isInterim, false, true));
-        else if (/^[^\u4e00-\u9fa5a-zA-Z0-9\s'-]+$/.test(token)) nodes.push(createCharBox(token, '', isInterim, true, false));
+        if (/^[a-zA-Z0-9\s'-]+$/.test(token)) nodes.push(createCharBox(token, '', isInterim, false, true, false));
+        else if (/^[^\u4e00-\u9fa5a-zA-Z0-9\s'-]+$/.test(token)) nodes.push(createCharBox(token, '', isInterim, true, false, false));
         else {
             const parsedItems = parseSentence(token);
-            parsedItems.forEach(item => nodes.push(createCharBox(item.char, item.bpmf, isInterim, false, false)));
+            parsedItems.forEach(item => nodes.push(createCharBox(item.char, item.bpmf, isInterim, false, false, false)));
         }
     });
     return nodes;
 }
 
 // ==========================================
-// 3. 系統控制與 Google API (瀑布流 + 翻譯)
+// 3. 雙向箭頭語言切換邏輯
 // ==========================================
-async function translateText(text, targetLang) {
-    if (!text.trim() || /^[0-9\s\W_]+$/.test(text)) return text;
-    try {
-        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
-        const response = await fetch(url);
-        if (!response.ok) throw new Error();
-        const data = await response.json();
-        return data[0].map(item => item[0]).join('');
-    } catch (error) { return "翻譯失敗"; }
-}
-
 const ControlSystem = (() => {
     const linesContainer = document.getElementById('linesContainer');
     const statusText = document.getElementById('statusText');
     const iconStatus = document.getElementById('icon-status');
     const textMic = document.getElementById('text-mic');
     
+    const langA = document.getElementById('langA');
+    const langB = document.getElementById('langB');
+    const btnDir = document.getElementById('btn-dir');
+    
+    let isDirectionRight = true; // true: A -> B, false: B -> A
+    
     let isUserRequestedStop = true;
     let recognition = null;
     let currentLineObj = null;
     let lineBreakTimer = null;
 
+    // 語言對應表 (供 Speech API 使用)
+    const localeMap = {
+        'zh-TW': 'zh-TW', 'en': 'en-US', 'ja': 'ja-JP', 'ko': 'ko-KR',
+        'es': 'es-ES', 'de': 'de-DE', 'ru': 'ru-RU', 'fr': 'fr-FR'
+    };
+
+    function getSourceLang() { return isDirectionRight ? langA.value : langB.value; }
+    function getTargetLang() { return isDirectionRight ? langB.value : langA.value; }
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
+    function restartSpeechIfRecording() {
+        if (!isUserRequestedStop && recognition) {
+            try { recognition.stop(); } catch(e) {}
+        }
+    }
+
+    langA.addEventListener('change', restartSpeechIfRecording);
+    langB.addEventListener('change', restartSpeechIfRecording);
+
+    // ==========================================
+    // 4. 即時雙語瀑布流顯示邏輯
+    // ==========================================
     function createNewActiveLine() {
         if (currentLineObj && currentLineObj.finalAnchor.childNodes.length === 0 && currentLineObj.interimAnchor.childNodes.length === 0) return currentLineObj; 
         
-        let wrapper = document.createElement('div');
-        wrapper.className = 'speech-line-wrapper';
-
-        let activeLine = document.createElement('div');
-        activeLine.className = 'speech-line';
+        let wrapper = document.createElement('div'); wrapper.className = 'speech-line-wrapper';
+        let activeLine = document.createElement('div'); activeLine.className = 'speech-line';
+        let textContainer = document.createElement('div'); textContainer.className = 'original-text';
+        let finalAnchor = document.createElement('span'); finalAnchor.className = 'final-anchor';
+        let interimAnchor = document.createElement('span'); interimAnchor.className = 'interim-anchor';
+        let translationContainer = document.createElement('div'); translationContainer.className = 'translation-text';
         
-        let textContainer = document.createElement('div');
-        textContainer.className = 'original-text';
-        
-        let finalAnchor = document.createElement('span');
-        finalAnchor.className = 'final-anchor';
-        let interimAnchor = document.createElement('span');
-        interimAnchor.className = 'interim-anchor';
-        
-        let translationContainer = document.createElement('div');
-        translationContainer.className = 'translation-text';
-        
-        textContainer.appendChild(finalAnchor);
-        textContainer.appendChild(interimAnchor);
-        activeLine.appendChild(textContainer);
-        activeLine.appendChild(translationContainer);
+        textContainer.appendChild(finalAnchor); textContainer.appendChild(interimAnchor);
+        activeLine.appendChild(textContainer); activeLine.appendChild(translationContainer);
         wrapper.appendChild(activeLine);
         
         linesContainer.prepend(wrapper);
-        void wrapper.offsetWidth;
-        wrapper.classList.add('active');
+        void wrapper.offsetWidth; wrapper.classList.add('active');
 
         return { wrapper, finalAnchor, interimAnchor, translationContainer, fullText: '', translated: false };
+    }
+
+    async function translateText(text, srcLang, tgtLang) {
+        if (!text.trim() || /^[0-9\s\W_]+$/.test(text)) return text;
+        try {
+            // sl=auto 可以做到說中文翻英文，說英文翻中文的聰明判斷
+            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${tgtLang}&dt=t&q=${encodeURIComponent(text)}`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error();
+            const data = await response.json();
+            return data[0].map(item => item[0]).join('');
+        } catch (error) { return "翻譯連線失敗..."; }
     }
 
     async function triggerTranslation(lineObj) {
         if (!lineObj || !lineObj.fullText.trim() || lineObj.translated) return;
         lineObj.translated = true;
-        const targetLang = document.getElementById('targetLang').value;
+        
+        const tgtLang = getTargetLang();
+        const srcLang = getSourceLang();
         
         lineObj.translationContainer.innerHTML = '<span class="trans-loading">即時翻譯中...</span>';
         lineObj.translationContainer.classList.add('show');
         
         try {
-            const translatedText = await translateText(lineObj.fullText, targetLang);
+            const translatedText = await translateText(lineObj.fullText, srcLang, tgtLang);
             lineObj.translationContainer.textContent = translatedText;
         } catch(e) {
             lineObj.translationContainer.textContent = "翻譯失敗";
@@ -858,7 +927,6 @@ const ControlSystem = (() => {
             statusText.innerText = "正在即時雙語轉錄...";
             iconStatus.innerHTML = SVG_ICONS.rec;
             textMic.innerText = "暫停錄音";
-            recognition.lang = document.getElementById('speechLang').value;
             if (!currentLineObj) currentLineObj = createNewActiveLine();
         };
 
@@ -866,19 +934,21 @@ const ControlSystem = (() => {
             let interimHTML = document.createDocumentFragment();
             let finalAdded = false;
             let lastFinalTranscript = '';
+            
+            let isZhInput = (getSourceLang() === 'zh-TW');
 
             for (let i = event.resultIndex; i < event.results.length; ++i) {
                 let transcript = event.results[i][0].transcript;
                 if (typeof transcript === 'undefined') continue;
                 
                 if (event.results[i].isFinal) {
-                    let nodes = parseTokensToNodes(transcript, false);
+                    let nodes = parseTokensToNodes(transcript, false, isZhInput);
                     nodes.forEach(n => currentLineObj.finalAnchor.appendChild(n));
                     finalAdded = true;
                     lastFinalTranscript = transcript;
                     currentLineObj.fullText += transcript;
                 } else {
-                    let nodes = parseTokensToNodes(transcript, true);
+                    let nodes = parseTokensToNodes(transcript, true, isZhInput);
                     nodes.forEach(n => interimHTML.appendChild(n));
                 }
             }
@@ -915,8 +985,11 @@ const ControlSystem = (() => {
         };
 
         recognition.onend = () => {
-            if (!isUserRequestedStop) { try { recognition.start(); } catch(e) {} } 
-            else {
+            if (!isUserRequestedStop) { 
+                // 更新成目前指定的語言再重新啟動
+                recognition.lang = localeMap[getSourceLang()];
+                try { recognition.start(); } catch(e) {} 
+            } else {
                 document.body.className = ""; statusText.innerText = "系統已暫停：隨時點擊按鈕繼續";
                 iconStatus.innerHTML = SVG_ICONS.idle; textMic.innerText = "開始錄音";
             }
@@ -924,10 +997,22 @@ const ControlSystem = (() => {
     }
 
     return {
+        toggleDirection: () => {
+            isDirectionRight = !isDirectionRight;
+            if(isDirectionRight) { btnDir.classList.remove('left'); } 
+            else { btnDir.classList.add('left'); }
+            restartSpeechIfRecording();
+        },
         toggleMic: () => {
             if (!SpeechRecognition) { alert("此瀏覽器不支援 Web Speech API。"); return; }
-            if (isUserRequestedStop) { isUserRequestedStop = false; try { recognition.start(); } catch(e) {} } 
-            else { isUserRequestedStop = true; try { recognition.stop(); } catch(e) {} }
+            if (isUserRequestedStop) { 
+                isUserRequestedStop = false; 
+                recognition.lang = localeMap[getSourceLang()];
+                try { recognition.start(); } catch(e) {} 
+            } else { 
+                isUserRequestedStop = true; 
+                try { recognition.stop(); } catch(e) {} 
+            }
         },
         copyText: () => {
             let lines = Array.from(linesContainer.querySelectorAll('.speech-line-wrapper')).reverse();
