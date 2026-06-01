@@ -14,7 +14,7 @@
         button { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
         button:disabled { background: #ccc; cursor: not-allowed; }
         .success-btn { background: var(--success); }
-        .log-box { margin-top: 15px; font-size: 13px; color: #555; background: #f8f9fa; padding: 10px; border-radius: 6px; border: 1px solid var(--border); }
+        .log-box { margin-top: 15px; font-size: 13px; color: #555; background: #f8f9fa; padding: 10px; border-radius: 6px; border: 1px solid var(--border); max-height: 100px; overflow-y: auto;}
         progress { width: 100%; height: 20px; border-radius: 10px; }
     </style>
 </head>
@@ -47,7 +47,6 @@
     const copyBtn = document.getElementById('copyBtn');
     const progressBar = document.getElementById('progressBar');
     const progressText = document.getElementById('progressText');
-    const etaText = document.getElementById('etaText');
     const logBox = document.getElementById('logBox');
 
     function log(msg) { logBox.innerText = msg; console.log(msg); }
@@ -65,11 +64,19 @@
         let validPronunciations = [];
         for (let het of entry.heteronyms) {
             if (!het.bopomofo) continue;
-            let bpmf = het.bopomofo.replace(/<[^>]+>/g, '');
-            bpmf = bpmf.replace(/[\s　]+/g, ','); // 多字用逗號分隔
+            let bpmf = het.bopomofo;
+
+            // 1. 去除 HTML tag
+            bpmf = bpmf.replace(/<[^>]+>/g, '');
+            // 2. 【核心修復】徹底濾除 (讀音)、（語音）、（又音） 等括號註記 (支援全半形)
+            bpmf = bpmf.replace(/[（(].*?[)）]/g, '');
+            // 3. 清理多餘空白，轉為半形逗號
+            bpmf = bpmf.replace(/[\s　]+/g, ','); 
             bpmf = bpmf.replace(/^,|,$/g, '');
             
-            // 輕聲優化：將 ˙ㄇㄜ 轉為 ㄇㄜ˙
+            if (!bpmf) continue;
+
+            // 4. 輕聲優化：將 ˙ㄇㄜ 轉為 ㄇㄜ˙
             let syllables = bpmf.split(',');
             for (let j = 0; j < syllables.length; j++) {
                 if (syllables[j].startsWith('˙')) {
@@ -77,6 +84,7 @@
                 }
             }
             bpmf = syllables.join(',');
+            
             if (bpmf) validPronunciations.push(bpmf);
         }
 
@@ -86,6 +94,7 @@
         if (title.length >= 2) {
             PHRASE_BPMF_DICT.set(title, validPronunciations.join('||'));
         } else if (title.length === 1) {
+            // 單字處理
             if (!TAIWAN_COMMON_CHARS.has(title)) {
                 TAIWAN_COMMON_CHARS.set(title, validPronunciations[0]);
             }
@@ -93,8 +102,10 @@
                 if (!BOPOMOFO_COMPRESSED_DICT.has(p)) {
                     BOPOMOFO_COMPRESSED_DICT.set(p, "");
                 }
-                // 緊密拼接破音字字集 (如：八巴吧叭...)
-                BOPOMOFO_COMPRESSED_DICT.set(p, BOPOMOFO_COMPRESSED_DICT.get(p) + title);
+                // 緊密拼接破音字字集 (避免同一個字被重複加進同一個音)
+                if (!BOPOMOFO_COMPRESSED_DICT.get(p).includes(title)) {
+                    BOPOMOFO_COMPRESSED_DICT.set(p, BOPOMOFO_COMPRESSED_DICT.get(p) + title);
+                }
             }
         }
     }
@@ -122,10 +133,7 @@
             let inString = false;
             let isEscape = false;
             let entryCount = 0;
-
-            // 【關鍵修復】指標 i 必須放在迴圈外部，避免切斷的字塊讓狀態機錯亂
             let i = 0; 
-            const startTime = Date.now();
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -163,7 +171,6 @@
                                         entryCount++;
                                     } catch (e) {}
                                 }
-                                // 清理已解析字串防爆
                                 buffer = buffer.substring(i + 1);
                                 i = -1; 
                                 objStartIndex = -1;
@@ -174,11 +181,11 @@
                 }
 
                 if (entryCount % 5000 === 0) {
-                    log(`光速解析中... 已抓取 ${entryCount} 筆超級完整資料。`);
+                    log(`光速解析中... 已抓取 ${entryCount} 筆乾淨資料。`);
                 }
             }
 
-            log(`✅ 解析完畢！共成功抓取 ${entryCount} 筆超級完整版資料。`);
+            log(`✅ 解析完畢！共成功抓取 ${entryCount} 筆，已剔除語音/又音雜質。`);
             progressText.innerText = "100% (完成)";
             progressBar.value = 100;
             copyBtn.style.display = 'block';
@@ -201,11 +208,9 @@
             const outputStr = `const PHRASE_BPMF_DICT = ${JSON.stringify(phraseObj)};\n\nconst TAIWAN_COMMON_CHARS = ${JSON.stringify(charsObj)};\n\nconst BOPOMOFO_COMPRESSED_DICT = ${JSON.stringify(compressObj)};`;
 
             try {
-                // 嘗試寫入剪貼簿
                 await navigator.clipboard.writeText(outputStr);
-                copyBtn.innerText = "✅ 成功複製 16 萬筆 JS 代碼！";
+                copyBtn.innerText = "✅ 成功複製 16 萬筆乾淨 JS 代碼！";
             } catch (err) {
-                // 【終極備案】如果 16萬筆字數大到剪貼簿當掉，直接觸發自動下載 JS 檔案！
                 log("剪貼簿容量超載，已為您自動下載為 super_complete_dict.js 檔案！");
                 const blob = new Blob([outputStr], { type: "text/javascript" });
                 const urlObj = URL.createObjectURL(blob);
