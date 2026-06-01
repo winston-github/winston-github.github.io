@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>旗艦系統專屬：超級完整版字典轉換器</title>
+    <title>旗艦系統專屬：三區塊獨立字典轉換器</title>
     <style>
         :root { --primary: #4a90e2; --success: #43a047; --border: #dddddd; }
         body { font-family: sans-serif; background: #f4f4f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
@@ -11,24 +11,26 @@
         h2 { color: var(--primary); text-align: center; margin-top: 0; }
         .option-group { margin-bottom: 15px; padding: 15px; border: 1px solid var(--border); border-radius: 8px; }
         input[type="text"] { width: 100%; padding: 8px; margin-top: 10px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        button { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; transition: 0.2s; }
+        button:hover { filter: brightness(1.1); }
         button:disabled { background: #ccc; cursor: not-allowed; }
         .success-btn { background: var(--success); }
         .log-box { margin-top: 15px; font-size: 13px; color: #555; background: #f8f9fa; padding: 10px; border-radius: 6px; border: 1px solid var(--border); max-height: 120px; overflow-y: auto;}
         progress { width: 100%; height: 20px; border-radius: 10px; }
+        .action-group { display: none; margin-top: 20px; flex-direction: column; gap: 10px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>旗艦系統專屬字典轉換器</h2>
+    <h2>旗艦系統：三區塊字典生成器</h2>
     
     <div class="option-group">
         <label><input type="radio" name="source" value="B" checked> 預設遠端完整版網址 (萌典 16萬筆)</label>
         <input type="text" id="urlB" value="https://raw.githubusercontent.com/chyiro/moedict-data-chunker/master/moedict_data/dict-revised.json">
     </div>
 
-    <button id="startBtn">開始專屬優化與串流處理</button>
+    <button id="startBtn">開始高度預處理與串流解析</button>
     
     <div id="progressWrapper" style="display:none; margin-top: 15px;">
         <progress id="progressBar" value="0" max="100"></progress>
@@ -38,15 +40,21 @@
     </div>
 
     <div class="log-box" id="logBox">系統已就緒，等待開始。</div>
-    <button id="copyBtn" class="success-btn" style="display:none;">一鍵複製專屬 JS 代碼 (或自動下載)</button>
+
+    <!-- 三個獨立的複製按鈕 -->
+    <div class="action-group" id="actionGroup">
+        <button id="btnCopy1" class="success-btn" style="background:#15803d">📋 複製第 1 區塊內容 (PHRASE 詞彙)</button>
+        <button id="btnCopy2" class="success-btn" style="background:#166534">📋 複製第 2 區塊內容 (COMMON 單字)</button>
+        <button id="btnCopy3" class="success-btn" style="background:#14532d">📋 複製第 3 區塊內容 (BOPOMOFO 壓縮)</button>
+    </div>
 </div>
 
 <script>
     const startBtn = document.getElementById('startBtn');
-    const copyBtn = document.getElementById('copyBtn');
     const progressBar = document.getElementById('progressBar');
     const progressText = document.getElementById('progressText');
     const logBox = document.getElementById('logBox');
+    const actionGroup = document.getElementById('actionGroup');
 
     function log(msg) { logBox.innerText = msg; console.log(msg); }
 
@@ -54,10 +62,11 @@
     let TAIWAN_COMMON_CHARS = new Map();
     let BOPOMOFO_COMPRESSED_DICT = new Map();
 
+    // 核心高度預處理演算法
     function processDictEntry(entry) {
         const title = entry.title;
         
-        // 【優化 1】嚴格對齊您的 token 正規表達式，只允許純中文字元，剔除標點/英文
+        // 【嚴格過濾】只允許純中文字元，完美適配旗艦系統的分割正則
         if (!title || !/^[\u4e00-\u9fa5]+$/.test(title)) return;
         if (!entry.heteronyms || !Array.isArray(entry.heteronyms)) return;
 
@@ -67,18 +76,18 @@
             let bpmf = het.bopomofo;
 
             bpmf = bpmf.replace(/<[^>]+>/g, '');
-            bpmf = bpmf.replace(/[（(].*?[)）]/g, ''); // 剔除語音、又音等括號
-            // 【優化 2】對齊主程式的分割邏輯，把空白、全形空白、底線轉為逗號
-            bpmf = bpmf.replace(/[\s　_]+/g, ','); 
+            bpmf = bpmf.replace(/[（(].*?[)）]/g, ''); // 徹底剔除 (語音) (讀音)
+            bpmf = bpmf.replace(/[\s　_]+/g, ',');     // 對齊主程式替換空白為逗號
             bpmf = bpmf.replace(/^,|,$/g, '');
             
             if (!bpmf) continue;
 
             let syllables = bpmf.split(',');
             
-            // 【優化 3】長度嚴格驗證，直接在背景濾除不對齊的資料，減輕主程式負擔
+            // 【長度攔截】音節數目必須與字元數目完美一致，否則直接丟棄減輕主程式負擔
             if (syllables.length !== title.length) continue;
 
+            // 【輕聲優化】把開頭的輕聲點移到結尾
             for (let j = 0; j < syllables.length; j++) {
                 if (syllables[j].startsWith('˙')) {
                     syllables[j] = syllables[j].substring(1) + '˙';
@@ -93,18 +102,18 @@
         validPronunciations = [...new Set(validPronunciations)];
 
         if (title.length >= 2) {
-            // 【優化 4】捨棄 || 雙管線：絕對匹配主程式的 parseSentence。
-            // 只取萌典第一順位標準音作為唯一詞彙發音。
+            // 長詞：直接取首選發音，捨棄 ||，防止 split 產生陣列長度異常
             if (!PHRASE_BPMF_DICT.has(title)) {
                 PHRASE_BPMF_DICT.set(title, validPronunciations[0]);
             }
         } else if (title.length === 1) {
+            // 常用單字：取首選發音
             if (!TAIWAN_COMMON_CHARS.has(title)) {
                 TAIWAN_COMMON_CHARS.set(title, validPronunciations[0]);
             }
+            // 壓縮反向字庫：將字塞入對應注音中
             for (let p of validPronunciations) {
-                // 防呆：單字注音不該包含逗號
-                if (p.includes(',')) continue; 
+                if (p.includes(',')) continue; // 防呆
                 if (!BOPOMOFO_COMPRESSED_DICT.has(p)) {
                     BOPOMOFO_COMPRESSED_DICT.set(p, "");
                 }
@@ -117,7 +126,7 @@
 
     async function startProcessing() {
         startBtn.disabled = true;
-        copyBtn.style.display = 'none';
+        actionGroup.style.display = 'none';
         document.getElementById('progressWrapper').style.display = 'block';
         
         PHRASE_BPMF_DICT.clear(); TAIWAN_COMMON_CHARS.clear(); BOPOMOFO_COMPRESSED_DICT.clear();
@@ -177,14 +186,14 @@
                     i++;
                 }
                 if (entryCount % 5000 === 0) {
-                    log(`完美對齊處理中... 已抓取 ${entryCount} 筆純淨詞彙。`);
+                    log(`深度清洗中... 已為旗艦系統優化 ${entryCount} 筆純淨詞彙。`);
                 }
             }
 
-            log(`✅ 解析完畢！共抓取 ${entryCount} 筆，已完美適配您的 parseSentence 引擎。`);
+            log(`✅ 解析完畢！共抓取 ${entryCount} 筆。請使用下方按鈕複製個別區塊內容。`);
             progressText.innerText = "100% (完成)";
             progressBar.value = 100;
-            copyBtn.style.display = 'block';
+            actionGroup.style.display = 'flex';
 
         } catch (err) {
             log(`[錯誤] ${err.message}`);
@@ -192,32 +201,52 @@
         }
     }
 
-    copyBtn.addEventListener('click', async () => {
-        copyBtn.innerText = "組裝專屬 JS 代碼中 (請稍候)...";
-        copyBtn.disabled = true;
+    // 負責脫殼處理 (去除頭尾大括號) 並寫入剪貼簿
+    async function copyInnerBlock(mapData, btnEl, dictName, label) {
+        btnEl.innerText = "資料脫殼組裝中...";
+        btnEl.disabled = true;
 
         setTimeout(async () => {
-            const phraseObj = Object.fromEntries(PHRASE_BPMF_DICT);
-            const charsObj = Object.fromEntries(TAIWAN_COMMON_CHARS);
-            const compressObj = Object.fromEntries(BOPOMOFO_COMPRESSED_DICT);
-
-            const outputStr = `// --------------------------------------------------------\n// 自動生成：旗艦系統專屬注音全字庫\n// 已嚴格對齊純中文字元、剔除長度不符者、拔除多重發音管線\n// --------------------------------------------------------\nconst PHRASE_BPMF_DICT = ${JSON.stringify(phraseObj)};\n\nconst TAIWAN_COMMON_CHARS = ${JSON.stringify(charsObj)};\n\nconst BOPOMOFO_COMPRESSED_DICT = ${JSON.stringify(compressObj)};`;
+            const obj = Object.fromEntries(mapData);
+            // 將 Map 轉為標準 JSON 字串 (如 {"媽媽":"ㄇㄚ,ㄇㄚ˙","爸爸":"ㄅㄚˋ,ㄅㄚ˙"})
+            const fullJsonStr = JSON.stringify(obj);
+            
+            // 【核心邏輯】去除頭尾的 { 和 }，只留下內部的字串陣列內容
+            const innerStr = fullJsonStr.substring(1, fullJsonStr.length - 1);
 
             try {
-                await navigator.clipboard.writeText(outputStr);
-                copyBtn.innerText = "✅ 成功複製！可直接貼入您的主程式";
+                await navigator.clipboard.writeText(innerStr);
+                btnEl.innerText = `✅ 成功複製區塊 ${label} 內部內容！`;
             } catch (err) {
-                log("剪貼簿容量超載，已為您自動下載為 flagship_dict.js 檔案！");
-                const blob = new Blob([outputStr], { type: "text/javascript" });
+                // 如果字數大到剪貼簿當掉，自動改為下載 txt 檔，裡面同樣是脫殼後的字串
+                log(`剪貼簿容量超載，已為您自動下載為 ${dictName}_純內容.txt`);
+                const blob = new Blob([innerStr], { type: "text/plain" });
                 const urlObj = URL.createObjectURL(blob);
                 const a = document.createElement("a");
                 a.href = urlObj;
-                a.download = "flagship_dict.js";
+                a.download = `${dictName}_純內容.txt`;
                 a.click();
                 URL.revokeObjectURL(urlObj);
-                copyBtn.innerText = "✅ 已自動下載專屬 JS";
+                btnEl.innerText = `✅ 已自動下載 txt 檔`;
             }
-        }, 100);
+            
+            // 3秒後恢復按鈕狀態
+            setTimeout(() => {
+                btnEl.innerText = `📋 複製第 ${label} 區塊內容 (${dictName})`;
+                btnEl.disabled = false;
+            }, 3000);
+        }, 50);
+    }
+
+    // 綁定三個獨立複製按鈕
+    document.getElementById('btnCopy1').addEventListener('click', function() {
+        copyInnerBlock(PHRASE_BPMF_DICT, this, "PHRASE_BPMF_DICT", "1");
+    });
+    document.getElementById('btnCopy2').addEventListener('click', function() {
+        copyInnerBlock(TAIWAN_COMMON_CHARS, this, "TAIWAN_COMMON_CHARS", "2");
+    });
+    document.getElementById('btnCopy3').addEventListener('click', function() {
+        copyInnerBlock(BOPOMOFO_COMPRESSED_DICT, this, "BOPOMOFO_COMPRESSED_DICT", "3");
     });
 
     startBtn.addEventListener('click', startProcessing);
