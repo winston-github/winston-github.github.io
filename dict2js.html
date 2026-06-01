@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>流式防爆：低記憶體字典轉換工具</title>
+    <style>
+        :root {
+            --bg-color: #f4f4f9;
+            --container-bg: #ffffff;
+            --text-color: #333333;
+            --primary: #4a90e2;
+            --primary-hover: #357abd;
+            --success: #43a047;
+            --border: #dddddd;
+        }
+        body {
+            font-family: "Segoe UI", "Microsoft JhengHei", sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: var(--container-bg);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 600px;
+        }
+        h2 {
+            margin-top: 0;
+            color: var(--primary);
+            text-align: center;
+        }
+        .option-group {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            transition: 0.3s;
+        }
+        .option-group.active {
+            border-color: var(--primary);
+            background-color: #f0f7ff;
+        }
+        .option-group label {
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .input-box {
+            margin-top: 10px;
+            margin-left: 28px;
+        }
+        input[type="text"], input[type="file"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        input[type="text"]:disabled, input[type="file"]:disabled {
+            background-color: #e9ecef;
+            cursor: not-allowed;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        button.success-btn {
+            background-color: var(--success);
+        }
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+        progress {
+            width: 100%;
+            height: 20px;
+            border-radius: 10px;
+        }
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            margin-top: 8px;
+            color: #666;
+        }
+        .log-box {
+            margin-top: 15px;
+            font-size: 13px;
+            color: #555;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            max-height: 100px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>流式防爆：字典轉換工具</h2>
+    
+    <div class="option-group" id="grpA">
+        <label>
+            <input type="radio" name="source" value="A">
+            選項 A（手動上傳本機檔案）
+        </label>
+        <div class="input-box">
+            <input type="file" id="fileInput" accept=".json" disabled>
+        </div>
+    </div>
+
+    <div class="option-group active" id="grpB">
+        <label>
+            <input type="radio" name="source" value="B" checked>
+            選項 B（預設遠端完整版網址）
+        </label>
+        <div class="input-box">
+            <input type="text" id="urlB" value="https://raw.githubusercontent.com/chyiro/moedict-data-chunker/master/moedict_data/dict-revised.json">
+        </div>
+    </div>
+
+    <div class="option-group" id="grpC">
+        <label>
+            <input type="radio" name="source" value="C">
+            選項 C（遠端精簡壓縮版網址）
+        </label>
+        <div class="input-box">
+            <input type="text" id="urlC" value="https://raw.githubusercontent.com/chyiro/moedict-data-chunker/master/moedict_data/dict-revised.json">
+        </div>
+    </div>
+
+    <button id="startBtn">開始串流處理 (Start Processing)</button>
+    
+    <div class="progress-container" id="progressWrapper">
+        <progress id="progressBar" value="0" max="100"></progress>
+        <div class="stats">
+            <span id="progressText">準備中... 0%</span>
+            <span id="etaText">ETA: --</span>
+        </div>
+    </div>
+
+    <div class="log-box" id="logBox">系統已就緒，等待開始。</div>
+
+    <button id="copyBtn" class="success-btn" style="display:none;">一鍵複製純淨 JS 代碼</button>
+</div>
+
+<script>
+    // ----------------------------------------------------
+    // 1. UI 與輸入控制邏輯
+    // ----------------------------------------------------
+    const radios = document.querySelectorAll('input[name="source"]');
+    const grpA = document.getElementById('grpA');
+    const grpB = document.getElementById('grpB');
+    const grpC = document.getElementById('grpC');
+    const fileInput = document.getElementById('fileInput');
+    const urlB = document.getElementById('urlB');
+    const urlC = document.getElementById('urlC');
+    const startBtn = document.getElementById('startBtn');
+    const copyBtn = document.getElementById('copyBtn');
+    const progressWrapper = document.getElementById('progressWrapper');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const etaText = document.getElementById('etaText');
+    const logBox = document.getElementById('logBox');
+
+    radios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            // Reset styles
+            [grpA, grpB, grpC].forEach(grp => grp.classList.remove('active'));
+            fileInput.disabled = true;
+            urlB.disabled = true;
+            urlC.disabled = true;
+
+            // Apply styles based on selection
+            if (e.target.value === 'A') {
+                grpA.classList.add('active');
+                fileInput.disabled = false;
+            } else if (e.target.value === 'B') {
+                grpB.classList.add('active');
+                urlB.disabled = false;
+            } else if (e.target.value === 'C') {
+                grpC.classList.add('active');
+                urlC.disabled = false;
+            }
+        });
+    });
+
+    function log(msg) {
+        logBox.innerText = msg;
+        console.log(msg);
+    }
+
+    // ----------------------------------------------------
+    // 2. 目標記憶體物件 (Dictionaries)
+    // ----------------------------------------------------
+    let PHRASE_BPMF_DICT = new Map();
+    let TAIWAN_COMMON_CHARS = new Map();
+    let BOPOMOFO_COMPRESSED_DICT = new Map();
+
+    // ----------------------------------------------------
+    // 3. 資料清洗與注音修正演算法
+    // ----------------------------------------------------
+    function processDictEntry(entry) {
+        const title = entry.title;
+
+        // 條件過濾：title 為空、包含英數字、ASCII 符號或亂碼直接丟棄
+        if (!title || /[\u0000-\u007F]/.test(title) || /[{}？]/.test(title)) return;
+        
+        // heteronyms 過濾
+        if (!entry.heteronyms || !Array.isArray(entry.heteronyms) || entry.heteronyms.length === 0) return;
+
+        let validPronunciations = [];
+
+        for (let het of entry.heteronyms) {
+            if (!het.bopomofo) continue;
+            
+            // 清除可能含有的 HTML tags，保留純文字注音
+            let bpmf = het.bopomofo.replace(/<[^>]+>/g, '');
+
+            // 清除多餘空格，多字詞字音之間以半形逗號分隔
+            bpmf = bpmf.replace(/[\s　]+/g, ',');
+            bpmf = bpmf.replace(/^,|,$/g, ''); // 移除首尾逗號
+
+            // 輕聲修正：若注音開頭為輕聲符號 ˙，移至音節結尾
+            let syllables = bpmf.split(',');
+            for (let i = 0; i < syllables.length; i++) {
+                if (syllables[i].startsWith('˙')) {
+                    syllables[i] = syllables[i].substring(1) + '˙';
+                }
+            }
+            bpmf = syllables.join(',');
+
+            if (bpmf) {
+                validPronunciations.push(bpmf);
+            }
+        }
+
+        if (validPronunciations.length === 0) return;
+
+        // 發音去重
+        validPronunciations = [...new Set(validPronunciations)];
+
+        // 分類寫入記憶體字典
+        if (title.length >= 2) {
+            // 長詞：多音字格式化去重後以 || 串接
+            PHRASE_BPMF_DICT.set(title, validPronunciations.join('||'));
+        } else if (title.length === 1) {
+            // 單字：固定只抓取第一個讀音
+            if (!TAIWAN_COMMON_CHARS.has(title)) {
+                TAIWAN_COMMON_CHARS.set(title, validPronunciations[0]);
+            }
+            
+            // 破音字緊密串接索引
+            for (let p of validPronunciations) {
+                if (!BOPOMOFO_COMPRESSED_DICT.has(p)) {
+                    BOPOMOFO_COMPRESSED_DICT.set(p, "");
+                }
+                BOPOMOFO_COMPRESSED_DICT.set(p, BOPOMOFO_COMPRESSED_DICT.get(p) + title);
+            }
+        }
+    }
+
+    // ----------------------------------------------------
+    // 4. 瀏覽器端流式防爆架構 (Stream Processing)
+    // ----------------------------------------------------
+    async function startProcessing() {
+        startBtn.disabled = true;
+        copyBtn.style.display = 'none';
+        progressWrapper.style.display = 'block';
+        progressBar.removeAttribute('value');
+        log("初始化串流中...");
+
+        // 重置資料
+        PHRASE_BPMF_DICT.clear();
+        TAIWAN_COMMON_CHARS.clear();
+        BOPOMOFO_COMPRESSED_DICT.clear();
+
+        const sourceType = document.querySelector('input[name="source"]:checked').value;
+        let reader, totalSize = 0;
+
+        try {
+            if (sourceType === 'A') {
+                const file = fileInput.files[0];
+                if (!file) throw new Error("請先選擇本地檔案！");
+                totalSize = file.size;
+                // 使用原生的 File.stream()
+                reader = file.stream().getReader();
+            } else {
+                const url = sourceType === 'B' ? urlB.value : urlC.value;
+                if (!url) throw new Error("網址不能為空！");
+                log("連線至伺服器下載中...");
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP 錯誤! 狀態碼: ${response.status}`);
+                
+                const contentLength = response.headers.get('content-length');
+                if (contentLength) totalSize = parseInt(contentLength, 10);
+                
+                // 啟用 Fetch Response 的 Reader
+                reader = response.body.getReader();
+            }
+
+            await readChunkByChunk(reader, totalSize);
+
+        } catch (err) {
+            log(`[錯誤] ${err.message}`);
+            alert(err.message);
+            startBtn.disabled = false;
+        }
+    }
+
+    // 核心防爆解析引擎：TransformStream 風格的手動字塊處理
+    async function readChunkByChunk(reader, totalSize) {
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        let processedBytes = 0;
+        const startTime = Date.now();
+
+        // 狀態機：追蹤括號深度以實現防爆提取，比單純 Regex 更安全解析巢狀物件
+        let depth = 0;
+        let objStartIndex = -1;
+        let inString = false;
+        let isEscape = false;
+
+        let entryCount = 0;
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            processedBytes += value.length;
+            buffer += decoder.decode(value, { stream: true });
+
+            // 時效與進度估算
+            let percent = totalSize ? Math.min(100, (processedBytes / totalSize * 100)).toFixed(2) : '--';
+            let elapsedSec = (Date.now() - startTime) / 1000;
+            let speed = processedBytes / elapsedSec; // bytes per sec
+            let eta = totalSize && speed > 0 ? ((totalSize - processedBytes) / speed).toFixed(1) : '--';
+            
+            if (totalSize) progressBar.value = percent;
+            progressText.innerText = totalSize ? `${percent}% (${(processedBytes/1024/1024).toFixed(1)}MB)` : `下載中: ${(processedBytes/1024/1024).toFixed(2)}MB`;
+            etaText.innerText = totalSize ? `ETA: ${eta} 秒` : `速度: ${(speed/1024/1024).toFixed(2)} MB/s`;
+
+            // 逐字元解析器（完美防止 Regex 貪婪匹配導致的記憶體崩潰）
+            let i = 0;
+            while (i < buffer.length) {
+                const char = buffer[i];
+
+                if (isEscape) {
+                    isEscape = false;
+                } else if (char === '\\') {
+                    isEscape = true;
+                } else if (char === '"') {
+                    inString = !inString;
+                } else if (!inString) {
+                    if (char === '{') {
+                        if (depth === 0) objStartIndex = i;
+                        depth++;
+                    } else if (char === '}') {
+                        depth--;
+                        // 當深度歸零時，代表找到一個完整的根級 JSON 物件 (Entry)
+                        if (depth === 0 && objStartIndex !== -1) {
+                            const jsonStr = buffer.substring(objStartIndex, i + 1);
+                            
+                            // 加上正則過濾（如規格書所要求，驗證該區塊是否有 heteronyms）
+                            if (/"heteronyms"\s*:/.test(jsonStr)) {
+                                try {
+                                    const entry = JSON.parse(jsonStr);
+                                    processDictEntry(entry);
+                                    entryCount++;
+                                } catch (e) {
+                                    // 格式損壞則忽略
+                                }
+                            }
+
+                            // **極致防爆核心**：將處理完的片段從 Buffer 徹底清除
+                            buffer = buffer.substring(i + 1);
+                            i = -1; // 重置迴圈索引
+                            objStartIndex = -1;
+                        }
+                    }
+                }
+                i++;
+            }
+
+            // 每 1000 筆更新一次 Log 避免 UI 卡頓
+            if (entryCount % 1000 === 0) {
+                log(`串流解析中... 目前已解析 ${entryCount} 筆有效條目。`);
+            }
+        }
+
+        // 結束串流
+        log(`轉換完成！共處理了 ${entryCount} 筆條目。請點擊「一鍵複製」。`);
+        progressText.innerText = "100% (完成)";
+        etaText.innerText = "ETA: 0 秒";
+        if(totalSize) progressBar.value = 100;
+        
+        startBtn.disabled = false;
+        copyBtn.style.display = 'block';
+    }
+
+    // ----------------------------------------------------
+    // 5. 輸出控制 (直接寫入剪貼簿，不渲染 DOM 避免崩潰)
+    // ----------------------------------------------------
+    copyBtn.addEventListener('click', async () => {
+        try {
+            copyBtn.innerText = "正在組裝序列化資料...";
+            copyBtn.disabled = true;
+
+            // 背景組裝，將 Map 轉為 Object 再 Stringify
+            const phraseObj = Object.fromEntries(PHRASE_BPMF_DICT);
+            const charsObj = Object.fromEntries(TAIWAN_COMMON_CHARS);
+            const compressObj = Object.fromEntries(BOPOMOFO_COMPRESSED_DICT);
+
+            // 組合成無宣告註解、無分段的純淨 JS 賦值格式
+            const outputStr = `const PHRASE_BPMF_DICT = ${JSON.stringify(phraseObj)};\nconst TAIWAN_COMMON_CHARS = ${JSON.stringify(charsObj)};\nconst BOPOMOFO_COMPRESSED_DICT = ${JSON.stringify(compressObj)};`;
+
+            // 直接寫入剪貼簿 (Write strictly to clipboard)
+            await navigator.clipboard.writeText(outputStr);
+            
+            copyBtn.className = 'success-btn';
+            copyBtn.innerText = "✅ 複製成功！記憶體未爆！";
+            log("純淨代碼已成功複製到剪貼簿，可直接貼上至你的應用程式中。");
+
+            setTimeout(() => {
+                copyBtn.innerText = "一鍵複製純淨 JS 代碼";
+                copyBtn.disabled = false;
+            }, 3000);
+
+        } catch (err) {
+            console.error(err);
+            alert("複製失敗，可能是瀏覽器安全性限制，請檢查權限。");
+            copyBtn.innerText = "一鍵複製純淨 JS 代碼";
+            copyBtn.disabled = false;
+        }
+    });
+
+    startBtn.addEventListener('click', startProcessing);
+</script>
+</body>
+</html>
