@@ -3,43 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>流式防爆：超級完整版字典轉換器</title>
+    <title>旗艦系統專屬：超級完整版字典轉換器</title>
     <style>
         :root { --primary: #4a90e2; --success: #43a047; --border: #dddddd; }
         body { font-family: sans-serif; background: #f4f4f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
         .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 100%; max-width: 600px; }
         h2 { color: var(--primary); text-align: center; margin-top: 0; }
         .option-group { margin-bottom: 15px; padding: 15px; border: 1px solid var(--border); border-radius: 8px; }
-        input[type="text"], input[type="file"] { width: 100%; padding: 8px; margin-top: 10px; box-sizing: border-box; }
+        input[type="text"] { width: 100%; padding: 8px; margin-top: 10px; box-sizing: border-box; }
         button { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
         button:disabled { background: #ccc; cursor: not-allowed; }
         .success-btn { background: var(--success); }
-        .log-box { margin-top: 15px; font-size: 13px; color: #555; background: #f8f9fa; padding: 10px; border-radius: 6px; border: 1px solid var(--border); max-height: 100px; overflow-y: auto;}
+        .log-box { margin-top: 15px; font-size: 13px; color: #555; background: #f8f9fa; padding: 10px; border-radius: 6px; border: 1px solid var(--border); max-height: 120px; overflow-y: auto;}
         progress { width: 100%; height: 20px; border-radius: 10px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>超級完整版字典轉換器</h2>
+    <h2>旗艦系統專屬字典轉換器</h2>
     
     <div class="option-group">
-        <label><input type="radio" name="source" value="B" checked> 預設遠端完整版網址 (16萬筆)</label>
+        <label><input type="radio" name="source" value="B" checked> 預設遠端完整版網址 (萌典 16萬筆)</label>
         <input type="text" id="urlB" value="https://raw.githubusercontent.com/chyiro/moedict-data-chunker/master/moedict_data/dict-revised.json">
     </div>
 
-    <button id="startBtn">開始串流處理 (Start Processing)</button>
+    <button id="startBtn">開始專屬優化與串流處理</button>
     
     <div id="progressWrapper" style="display:none; margin-top: 15px;">
         <progress id="progressBar" value="0" max="100"></progress>
         <div style="display:flex; justify-content:space-between; font-size:14px; color:#666; margin-top:5px;">
             <span id="progressText">準備中... 0%</span>
-            <span id="etaText">ETA: --</span>
         </div>
     </div>
 
     <div class="log-box" id="logBox">系統已就緒，等待開始。</div>
-    <button id="copyBtn" class="success-btn" style="display:none;">一鍵複製純淨 JS 代碼 (或自動下載)</button>
+    <button id="copyBtn" class="success-btn" style="display:none;">一鍵複製專屬 JS 代碼 (或自動下載)</button>
 </div>
 
 <script>
@@ -57,8 +56,9 @@
 
     function processDictEntry(entry) {
         const title = entry.title;
-        // 過濾掉含有 ASCII (英文、數字、符號) 或亂碼的怪異詞條
-        if (!title || /[\u0000-\u007F]/.test(title) || /[{}？]/.test(title)) return;
+        
+        // 【優化 1】嚴格對齊您的 token 正規表達式，只允許純中文字元，剔除標點/英文
+        if (!title || !/^[\u4e00-\u9fa5]+$/.test(title)) return;
         if (!entry.heteronyms || !Array.isArray(entry.heteronyms)) return;
 
         let validPronunciations = [];
@@ -66,18 +66,19 @@
             if (!het.bopomofo) continue;
             let bpmf = het.bopomofo;
 
-            // 1. 去除 HTML tag
             bpmf = bpmf.replace(/<[^>]+>/g, '');
-            // 2. 【核心修復】徹底濾除 (讀音)、（語音）、（又音） 等括號註記 (支援全半形)
-            bpmf = bpmf.replace(/[（(].*?[)）]/g, '');
-            // 3. 清理多餘空白，轉為半形逗號
-            bpmf = bpmf.replace(/[\s　]+/g, ','); 
+            bpmf = bpmf.replace(/[（(].*?[)）]/g, ''); // 剔除語音、又音等括號
+            // 【優化 2】對齊主程式的分割邏輯，把空白、全形空白、底線轉為逗號
+            bpmf = bpmf.replace(/[\s　_]+/g, ','); 
             bpmf = bpmf.replace(/^,|,$/g, '');
             
             if (!bpmf) continue;
 
-            // 4. 輕聲優化：將 ˙ㄇㄜ 轉為 ㄇㄜ˙
             let syllables = bpmf.split(',');
+            
+            // 【優化 3】長度嚴格驗證，直接在背景濾除不對齊的資料，減輕主程式負擔
+            if (syllables.length !== title.length) continue;
+
             for (let j = 0; j < syllables.length; j++) {
                 if (syllables[j].startsWith('˙')) {
                     syllables[j] = syllables[j].substring(1) + '˙';
@@ -92,17 +93,21 @@
         validPronunciations = [...new Set(validPronunciations)];
 
         if (title.length >= 2) {
-            PHRASE_BPMF_DICT.set(title, validPronunciations.join('||'));
+            // 【優化 4】捨棄 || 雙管線：絕對匹配主程式的 parseSentence。
+            // 只取萌典第一順位標準音作為唯一詞彙發音。
+            if (!PHRASE_BPMF_DICT.has(title)) {
+                PHRASE_BPMF_DICT.set(title, validPronunciations[0]);
+            }
         } else if (title.length === 1) {
-            // 單字處理
             if (!TAIWAN_COMMON_CHARS.has(title)) {
                 TAIWAN_COMMON_CHARS.set(title, validPronunciations[0]);
             }
             for (let p of validPronunciations) {
+                // 防呆：單字注音不該包含逗號
+                if (p.includes(',')) continue; 
                 if (!BOPOMOFO_COMPRESSED_DICT.has(p)) {
                     BOPOMOFO_COMPRESSED_DICT.set(p, "");
                 }
-                // 緊密拼接破音字字集 (避免同一個字被重複加進同一個音)
                 if (!BOPOMOFO_COMPRESSED_DICT.get(p).includes(title)) {
                     BOPOMOFO_COMPRESSED_DICT.set(p, BOPOMOFO_COMPRESSED_DICT.get(p) + title);
                 }
@@ -126,14 +131,10 @@
             const reader = response.body.getReader();
             const decoder = new TextDecoder("utf-8");
             
-            let buffer = "";
-            let processedBytes = 0;
-            let depth = 0;
-            let objStartIndex = -1;
-            let inString = false;
-            let isEscape = false;
-            let entryCount = 0;
-            let i = 0; 
+            let buffer = ""; let processedBytes = 0;
+            let depth = 0; let objStartIndex = -1;
+            let inString = false; let isEscape = false;
+            let entryCount = 0; let i = 0; 
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -151,13 +152,10 @@
                 while (i < buffer.length) {
                     const char = buffer[i];
 
-                    if (isEscape) {
-                        isEscape = false;
-                    } else if (char === '\\') {
-                        isEscape = true;
-                    } else if (char === '"') {
-                        inString = !inString;
-                    } else if (!inString) {
+                    if (isEscape) { isEscape = false; } 
+                    else if (char === '\\') { isEscape = true; } 
+                    else if (char === '"') { inString = !inString; } 
+                    else if (!inString) {
                         if (char === '{') {
                             if (depth === 0) objStartIndex = i;
                             depth++;
@@ -172,20 +170,18 @@
                                     } catch (e) {}
                                 }
                                 buffer = buffer.substring(i + 1);
-                                i = -1; 
-                                objStartIndex = -1;
+                                i = -1; objStartIndex = -1;
                             }
                         }
                     }
                     i++;
                 }
-
                 if (entryCount % 5000 === 0) {
-                    log(`光速解析中... 已抓取 ${entryCount} 筆乾淨資料。`);
+                    log(`完美對齊處理中... 已抓取 ${entryCount} 筆純淨詞彙。`);
                 }
             }
 
-            log(`✅ 解析完畢！共成功抓取 ${entryCount} 筆，已剔除語音/又音雜質。`);
+            log(`✅ 解析完畢！共抓取 ${entryCount} 筆，已完美適配您的 parseSentence 引擎。`);
             progressText.innerText = "100% (完成)";
             progressBar.value = 100;
             copyBtn.style.display = 'block';
@@ -197,7 +193,7 @@
     }
 
     copyBtn.addEventListener('click', async () => {
-        copyBtn.innerText = "組裝超級完整版代碼中 (請稍候)...";
+        copyBtn.innerText = "組裝專屬 JS 代碼中 (請稍候)...";
         copyBtn.disabled = true;
 
         setTimeout(async () => {
@@ -205,21 +201,21 @@
             const charsObj = Object.fromEntries(TAIWAN_COMMON_CHARS);
             const compressObj = Object.fromEntries(BOPOMOFO_COMPRESSED_DICT);
 
-            const outputStr = `const PHRASE_BPMF_DICT = ${JSON.stringify(phraseObj)};\n\nconst TAIWAN_COMMON_CHARS = ${JSON.stringify(charsObj)};\n\nconst BOPOMOFO_COMPRESSED_DICT = ${JSON.stringify(compressObj)};`;
+            const outputStr = `// --------------------------------------------------------\n// 自動生成：旗艦系統專屬注音全字庫\n// 已嚴格對齊純中文字元、剔除長度不符者、拔除多重發音管線\n// --------------------------------------------------------\nconst PHRASE_BPMF_DICT = ${JSON.stringify(phraseObj)};\n\nconst TAIWAN_COMMON_CHARS = ${JSON.stringify(charsObj)};\n\nconst BOPOMOFO_COMPRESSED_DICT = ${JSON.stringify(compressObj)};`;
 
             try {
                 await navigator.clipboard.writeText(outputStr);
-                copyBtn.innerText = "✅ 成功複製 16 萬筆乾淨 JS 代碼！";
+                copyBtn.innerText = "✅ 成功複製！可直接貼入您的主程式";
             } catch (err) {
-                log("剪貼簿容量超載，已為您自動下載為 super_complete_dict.js 檔案！");
+                log("剪貼簿容量超載，已為您自動下載為 flagship_dict.js 檔案！");
                 const blob = new Blob([outputStr], { type: "text/javascript" });
                 const urlObj = URL.createObjectURL(blob);
                 const a = document.createElement("a");
                 a.href = urlObj;
-                a.download = "super_complete_dict.js";
+                a.download = "flagship_dict.js";
                 a.click();
                 URL.revokeObjectURL(urlObj);
-                copyBtn.innerText = "✅ 已自動下載超級完整版 JS";
+                copyBtn.innerText = "✅ 已自動下載專屬 JS";
             }
         }, 100);
     });
