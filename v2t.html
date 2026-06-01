@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>專業雙語注音即時翻譯系統</title>
+    <title>旗艦雙語注音即時翻譯系統</title>
     <style>
         /* ==========================================
            1. 現代隱性骨架與動態視窗防禦
@@ -23,79 +23,93 @@
         body {
             background-color: var(--bg-color1);
             background-image: radial-gradient(circle at center, var(--bg-color1) 0%, var(--bg-color2) 100%);
-            color: var(--text-main);
-            font-family: 'PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
+            color: var(--text-main); font-family: 'PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
             height: 100dvh; min-height: 100dvh; max-height: 100dvh;
             display: flex; flex-direction: column; justify-content: space-between; align-items: center;
             overflow: hidden; overscroll-behavior: none;
         }
 
         /* ==========================================
-           2. 系統狀態與動態提示列
+           2. 頂端標籤容器 (取代廢用的狀態列)
            ========================================== */
-        #statusBanner {
+        #tagBanner {
             width: 100%; background: rgba(30, 41, 59, 0.8); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-            color: #94a3b8; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 600;
-            padding: 14px 0; font-size: 1.1rem; letter-spacing: 2px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-            transition: all 0.3s ease; flex-shrink: 0; box-shadow: 0 4px 20px rgba(0,0,0,0.2); z-index: 10;
+            display: flex; align-items: center; justify-content: flex-start; gap: 10px;
+            padding: 10px 20px; min-height: 54px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2); z-index: 20; overflow-x: auto;
         }
-        #statusBanner svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
-        body.state-listening #statusBanner {
-            color: #4ade80; background: rgba(16, 185, 129, 0.15); border-bottom: 1px solid rgba(74, 222, 128, 0.4); text-shadow: 0 0 10px rgba(74, 222, 128, 0.3);
+        #tagBanner::-webkit-scrollbar { display: none; }
+        
+        .circle-tag {
+            width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.1rem; font-weight: bold; color: #fff; cursor: pointer;
+            border: 2px solid; box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+            animation: popIn 0.3s cubic-bezier(0.4, 0, 0.2, 1); user-select: none;
         }
+        .circle-tag:active { transform: scale(0.9); }
+        @keyframes popIn { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 
-        @keyframes spin { 100% { transform: rotate(360deg); } }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-        .spin { animation: spin 1.5s linear infinite; }
 
         /* ==========================================
-           3. 瀑布流顯示容器與翻譯專屬樣式
+           3. 平滑瀑布流顯示容器 (支援手勢滑動)
            ========================================== */
         #displayContainer {
-            flex: 1 1 auto; width: 100%; max-width: 1400px; overflow-y: auto; padding: 30px 24px;
+            flex: 1 1 auto; width: 100%; max-width: 1400px; overflow-y: auto; overflow-x: hidden; padding: 20px 24px;
             overscroll-behavior-y: contain; display: block; scroll-behavior: smooth;
         }
         #displayContainer::-webkit-scrollbar { width: 8px; }
         #displayContainer::-webkit-scrollbar-track { background: transparent; }
         #displayContainer::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
 
-        #linesContainer { display: flex; flex-direction: column; width: 100%; gap: 16px; }
+        #linesContainer { display: flex; flex-direction: column; width: 100%; gap: 16px; padding-bottom: 20px;}
 
         .speech-line-wrapper {
             display: grid; grid-template-rows: 0fr; opacity: 0;
-            transition: grid-template-rows 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.6s ease;
+            transition: grid-template-rows 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.4s ease;
         }
         .speech-line-wrapper.active { grid-template-rows: 1fr; opacity: 1; }
+        .speech-line-wrapper.deleting { grid-template-rows: 0fr; opacity: 0; margin-bottom: -16px; }
+
+        .speech-line-inner { overflow: hidden; }
 
         .speech-line {
-            min-height: 0; overflow: hidden; display: flex; flex-direction: column;
+            display: flex; flex-direction: column; position: relative;
             width: 100%; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.05);
-            background: rgba(30, 41, 59, 0.4); transition: padding 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.4s ease;
-            padding: 0 24px;
+            background: rgba(30, 41, 59, 0.4); transition: border-color 0.4s, background 0.4s, transform 0.2s ease-out;
+            padding: 20px 24px; box-sizing: border-box; touch-action: pan-y;
         }
-        .speech-line-wrapper.active .speech-line { padding: 20px 24px; }
-        .speech-line-wrapper:nth-child(even) .speech-line { background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.02); }
-        .speech-line-wrapper:first-child .speech-line {
-            background: rgba(56, 189, 248, 0.12); border-left: 6px solid #38bdf8; border-color: rgba(56, 189, 248, 0.3); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
-        }
-
-        /* 點擊發音游標樣式，不帶任何多餘特效 */
-        .original-text, .translation-text { cursor: pointer; }
-
-        .original-text { display: flex; flex-wrap: wrap; align-items: flex-end; align-content: flex-start; width: 100%; }
         
+        .speech-line-wrapper:nth-child(even) .speech-line { background: rgba(15, 23, 42, 0.6); }
+        .speech-line-wrapper:first-child .speech-line {
+            background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.25); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        /* 鎖頭按鈕 UI */
+        .lock-btn {
+            position: absolute; top: 12px; right: 14px; width: 24px; height: 24px; cursor: pointer;
+            opacity: 0.2; transition: all 0.3s ease; z-index: 5; color: #94a3b8;
+        }
+        .lock-btn:hover { opacity: 0.8; }
+        .lock-btn.locked { opacity: 1; color: #fbbf24; filter: drop-shadow(0 0 5px rgba(251, 191, 36, 0.5)); }
+        .lock-btn svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+
+        /* 原文與翻譯區塊 */
+        .original-text { display: flex; flex-wrap: wrap; align-items: flex-end; align-content: flex-start; width: 100%; cursor: pointer; user-select: text;}
         .translation-text {
             width: 100%; margin-top: 12px; font-size: 1.6rem; color: var(--trans-color); font-weight: 500;
             letter-spacing: 0.5px; border-top: 1px dashed rgba(255,255,255,0.15); padding-top: 12px;
-            opacity: 0; transition: opacity 0.5s ease; display: none; line-height: 1.4;
+            opacity: 0; transition: opacity 0.5s ease; display: none; line-height: 1.4; cursor: pointer; user-select: text;
         }
         .translation-text.show { opacity: 1; display: block; }
-        .trans-loading { font-size: 1.2rem; color: #94a3b8; animation: pulse 1.5s infinite; font-weight: normal; display: inline-block; padding-top: 5px;}
+        .trans-loading { font-size: 1.2rem; color: #94a3b8; animation: pulse 1.5s infinite; font-weight: normal; }
 
         .final-anchor, .interim-anchor { display: contents; }
 
         /* ==========================================
-           4. 注音排版 CSS (防重疊絕對對齊)
+           4. 台灣標準教科書級別注音字體排版 CSS
            ========================================== */
         .ruby-container {
             display: inline-flex; align-items: flex-end; height: 5.8rem; margin-right: 12px; margin-bottom: 8px;
@@ -104,15 +118,18 @@
         .ruby-char { font-size: 4.5rem; font-weight: bold; color: var(--text-main); line-height: 1; height: 4.5rem; display: flex; align-items: flex-end; text-shadow: 0 0 15px rgba(255,255,255,0.2); }
         
         .ruby-zhuyin {
-            display: flex; flex-direction: column; justify-content: center; align-items: center; margin-left: 8px; font-size: 1.65rem; line-height: 1;
-            color: var(--text-zhuyin); position: relative; font-weight: 900; text-shadow: 0 0 8px rgba(255, 255, 255, 0.4); padding-right: 0.9em; padding-top: 0.8em; height: 4.5rem; 
-            /* 讓連續選取時，完美略過注音符號 */
-            user-select: none; -webkit-user-select: none;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; margin-left: 8px; font-size: 1.6rem; line-height: 0.95;
+            color: var(--text-zhuyin); position: relative; font-weight: 900; text-shadow: 0 0 8px rgba(255, 255, 255, 0.4); padding-right: 0.9em; padding-top: 1em; height: 4.5rem; 
+            user-select: none; -webkit-user-select: none; /* 防止反白複製到注音 */
         }
-
-        .zhuyin-symbol { position: relative; }
-        .zhuyin-symbol.tone-light { position: absolute; top: 0.1em; left: 50%; transform: translateX(-50%); color: var(--tone-color); font-size: 1.25em; }
-        .zhuyin-symbol.tone-mark { position: absolute; right: 0; top: 50%; transform: translateY(-50%); color: var(--tone-color); font-size: 1.15em; }
+        
+        .zhuyin-symbol { position: relative; z-index: 2; }
+        
+        /* 輕聲位置修正：正上方 */
+        .zhuyin-symbol.tone-light { position: absolute; top: -0.1em; left: 50%; transform: translateX(-50%); color: var(--tone-color); font-size: 1.25em; z-index: 3;}
+        
+        /* 234聲位置修正：中間偏高 */
+        .zhuyin-symbol.tone-mark { position: absolute; right: 0; top: 38%; transform: translateY(-50%); color: var(--tone-color); font-size: 1.15em; z-index: 3;}
 
         .ruby-container.is-interim { opacity: 0.65; transform: scale(0.96); }
         .ruby-container.is-interim .ruby-char { color: #94a3b8; text-shadow: none; }
@@ -138,13 +155,8 @@
             flex: 1; max-width: 200px; text-align: center; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
             appearance: none; -webkit-appearance: none; cursor: pointer;
         }
-        .lang-switcher select:focus { border-color: #38bdf8; }
-        
         .dir-btn {
-            background: linear-gradient(135deg, #475569, #334155); border: 1px solid rgba(255,255,255,0.1); 
-            color: #fff; width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; 
-            justify-content: center; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3); flex-shrink: 0;
+            background: linear-gradient(135deg, #475569, #334155); border: 1px solid rgba(255,255,255,0.1); color: #fff; width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 10px rgba(0,0,0,0.3); flex-shrink: 0;
         }
         .dir-btn:active { transform: scale(0.9); }
         .dir-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.3s ease;}
@@ -153,24 +165,23 @@
         .btn-group { display: flex; gap: 16px; width: 100%; }
         .magic-btn {
             flex: 1; padding: 16px 8px; font-size: 1.2rem; font-weight: 700; border: none; border-radius: 18px; cursor: pointer; color: #ffffff;
-            display: flex; align-items: center; justify-content: center; gap: 10px; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 6px 15px rgba(0,0,0,0.2); letter-spacing: 1px;
+            display: flex; align-items: center; justify-content: center; gap: 10px; transition: all 0.2s; box-shadow: 0 6px 15px rgba(0,0,0,0.2); letter-spacing: 1px;
         }
         .magic-btn:active { transform: scale(0.95); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
         .magic-btn svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
         .btn-primary { background: linear-gradient(135deg, #3b82f6, #2563eb); }
-        body.state-listening .btn-primary { background: linear-gradient(135deg, #ef4444, #dc2626); box-shadow: 0 0 20px rgba(239, 68, 68, 0.4); }
+        body.state-listening .btn-primary { background: linear-gradient(135deg, #ef4444, #dc2626); box-shadow: 0 0 20px rgba(239, 68, 68, 0.4); animation: pulse 1.5s infinite; }
         .btn-secondary { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
         .btn-danger { background: linear-gradient(135deg, #64748b, #475569); }
 
         @media (max-width: 768px) {
             #linesContainer { gap: 12px; }
-            .speech-line-wrapper.active .speech-line { padding: 16px 16px; }
+            .speech-line { padding: 18px 20px; }
             .translation-text { font-size: 1.25rem; margin-top: 10px; padding-top: 10px; }
             .ruby-container { height: 4.8rem; margin-right: 8px; margin-bottom: 4px; }
             .ruby-char { font-size: 3.2rem; height: 3.2rem; }
-            .ruby-zhuyin { font-size: 1.35rem; margin-left: 6px; padding-right: 0.9em; padding-top: 0.7em; height: 3.2rem;}
+            .ruby-zhuyin { font-size: 1.35rem; margin-left: 6px; padding-right: 0.9em; padding-top: 0.9em; height: 3.2rem;}
             .ruby-container.is-english .ruby-char, .ruby-container.is-punctuation .ruby-char, .ruby-container.is-foreign .ruby-char { font-size: 2.5rem; height: auto; }
-            
             #controlPanel { padding: 15px 15px calc(15px + env(safe-area-inset-bottom)); gap: 12px; border-radius: 20px 20px 0 0;}
             .lang-switcher select { font-size: 0.95rem; padding: 10px 4px; max-width: 140px;}
             .dir-btn { width: 38px; height: 38px; }
@@ -181,9 +192,8 @@
 </head>
 <body>
 
-<div id="statusBanner">
-    <svg id="icon-status" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-    <span id="statusText">系統已就緒：點擊下方按鈕開始</span>
+<div id="tagBanner">
+    <!-- 圓形標籤存放區 -->
 </div>
 
 <div id="displayContainer">
@@ -191,7 +201,6 @@
 </div>
 
 <div id="controlPanel">
-    <!-- 純下拉雙向箭頭選單 -->
     <div class="lang-switcher">
         <select id="langA">
             <option value="zh-TW" selected>正體中文 (Chinese)</option>
@@ -203,11 +212,9 @@
             <option value="ru">俄文 (Русский)</option>
             <option value="fr">法文 (Français)</option>
         </select>
-        
         <button id="btn-dir" class="dir-btn" onclick="ControlSystem.toggleDirection()" title="切換翻譯方向">
             <svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
         </button>
-        
         <select id="langB">
             <option value="zh-TW">正體中文 (Chinese)</option>
             <option value="en" selected>英文 (English)</option>
@@ -240,15 +247,9 @@
 // ==========================================
 // 1. 字典設定與精準發音覆寫掛載機制
 // ==========================================
-const SVG_ICONS = {
-    idle: `<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>`,
-    rec: `<circle cx="12" cy="12" r="4"/><path d="M16 8v8a4 4 0 0 1-8 0V8a4 4 0 0 1 8 0z"/><line x1="12" y1="20" x2="12" y2="22"/>`,
-    error: `<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>`,
-    cloud: `<path d="M21 12a9 9 0 1 1-6.219-8.56"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/>`
-};
-
 let currentMaxPhraseLen = 6;
 
+// 高權重疊字、輕聲與多音字強制詞庫
 const PHRASE_BPMF_DICT = {
     "媽媽": "ㄇㄚ,ㄇㄚ˙", "爸爸": "ㄅㄚˋ,ㄅㄚ˙", "奶奶": "ㄋㄞˇ,ㄋㄞ˙", "哥哥": "ㄍㄜ,ㄍㄜ˙",
     "姊姊": "ㄐㄧㄝˇ,ㄐㄧㄝ˙", "姐姐": "ㄐㄧㄝˇ,ㄐㄧㄝ˙", "弟弟": "ㄉㄧˋ,ㄉㄧ˙", "妹妹": "ㄇㄟˋ,ㄇㄟ˙",
@@ -265,7 +266,6 @@ const PHRASE_BPMF_DICT = {
     "漂亮": "ㄆㄧㄠˋ,ㄌㄧㄤˋ", "量力而為": "ㄌㄧㄤˋ,ㄌㄧˋ,ㄦˊ,ㄨㄟˊ",
     "垃圾": "ㄌㄜˋ,ㄙㄜˋ", "法國": "ㄈㄚˇ,ㄍㄨㄛˊ", "星期": "ㄒㄧㄥ,ㄑㄧˊ",
     "企業": "ㄑㄧˋ,ㄧㄝˋ", "主角": "ㄓㄨˇ,ㄐㄧㄠˇ", "角色": "ㄐㄧㄠˇ,ㄙㄜˋ",
-    "牛仔褲": "ㄋㄧㄡˊ,ㄗㄞˇ,ㄎㄨˋ", "滑稽": "ㄏㄨㄚˊ,ㄐㄧ", "味噌湯": "ㄨㄟˋ,ㄘㄥ,ㄊㄤ",
     "什麼": "ㄕㄣˊ,ㄇㄜ˙", "怎麼": "ㄗㄣˇ,ㄇㄜ˙", "為什麼": "ㄨㄟˋ,ㄕㄣˊ,ㄇㄜ˙",
     "我們": "ㄨㄛˇ,ㄇㄣ˙", "你們": "ㄋㄧˇ,ㄇㄣ˙", "他們": "ㄊㄚ,ㄇㄣ˙", "她們": "ㄊㄚ,ㄇㄣ˙",
     "這麼": "ㄓㄜˋ,ㄇㄜ˙", "那麼": "ㄋㄚˋ,ㄇㄜ˙", "真的": "ㄓㄣ,ㄉㄜ˙", "好的": "ㄏㄠˇ,ㄉㄜ˙",
@@ -286,8 +286,9 @@ const PHRASE_BPMF_DICT = {
     "志明": "ㄓˋ,ㄇㄧㄥˊ", "春嬌": "ㄔㄨㄣ,ㄐㄧㄠ"
 };
 
+// 【絕對防禦層】台灣人慣用單字與百家姓氏 (最高優先級強制鎖死)
 const TAIWAN_COMMON_CHARS = {
-    "子": "ㄗˇ", "紫": "ㄗˇ", "字": "ㄗˋ", "自": "ㄗˋ", "色": "ㄙㄜˋ", "次": "ㄘˋ",
+    "業": "ㄧㄝˋ", "子": "ㄗˇ", "紫": "ㄗˇ", "字": "ㄗˋ", "自": "ㄗˋ", "色": "ㄙㄜˋ", "次": "ㄘˋ",
     "日": "ㄖˋ", "就": "ㄐㄧㄡˋ", "肉": "ㄖㄡˋ", "手": "ㄕㄡˇ", "受": "ㄕㄡˋ",
     "狗": "ㄍㄡˇ", "走": "ㄗㄡˇ", "抽": "ㄔㄡ", "醜": "ㄔㄡˇ", "然": "ㄖㄢˊ",
     "讓": "ㄖㄤˋ", "女": "ㄋㄩˇ", "綠": "ㄌㄩˋ", "得": "ㄉㄜ˙", "誰": "ㄕㄟˊ", 
@@ -298,6 +299,7 @@ const TAIWAN_COMMON_CHARS = {
     "圳": "ㄗㄨㄣˋ", "堃": "ㄎㄨㄣ", "龘": "ㄉㄚˊ", "煊": "ㄒㄩㄢ", "妍": "ㄧㄢˊ", 
     "媛": "ㄩㄢˊ", "芷": "ㄓˇ", "嫣": "ㄧㄢ", "銓": "ㄑㄩㄢˊ", "法": "ㄈㄚˇ", 
     "髮": "ㄈㄚˇ", "些": "ㄒㄧㄝ", "個": "ㄍㄜˋ", "一": "ㄧ", "不": "ㄅㄨˋ",
+    "兄": "ㄒㄩㄥ", "兇": "ㄒㄩㄥ", "工": "ㄍㄨㄥ", "公": "ㄍㄨㄥ", "功": "ㄍㄨㄥ",
     "劉": "ㄌㄧㄡˊ", "李": "ㄌㄧˇ", "里": "ㄌㄧˇ", "陳": "ㄔㄣˊ", "林": "ㄌㄧㄣˊ", 
     "黃": "ㄏㄨㄤˊ", "張": "ㄓㄤ", "吳": "ㄨˊ", "郭": "ㄍㄨㄛ", "洪": "ㄏㄨㄥˊ", 
     "翁": "ㄨㄥ", "盧": "ㄌㄨˊ", "蕭": "ㄒㄧㄠ", "潘": "ㄆㄢ", "蔣": "ㄐㄧㄤˇ", 
@@ -696,6 +698,7 @@ const BOPOMOFO_COMPRESSED_DICT = {
     "ㄩㄥ": "擁庸傭雍臃鏞", "ㄩㄥˇ": "勇湧踴永泳詠蛹", "ㄩㄥˋ": "用"
 };
 
+// 字典快取掛載
 const charToBpmfCache = {};
 for (const [bpmf, chars] of Object.entries(BOPOMOFO_COMPRESSED_DICT)) {
     for (let char of chars) if (!charToBpmfCache[char]) charToBpmfCache[char] = bpmf;
@@ -705,12 +708,10 @@ for (const [char, bpmf] of Object.entries(TAIWAN_COMMON_CHARS)) {
 }
 
 (async function initExternalDict() {
-    const iconEl = document.getElementById('icon-status'); const textEl = document.getElementById('statusText');
     try {
-        textEl.innerText = "正在同步教育部雲端成語字典..."; iconEl.innerHTML = SVG_ICONS.cloud; iconEl.classList.add('spin');
         const url = "https://raw.githubusercontent.com/kemdict/kemdict-data-ministry-of-education/main/dict_mini.json";
         const response = await fetch(url);
-        if (!response.ok) throw new Error("Network load failed");
+        if (!response.ok) return;
         const data = await response.json();
         const processEntry = (word, bpmf) => {
             if (!word || !bpmf || typeof word !== 'string') return;
@@ -734,12 +735,7 @@ for (const [char, bpmf] of Object.entries(TAIWAN_COMMON_CHARS)) {
         } else if (typeof data === 'object') {
             for (let word in data) processEntry(word, data[word]);
         }
-        textEl.innerText = "系統已就緒：點擊下方按鈕開始";
-    } catch(err) {
-        textEl.innerText = "連線字典異常，使用核心詞庫（就緒）";
-    } finally {
-        iconEl.innerHTML = SVG_ICONS.idle; iconEl.classList.remove('spin');
-    }
+    } catch(err) {} 
 })();
 
 // ==========================================
@@ -828,10 +824,11 @@ function parseTokensToNodes(text, isInterim = false, isZhInput = true) {
 }
 
 // ==========================================
-// 3. 雙向箭頭語言切換與翻譯 API 邏輯
+// 3. 系統控制與卡片狀態管理 (Local Storage + 滑動刪除 + 標籤)
 // ==========================================
 const ControlSystem = (() => {
     const linesContainer = document.getElementById('linesContainer');
+    const tagBanner = document.getElementById('tagBanner');
     const statusText = document.getElementById('statusText');
     const iconStatus = document.getElementById('icon-status');
     const textMic = document.getElementById('text-mic');
@@ -842,16 +839,21 @@ const ControlSystem = (() => {
     
     let isDirectionRight = true; 
     let isUserRequestedStop = true;
-    let isTTSPlaying = false; // 用於 TTS 朗讀時的麥克風保護
+    let isTTSPlaying = false; 
     
     let recognition = null;
     let currentLineObj = null;
     let lineBreakTimer = null;
+    
+    let deletedCardsStack = []; // 搖一搖復原
+    let savedCards = JSON.parse(localStorage.getItem('lockedCards') || '[]');
 
     const localeMap = {
         'zh-TW': 'zh-TW', 'en': 'en-US', 'ja': 'ja-JP', 'ko': 'ko-KR',
         'es': 'es-ES', 'de': 'de-DE', 'ru': 'ru-RU', 'fr': 'fr-FR'
     };
+    
+    const tagColors = ['#f87171', '#fb923c', '#fbbf24', '#a3e635', '#34d399', '#22d3ee', '#38bdf8', '#818cf8', '#a78bfa', '#e879f9', '#f472b6', '#fb7185'];
 
     function getSourceLang() { return isDirectionRight ? langA.value : langB.value; }
     function getTargetLang() { return isDirectionRight ? langB.value : langA.value; }
@@ -867,37 +869,219 @@ const ControlSystem = (() => {
     langA.addEventListener('change', restartSpeechIfRecording);
     langB.addEventListener('change', restartSpeechIfRecording);
 
-    // ==========================================
-    // 4. 即時雙語瀑布流顯示與 TTS 朗讀綁定
-    // ==========================================
-    function createNewActiveLine() {
-        if (currentLineObj && currentLineObj.finalAnchor.childNodes.length === 0 && currentLineObj.interimAnchor.childNodes.length === 0) return currentLineObj; 
+    // 載入 localStorage 卡片
+    function loadSavedCards() {
+        savedCards.forEach(cardData => {
+            const lineObj = createNewActiveLine(cardData.id, true);
+            lineObj.fullText = cardData.fullText;
+            lineObj.translatedText = cardData.translatedText;
+            lineObj.srcLang = cardData.srcLang;
+            lineObj.tgtLang = cardData.tgtLang;
+            
+            const isZh = (cardData.srcLang === 'zh-TW');
+            let nodes = parseTokensToNodes(cardData.fullText, false, isZh);
+            nodes.forEach(n => lineObj.finalAnchor.appendChild(n));
+            
+            if (cardData.translatedText) {
+                lineObj.translationContainer.textContent = cardData.translatedText;
+                lineObj.translationContainer.classList.add('show');
+                lineObj.translated = true;
+            }
+
+            if (cardData.isLocked) toggleLock(lineObj, true);
+            if (cardData.isTagged) applyTag(lineObj, cardData.tagColor, true);
+        });
+        if(savedCards.length > 0) currentLineObj = createNewActiveLine();
+    }
+
+    function saveState() {
+        const allWrappers = Array.from(linesContainer.querySelectorAll('.speech-line-wrapper.active'));
+        const lockedData = [];
+        allWrappers.forEach(wrapper => {
+            const lineObj = wrapper.lineObj;
+            if (lineObj && lineObj.isLocked && lineObj.fullText.trim() !== '') {
+                lockedData.push({
+                    id: lineObj.id,
+                    fullText: lineObj.fullText,
+                    translatedText: lineObj.translatedText,
+                    isLocked: lineObj.isLocked,
+                    isTagged: lineObj.isTagged,
+                    tagColor: lineObj.tagColor,
+                    srcLang: lineObj.srcLang,
+                    tgtLang: lineObj.tgtLang
+                });
+            }
+        });
+        localStorage.setItem('lockedCards', JSON.stringify(lockedData.reverse())); // reverse to maintain prepend order
+    }
+
+    function removeCard(lineObj, saveToStack = true) {
+        if (lineObj.isLocked) return; // 鎖定狀態無法刪除
+        if (saveToStack) deletedCardsStack.push(lineObj);
+        
+        lineObj.wrapper.classList.remove('active');
+        lineObj.wrapper.classList.add('deleting');
+        setTimeout(() => {
+            if (lineObj.wrapper.parentNode) lineObj.wrapper.parentNode.removeChild(lineObj.wrapper);
+            if (lineObj.tagEl && lineObj.tagEl.parentNode) lineObj.tagEl.parentNode.removeChild(lineObj.tagEl);
+            saveState();
+        }, 500);
+    }
+
+    function toggleLock(lineObj, forceState = null) {
+        const btn = lineObj.lockBtn;
+        lineObj.isLocked = forceState !== null ? forceState : !lineObj.isLocked;
+        if (lineObj.isLocked) btn.classList.add('locked');
+        else {
+            btn.classList.remove('locked');
+            if (lineObj.isTagged) removeTag(lineObj); // 解鎖同時取消標籤
+        }
+        saveState();
+    }
+
+    function applyTag(lineObj, forceColor = null, isInitializing = false) {
+        if (lineObj.isTagged && !isInitializing) return; // 已經標籤過，再次右滑就是解除
+        
+        const firstChar = lineObj.fullText.trim().charAt(0) || '?';
+        const color = forceColor || tagColors[Math.floor(Math.random() * tagColors.length)];
+        
+        lineObj.isTagged = true;
+        lineObj.tagColor = color;
+        lineObj.speechLine.style.borderColor = color;
+        
+        // 標籤強制鎖定
+        if(!lineObj.isLocked) toggleLock(lineObj, true);
+
+        // 建立上方標籤
+        const tagEl = document.createElement('div');
+        tagEl.className = 'circle-tag';
+        tagEl.style.borderColor = color;
+        tagEl.style.backgroundColor = color + '40'; // 帶透明度
+        tagEl.textContent = firstChar;
+        
+        tagEl.addEventListener('click', () => {
+            lineObj.wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            lineObj.speechLine.style.background = color + '20';
+            setTimeout(() => lineObj.speechLine.style.background = '', 1000);
+        });
+        
+        tagEl.addEventListener('dblclick', () => removeTag(lineObj));
+        
+        lineObj.tagEl = tagEl;
+        tagBanner.prepend(tagEl); // 最新加的放最左邊
+        
+        if(!isInitializing) saveState();
+    }
+
+    function removeTag(lineObj) {
+        if (!lineObj.isTagged) return;
+        lineObj.isTagged = false;
+        lineObj.tagColor = null;
+        lineObj.speechLine.style.borderColor = '';
+        
+        if (lineObj.tagEl) {
+            lineObj.tagEl.style.transform = 'scale(0)';
+            lineObj.tagEl.style.opacity = '0';
+            setTimeout(() => {
+                if (lineObj.tagEl && lineObj.tagEl.parentNode) lineObj.tagEl.parentNode.removeChild(lineObj.tagEl);
+                lineObj.tagEl = null;
+            }, 300);
+        }
+        saveState();
+    }
+
+    // 實作滑動手勢
+    function attachSwipeGestures(lineObj) {
+        let startX = 0, currentX = 0;
+        let isSwiping = false;
+
+        lineObj.speechLine.addEventListener('touchstart', e => {
+            startX = e.touches[0].clientX;
+            isSwiping = true;
+            lineObj.speechLine.style.transition = 'none'; // 移除動畫以跟隨手指
+        });
+
+        lineObj.speechLine.addEventListener('touchmove', e => {
+            if (!isSwiping) return;
+            currentX = e.touches[0].clientX;
+            let deltaX = currentX - startX;
+            // 阻尼效果
+            if (lineObj.isLocked && deltaX < 0) deltaX = deltaX * 0.2; 
+            lineObj.speechLine.style.transform = `translateX(${deltaX}px)`;
+        });
+
+        lineObj.speechLine.addEventListener('touchend', e => {
+            if (!isSwiping) return;
+            isSwiping = false;
+            let deltaX = currentX - startX;
+            lineObj.speechLine.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.4s, border-color 0.4s';
+            
+            if (deltaX < -100 && !lineObj.isLocked) {
+                // 左滑刪除
+                lineObj.speechLine.style.transform = `translateX(-120%)`;
+                removeCard(lineObj);
+            } else if (deltaX > 100) {
+                // 右滑標籤切換
+                lineObj.speechLine.style.transform = `translateX(0)`;
+                if (lineObj.isTagged) removeTag(lineObj);
+                else applyTag(lineObj);
+            } else {
+                // 恢復原位
+                lineObj.speechLine.style.transform = `translateX(0)`;
+            }
+        });
+    }
+
+    // 建立新行
+    function createNewActiveLine(forceId = null, isAppendingHistoric = false) {
+        if (!isAppendingHistoric && currentLineObj && currentLineObj.finalAnchor.childNodes.length === 0 && currentLineObj.interimAnchor.childNodes.length === 0) return currentLineObj; 
         
         let wrapper = document.createElement('div'); wrapper.className = 'speech-line-wrapper';
-        let activeLine = document.createElement('div'); activeLine.className = 'speech-line';
+        let speechLine = document.createElement('div'); speechLine.className = 'speech-line';
+        let innerWrapper = document.createElement('div'); innerWrapper.className = 'speech-line-inner';
+        
         let textContainer = document.createElement('div'); textContainer.className = 'original-text';
         let finalAnchor = document.createElement('span'); finalAnchor.className = 'final-anchor';
         let interimAnchor = document.createElement('span'); interimAnchor.className = 'interim-anchor';
         let translationContainer = document.createElement('div'); translationContainer.className = 'translation-text';
         
-        textContainer.appendChild(finalAnchor); textContainer.appendChild(interimAnchor);
-        activeLine.appendChild(textContainer); activeLine.appendChild(translationContainer);
-        wrapper.appendChild(activeLine);
+        let lockBtn = document.createElement('div'); lockBtn.className = 'lock-btn';
+        lockBtn.innerHTML = `<svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
         
-        linesContainer.prepend(wrapper);
+        textContainer.appendChild(finalAnchor); textContainer.appendChild(interimAnchor);
+        speechLine.appendChild(lockBtn);
+        speechLine.appendChild(textContainer); speechLine.appendChild(translationContainer);
+        innerWrapper.appendChild(speechLine);
+        wrapper.appendChild(innerWrapper);
+        
+        if(isAppendingHistoric) linesContainer.appendChild(wrapper);
+        else linesContainer.prepend(wrapper);
+        
         void wrapper.offsetWidth; wrapper.classList.add('active');
 
-        const lineObj = { wrapper, finalAnchor, interimAnchor, translationContainer, fullText: '', translated: false };
+        const lineObj = { 
+            id: forceId || "card_" + Date.now(),
+            wrapper, speechLine, finalAnchor, interimAnchor, translationContainer, lockBtn, 
+            fullText: '', translatedText: '', translated: false,
+            isLocked: false, isTagged: false, tagColor: null, tagEl: null,
+            srcLang: getSourceLang(), tgtLang: getTargetLang()
+        };
+        wrapper.lineObj = lineObj;
 
-        // 綁定智慧 TTS 朗讀 (確保拖曳選取文字時不會誤觸發)
-        textContainer.addEventListener('click', () => {
+        // 綁定事件
+        lockBtn.addEventListener('click', () => toggleLock(lineObj));
+        attachSwipeGestures(lineObj);
+
+        // TTS 選取防護：利用 pointerdown 和 pointerup 判斷是否有反白文字
+        const handleTTS = (text, lang) => {
             if (window.getSelection().toString().trim().length > 0) return;
-            ControlSystem.playSpeech(lineObj.fullText, localeMap[getSourceLang()]);
-        });
-        translationContainer.addEventListener('click', () => {
-            if (window.getSelection().toString().trim().length > 0) return;
-            ControlSystem.playSpeech(translationContainer.textContent, localeMap[getTargetLang()]);
-        });
+            ControlSystem.playSpeech(text, localeMap[lang]);
+        };
+        textContainer.addEventListener('mouseup', () => handleTTS(lineObj.fullText, lineObj.srcLang));
+        textContainer.addEventListener('touchend', () => handleTTS(lineObj.fullText, lineObj.srcLang));
+        
+        translationContainer.addEventListener('mouseup', () => handleTTS(lineObj.translatedText, lineObj.tgtLang));
+        translationContainer.addEventListener('touchend', () => handleTTS(lineObj.translatedText, lineObj.tgtLang));
 
         return lineObj;
     }
@@ -905,7 +1089,6 @@ const ControlSystem = (() => {
     async function translateText(text, srcLang, tgtLang) {
         if (!text.trim() || /^[0-9\s\W_]+$/.test(text)) return text;
         try {
-            // 明確指定來源與目標語言，徹底解決亂翻或翻譯失敗問題
             const sl = srcLang === 'zh-TW' ? 'zh-TW' : srcLang.split('-')[0];
             const tl = tgtLang === 'zh-TW' ? 'zh-TW' : tgtLang.split('-')[0];
             const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${encodeURIComponent(text)}`;
@@ -920,15 +1103,14 @@ const ControlSystem = (() => {
         if (!lineObj || !lineObj.fullText.trim() || lineObj.translated) return;
         lineObj.translated = true;
         
-        const tgtLang = getTargetLang();
-        const srcLang = getSourceLang();
-        
         lineObj.translationContainer.innerHTML = '<span class="trans-loading">即時翻譯中...</span>';
         lineObj.translationContainer.classList.add('show');
         
         try {
-            const translatedText = await translateText(lineObj.fullText, srcLang, tgtLang);
+            const translatedText = await translateText(lineObj.fullText, lineObj.srcLang, lineObj.tgtLang);
             lineObj.translationContainer.textContent = translatedText;
+            lineObj.translatedText = translatedText;
+            saveState(); // 翻譯完成後儲存一次
         } catch(e) {
             lineObj.translationContainer.textContent = "翻譯失敗";
         }
@@ -1002,7 +1184,6 @@ const ControlSystem = (() => {
         };
 
         recognition.onend = () => {
-            // 當 TTS 正在播放時，不要重啟麥克風，避免錄到系統音
             if (!isUserRequestedStop && !isTTSPlaying) { 
                 recognition.lang = localeMap[getSourceLang()];
                 try { recognition.start(); } catch(e) {} 
@@ -1012,6 +1193,34 @@ const ControlSystem = (() => {
             }
         };
     }
+
+    // 搖一搖復原刪除功能
+    let lastX, lastY, lastZ;
+    let lastUpdate = 0;
+    window.addEventListener('devicemotion', (e) => {
+        let current = e.accelerationIncludingGravity;
+        if (!current) return;
+        let currentTime = new Date().getTime();
+        if ((currentTime - lastUpdate) > 100) {
+            let diffTime = (currentTime - lastUpdate);
+            lastUpdate = currentTime;
+            let speed = Math.abs(current.x + current.y + current.z - lastX - lastY - lastZ) / diffTime * 10000;
+            if (speed > 1500) {
+                if (deletedCardsStack.length > 0) {
+                    let restoredObj = deletedCardsStack.pop();
+                    restoredObj.wrapper.classList.remove('deleting');
+                    linesContainer.prepend(restoredObj.wrapper);
+                    if(restoredObj.isTagged && restoredObj.tagEl) tagBanner.prepend(restoredObj.tagEl);
+                    setTimeout(() => restoredObj.wrapper.classList.add('active'), 50);
+                    saveState();
+                }
+            }
+            lastX = current.x; lastY = current.y; lastZ = current.z;
+        }
+    });
+
+    // 頁面載入時渲染歷史紀錄
+    setTimeout(loadSavedCards, 500);
 
     return {
         toggleDirection: () => {
@@ -1037,28 +1246,23 @@ const ControlSystem = (() => {
             
             isTTSPlaying = true;
             let wasRecording = !isUserRequestedStop;
-            // 點擊瞬間，立刻關閉麥克風收音，避免錄到機器聲音
-            if (wasRecording && recognition) {
-                try { recognition.stop(); } catch(e) {}
-            }
+            if (wasRecording && recognition) { try { recognition.stop(); } catch(e) {} }
 
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = lang;
             
             utterance.onend = () => {
                 isTTSPlaying = false;
-                // 發音結束後，如果原本是在錄音狀態，就無縫切回錄音
                 if (wasRecording && !isUserRequestedStop) {
                     recognition.lang = localeMap[getSourceLang()];
                     try { recognition.start(); } catch(e) {}
                 }
             };
-            utterance.onerror = utterance.onend; // 發生錯誤時同樣恢復麥克風
-            
+            utterance.onerror = utterance.onend; 
             window.speechSynthesis.speak(utterance);
         },
         copyText: () => {
-            let lines = Array.from(linesContainer.querySelectorAll('.speech-line-wrapper')).reverse();
+            let lines = Array.from(linesContainer.querySelectorAll('.speech-line-wrapper.active')).reverse();
             let textToCopy = lines.map(wrapper => {
                 let orig = Array.from(wrapper.querySelectorAll('.ruby-char')).map(n => n.textContent).join('');
                 let trans = wrapper.querySelector('.translation-text')?.textContent || '';
@@ -1074,12 +1278,15 @@ const ControlSystem = (() => {
             });
         },
         clearSystem: () => {
-            linesContainer.innerHTML = '';
-            currentLineObj = null;
-            currentLineObj = createNewActiveLine();
+            const allWrappers = Array.from(linesContainer.querySelectorAll('.speech-line-wrapper.active'));
+            allWrappers.forEach(wrapper => {
+                const lineObj = wrapper.lineObj;
+                if(lineObj && !lineObj.isLocked) removeCard(lineObj, true);
+            });
+            setTimeout(() => { currentLineObj = createNewActiveLine(); }, 500);
         }
     };
 })();
-</script> 
+</script>
 </body>
 </html>
