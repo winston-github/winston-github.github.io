@@ -139,13 +139,13 @@
         rt.jp-furi { font-size: 1rem; color: #fcd34d; user-select: none; font-weight: normal; font-family: 'Noto Sans TC', sans-serif; transition: all 0.4s ease;}
         .jp-kanji { line-height: 1.2; font-weight: bold; transition: all 0.4s ease;}
 
-        /* --- 外語 Ruby 引擎專屬樣式 --- */
-        .silent { opacity: 0.3; font-weight: 300; transition: all 0.4s ease; }
-        .liaison { color: #8e44ad; font-weight: bold; margin: 0 -2px; }
-        .stress { color: #e74c3c; font-weight: bold; }
+        /* --- 外語 Ruby 引擎專屬樣式 (加入 !important 奪回顯示權重) --- */
+        .silent { opacity: 0.3 !important; font-weight: 300 !important; transition: all 0.4s ease; }
+        .liaison { color: #8e44ad !important; font-weight: bold !important; margin: 0 -2px; }
+        .stress { color: #e74c3c !important; font-weight: bold !important; }
         
         /* 嚴格控制 rt 不要用 block，會打破排版！ */
-        .ruby-char ruby rt { font-size: 0.4em; color: var(--tone-color); padding-bottom: 4px; font-family: "Courier New", monospace; transition: all 0.4s ease; display: ruby-text; }
+        .ruby-char ruby rt { font-size: 0.4em; color: var(--tone-color) !important; padding-bottom: 4px; font-family: "Courier New", monospace; transition: all 0.4s ease; display: ruby-text; }
 
         /* ==========================================
            圖層翻轉系統詳細字體規則 (極致順滑防破版)
@@ -252,29 +252,30 @@
 </div>
 
 <div id="controlPanel">
+    <!-- 語言標籤純粹化：僅保留原生母語稱呼 -->
     <div class="lang-switcher">
         <select id="langA">
-            <option value="zh-TW">正體中文 (Chinese)</option>
-            <option value="en">英文 (English)</option>
-            <option value="ja">日文 (日本語)</option>
-            <option value="ko">韓文 (한국어)</option>
-            <option value="es">西班牙文 (Español)</option>
-            <option value="de">德文 (Deutsch)</option>
-            <option value="ru">俄文 (Русский)</option>
-            <option value="fr">法文 (Français)</option>
+            <option value="zh-TW">中文</option>
+            <option value="en">English</option>
+            <option value="ja">日本語</option>
+            <option value="ko">한국어</option>
+            <option value="es">Español</option>
+            <option value="de">Deutsch</option>
+            <option value="ru">Русский</option>
+            <option value="fr">Français</option>
         </select>
         <button id="btn-dir" class="dir-btn" onclick="ControlSystem.toggleDirection()" title="實體對調語言">
             <svg viewBox="0 0 24 24"><path d="M7 10h14l-4-4"/><path d="M17 14H3l4 4"/></svg>
         </button>
         <select id="langB">
-            <option value="zh-TW">正體中文 (Chinese)</option>
-            <option value="en">英文 (English)</option>
-            <option value="ja">日文 (日本語)</option>
-            <option value="ko">韓文 (한국어)</option>
-            <option value="es">西班牙文 (Español)</option>
-            <option value="de">德文 (Deutsch)</option>
-            <option value="ru">俄文 (Русский)</option>
-            <option value="fr">法文 (Français)</option>
+            <option value="zh-TW">中文</option>
+            <option value="en">English</option>
+            <option value="ja">日本語</option>
+            <option value="ko">한국어</option>
+            <option value="es">Español</option>
+            <option value="de">Deutsch</option>
+            <option value="ru">Русский</option>
+            <option value="fr">Français</option>
         </select>
     </div>
 
@@ -299,20 +300,12 @@
 
 <script>
 // ==========================================
-// 1. 字典設定與精準發音覆寫掛載機制 (完全還原保留)
+// 1. 字典設定與精準發音覆寫掛載機制 (完全還原保留並縮編)
 // ==========================================
 let currentMaxPhraseLen = 6;
-const PHRASE_BPMF_DICT = {
-    "媽媽": "ㄇㄚ,ㄇㄚ˙", "爸爸": "ㄅㄚˋ,ㄅㄚ˙", "奶奶": "ㄋㄞˇ,ㄋㄞ˙"
-};
-
-const TAIWAN_COMMON_CHARS = {
-    "業": "ㄧㄝˋ", "子": "ㄗˇ", "色": "ㄙㄜˋ"
-};
-
-const BOPOMOFO_COMPRESSED_DICT = {
-    "ㄅㄚ": "八巴吧叭疤笆芭粑扒峇捌", "ㄅㄚˊ": "拔跋鈸菝鼥", "ㄅㄚˇ": "把靶"
-};
+const PHRASE_BPMF_DICT = { "媽媽": "ㄇㄚ,ㄇㄚ˙", "爸爸": "ㄅㄚˋ,ㄅㄚ˙", "奶奶": "ㄋㄞˇ,ㄋㄞ˙" };
+const TAIWAN_COMMON_CHARS = { "業": "ㄧㄝˋ", "子": "ㄗˇ", "色": "ㄙㄜˋ" };
+const BOPOMOFO_COMPRESSED_DICT = { "ㄅㄚ": "八巴吧叭疤笆芭粑扒峇捌", "ㄅㄚˊ": "拔跋鈸菝鼥", "ㄅㄚˇ": "把靶" };
 
 const charToBpmfCache = {};
 for (const [bpmf, chars] of Object.entries(BOPOMOFO_COMPRESSED_DICT)) {
@@ -368,7 +361,6 @@ function convertRomajiToHiragana(romaji) {
 function parseForeignToHTML(word, lang) {
     if (!word) return word;
     if (lang === 'es') {
-        // 西班牙文精準音節：倒數第二或最後一個母音高亮
         if (/[áéíóúÁÉÍÓÚ]/.test(word)) return word.replace(/([áéíóúÁÉÍÓÚ])/ig, '<span class="stress">$1</span>');
         if (/[aeiouns]$/i.test(word)) return word.replace(/([aeiouyAEIOUY])([^aeiouyAEIOUY]*[aeiouyAEIOUY]?[^aeiouyAEIOUY]*)$/i, '<span class="stress">$1</span>$2');
         return word.replace(/([aeiouyAEIOUY])([^aeiouyAEIOUY]*)$/i, '<span class="stress">$1</span>$2');
@@ -377,7 +369,6 @@ function parseForeignToHTML(word, lang) {
     } else if (lang === 'ru') {
         return word.replace(/([Хх])/g, '<ruby>$1<rt>h</rt></ruby>').replace(/([Шш])/g, '<ruby>$1<rt>sh</rt></ruby>').replace(/([Вв])/g, '<ruby>$1<rt>v</rt></ruby>').replace(/([Рр])/g, '<ruby>$1<rt>r</rt></ruby>');
     } else if (lang === 'fr') {
-        // 法文：僅針對字尾必定不發音的子音進行淡化
         return word.replace(/([stdpxz])$/i, '<span class="silent">$1</span>');
     }
     return word;
@@ -420,7 +411,6 @@ function createCharBox(char, bpmfString, isInterim, isPunctuation = false, isEng
         box.innerHTML = `<ruby class="jp-ruby"><span class="jp-kanji">${char}</span><rt class="jp-furi">${hiragana}</rt></ruby>`;
         return box;
     }
-    // 外語(包含俄/法/德/西)的字串是帶有 span 或 ruby 標籤的 HTML，直接塞進去即可
     if (isEnglish || isForeign || isPunctuation || !bpmfString) { box.innerHTML = `<div class="ruby-char">${char}</div>`; return box; }
 
     const { symbols, lightTone, markTone } = extractBpmf(bpmfString);
@@ -438,12 +428,12 @@ function parseTokensToNodes(text, isInterim = false, srcLang = 'zh-TW', translat
     if (!text || text === "undefined") return [];
     let nodes = [];
     
+    // 日文：僅在存在翻譯資料（表示為目標翻譯層）時，才利用 API 羅馬拼音掛載平假名
     if (srcLang === 'ja') {
         if (!isInterim && translationData && translationData.rawData && translationData.rawData[0]) {
             translationData.rawData[0].forEach(seg => {
                 if (seg[0] && typeof seg[0] === 'string' && seg[3] && typeof seg[3] === 'string') {
                     let hira = convertRomajiToHiragana(seg[3]);
-                    // 拔除原本嚴苛的純漢字限制，只要有羅馬拼音就直接掛載假名 (Furigana)
                     nodes.push(createCharBox(seg[0], '', false, false, false, false, hira)); 
                 } else if (seg[0]) nodes.push(createCharBox(seg[0], '', false, false, false, true));
             });
@@ -453,7 +443,8 @@ function parseTokensToNodes(text, isInterim = false, srcLang = 'zh-TW', translat
         return nodes;
     }
 
-    if (srcLang === 'en' || srcLang === 'es' || srcLang === 'de' || srcLang === 'ru' || srcLang === 'fr') {
+    // 將所有非中/日文的語系（包含韓文 ko, 德文 de 等）統一納入正規劃切割邏輯，修復韓文 Eojeol 破碎崩潰問題
+    if (srcLang !== 'zh-TW') {
         const tokens = text.split(/([ \n，。！？、：；,.?!;:])/);
         for(let i=0; i<tokens.length; i++) {
             let token = tokens[i]; if (!token) continue;
@@ -467,18 +458,7 @@ function parseTokensToNodes(text, isInterim = false, srcLang = 'zh-TW', translat
         return nodes;
     }
 
-    if (srcLang !== 'zh-TW') {
-        const tokens = text.match(/[\s\S]/g) || []; let buffer = "";
-        tokens.forEach(char => {
-            if (/^[，。！？、：；,.?!;: ]$/.test(char)) {
-                if (buffer) { nodes.push(createCharBox(buffer, '', isInterim, false, false, true)); buffer = ""; }
-                nodes.push(createCharBox(char, '', isInterim, true, false, false));
-            } else buffer += char;
-        });
-        if (buffer) nodes.push(createCharBox(buffer, '', isInterim, false, false, true));
-        return nodes;
-    }
-
+    // 中文處理
     const tokens = text.match(/[\u4e00-\u9fa5]+|[a-zA-Z0-9\s'-]+|[^\u4e00-\u9fa5a-zA-Z0-9\s'-]+/g) || [];
     tokens.forEach(token => {
         if (/^[a-zA-Z0-9\s'-]+$/.test(token)) nodes.push(createCharBox(token, '', isInterim, false, true, false));
@@ -675,7 +655,8 @@ const ControlSystem = (() => {
             const tl = tgtLang === 'zh-TW' ? 'zh-TW' : tgtLang.split('-')[0];
             const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&dt=rm&q=${encodeURIComponent(text)}`);
             if (!res.ok) throw new Error(); const data = await res.json();
-            return { translated: data[0].map(i => i[0]).filter(Boolean).join(''), rawData: data };
+            if (!data || !data[0]) throw new Error("API結構異常");
+            return { translated: data[0].map(i => i && i[0]).filter(Boolean).join(''), rawData: data };
         } catch (e) { return { translated: "翻譯處理失敗，點擊重試...", rawData: null }; }
     }
 
@@ -691,7 +672,7 @@ const ControlSystem = (() => {
         } else {
             parseTokensToNodes(res.translated, false, lineObj.tgtLang, res).forEach(n => lineObj.translationContainer.appendChild(n));
         }
-        // 拔除了上一版會把翻譯結果硬蓋回來源語言的毀滅性錯誤寫法！
+        // 🚨 已將導致日文跳掉語系的「來源層覆寫代碼」全數移除，徹底杜絕資料污染！
         saveState(); 
     }
 
@@ -768,7 +749,7 @@ const ControlSystem = (() => {
             window.speechSynthesis.speak(u);
         },
         copyText: () => {
-            // 修復複製亂碼：移除所有 ruby 拼音、靜音標籤，純淨複製
+            // 修復複製亂碼：移除所有拼音、靜音標籤，不帶出 HTML 架構
             let getCleanText = (node) => {
                 let clone = node.cloneNode(true);
                 Array.from(clone.querySelectorAll('rt, .ruby-zhuyin, .jp-furi, .tone-light, .tone-mark, .silent')).forEach(el => el.remove());
