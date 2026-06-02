@@ -103,7 +103,7 @@
         .speech-line-wrapper.is-tagged .desktop-action.right { display: none !important; }
 
         /* ==========================================
-           2. 物理圖層翻轉系統 (真實分隔線、保證零閃爍)
+           2. 真實零閃爍物理對調圖層 (True Swap UI)
            ========================================== */
         .text-layer { display: flex; flex-wrap: wrap; align-items: center; align-content: flex-start; width: 100%; cursor: pointer; user-select: text; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         
@@ -153,6 +153,7 @@
         /* ==========================================
            4. 動態狀態鎖定 CSS (解決顯示與顏色錯亂)
            ========================================== */
+        /* --- [靜止態] 小字區域 --- */
         .target-layer .ruby-zhuyin, .target-layer rt, .target-layer .jp-furi, .target-layer .liaison,
         .speech-line.is-flipped .source-layer .ruby-zhuyin, .speech-line.is-flipped .source-layer rt, .speech-line.is-flipped .source-layer .jp-furi, .speech-line.is-flipped .source-layer .liaison { 
             opacity: 0 !important; visibility: hidden !important; font-size: 0 !important; line-height: 0 !important; margin: 0 !important; height: 0 !important; display: none !important;
@@ -165,12 +166,13 @@
         .target-layer .ruby-container:not(.is-foreign):not(.is-english):not(.is-punctuation):not(.is-sentence), 
         .speech-line.is-flipped .source-layer .ruby-container:not(.is-foreign):not(.is-english):not(.is-punctuation):not(.is-sentence) { margin-right: 6px; margin-bottom: 0; }
 
+        /* --- [活躍態] 大字區域 --- */
         .source-layer .ruby-char, .source-layer .jp-kanji,
         .speech-line.is-flipped .target-layer .ruby-char, .speech-line.is-flipped .target-layer .jp-kanji { 
             font-size: 3.2rem; font-weight: bold; color: var(--text-main); 
         }
 
-        .source-layer .liaison, .speech-line.is-flipped .target-layer .liaison { opacity: 1 !important; visibility: visible !important; font-size: unset !important; color: #8e44ad !important; font-weight: bold !important; margin: 0 -2px; display: inline !important; }
+        .source-layer .liaison, .speech-line.is-flipped .target-layer .liaison { opacity: 1 !important; visibility: visible !important; font-size: unset !important; display: inline !important; }
         
         .source-layer rt, .speech-line.is-flipped .target-layer rt,
         .source-layer .jp-furi, .speech-line.is-flipped .target-layer .jp-furi { 
@@ -220,8 +222,9 @@
         /* ✨ 視覺化音量儀表板 ✨ */
         #mic-volume-bar {
             position: absolute; left: 0; top: 0; bottom: 0; width: 0%; 
-            background: rgba(255, 255, 255, 0.25); z-index: 0; 
+            background: rgba(255, 255, 255, 0.3); z-index: 0; 
             transition: width 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 20px;
         }
 
         @media (max-width: 768px) {
@@ -284,6 +287,7 @@
         </select>
     </div>
 
+    <!-- 徹底移除按鈕文字，保留圖標置中與音量條 -->
     <div class="btn-group">
         <button id="btn-mic" class="magic-btn btn-primary" onclick="ControlSystem.toggleMic()">
             <div id="mic-volume-bar"></div>
@@ -337,12 +341,47 @@ for (const [char, bpmf] of Object.entries(TAIWAN_COMMON_CHARS)) { charToBpmfCach
     } catch(err) {} 
 })();
 
-const romajiToHiraganaMap = { 'a':'あ','i':'い','u':'う','e':'え','o':'お', 'ka':'か', 'ki':'き', 'ku':'く', 'ke':'け', 'ko':'こ', 'sa':'さ', 'shi':'し', 'su':'す', 'se':'せ', 'so':'そ', 'ta':'た', 'chi':'ち', 'tsu':'つ', 'te':'て', 'to':'と', 'na':'な', 'ni':'に', 'nu':'ぬ', 'ne':'ね', 'no':'の', 'ha':'は', 'hi':'ひ', 'fu':'ふ', 'he':'へ', 'ho':'ほ', 'ma':'ま', 'mi':'み', 'mu':'む', 'me':'め', 'mo':'も', 'ya':'や', 'yu':'ゆ', 'yo':'よ', 'ra':'ら', 'ri':'り', 'ru':'る', 're':'れ', 'ro':'ろ', 'wa':'わ', 'wo':'を', 'kya':'きゃ','kyu':'きゅ','kyo':'きょ','gya':'ぎゃ','gyu':'ぎゅ','gyo':'ぎょ','sha':'しゃ','shu':'しゅ','sho':'しょ','ja':'じゃ','ju':'じゅ','jo':'じょ','cha':'ちゃ','chu':'ちゅ','cho':'ちょ','nya':'にゃ','nyu':'にゅ','nyo':'にょ','hya':'ひゃ','hyu':'ひゅ','hyo':'ひょ','bya':'びゃ','byu':'びゅ','byo':'びょ','pya':'ぴゃ','pyu':'ぴゅ','pyo':'ぴょ','mya':'みゃ','myu':'みゅ','myo':'みょ','rya':'りゃ','ryu':'りゅ','ryo':'りょ'};
+// ✨ 補齊 100% 完整的日文羅馬拼音字典 (徹底解決 dえ 等錯誤)
+const romajiToHiraganaMap = {
+    'a':'あ','i':'い','u':'う','e':'え','o':'お',
+    'ka':'か','ki':'き','ku':'く','ke':'け','ko':'こ',
+    'ga':'が','gi':'ぎ','gu':'ぐ','ge':'げ','go':'ご',
+    'sa':'さ','shi':'し','su':'す','se':'せ','so':'そ',
+    'za':'ざ','ji':'じ','zu':'ず','ze':'ぜ','zo':'ぞ',
+    'ta':'た','chi':'ち','tsu':'つ','te':'て','to':'と',
+    'da':'だ','di':'ぢ','du':'づ','de':'で','do':'ど',
+    'na':'な','ni':'に','nu':'ぬ','ne':'ね','no':'の',
+    'ha':'は','hi':'ひ','fu':'ふ','he':'へ','ho':'ほ',
+    'ba':'ば','bi':'び','bu':'ぶ','be':'べ','bo':'ぼ',
+    'pa':'ぱ','pi':'ぴ','pu':'ぷ','pe':'ぺ','po':'ぽ',
+    'ma':'ま','mi':'み','mu':'む','me':'め','mo':'も',
+    'ya':'や','yu':'ゆ','yo':'よ',
+    'ra':'ら','ri':'り','ru':'る','re':'れ','ro':'ろ',
+    'wa':'わ','wi':'ゐ','we':'ゑ','wo':'を',
+    'n':'ん','nn':'ん',
+    'kya':'きゃ','kyu':'きゅ','kyo':'きょ',
+    'gya':'ぎゃ','gyu':'ぎゅ','gyo':'ぎょ',
+    'sha':'しゃ','shu':'しゅ','sho':'しょ',
+    'ja':'じゃ','ju':'じゅ','jo':'じょ',
+    'cha':'ちゃ','chu':'ちゅ','cho':'ちょ',
+    'nya':'にゃ','nyu':'にゅ','nyo':'にょ',
+    'hya':'ひゃ','hyu':'ひゅ','hyo':'ひょ',
+    'bya':'びゃ','byu':'びゅ','byo':'びょ',
+    'pya':'ぴゃ','pyu':'ぴゅ','pyo':'ぴょ',
+    'mya':'みゃ','myu':'みゅ','myo':'みょ',
+    'rya':'りゃ','ryu':'りゅ','ryo':'りょ',
+    // 兼容 Google 可能的回傳格式
+    'si':'し','ti':'ち','tu':'つ','hu':'ふ','zi':'じ'
+};
 
-// ✨ 平假名引擎：精確轉換且嚴格剔除英文與數字，防止嘲笑
 function convertRomajiToHiragana(romaji) {
     if(!romaji) return "";
-    romaji = romaji.toLowerCase().replace(/[\s\-_]/g, ''); 
+    // 預先處理長音符號，解決 Ryōshin 被截斷的致命 Bug
+    romaji = romaji.toLowerCase()
+        .replace(/ā/g, 'aa').replace(/ī/g, 'ii').replace(/ū/g, 'uu')
+        .replace(/ē/g, 'ei').replace(/ō/g, 'ou') 
+        .replace(/[\s\-_']/g, ''); 
+    
     let result = ""; let i = 0;
     while (i < romaji.length) {
         let match = false;
@@ -356,27 +395,29 @@ function convertRomajiToHiragana(romaji) {
         }
         if (!match) {
             let c = romaji[i];
-            if (c === 'ō' || c === 'ū') result += 'ー';
-            else if (c >= 'a' && c <= 'z') {
-                if (i + 1 < romaji.length && c === romaji[i+1]) { result += 'っ'; } 
-                else if (c === 'n') { result += 'ん'; } 
-            } else { result += c; }
+            if (c >= 'a' && c <= 'z') {
+                if (i + 1 < romaji.length && c === romaji[i+1] && c !== 'n') { result += 'っ'; } 
+                else if (c === 'n') { result += 'ん'; }
+            }
             i++;
         }
     }
-    return result.replace(/[a-zA-Z0-9]/g, '');
+    // 嚴格淨化濾鏡：剔除所有非假名的垃圾字元，保證對齊演算法正常運作
+    return result.replace(/[^ぁ-んァ-ンーっ]/g, '');
 }
 
 // ✨ 首創！單一/多個漢字精準平假名對齊演算法 (Furigana Alignment Engine)
 function alignFurigana(text, hiragana) {
+    // 萃取純假名流
+    let cleanHira = hiragana.replace(/[^ぁ-んァ-ンーっ]/g, ''); 
     let regex = /([\u4E00-\u9FAF]+)/g;
     let parts = text.split(regex);
     let patternStr = "^";
     let kanjiCount = 0;
     
     for(let i=0; i<parts.length; i++) {
-        if (i % 2 === 0) { // 非漢字部分 (平假名、標點、數字等)
-            let cleanPart = parts[i].replace(/[a-zA-Z0-9\-_ ]/g, '');
+        if (i % 2 === 0) { // 這是原本句子裡的平假名、數字或標點
+            let cleanPart = parts[i].replace(/[^ぁ-んァ-ンーっ]/g, '');
             if (cleanPart.length > 0) {
                 let mapped = cleanPart.split('').map(c => {
                     if(c==='は') return '[はわ]';
@@ -387,7 +428,7 @@ function alignFurigana(text, hiragana) {
                 }).join('');
                 patternStr += mapped;
             }
-        } else { // 漢字部分
+        } else { // 這是漢字，需要抓出它對應的發音
             patternStr += "(.+)";
             kanjiCount++;
         }
@@ -395,40 +436,36 @@ function alignFurigana(text, hiragana) {
     patternStr += "$";
     
     try {
-        let match = hiragana.match(new RegExp(patternStr));
+        let match = cleanHira.match(new RegExp(patternStr));
         if (match && match.length === kanjiCount + 1) {
             let nodes = [];
             for(let i=0; i<parts.length; i++) {
-                if (i % 2 === 0) {
-                    if (parts[i]) nodes.push({ text: parts[i], ruby: null });
-                } else {
-                    nodes.push({ text: parts[i], ruby: match[(i+1)/2] });
+                if (parts[i]) {
+                    if (i % 2 === 0) nodes.push({ text: parts[i], ruby: null }); // 原本就是假名/符號，不標音
+                    else nodes.push({ text: parts[i], ruby: match[(i+1)/2] }); // 漢字，掛上對齊好的平假名
                 }
             }
             return nodes;
         }
     } catch(e) {}
     
-    // 如果對齊失敗，回傳整句包裝
-    return [{ text: text, ruby: hiragana }];
+    // 若對齊失敗 (例如 API 給的拼音長度對不上)，為了不破壞排版，回傳純文字
+    return [{ text: text, ruby: null }];
 }
 
-// 萬無一失的 API 羅馬拼音提取器
+// 萬無一失的 API 羅馬拼音提取器 (解決日文在上方時抓不到拼音的 Bug)
 function extractRomaji(rawData, isTarget) {
-    if (!rawData) return "";
-    if (isTarget) {
-        if (rawData[0]) {
-            let info = rawData[0].find(x => x[0] === null);
-            if (info && info[2]) return info[2];
-            if (info && info[3]) return info[3];
-        }
-    } else {
-        // Source Romaji 通常在陣列末端
-        for (let i = rawData.length - 1; i >= 0; i--) {
-            if (Array.isArray(rawData[i]) && rawData[i].length > 0 && Array.isArray(rawData[i][0]) && typeof rawData[i][0][0] === 'string') {
-                if (i === 0) continue; // 排除目標翻譯層
-                return rawData[i][0][0];
-            }
+    if (!rawData || !rawData[0]) return "";
+    let info = rawData[0].find(x => x[0] === null);
+    if (info) {
+        if (isTarget) return info[2] || "";
+        return info[3] || info[2] || "";
+    }
+    // 深度尋找 Source 層的拼音
+    for (let i = rawData.length - 1; i >= 0; i--) {
+        if (Array.isArray(rawData[i]) && rawData[i].length > 0 && Array.isArray(rawData[i][0]) && typeof rawData[i][0][0] === 'string') {
+            if (i === 0) continue; 
+            return rawData[i][0][0];
         }
     }
     return "";
@@ -469,16 +506,10 @@ function createCharBox(char, bpmfString, isInterim, isPunctuation = false, isEng
     const box = document.createElement('div');
     const classNameExt = isEnglish ? 'is-english' : (isForeign ? 'is-foreign' : (isPunctuation ? 'is-punctuation' : ''));
     
-    // 日文：漢字 Furigana 獨立標註
+    // 🎌 日文：漢字 Furigana 獨立標註
     if (hiragana) {
         box.className = `ruby-container ${isInterim ? 'is-interim' : ''}`;
         box.innerHTML = `<span class="ruby-char jp-kanji"><ruby class="jp-ruby">${char}<rt class="jp-furi">${hiragana}</rt></ruby></span>`;
-        return box;
-    }
-    
-    if (isForeign && bpmfString === "SENTENCE_RUBY") {
-        box.className = `ruby-container is-sentence ${isInterim ? 'is-interim' : ''}`;
-        box.innerHTML = `<span class="ruby-char"><ruby>${char}<rt>${hiragana}</rt></ruby></span>`;
         return box;
     }
 
@@ -515,16 +546,9 @@ function parseTokensToNodes(text, isInterim = false, srcLang = 'zh-TW', translat
                 }
             });
         } else {
+            // 沒有漢字，或是對齊失敗，回歸純文字
             nodes.push(createCharBox(text, '', isInterim, false, false, true));
         }
-        return nodes;
-    }
-
-    // 🇰🇷 韓文
-    if (srcLang === 'ko') {
-        let overallPron = extractRomaji(translationData?.rawData, isTarget);
-        if (overallPron && !isInterim) nodes.push(createCharBox(text, "SENTENCE_RUBY", false, false, false, true, overallPron));
-        else nodes.push(createCharBox(text, '', isInterim, false, false, true));
         return nodes;
     }
 
@@ -638,7 +662,7 @@ const ControlSystem = (() => {
             microphone.connect(analyser); analyser.connect(javascriptNode); javascriptNode.connect(audioContext.destination);
             
             javascriptNode.onaudioprocess = function() {
-                if (isUserRequestedStop || isTTSPlaying) { 
+                if (isUserRequestedStop || isTTSPlaying || Date.now() < ignoreMicUntil) { 
                     document.getElementById('mic-volume-bar').style.width = '0%'; return;
                 }
                 var array = new Uint8Array(analyser.frequencyBinCount);
@@ -846,7 +870,8 @@ const ControlSystem = (() => {
         } else {
             parseTokensToNodes(res.translated, false, lineObj.tgtLang, res, true).forEach(n => lineObj.translationContainer.appendChild(n));
             
-            if (lineObj.srcLang === 'ja' || lineObj.srcLang === 'ko') {
+            // 🎌 重構後的日文單字 Furigana 反溯對齊標註 (完美修復上層發音消失問題)
+            if (lineObj.srcLang === 'ja') {
                 lineObj.finalAnchor.innerHTML = '';
                 parseTokensToNodes(lineObj.fullText, false, lineObj.srcLang, res, false).forEach(n => lineObj.finalAnchor.appendChild(n));
             }
@@ -907,9 +932,8 @@ const ControlSystem = (() => {
         };
         recognition.onerror = () => { isUserRequestedStop = true; document.body.className = ""; };
         recognition.onend = () => {
-            // 放棄傳統重啟麥克風，改由 AudioContext 保持暖機，徹底解決咚咚聲
-            if (!isUserRequestedStop) { recognition.lang = localeMap[getSourceLang()]; try { recognition.start(); } catch(e) {} } 
-            else {
+            if (!isUserRequestedStop && !isTTSPlaying) { recognition.lang = localeMap[getSourceLang()]; try { recognition.start(); } catch(e) {} } 
+            else if (isUserRequestedStop) {
                 document.body.className = "";
                 if (currentLineObj && currentLineObj.fullText.trim() === '') { currentLineObj.wrapper.classList.replace('active', 'deleting'); setTimeout(() => { if(currentLineObj && currentLineObj.wrapper.parentNode) currentLineObj.wrapper.parentNode.removeChild(currentLineObj.wrapper); currentLineObj = null; }, 400); }
             }
@@ -938,7 +962,7 @@ const ControlSystem = (() => {
             restartSpeechIfRecording();
         },
         toggleMic: () => {
-            initAudioMeter();
+            initAudioMeter(); 
             if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') { DeviceMotionEvent.requestPermission().catch(()=>{}); }
             if (!SpeechRecognition) return alert("瀏覽器不支援 Speech API。");
             if (isUserRequestedStop) { isUserRequestedStop = false; recognition.lang = localeMap[getSourceLang()]; try { recognition.start(); } catch(e) {} } 
@@ -948,11 +972,10 @@ const ControlSystem = (() => {
             if (!text || text.includes("即時翻譯中") || text.includes("失敗")) return;
             window.speechSynthesis.cancel();
             
-            // 🚨 徹底封鎖麥克風 60 秒直到發音結束
+            // 🚨 徹底封鎖麥克風 60 秒直到發音結束，消滅系統咚咚聲與迴音
             ignoreMicUntil = Date.now() + 60000;
             isTTSPlaying = true;
             
-            // 清除當下已收錄但尚未斷句的雜音，防堵 "yeah"
             if (currentLineObj && currentLineObj.fullText.trim() === '') currentLineObj.interimAnchor.innerHTML = '';
             try { recognition.abort(); } catch(e) {} 
             
@@ -960,8 +983,7 @@ const ControlSystem = (() => {
             const u = new SpeechSynthesisUtterance(text); u.lang = lang;
             u.onend = u.onerror = () => { 
                 isTTSPlaying = false; 
-                // 發音結束後，額外延長 1.5 秒封鎖期吸收房間物理迴音
-                ignoreMicUntil = Date.now() + 1500; 
+                ignoreMicUntil = Date.now() + 1500; // 延長 1.5 秒吸收空間物理迴音
                 if (wasRecording && !isUserRequestedStop) { recognition.lang = localeMap[getSourceLang()]; try { recognition.start(); } catch(e) {} } 
             };
             window.speechSynthesis.speak(u);
