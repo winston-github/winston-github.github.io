@@ -68,22 +68,14 @@
         .speech-line-wrapper.deleting { grid-template-rows: 0fr; opacity: 0; margin-bottom: -20px; }
         .speech-line-inner { overflow: visible; position: relative; }
 
-        /* ==========================================
-           2. 物理隔離滑動圖層 (解決閃爍、色塊漏出)
-           ========================================== */
         .swipe-action {
             position: absolute; top: 0; height: 100%; width: 100%; border-radius: 24px;
             display: flex; align-items: center; color: white;
             opacity: 0; visibility: hidden; z-index: 1; transition: opacity 0.2s ease;
         }
-        .swipe-action.tag-action {
-            background: var(--success-color); justify-content: flex-start; padding-left: 28px; left: 0;
-        }
-        .swipe-action.delete-action {
-            background: var(--danger-color); justify-content: flex-end; padding-right: 28px; right: 0;
-        }
+        .swipe-action.tag-action { background: var(--success-color); justify-content: flex-start; padding-left: 28px; left: 0; }
+        .swipe-action.delete-action { background: var(--danger-color); justify-content: flex-end; padding-right: 28px; right: 0; }
         
-        /* 動態鎖定：向右滑只顯示綠色，向左滑只顯示紅色 */
         .speech-line-wrapper.is-swiping-right .swipe-action.tag-action { opacity: 1; visibility: visible; }
         .speech-line-wrapper.is-swiping-left .swipe-action.delete-action { opacity: 1; visibility: visible; }
 
@@ -108,9 +100,11 @@
             .speech-line:hover .desktop-action { opacity: 0.6; }
             .speech-line-wrapper.is-empty .speech-line:hover .desktop-action { opacity: 0; }
         }
-        
         .speech-line-wrapper.is-tagged .desktop-action.right { display: none !important; }
 
+        /* ==========================================
+           2. 真實零閃爍物理對調圖層 (True Swap UI)
+           ========================================== */
         .text-layer { display: flex; flex-wrap: wrap; align-items: center; align-content: flex-start; width: 100%; cursor: pointer; user-select: text; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         
         .source-layer { order: 1; min-height: 4.8rem; }
@@ -157,8 +151,8 @@
            4. 動態狀態鎖定 CSS (解決顯示與顏色錯亂)
            ========================================== */
         /* --- [靜止態] 小字區域 --- */
-        .target-layer .ruby-zhuyin, .target-layer rt, .target-layer .jp-furi, .target-layer .liaison,
-        .speech-line.is-flipped .source-layer .ruby-zhuyin, .speech-line.is-flipped .source-layer rt, .speech-line.is-flipped .source-layer .jp-furi, .speech-line.is-flipped .source-layer .liaison { 
+        .target-layer .ruby-zhuyin, .target-layer rt, .target-layer .jp-furi,
+        .speech-line.is-flipped .source-layer .ruby-zhuyin, .speech-line.is-flipped .source-layer rt, .speech-line.is-flipped .source-layer .jp-furi { 
             opacity: 0 !important; visibility: hidden !important; font-size: 0 !important; line-height: 0 !important; margin: 0 !important; height: 0 !important; display: none !important;
         }
 
@@ -184,7 +178,7 @@
         .speech-line.is-flipped .target-layer .ruby-container:not(.is-foreign):not(.is-english):not(.is-punctuation):not(.is-sentence) { margin-right: 22px; margin-bottom: 8px; }
 
         /* ==========================================
-           5. 控制面板與純淨無字按鈕
+           5. 控制面板與置中選單
            ========================================== */
         #controlPanel {
             flex-shrink: 0; width: 100%; max-width: 1000px; display: flex; flex-direction: column; gap: 18px;
@@ -192,11 +186,14 @@
             border-radius: 36px 36px 0 0; box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.4); border-top: 1px solid rgba(255, 255, 255, 0.08); z-index: 10;
         }
         .lang-switcher { display: flex; justify-content: center; align-items: center; gap: 16px; width: 100%; }
+        
+        /* 💡 語言選項強制置中對齊 */
         .lang-switcher select { 
             background: rgba(15, 23, 42, 0.8); color: #f8fafc; border: 1px solid rgba(255, 255, 255, 0.2); 
             padding: 12px 16px; border-radius: 14px; outline: none; font-weight: bold; font-size: 1.05rem;
-            flex: 1; max-width: 220px; text-align: center; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+            flex: 1; max-width: 220px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
             appearance: none; -webkit-appearance: none; cursor: pointer; transition: border-color 0.3s;
+            text-align: center; text-align-last: center; /* 讓下拉字體完美置中 */
         }
         .lang-switcher select:focus { border-color: var(--tone-color); }
         .dir-btn {
@@ -209,18 +206,21 @@
         .magic-btn {
             flex: 1; height: 60px; border: none; border-radius: 20px; cursor: pointer; color: #ffffff;
             display: flex; align-items: center; justify-content: center; transition: all 0.3s ease; box-shadow: 0 6px 15px rgba(0,0,0,0.2);
+            position: relative; overflow: hidden; /* 讓內部音量條不超出版界 */
         }
         .magic-btn:active { transform: scale(0.95); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
-        .magic-btn svg { width: 32px; height: 32px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+        .magic-btn svg { width: 32px; height: 32px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; position: relative; z-index: 1; }
         
         .btn-primary { background: linear-gradient(135deg, #3b82f6, #2563eb); }
-        body.state-listening .btn-primary { 
-            box-shadow: 0 0 20px rgba(239, 68, 68, 0.6), inset 0 0 15px rgba(239, 68, 68, 0.4); 
-            border: 1px solid rgba(239, 68, 68, 0.8); animation: recordGlow 2s infinite alternate; 
-        }
-        @keyframes recordGlow { 0% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.4); } 100% { box-shadow: 0 0 25px rgba(239, 68, 68, 0.9), inset 0 0 15px rgba(239, 68, 68, 0.6); } }
         .btn-secondary { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
         .btn-danger { background: linear-gradient(135deg, #64748b, #475569); }
+
+        /* 💡 動態收音儀表板 (Audio Visualizer) */
+        #mic-volume-bar {
+            position: absolute; left: 0; top: 0; bottom: 0; width: 0%; 
+            background: rgba(255, 255, 255, 0.25); z-index: 0; 
+            transition: width 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
 
         @media (max-width: 768px) {
             #tagBanner { padding: 10px 16px; min-height: 54px; gap: 10px; }
@@ -237,7 +237,6 @@
             .source-layer .ruby-container.is-english .ruby-char, .source-layer .ruby-container.is-foreign .ruby-char, .speech-line.is-flipped .target-layer .ruby-container.is-english .ruby-char, .speech-line.is-flipped .target-layer .ruby-container.is-foreign .ruby-char { font-size: 2.6rem; }
             
             .target-layer .ruby-char, .target-layer .jp-kanji, .speech-line.is-flipped .source-layer .ruby-char, .speech-line.is-flipped .source-layer .jp-kanji { font-size: 1.35rem; }
-            
             rt.jp-furi { font-size: 0.85rem !important; }
             
             #controlPanel { padding: 18px 18px calc(18px + env(safe-area-inset-bottom)); gap: 14px; border-radius: 28px 28px 0 0;}
@@ -284,7 +283,9 @@
     </div>
 
     <div class="btn-group">
+        <!-- 💡 內建收音波浪條的按鈕 -->
         <button id="btn-mic" class="magic-btn btn-primary" onclick="ControlSystem.toggleMic()">
+            <div id="mic-volume-bar"></div>
             <svg id="icon-mic" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
         </button>
         <button id="btn-copy" class="magic-btn btn-secondary" onclick="ControlSystem.copyText()">
@@ -337,7 +338,6 @@ for (const [char, bpmf] of Object.entries(TAIWAN_COMMON_CHARS)) { charToBpmfCach
 
 const romajiToHiraganaMap = { 'a':'あ','i':'い','u':'う','e':'え','o':'お', 'ka':'か', 'ki':'き', 'ku':'く', 'ke':'け', 'ko':'こ', 'sa':'さ', 'shi':'し', 'su':'す', 'se':'せ', 'so':'そ', 'ta':'た', 'chi':'ち', 'tsu':'つ', 'te':'て', 'to':'と', 'na':'な', 'ni':'に', 'nu':'ぬ', 'ne':'ね', 'no':'の', 'ha':'は', 'hi':'ひ', 'fu':'ふ', 'he':'へ', 'ho':'ほ', 'ma':'ま', 'mi':'み', 'mu':'む', 'me':'め', 'mo':'も', 'ya':'や', 'yu':'ゆ', 'yo':'よ', 'ra':'ら', 'ri':'り', 'ru':'る', 're':'れ', 'ro':'ろ', 'wa':'わ', 'wo':'を', 'kya':'きゃ','kyu':'きゅ','kyo':'きょ','gya':'ぎゃ','gyu':'ぎゅ','gyo':'ぎょ','sha':'しゃ','shu':'しゅ','sho':'しょ','ja':'じゃ','ju':'じゅ','jo':'じょ','cha':'ちゃ','chu':'ちゅ','cho':'ちょ','nya':'にゃ','nyu':'にゅ','nyo':'にょ','hya':'ひゃ','hyu':'ひゅ','hyo':'ひょ','bya':'びゃ','byu':'びゅ','byo':'びょ','pya':'ぴゃ','pyu':'ぴゅ','pyo':'ぴょ','mya':'みゃ','myu':'みゅ','myo':'みょ','rya':'りゃ','ryu':'りゅ','ryo':'りょ'};
 
-// ✨ 平假名引擎：精確轉換且嚴格剔除英文與數字，防止嘲笑
 function convertRomajiToHiragana(romaji) {
     if(!romaji) return "";
     romaji = romaji.toLowerCase().replace(/\s+/g, ''); 
@@ -356,13 +356,12 @@ function convertRomajiToHiragana(romaji) {
             let c = romaji[i];
             if (c === '-' || c === 'ō' || c === 'ū') result += 'ー';
             else if (c >= 'a' && c <= 'z') {
-                if (i + 1 < romaji.length && c === romaji[i+1]) { result += 'っ'; } // 促音
-                else if (c === 'n') { result += 'ん'; } // 撥音
+                if (i + 1 < romaji.length && c === romaji[i+1]) { result += 'っ'; } 
+                else if (c === 'n') { result += 'ん'; } 
             } else { result += c; }
             i++;
         }
     }
-    // 極致防呆：徹底移除所有非假名的垃圾字元 (英文字母、數字、符號)
     return result.replace(/[a-zA-Z0-9\-_]/g, '');
 }
 
@@ -401,14 +400,14 @@ function createCharBox(char, bpmfString, isInterim, isPunctuation = false, isEng
     const box = document.createElement('div');
     const classNameExt = isEnglish ? 'is-english' : (isForeign ? 'is-foreign' : (isPunctuation ? 'is-punctuation' : ''));
     
-    // 日文：回歸段落式精準漢字 Furigana
+    // 日文：完美段落式 Furigana
     if (hiragana) {
         box.className = `ruby-container ${isInterim ? 'is-interim' : ''}`;
         box.innerHTML = `<span class="ruby-char jp-kanji"><ruby class="jp-ruby">${char}<rt class="jp-furi">${hiragana}</rt></ruby></span>`;
         return box;
     }
     
-    // 韓文等整句標註 (非日文情況)
+    // 韓文等整句標註
     if (isForeign && bpmfString === "SENTENCE_RUBY") {
         box.className = `ruby-container is-sentence ${isInterim ? 'is-interim' : ''}`;
         box.innerHTML = `<span class="ruby-char"><ruby>${char}<rt>${hiragana}</rt></ruby></span>`;
@@ -429,27 +428,26 @@ function createCharBox(char, bpmfString, isInterim, isPunctuation = false, isEng
     return box;
 }
 
-// 核心解剖：完美掛載日文段落發音，不會重疊
 function parseTokensToNodes(text, isInterim = false, srcLang = 'zh-TW', translationData = null, isTarget = false) {
     if (!text || text === "undefined") return [];
     let nodes = [];
     
-    // 🎌 日文：精準段落式 Furigana (僅針對含有漢字的片段標註)
+    // 🎌 日文：精準段落式 Furigana (修復來源層抓取羅馬拼音的 Bug)
     if (srcLang === 'ja') {
         if (!isInterim && translationData && translationData.rawData && translationData.rawData[0]) {
             let segments = translationData.rawData[0].filter(x => x[0] !== null && x[0] !== undefined && typeof x[0] === 'string');
             segments.forEach(seg => {
-                let textSeg = seg[0];
-                let romaji = seg[3];
-                // 只有該片段內含有漢字，且存在拼音時才標註
-                if (/[\u4E00-\u9FAF]/.test(textSeg) && romaji) {
+                let textSeg = isTarget ? seg[0] : seg[1]; // 智慧判斷來源與目標的文字
+                let romaji = isTarget ? seg[2] : (seg[3] || seg[2]); // Google API 飄移防呆
+                
+                if (textSeg && /[\u4E00-\u9FAF]/.test(textSeg) && romaji) {
                     let hira = convertRomajiToHiragana(romaji);
-                    if (hira && hira !== textSeg) { // 避免 "いたい" 上面又標註 "いたい"
+                    if (hira && hira !== textSeg) { 
                         nodes.push(createCharBox(textSeg, '', false, false, false, false, hira));
                         return;
                     }
                 }
-                nodes.push(createCharBox(textSeg, '', false, false, false, true));
+                if (textSeg) nodes.push(createCharBox(textSeg, '', false, false, false, true));
             });
             if (nodes.length > 0) return nodes;
         }
@@ -457,19 +455,19 @@ function parseTokensToNodes(text, isInterim = false, srcLang = 'zh-TW', translat
         return nodes;
     }
 
-    // 🇰🇷 韓文：因為無分段，僅針對全句保留英文羅馬拼音
+    // 🇰🇷 韓文：全句保留英文羅馬拼音
     if (srcLang === 'ko') {
         let overallPron = "";
         if (translationData && translationData.rawData && translationData.rawData[0]) {
             let info = translationData.rawData[0].find(x => x[0] === null);
-            if (info) overallPron = isTarget ? (info[2] || "") : (info[3] || "");
+            if (info) overallPron = isTarget ? (info[2] || "") : (info[3] || info[2] || "");
         }
         if (overallPron && !isInterim) nodes.push(createCharBox(text, "SENTENCE_RUBY", false, false, false, true, overallPron));
         else nodes.push(createCharBox(text, '', isInterim, false, false, true));
         return nodes;
     }
 
-    // 其他語系 (德/俄/法/西/英)
+    // 其他語系 (不標註拼音，回歸純淨)
     if (srcLang !== 'zh-TW') {
         const tokens = text.split(/([ \n，。！？、：；,.?!;:])/);
         for(let i=0; i<tokens.length; i++) {
@@ -503,8 +501,12 @@ const ControlSystem = (() => {
     let recognition = null, currentLineObj = null, lineBreakTimer = null;
     let deletedCardsStack = []; 
     
-    // ✨ 動態語速偵測變數 (Adaptive CPS Engine)
+    // ✨ 動態語速偵測變數 & 麥克風封鎖機制
     let speechStartTime = 0;
+    let ignoreMicUntil = 0;
+    
+    // ✨ 即時音量計機制 (AudioContext 暖機，消滅 OS 咚咚聲)
+    let audioContext, analyser, microphone, javascriptNode;
 
     const localeMap = { 'zh-TW': 'zh-TW', 'en': 'en-US', 'ja': 'ja-JP', 'ko': 'ko-KR', 'es': 'es-ES', 'de': 'de-DE', 'ru': 'ru-RU', 'fr': 'fr-FR' };
     const tagColors = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
@@ -534,7 +536,6 @@ const ControlSystem = (() => {
 
     const saveUserPrefs = () => localStorage.setItem('userPrefs', JSON.stringify({ src: langA.value, tgt: langB.value }));
 
-    // ✨ 動態同步標籤首字邏輯 ✨
     function updateTagText(lineObj) {
         if (!lineObj.isTagged || !lineObj.tagEl) return;
         if (lineObj.speechLine.classList.contains('is-flipped')) {
@@ -557,6 +558,37 @@ const ControlSystem = (() => {
 
     langA.addEventListener('change', restartSpeechIfRecording);
     langB.addEventListener('change', restartSpeechIfRecording);
+
+    // ✨ 啟動麥克風音量儀表板 (消滅咚咚聲的秘密武器)
+    async function initAudioMeter() {
+        if (audioContext) return;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            microphone = audioContext.createMediaStreamSource(stream);
+            javascriptNode = audioContext.createScriptProcessor(256, 1, 1);
+            
+            analyser.smoothingTimeConstant = 0.8;
+            analyser.fftSize = 1024;
+            
+            microphone.connect(analyser); analyser.connect(javascriptNode); javascriptNode.connect(audioContext.destination);
+            
+            javascriptNode.onaudioprocess = function() {
+                if (isUserRequestedStop) {
+                    document.getElementById('mic-volume-bar').style.width = '0%';
+                    return;
+                }
+                var array = new Uint8Array(analyser.frequencyBinCount);
+                analyser.getByteFrequencyData(array);
+                var values = 0;
+                for (var i = 0; i < array.length; i++) values += array[i];
+                var average = values / array.length;
+                let percent = Math.min(100, (average / 40) * 100);
+                document.getElementById('mic-volume-bar').style.width = percent + '%';
+            }
+        } catch (e) {}
+    }
 
     function loadSavedCards() {
         const savedCards = JSON.parse(localStorage.getItem('lockedCards') || '[]');
@@ -608,7 +640,7 @@ const ControlSystem = (() => {
         const color = forceColor || tagColors[Math.floor(Math.random() * tagColors.length)];
         lineObj.isTagged = true; lineObj.tagColor = color; lineObj.speechLine.style.borderColor = color;
         
-        lineObj.wrapper.classList.add('is-tagged'); // 標籤防呆鎖定
+        lineObj.wrapper.classList.add('is-tagged');
 
         const tagEl = document.createElement('div'); tagEl.className = 'circle-tag'; tagEl.style.borderColor = color; tagEl.style.backgroundColor = color + '40'; 
         lineObj.tagEl = tagEl;
@@ -643,18 +675,11 @@ const ControlSystem = (() => {
             if (!isSwiping && !isVertical) { if (Math.abs(dY) > Math.abs(dX) + 5) isVertical = true; else if (Math.abs(dX) > 10) isSwiping = true; }
             if (isSwiping && !isVertical) { 
                 e.preventDefault(); 
-                if (lineObj.isTagged && dX < 0) dX = 0; // 鎖死已標籤卡片的左滑刪除
+                if (lineObj.isTagged && dX < 0) dX = 0; 
                 
-                // 動態設定圖層顯隱，杜絕互漏殘影！
-                if (dX > 0) {
-                    lineObj.wrapper.classList.add('is-swiping-right');
-                    lineObj.wrapper.classList.remove('is-swiping-left');
-                } else if (dX < 0) {
-                    lineObj.wrapper.classList.add('is-swiping-left');
-                    lineObj.wrapper.classList.remove('is-swiping-right');
-                } else {
-                    lineObj.wrapper.classList.remove('is-swiping-right', 'is-swiping-left');
-                }
+                if (dX > 0) { lineObj.wrapper.classList.add('is-swiping-right'); lineObj.wrapper.classList.remove('is-swiping-left'); } 
+                else if (dX < 0) { lineObj.wrapper.classList.add('is-swiping-left'); lineObj.wrapper.classList.remove('is-swiping-right'); } 
+                else { lineObj.wrapper.classList.remove('is-swiping-right', 'is-swiping-left'); }
 
                 lineObj.speechLine.style.transform = `translateX(${dX}px)`; translateVal = dX; 
             }
@@ -664,7 +689,6 @@ const ControlSystem = (() => {
             lineObj.speechLine.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.4s, border-color 0.4s';
             if (Math.abs(translateVal) > 10) preventClick = true;
             
-            // 瞬間清除滑動狀態，絕對不會有殘影閃爍
             lineObj.wrapper.classList.remove('is-swiping-right', 'is-swiping-left');
 
             if (translateVal < -100 && !lineObj.isTagged) { lineObj.speechLine.style.transform = `translateX(-120%)`; removeCard(lineObj); }
@@ -673,9 +697,7 @@ const ControlSystem = (() => {
         });
         lineObj.speechLine.addEventListener('click', (e) => {
             if (preventClick) { e.stopPropagation(); preventClick = false; return; }
-            if (lineObj.speechLine.style.transform && lineObj.speechLine.style.transform !== 'translateX(0px)') { 
-                lineObj.speechLine.style.transform = `translateX(0)`; e.stopPropagation(); 
-            }
+            if (lineObj.speechLine.style.transform && lineObj.speechLine.style.transform !== 'translateX(0px)') { lineObj.speechLine.style.transform = `translateX(0)`; e.stopPropagation(); }
         });
     }
 
@@ -685,7 +707,6 @@ const ControlSystem = (() => {
         let wrapper = document.createElement('div'); wrapper.className = 'speech-line-wrapper is-empty';
         let innerWrapper = document.createElement('div'); innerWrapper.className = 'speech-line-inner';
         
-        // 分離式滑動按鈕：不再包成同一個大群組，徹底防漏
         let actionTag = document.createElement('div'); actionTag.className = 'swipe-action tag-action';
         actionTag.innerHTML = `<svg viewBox="0 0 24 24" style="width:28px;height:28px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;"><path d="M4 4h16v16H4z"/><path d="m9 12 2 2 4-4"/></svg>`;
         
@@ -764,7 +785,7 @@ const ControlSystem = (() => {
         } else {
             parseTokensToNodes(res.translated, false, lineObj.tgtLang, res, true).forEach(n => lineObj.translationContainer.appendChild(n));
             
-            // 🎌 重構後的日/韓文反溯標註
+            // 日文來源層精準重構 (保證上層發音正確顯示)
             if (lineObj.srcLang === 'ja' || lineObj.srcLang === 'ko') {
                 lineObj.finalAnchor.innerHTML = '';
                 parseTokensToNodes(lineObj.fullText, false, lineObj.srcLang, res, false).forEach(n => lineObj.finalAnchor.appendChild(n));
@@ -777,6 +798,9 @@ const ControlSystem = (() => {
         recognition = new SpeechRecognition(); recognition.continuous = true; recognition.interimResults = true;
         recognition.onstart = () => { document.body.className = "state-listening"; if (!currentLineObj || currentLineObj.fullText.trim() !== '') currentLineObj = createNewActiveLine(); };
         recognition.onresult = (e) => {
+            // ✨ 核心修復：當 TTS 播放時，強勢封鎖麥克風辨識，防止 Mother 變成 Yeah！
+            if (Date.now() < ignoreMicUntil) return;
+
             if (currentLineObj && currentLineObj.wrapper.classList.contains('is-empty')) {
                 currentLineObj.wrapper.classList.remove('is-empty');
                 speechStartTime = Date.now(); 
@@ -799,7 +823,6 @@ const ControlSystem = (() => {
             currentLineObj.interimAnchor.innerHTML = ''; currentLineObj.interimAnchor.appendChild(interimHTML);
             if (finalAdded || interimHTML.childNodes.length > 0) document.getElementById('displayContainer').scrollTo({ top: 0, behavior: 'smooth' });
             
-            // ✨ 語速動態適應引擎 (Adaptive CPS)
             let elapsedSec = (Date.now() - speechStartTime) / 1000;
             let totalChars = currentLineObj.fullText.length + interimLength;
             let dynamicDelay = 1500; 
@@ -824,8 +847,9 @@ const ControlSystem = (() => {
         };
         recognition.onerror = () => { isUserRequestedStop = true; document.body.className = ""; };
         recognition.onend = () => {
-            if (!isUserRequestedStop && !isTTSPlaying) { recognition.lang = localeMap[getSourceLang()]; try { recognition.start(); } catch(e) {} } 
-            else if (isUserRequestedStop) {
+            // 放棄傳統重啟麥克風，改由 AudioContext 保持暖機，徹底解決咚咚聲
+            if (!isUserRequestedStop) { recognition.lang = localeMap[getSourceLang()]; try { recognition.start(); } catch(e) {} } 
+            else {
                 document.body.className = "";
                 if (currentLineObj && currentLineObj.fullText.trim() === '') { currentLineObj.wrapper.classList.replace('active', 'deleting'); setTimeout(() => { if(currentLineObj && currentLineObj.wrapper.parentNode) currentLineObj.wrapper.parentNode.removeChild(currentLineObj.wrapper); currentLineObj = null; }, 400); }
             }
@@ -854,17 +878,24 @@ const ControlSystem = (() => {
             restartSpeechIfRecording();
         },
         toggleMic: () => {
+            initAudioMeter(); // 啟動視覺化波浪條 + 暖機防止系統咚咚聲
             if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') { DeviceMotionEvent.requestPermission().catch(()=>{}); }
-            if (!SpeechRecognition) return alert("The browser doesn't support Speech API。");
+            if (!SpeechRecognition) return alert("瀏覽器不支援 Speech API。");
             if (isUserRequestedStop) { isUserRequestedStop = false; recognition.lang = localeMap[getSourceLang()]; try { recognition.start(); } catch(e) {} } 
             else { isUserRequestedStop = true; clearTimeout(lineBreakTimer); try { recognition.stop(); } catch(e) {} }
         },
         playSpeech: (text, lang) => {
-            if (!text || text.includes("Translating") || text.includes("Failed")) return;
-            window.speechSynthesis.cancel(); isTTSPlaying = true;
-            let wasRecording = !isUserRequestedStop; if (wasRecording && recognition) { try { recognition.stop(); } catch(e) {} }
+            if (!text || text.includes("即時翻譯中") || text.includes("失敗")) return;
+            window.speechSynthesis.cancel();
+            
+            // 🚨 徹底解決 TTS 抓取 Bug：封鎖麥克風 60 秒直到發音結束
+            ignoreMicUntil = Date.now() + 60000;
+            
             const u = new SpeechSynthesisUtterance(text); u.lang = lang;
-            u.onend = u.onerror = () => { isTTSPlaying = false; if (wasRecording && !isUserRequestedStop) { recognition.lang = localeMap[getSourceLang()]; try { recognition.start(); } catch(e) {} } };
+            u.onend = u.onerror = () => { 
+                // 發音結束後，額外延長 800 毫秒封鎖期，徹底吃掉房間內的迴音！
+                ignoreMicUntil = Date.now() + 800; 
+            };
             window.speechSynthesis.speak(u);
         },
         copyText: () => {
