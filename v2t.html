@@ -81,14 +81,13 @@
         .swipe-btn svg { width: 28px; height: 28px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 
         /* ==========================================
-           2. 物理圖層翻轉系統 (拔除虛線、保證零閃爍)
+           2. 物理圖層翻轉系統 (真實分隔線、保證零閃爍)
            ========================================== */
         .speech-line {
             display: flex; flex-direction: column; position: relative; z-index: 2;
             width: 100%; border-radius: 24px; border: 1px solid rgba(255, 255, 255, 0.06);
             background: #182e46; transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.4s, box-shadow 0.4s;
-            padding: 24px 28px; box-sizing: border-box; touch-action: pan-y;
-            gap: 16px; /* 統一使用 Gap 分隔上下，絕不跳動 */
+            padding: 24px 28px; box-sizing: border-box; touch-action: pan-y; gap: 0;
             box-shadow: 0 4px 15px rgba(0,0,0,0.25);
         }
         .speech-line-wrapper:nth-child(even) .speech-line { background: #111e30; }
@@ -108,12 +107,15 @@
 
         .text-layer { display: flex; flex-wrap: wrap; align-items: center; align-content: flex-start; width: 100%; cursor: pointer; user-select: text; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         
-        /* 運用 Order 進行無痕翻轉 */
+        /* 物理對調：運用 Order 達成無痕翻轉，絕不牽扯 Margin/Border 閃爍 */
         .source-layer { order: 1; min-height: 4.8rem; }
-        .target-layer { order: 2; opacity: 0; display: none; }
-        .target-layer.show { opacity: 1; display: flex; }
+        .layer-divider { order: 2; width: 100%; height: 1px; border-top: 1px dashed rgba(255,255,255,0.15); margin: 0; opacity: 0; transition: opacity 0.4s ease, margin 0.4s ease; }
+        .target-layer { order: 3; opacity: 0; display: none; }
         
-        .speech-line.is-flipped .source-layer { order: 2; min-height: unset; }
+        .target-layer.show { opacity: 1; display: flex; }
+        .target-layer.show ~ .layer-divider { opacity: 1; margin: 14px 0; }
+        
+        .speech-line.is-flipped .source-layer { order: 3; min-height: unset; }
         .speech-line.is-flipped .target-layer { order: 1; min-height: 4.8rem; }
 
         @keyframes softPulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
@@ -123,7 +125,7 @@
         /* ==========================================
            3. 核心注音與外語基底字體
            ========================================== */
-        .ruby-container { display: inline-flex; align-items: center; font-family: "標楷體", "DFKai-SB", 'Microsoft JhengHei', serif; transition: all 0.4s ease; }
+        .ruby-container { display: inline-flex; align-items: center; margin-right: 22px; margin-bottom: 8px; font-family: "標楷體", "DFKai-SB", 'Microsoft JhengHei', serif; transition: all 0.4s ease; }
         .ruby-char { line-height: 1.05; text-shadow: 0 0 15px rgba(255,255,255,0.2); position: relative; transition: all 0.4s ease; }
         
         .ruby-zhuyin { display: inline-flex; flex-direction: column; justify-content: center; align-items: center; position: relative; margin-left: 6px; padding-right: 0.8em; user-select: none; transition: all 0.4s ease; }
@@ -136,57 +138,61 @@
         .ruby-container.is-interim .ruby-char { color: #94a3b8; text-shadow: none; }
         .ruby-container.is-interim .zhuyin-symbol { color: #cbd5e1; }
         
-        .ruby-container.is-english .ruby-char, .ruby-container.is-foreign .ruby-char { 
-            font-family: -apple-system, 'Microsoft JhengHei', sans-serif; white-space: pre-wrap; line-height: 1.4; letter-spacing: 0.5px;
+        /* 🚨 外語防斷字優化：強制 Inline，允許自然換行與貼合 🚨 */
+        .ruby-container.is-english, .ruby-container.is-foreign, .ruby-container.is-punctuation, .ruby-container.is-sentence {
+            display: inline !important; margin-right: 0 !important; margin-bottom: 0 !important; font-family: -apple-system, 'Microsoft JhengHei', sans-serif; white-space: pre-wrap;
         }
+        .ruby-container.is-english .ruby-char, .ruby-container.is-foreign .ruby-char, .ruby-container.is-punctuation .ruby-char, .ruby-container.is-sentence .ruby-char { display: inline !important; line-height: 1.4; letter-spacing: 0.5px; }
         .ruby-container.is-punctuation .ruby-char { color: #64748b; padding: 0 4px; line-height: 1.2;}
 
-        ruby.jp-ruby { ruby-align: center; }
+        /* 日/韓文特殊全域容器 */
+        ruby.jp-ruby { ruby-position: over; ruby-align: center; }
         rt.jp-furi { user-select: none; font-weight: normal; font-family: 'Noto Sans TC', sans-serif; transition: all 0.4s ease;}
-        .jp-kanji { line-height: 1.3; font-weight: bold; transition: all 0.4s ease;}
+        .jp-kanji { font-weight: bold; transition: all 0.4s ease;}
 
-        /* 高度優化：絕不破壞單字的 ruby 行內結構 */
-        .ruby-char ruby { ruby-position: over; ruby-align: center; white-space: nowrap; }
+        /* 🚨 德/俄文微縮音標引擎 ( Inline-Ruby，宛如帶帽子，絕不切斷單字！) 🚨 */
+        .inline-ruby { display: inline-block; text-align: center; vertical-align: bottom; line-height: 1; }
+        .i-rt { display: block; font-size: 0.45em !important; color: var(--tone-color) !important; line-height: 1; margin-bottom: 2px; transition: opacity 0.4s ease; font-family: "Courier New", monospace;}
+        .i-rb { display: block; line-height: 1.1; }
+
+        .silent { opacity: 0.3 !important; font-weight: 300 !important; transition: all 0.4s ease; }
+        .liaison { color: #8e44ad !important; font-weight: bold !important; margin: 0 -2px; }
 
         /* ==========================================
            4. 動態狀態鎖定 CSS (解決顯示與顏色錯亂)
            ========================================== */
-        /* --- [靜止態] 小字區域：隱藏所有發音提示，回歸純文字 --- */
-        .target-layer .ruby-zhuyin, .target-layer rt, .target-layer .jp-furi, .target-layer .liaison,
-        .speech-line.is-flipped .source-layer .ruby-zhuyin, .speech-line.is-flipped .source-layer rt, .speech-line.is-flipped .source-layer .jp-furi, .speech-line.is-flipped .source-layer .liaison { 
-            opacity: 0 !important; visibility: hidden !important; font-size: 0 !important; line-height: 0 !important; 
+        /* --- [靜止態] 小字區域：無痕隱藏所有發音提示，回歸純淨文字 --- */
+        .target-layer .ruby-zhuyin, .target-layer rt, .target-layer .jp-furi, .target-layer .i-rt, .target-layer .liaison,
+        .speech-line.is-flipped .source-layer .ruby-zhuyin, .speech-line.is-flipped .source-layer rt, .speech-line.is-flipped .source-layer .jp-furi, .speech-line.is-flipped .source-layer .i-rt, .speech-line.is-flipped .source-layer .liaison { 
+            opacity: 0 !important; visibility: hidden !important; font-size: 0 !important; line-height: 0 !important; margin: 0 !important; height: 0 !important; display: none !important;
         }
         .target-layer .silent, .speech-line.is-flipped .source-layer .silent { opacity: 1 !important; color: inherit; }
 
-        .target-layer .ruby-char, .target-layer .jp-kanji,
-        .speech-line.is-flipped .source-layer .ruby-char, .speech-line.is-flipped .source-layer .jp-kanji { 
+        .target-layer .ruby-char, .target-layer .jp-kanji, .target-layer .i-rb,
+        .speech-line.is-flipped .source-layer .ruby-char, .speech-line.is-flipped .source-layer .jp-kanji, .speech-line.is-flipped .source-layer .i-rb { 
             font-size: 1.65rem; color: var(--trans-color); font-weight: 500;
         }
-        .target-layer .ruby-container, .speech-line.is-flipped .source-layer .ruby-container { margin-right: 6px; margin-bottom: 0; }
+        .target-layer .ruby-container:not(.is-foreign):not(.is-english):not(.is-punctuation):not(.is-sentence), 
+        .speech-line.is-flipped .source-layer .ruby-container:not(.is-foreign):not(.is-english):not(.is-punctuation):not(.is-sentence) { margin-right: 6px; margin-bottom: 0; }
 
-        /* --- [活躍態] 大字區域：顯示注音與外文色彩提示 --- */
-        .source-layer .ruby-char, .source-layer .jp-kanji,
-        .speech-line.is-flipped .target-layer .ruby-char, .speech-line.is-flipped .target-layer .jp-kanji { 
+        /* --- [活躍態] 大字區域：強勢顯示注音與外文色彩提示 --- */
+        .source-layer .ruby-char, .source-layer .jp-kanji, .source-layer .i-rb,
+        .speech-line.is-flipped .target-layer .ruby-char, .speech-line.is-flipped .target-layer .jp-kanji, .speech-line.is-flipped .target-layer .i-rb { 
             font-size: 3.2rem; font-weight: bold; color: var(--text-main); 
         }
 
-        /* 外文引擎專屬顏色提示 (活躍態專用) */
         .source-layer .silent, .speech-line.is-flipped .target-layer .silent { opacity: 0.3 !important; font-weight: 300 !important; }
         .source-layer .liaison, .speech-line.is-flipped .target-layer .liaison { opacity: 1 !important; visibility: visible !important; font-size: unset !important; color: #8e44ad !important; font-weight: bold !important; margin: 0 -2px; }
         
-        /* 微型音標 (rt) 顯示修復，絕不使用 display 屬性以免破壞單字！ */
         .source-layer rt, .speech-line.is-flipped .target-layer rt,
         .source-layer .jp-furi, .speech-line.is-flipped .target-layer .jp-furi { 
-            opacity: 1 !important; visibility: visible !important; font-size: 0.45em !important; line-height: 1 !important; color: var(--tone-color) !important; padding-bottom: 2px;
+            opacity: 1 !important; visibility: visible !important; font-size: 1rem !important; color: #fcd34d !important; display: ruby-text !important;
         }
-        .source-layer .jp-furi, .speech-line.is-flipped .target-layer .jp-furi { font-size: 1rem !important; color: #fcd34d !important; }
+        .source-layer .i-rt, .speech-line.is-flipped .target-layer .i-rt { opacity: 1 !important; visibility: visible !important; font-size: 0.45em !important; display: block !important; }
 
-        /* 恢復中文注音 (活躍態專用) */
-        .source-layer .ruby-zhuyin, .speech-line.is-flipped .target-layer .ruby-zhuyin { opacity: 1 !important; visibility: visible !important; font-size: unset !important; line-height: 1.05 !important; }
-
-        /* 間距處理 */
-        .source-layer .ruby-container, .speech-line.is-flipped .target-layer .ruby-container { margin-right: 22px; margin-bottom: 8px; }
-        .source-layer .ruby-container.is-english, .speech-line.is-flipped .target-layer .ruby-container.is-english { margin-right: 12px; }
+        /* 恢復中文注音間距 */
+        .speech-line.is-flipped .target-layer .ruby-zhuyin { opacity: 1 !important; visibility: visible !important; font-size: unset !important; display: inline-flex !important; }
+        .speech-line.is-flipped .target-layer .ruby-container:not(.is-foreign):not(.is-english):not(.is-punctuation):not(.is-sentence) { margin-right: 22px; margin-bottom: 8px; }
 
         /* ==========================================
            5. 控制面板與按鈕
@@ -236,17 +242,17 @@
             #displayContainer { padding: 16px; } #linesContainer { gap: 14px; }
             .speech-line { padding: 18px 20px; border-radius: 20px;}
             
-            .ruby-container { margin-right: 14px; margin-bottom: 6px; }
+            .ruby-container:not(.is-foreign):not(.is-english):not(.is-punctuation):not(.is-sentence) { margin-right: 14px; margin-bottom: 6px; }
             .ruby-zhuyin { margin-left: 4px; padding-right: 0.6em; }
             .zhuyin-symbol { font-size: 1.15rem; }
             .tone-light { top: -1rem; font-size: 1.05rem;} .tone-mark { font-size: 1.05rem;}
             
-            .source-layer .ruby-char, .source-layer .jp-kanji, .speech-line.is-flipped .target-layer .ruby-char, .speech-line.is-flipped .target-layer .jp-kanji { font-size: 3.2rem; }
+            .source-layer .ruby-char, .source-layer .jp-kanji, .source-layer .i-rb, .speech-line.is-flipped .target-layer .ruby-char, .speech-line.is-flipped .target-layer .jp-kanji, .speech-line.is-flipped .target-layer .i-rb { font-size: 3.2rem; }
             .source-layer .ruby-container.is-english .ruby-char, .source-layer .ruby-container.is-foreign .ruby-char, .speech-line.is-flipped .target-layer .ruby-container.is-english .ruby-char, .speech-line.is-flipped .target-layer .ruby-container.is-foreign .ruby-char { font-size: 2.6rem; }
             
-            .target-layer .ruby-char, .target-layer .jp-kanji, .speech-line.is-flipped .source-layer .ruby-char, .speech-line.is-flipped .source-layer .jp-kanji { font-size: 1.35rem; }
+            .target-layer .ruby-char, .target-layer .jp-kanji, .target-layer .i-rb, .speech-line.is-flipped .source-layer .ruby-char, .speech-line.is-flipped .source-layer .jp-kanji, .speech-line.is-flipped .source-layer .i-rb { font-size: 1.35rem; }
             
-            .ruby-container.is-english, .ruby-container.is-punctuation { margin-right: 6px; }
+            rt.jp-furi { font-size: 0.85rem !important; }
             
             #controlPanel { padding: 18px 18px calc(18px + env(safe-area-inset-bottom)); gap: 14px; border-radius: 28px 28px 0 0;}
             .lang-switcher select { font-size: 0.95rem; padding: 10px 8px; max-width: 150px;}
@@ -374,13 +380,23 @@ function convertRomajiToHiragana(romaji) {
 function parseForeignToHTML(word, lang) {
     if (!word) return word;
     if (lang === 'de') {
-        return word.replace(/([Ww])/g, '<ruby>$1<rt>v</rt></ruby>').replace(/([Zz])/g, '<ruby>$1<rt>ts</rt></ruby>').replace(/([Vv])/g, '<ruby>$1<rt>f</rt></ruby>');
+        // 德文：精準替換字母並套上 inline-ruby，絕不破壞單字！
+        return word.replace(/([Ww])/g, '<span class="inline-ruby"><span class="i-rt">v</span><span class="i-rb">$1</span></span>')
+                   .replace(/([Zz])/g, '<span class="inline-ruby"><span class="i-rt">ts</span><span class="i-rb">$1</span></span>')
+                   .replace(/([Vv])/g, '<span class="inline-ruby"><span class="i-rt">f</span><span class="i-rb">$1</span></span>');
     } else if (lang === 'ru') {
-        return word.replace(/([Хх])/g, '<ruby>$1<rt>h</rt></ruby>').replace(/([Шш])/g, '<ruby>$1<rt>sh</rt></ruby>').replace(/([Вв])/g, '<ruby>$1<rt>v</rt></ruby>').replace(/([Рр])/g, '<ruby>$1<rt>r</rt></ruby>').replace(/([Чч])/g, '<ruby>$1<rt>ch</rt></ruby>').replace(/([Цц])/g, '<ruby>$1<rt>ts</rt></ruby>');
+        // 俄文：精密微型拼音提示，穩穩懸浮於上方
+        return word.replace(/([Хх])/g, '<span class="inline-ruby"><span class="i-rt">h</span><span class="i-rb">$1</span></span>')
+                   .replace(/([Шш])/g, '<span class="inline-ruby"><span class="i-rt">sh</span><span class="i-rb">$1</span></span>')
+                   .replace(/([Вв])/g, '<span class="inline-ruby"><span class="i-rt">v</span><span class="i-rb">$1</span></span>')
+                   .replace(/([Рр])/g, '<span class="inline-ruby"><span class="i-rt">r</span><span class="i-rb">$1</span></span>')
+                   .replace(/([Чч])/g, '<span class="inline-ruby"><span class="i-rt">ch</span><span class="i-rb">$1</span></span>')
+                   .replace(/([Цц])/g, '<span class="inline-ruby"><span class="i-rt">ts</span><span class="i-rb">$1</span></span>');
     } else if (lang === 'fr') {
         return word.replace(/([stdpxze])$/i, '<span class="silent">$1</span>');
     }
-    return word; // 西班牙文及其他語言取消渲染，保持純淨
+    // 🚨 西班牙文全面取消標示，回歸純淨
+    return word; 
 }
 
 function parseSentence(text) {
@@ -414,12 +430,16 @@ function extractBpmf(bpmfString) {
 function createCharBox(char, bpmfString, isInterim, isPunctuation = false, isEnglish = false, isForeign = false, hiragana = null) {
     const box = document.createElement('div');
     const classNameExt = isEnglish ? 'is-english' : (isForeign ? 'is-foreign' : (isPunctuation ? 'is-punctuation' : ''));
-    box.className = `ruby-container ${isInterim ? 'is-interim' : ''} ${classNameExt}`;
     
+    // 日/韓文整句外掛發音處理
     if (hiragana) {
-        box.innerHTML = `<ruby class="jp-ruby"><span class="jp-kanji">${char}</span><rt class="jp-furi">${hiragana}</rt></ruby>`;
+        box.className = `ruby-container is-sentence ${isInterim ? 'is-interim' : ''}`;
+        box.innerHTML = `<span class="ruby-char jp-kanji"><ruby class="jp-ruby">${char}<rt class="jp-furi">${hiragana}</rt></ruby></span>`;
         return box;
     }
+
+    box.className = `ruby-container ${isInterim ? 'is-interim' : ''} ${classNameExt}`;
+    
     if (isEnglish || isForeign || isPunctuation || !bpmfString) { box.innerHTML = `<div class="ruby-char">${char}</div>`; return box; }
 
     const { symbols, lightTone, markTone } = extractBpmf(bpmfString);
@@ -433,7 +453,7 @@ function createCharBox(char, bpmfString, isInterim, isPunctuation = false, isEng
     return box;
 }
 
-// 核心解剖：完美掛載日文與韓文的整句發音
+// 核心解剖：完美掛載日文與韓文的整句發音，且不會發生目標蓋來源
 function parseTokensToNodes(text, isInterim = false, srcLang = 'zh-TW', translationData = null, isTarget = false) {
     if (!text || text === "undefined") return [];
     let nodes = [];
@@ -448,7 +468,7 @@ function parseTokensToNodes(text, isInterim = false, srcLang = 'zh-TW', translat
     if (srcLang === 'ja' || srcLang === 'ko') {
         if (overallPron && !isInterim) {
             if (srcLang === 'ja') overallPron = convertRomajiToHiragana(overallPron);
-            // 將整句話與整體發音包裝成單一巨大 Ruby 區塊，保證不掉注音
+            // 將整句話與整體發音包裝成單一巨大 Ruby 區塊，保證不掉注音且允許自然換行
             nodes.push(createCharBox(text, '', false, false, false, false, overallPron));
         } else {
             nodes.push(createCharBox(text, '', isInterim, false, false, true));
@@ -521,6 +541,17 @@ const ControlSystem = (() => {
 
     const saveUserPrefs = () => localStorage.setItem('userPrefs', JSON.stringify({ src: langA.value, tgt: langB.value }));
 
+    // ✨ 動態同步標籤首字邏輯 ✨
+    function updateTagText(lineObj) {
+        if (!lineObj.isTagged || !lineObj.tagEl) return;
+        // 如果翻轉了，目標語言跑到上面 (order 1)，就抓目標語言首字；否則抓來源語言首字
+        if (lineObj.speechLine.classList.contains('is-flipped')) {
+            lineObj.tagEl.textContent = (lineObj.translatedText || '?').trim().charAt(0) || '?';
+        } else {
+            lineObj.tagEl.textContent = (lineObj.fullText || '?').trim().charAt(0) || '?';
+        }
+    }
+
     function restartSpeechIfRecording() {
         saveUserPrefs();
         if (currentLineObj && currentLineObj.wrapper.classList.contains('is-empty')) {
@@ -551,14 +582,24 @@ const ControlSystem = (() => {
                 parseTokensToNodes(cardData.translatedText, false, cardData.tgtLang, cardData.translationData, true).forEach(n => lineObj.translationContainer.appendChild(n));
                 lineObj.translationContainer.classList.add('show');
             }
-            if (cardData.isTagged) applyTag(lineObj, cardData.tagColor, true);
+            if (cardData.isTagged) {
+                applyTag(lineObj, cardData.tagColor, true);
+                if (cardData.isFlipped) {
+                    lineObj.speechLine.classList.add('is-flipped');
+                    updateTagText(lineObj);
+                }
+            }
         });
     }
 
     function saveState() {
         const lockedData = Array.from(linesContainer.querySelectorAll('.speech-line-wrapper.active:not(.is-empty)')).map(w => {
             let o = w.lineObj;
-            if(o.isTagged && o.fullText.trim() !== '') return { id: o.id, fullText: o.fullText, translatedText: o.translatedText, isTagged: o.isTagged, tagColor: o.tagColor, srcLang: o.srcLang, tgtLang: o.tgtLang, translationData: o.translationData };
+            if(o.isTagged && o.fullText.trim() !== '') return { 
+                id: o.id, fullText: o.fullText, translatedText: o.translatedText, 
+                isTagged: o.isTagged, tagColor: o.tagColor, srcLang: o.srcLang, tgtLang: o.tgtLang, 
+                translationData: o.translationData, isFlipped: o.speechLine.classList.contains('is-flipped')
+            };
         }).filter(Boolean);
         localStorage.setItem('lockedCards', JSON.stringify(lockedData.reverse())); 
     }
@@ -576,14 +617,16 @@ const ControlSystem = (() => {
         lineObj.isTagged = true; lineObj.tagColor = color; lineObj.speechLine.style.borderColor = color;
 
         const tagEl = document.createElement('div'); tagEl.className = 'circle-tag'; tagEl.style.borderColor = color; tagEl.style.backgroundColor = color + '40'; 
-        tagEl.textContent = lineObj.fullText.trim().charAt(0) || '?';
+        lineObj.tagEl = tagEl;
+        updateTagText(lineObj); // 初始化即同步首字
+        
         tagEl.addEventListener('click', () => {
             lineObj.wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
             lineObj.speechLine.style.background = color + '20'; 
             setTimeout(() => lineObj.speechLine.style.background = '', 1000);
         });
         tagEl.addEventListener('dblclick', () => removeTag(lineObj));
-        lineObj.tagEl = tagEl; tagBanner.prepend(tagEl); 
+        tagBanner.prepend(tagEl); 
         if(!isInitializing) saveState();
     }
 
@@ -629,10 +672,13 @@ const ControlSystem = (() => {
         let textContainer = document.createElement('div'); textContainer.className = 'text-layer source-layer';
         let finalAnchor = document.createElement('span'); finalAnchor.className = 'final-anchor';
         let interimAnchor = document.createElement('span'); interimAnchor.className = 'interim-anchor';
+        
+        // 🚨 真實的分隔線 (永遠卡在 source 和 target 中間) 🚨
+        let layerDivider = document.createElement('div'); layerDivider.className = 'layer-divider';
         let translationContainer = document.createElement('div'); translationContainer.className = 'text-layer target-layer';
         
         textContainer.appendChild(finalAnchor); textContainer.appendChild(interimAnchor);
-        speechLine.append(deskLeft, deskRight, textContainer, translationContainer);
+        speechLine.append(deskLeft, deskRight, textContainer, layerDivider, translationContainer);
         innerWrapper.append(actionsBg, speechLine); wrapper.appendChild(innerWrapper);
         if(isAppending) linesContainer.appendChild(wrapper); else linesContainer.prepend(wrapper);
         
@@ -647,13 +693,19 @@ const ControlSystem = (() => {
 
         textContainer.addEventListener('click', (e) => {
             if (lineObj.fullText === '') return;
-            if (lineObj.speechLine.classList.contains('is-flipped')) lineObj.speechLine.classList.remove('is-flipped');
+            if (lineObj.speechLine.classList.contains('is-flipped')) {
+                lineObj.speechLine.classList.remove('is-flipped');
+                updateTagText(lineObj); // 同步首字到標籤
+            }
             ControlSystem.playSpeech(lineObj.fullText, localeMap[lineObj.srcLang]);
         });
         translationContainer.addEventListener('click', (e) => {
             if (translationContainer.innerHTML.includes("失敗")) { lineObj.translated = false; triggerTranslation(lineObj); return; }
             if (!lineObj.translatedText || translationContainer.innerHTML.includes("即時翻譯中")) return;
-            if (!lineObj.speechLine.classList.contains('is-flipped')) lineObj.speechLine.classList.add('is-flipped');
+            if (!lineObj.speechLine.classList.contains('is-flipped')) {
+                lineObj.speechLine.classList.add('is-flipped');
+                updateTagText(lineObj); // 同步首字到標籤
+            }
             ControlSystem.playSpeech(lineObj.translatedText, localeMap[lineObj.tgtLang]);
         });
 
@@ -685,13 +737,13 @@ const ControlSystem = (() => {
             // 渲染下方的目標翻譯，傳入 isTarget = true
             parseTokensToNodes(res.translated, false, lineObj.tgtLang, res, true).forEach(n => lineObj.translationContainer.appendChild(n));
             
-            // 渲染完後，針對日文與韓文的來源文字，補掛載平假名/英文拼音發音 (傳入 isTarget = false)
+            // 日文/韓文 來源文字專屬：補掛載上方原文字層的平假名/羅馬拼音
             if (lineObj.srcLang === 'ja' || lineObj.srcLang === 'ko') {
                 lineObj.finalAnchor.innerHTML = '';
                 parseTokensToNodes(lineObj.fullText, false, lineObj.srcLang, res, false).forEach(n => lineObj.finalAnchor.appendChild(n));
             }
         }
-        saveState(); 
+        if (lineObj.isTagged) saveState(); 
     }
 
     if (SpeechRecognition) {
@@ -770,12 +822,12 @@ const ControlSystem = (() => {
             // 修復複製亂碼：移除拼音與連音，但絕對保留 `.silent` 靜音字母以防法文拼字錯誤
             let getCleanText = (node) => {
                 let clone = node.cloneNode(true);
-                Array.from(clone.querySelectorAll('rt, .ruby-zhuyin, .jp-furi, .tone-light, .tone-mark, .liaison')).forEach(el => el.remove());
+                Array.from(clone.querySelectorAll('rt, .i-rt, .ruby-zhuyin, .jp-furi, .tone-light, .tone-mark, .liaison')).forEach(el => el.remove());
                 return clone.textContent.replace(/\s+/g, ' ').trim();
             };
             let textToCopy = Array.from(linesContainer.querySelectorAll('.speech-line-wrapper.active:not(.is-empty)')).reverse().map(w => {
-                let oTxt = Array.from(w.querySelectorAll('.source-layer .ruby-container')).map(n => (n.classList.contains('is-english') || n.classList.contains('is-foreign')) ? getCleanText(n) + ' ' : getCleanText(n)).join('').replace(/\s+/g, ' ').trim();
-                let tTxt = Array.from(w.querySelectorAll('.target-layer .ruby-container')).map(n => (n.classList.contains('is-english') || n.classList.contains('is-foreign')) ? getCleanText(n) + ' ' : getCleanText(n)).join('').replace(/\s+/g, ' ').trim();
+                let oTxt = Array.from(w.querySelectorAll('.source-layer .ruby-container')).map(n => (n.classList.contains('is-english') || n.classList.contains('is-foreign') || n.classList.contains('is-sentence')) ? getCleanText(n) + ' ' : getCleanText(n)).join('').replace(/\s+/g, ' ').trim();
+                let tTxt = Array.from(w.querySelectorAll('.target-layer .ruby-container')).map(n => (n.classList.contains('is-english') || n.classList.contains('is-foreign') || n.classList.contains('is-sentence')) ? getCleanText(n) + ' ' : getCleanText(n)).join('').replace(/\s+/g, ' ').trim();
                 return oTxt + (tTxt && !w.querySelector('.target-layer').innerHTML.includes("即時翻譯中") ? '\n' + tTxt : '');
             }).filter(t => t).join('\n\n');
             
