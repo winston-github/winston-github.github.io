@@ -68,21 +68,24 @@
         .speech-line-wrapper.deleting { grid-template-rows: 0fr; opacity: 0; margin-bottom: -20px; }
         .speech-line-inner { overflow: visible; position: relative; }
 
-        /* 滑動底板：預設隱藏，僅在實際觸控滑動時顯示，杜絕殘影 */
-        .swipe-actions-bg {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 24px;
-            display: flex; justify-content: space-between; overflow: hidden; z-index: 1;
-            visibility: hidden; opacity: 0; transition: opacity 0.2s ease, visibility 0.2s ease;
+        /* ==========================================
+           2. 物理隔離滑動圖層 (解決閃爍、色塊漏出)
+           ========================================== */
+        .swipe-action {
+            position: absolute; top: 0; height: 100%; width: 100%; border-radius: 24px;
+            display: flex; align-items: center; color: white;
+            opacity: 0; visibility: hidden; z-index: 1; transition: opacity 0.2s ease;
         }
-        .speech-line-wrapper.is-swiping .swipe-actions-bg { visibility: visible; opacity: 1; }
-
-        .swipe-btn {
-            width: 80px; height: 100%; display: flex; align-items: center; justify-content: center;
-            color: white; font-weight: bold; cursor: pointer; transition: filter 0.2s;
+        .swipe-action.tag-action {
+            background: var(--success-color); justify-content: flex-start; padding-left: 28px; left: 0;
         }
-        .swipe-btn.tag { background: var(--success-color); }
-        .swipe-btn.delete { background: var(--danger-color); }
-        .swipe-btn svg { width: 28px; height: 28px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+        .swipe-action.delete-action {
+            background: var(--danger-color); justify-content: flex-end; padding-right: 28px; right: 0;
+        }
+        
+        /* 動態鎖定：向右滑只顯示綠色，向左滑只顯示紅色 */
+        .speech-line-wrapper.is-swiping-right .swipe-action.tag-action { opacity: 1; visibility: visible; }
+        .speech-line-wrapper.is-swiping-left .swipe-action.delete-action { opacity: 1; visibility: visible; }
 
         .speech-line {
             display: flex; flex-direction: column; position: relative; z-index: 2;
@@ -92,7 +95,7 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.25);
         }
         .speech-line-wrapper:nth-child(even) .speech-line { background: #111e30; }
-        .speech-line-wrapper.is-empty .swipe-actions-bg,
+        .speech-line-wrapper.is-empty .swipe-action,
         .speech-line-wrapper.is-empty .desktop-action { display: none !important; }
 
         .desktop-action { position: absolute; top: 12px; opacity: 0; cursor: pointer; color: #94a3b8; transition: all 0.2s; z-index: 10; }
@@ -106,12 +109,8 @@
             .speech-line-wrapper.is-empty .speech-line:hover .desktop-action { opacity: 0; }
         }
         
-        /* 標籤化防呆：隱藏桌面版垃圾桶 */
         .speech-line-wrapper.is-tagged .desktop-action.right { display: none !important; }
 
-        /* ==========================================
-           2. 物理圖層翻轉系統 (真實分隔線、保證零閃爍)
-           ========================================== */
         .text-layer { display: flex; flex-wrap: wrap; align-items: center; align-content: flex-start; width: 100%; cursor: pointer; user-select: text; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         
         .source-layer { order: 1; min-height: 4.8rem; }
@@ -144,19 +143,15 @@
         .ruby-container.is-interim .ruby-char { color: #94a3b8; text-shadow: none; }
         .ruby-container.is-interim .zhuyin-symbol { color: #cbd5e1; }
         
-        /* 外語純淨排版 (取消所有雜亂標註) */
         .ruby-container.is-english, .ruby-container.is-foreign, .ruby-container.is-punctuation, .ruby-container.is-sentence {
             display: inline !important; margin-right: 0 !important; margin-bottom: 0 !important; font-family: -apple-system, 'Microsoft JhengHei', sans-serif; white-space: pre-wrap;
         }
         .ruby-container.is-english .ruby-char, .ruby-container.is-foreign .ruby-char, .ruby-container.is-punctuation .ruby-char, .ruby-container.is-sentence .ruby-char { display: inline !important; line-height: 1.4; letter-spacing: 0.5px; }
         .ruby-container.is-punctuation .ruby-char { color: #64748b; padding: 0 4px; line-height: 1.2;}
 
-        ruby.jp-ruby { ruby-position: over; ruby-align: center; }
+        ruby.jp-ruby { ruby-position: over; ruby-align: center; white-space: nowrap; }
         rt.jp-furi { user-select: none; font-weight: normal; font-family: 'Noto Sans TC', sans-serif; transition: all 0.4s ease;}
         .jp-kanji { font-weight: bold; transition: all 0.4s ease;}
-
-        .ruby-char ruby { ruby-position: over; ruby-align: center; white-space: nowrap; }
-        .liaison { color: #8e44ad !important; font-weight: bold !important; margin: 0 -2px; }
 
         /* ==========================================
            4. 動態狀態鎖定 CSS (解決顯示與顏色錯亂)
@@ -179,12 +174,10 @@
         .speech-line.is-flipped .target-layer .ruby-char, .speech-line.is-flipped .target-layer .jp-kanji { 
             font-size: 3.2rem; font-weight: bold; color: var(--text-main); 
         }
-
-        .source-layer .liaison, .speech-line.is-flipped .target-layer .liaison { opacity: 1 !important; visibility: visible !important; font-size: unset !important; color: #8e44ad !important; font-weight: bold !important; margin: 0 -2px; display: inline !important; }
         
         .source-layer rt, .speech-line.is-flipped .target-layer rt,
         .source-layer .jp-furi, .speech-line.is-flipped .target-layer .jp-furi { 
-            opacity: 1 !important; visibility: visible !important; font-size: 1rem !important; color: #fcd34d !important; display: ruby-text !important;
+            opacity: 1 !important; visibility: visible !important; font-size: 1rem !important; color: #fcd34d !important; display: ruby-text !important; padding-bottom: 2px;
         }
 
         .speech-line.is-flipped .target-layer .ruby-zhuyin { opacity: 1 !important; visibility: visible !important; font-size: unset !important; display: inline-flex !important; }
@@ -213,7 +206,6 @@
         .dir-btn svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.4s ease;}
         
         .btn-group { display: flex; gap: 16px; width: 100%; }
-        /* 移除按鈕文字後的高度優化，保持大方圓潤 */
         .magic-btn {
             flex: 1; height: 60px; border: none; border-radius: 20px; cursor: pointer; color: #ffffff;
             display: flex; align-items: center; justify-content: center; transition: all 0.3s ease; box-shadow: 0 6px 15px rgba(0,0,0,0.2);
@@ -291,7 +283,6 @@
         </select>
     </div>
 
-    <!-- 徹底移除按鈕文字，保留圖標置中 -->
     <div class="btn-group">
         <button id="btn-mic" class="magic-btn btn-primary" onclick="ControlSystem.toggleMic()">
             <svg id="icon-mic" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
@@ -346,10 +337,10 @@ for (const [char, bpmf] of Object.entries(TAIWAN_COMMON_CHARS)) { charToBpmfCach
 
 const romajiToHiraganaMap = { 'a':'あ','i':'い','u':'う','e':'え','o':'お', 'ka':'か', 'ki':'き', 'ku':'く', 'ke':'け', 'ko':'こ', 'sa':'さ', 'shi':'し', 'su':'す', 'se':'せ', 'so':'そ', 'ta':'た', 'chi':'ち', 'tsu':'つ', 'te':'て', 'to':'と', 'na':'な', 'ni':'に', 'nu':'ぬ', 'ne':'ね', 'no':'の', 'ha':'は', 'hi':'ひ', 'fu':'ふ', 'he':'へ', 'ho':'ほ', 'ma':'ま', 'mi':'み', 'mu':'む', 'me':'め', 'mo':'も', 'ya':'や', 'yu':'ゆ', 'yo':'よ', 'ra':'ら', 'ri':'り', 'ru':'る', 're':'れ', 'ro':'ろ', 'wa':'わ', 'wo':'を', 'kya':'きゃ','kyu':'きゅ','kyo':'きょ','gya':'ぎゃ','gyu':'ぎゅ','gyo':'ぎょ','sha':'しゃ','shu':'しゅ','sho':'しょ','ja':'じゃ','ju':'じゅ','jo':'じょ','cha':'ちゃ','chu':'ちゅ','cho':'ちょ','nya':'にゃ','nyu':'にゅ','nyo':'にょ','hya':'ひゃ','hyu':'ひゅ','hyo':'ひょ','bya':'びゃ','byu':'びゅ','byo':'びょ','pya':'ぴゃ','pyu':'ぴゅ','pyo':'ぴょ','mya':'みゃ','myu':'みゅ','myo':'みょ','rya':'りゃ','ryu':'りゅ','ryo':'りょ'};
 
-// ✨ 完美日文平假名解析引擎 (包含促音、撥音與剔除防嘲笑機制)
+// ✨ 平假名引擎：精確轉換且嚴格剔除英文與數字，防止嘲笑
 function convertRomajiToHiragana(romaji) {
     if(!romaji) return "";
-    romaji = romaji.toLowerCase().replace(/\s+/g, ''); // 移除 Google 怪異空白
+    romaji = romaji.toLowerCase().replace(/\s+/g, ''); 
     let result = ""; let i = 0;
     while (i < romaji.length) {
         let match = false;
@@ -363,7 +354,7 @@ function convertRomajiToHiragana(romaji) {
         }
         if (!match) {
             let c = romaji[i];
-            if (c === '-' || c === 'ō') result += 'ー';
+            if (c === '-' || c === 'ō' || c === 'ū') result += 'ー';
             else if (c >= 'a' && c <= 'z') {
                 if (i + 1 < romaji.length && c === romaji[i+1]) { result += 'っ'; } // 促音
                 else if (c === 'n') { result += 'ん'; } // 撥音
@@ -371,19 +362,13 @@ function convertRomajiToHiragana(romaji) {
             i++;
         }
     }
-    // 嚴格濾鏡：剔除所有英文與數字，保持平假名純淨度，避免被嘲笑！
-    return result.replace(/[a-zA-Z0-9]/g, '');
+    // 極致防呆：徹底移除所有非假名的垃圾字元 (英文字母、數字、符號)
+    return result.replace(/[a-zA-Z0-9\-_]/g, '');
 }
 
 // ==========================================
-// 2. 外語動態發音標註引擎 (回歸純淨專業版)
+// 2. 外語解析器 (全面純淨化)
 // ==========================================
-function parseForeignToHTML(word, lang) {
-    if (!word) return word;
-    // 應要求：全面移除西/德/俄的標註，回歸純淨原生。僅保留法文標準的連音處理。
-    return word; 
-}
-
 function parseSentence(text) {
     let result = []; let i = 0;
     while (i < text.length) {
@@ -416,15 +401,21 @@ function createCharBox(char, bpmfString, isInterim, isPunctuation = false, isEng
     const box = document.createElement('div');
     const classNameExt = isEnglish ? 'is-english' : (isForeign ? 'is-foreign' : (isPunctuation ? 'is-punctuation' : ''));
     
-    // 日/韓文整句外掛發音處理
+    // 日文：回歸段落式精準漢字 Furigana
     if (hiragana) {
-        box.className = `ruby-container is-sentence ${isInterim ? 'is-interim' : ''}`;
+        box.className = `ruby-container ${isInterim ? 'is-interim' : ''}`;
         box.innerHTML = `<span class="ruby-char jp-kanji"><ruby class="jp-ruby">${char}<rt class="jp-furi">${hiragana}</rt></ruby></span>`;
+        return box;
+    }
+    
+    // 韓文等整句標註 (非日文情況)
+    if (isForeign && bpmfString === "SENTENCE_RUBY") {
+        box.className = `ruby-container is-sentence ${isInterim ? 'is-interim' : ''}`;
+        box.innerHTML = `<span class="ruby-char"><ruby>${char}<rt>${hiragana}</rt></ruby></span>`;
         return box;
     }
 
     box.className = `ruby-container ${isInterim ? 'is-interim' : ''} ${classNameExt}`;
-    
     if (isEnglish || isForeign || isPunctuation || !bpmfString) { box.innerHTML = `<div class="ruby-char">${char}</div>`; return box; }
 
     const { symbols, lightTone, markTone } = extractBpmf(bpmfString);
@@ -438,43 +429,58 @@ function createCharBox(char, bpmfString, isInterim, isPunctuation = false, isEng
     return box;
 }
 
+// 核心解剖：完美掛載日文段落發音，不會重疊
 function parseTokensToNodes(text, isInterim = false, srcLang = 'zh-TW', translationData = null, isTarget = false) {
     if (!text || text === "undefined") return [];
     let nodes = [];
     
-    let overallPron = "";
-    if (translationData && translationData.rawData && translationData.rawData[0]) {
-        let info = translationData.rawData[0].find(x => x[0] === null);
-        if (info) overallPron = isTarget ? (info[2] || "") : (info[3] || "");
-    }
-
-    if (srcLang === 'ja' || srcLang === 'ko') {
-        if (overallPron && !isInterim) {
-            if (srcLang === 'ja') overallPron = convertRomajiToHiragana(overallPron);
-            if (overallPron.trim().length > 0) {
-                nodes.push(createCharBox(text, '', false, false, false, false, overallPron));
-            } else {
-                nodes.push(createCharBox(text, '', isInterim, false, false, true));
-            }
-        } else {
-            nodes.push(createCharBox(text, '', isInterim, false, false, true));
+    // 🎌 日文：精準段落式 Furigana (僅針對含有漢字的片段標註)
+    if (srcLang === 'ja') {
+        if (!isInterim && translationData && translationData.rawData && translationData.rawData[0]) {
+            let segments = translationData.rawData[0].filter(x => x[0] !== null && x[0] !== undefined && typeof x[0] === 'string');
+            segments.forEach(seg => {
+                let textSeg = seg[0];
+                let romaji = seg[3];
+                // 只有該片段內含有漢字，且存在拼音時才標註
+                if (/[\u4E00-\u9FAF]/.test(textSeg) && romaji) {
+                    let hira = convertRomajiToHiragana(romaji);
+                    if (hira && hira !== textSeg) { // 避免 "いたい" 上面又標註 "いたい"
+                        nodes.push(createCharBox(textSeg, '', false, false, false, false, hira));
+                        return;
+                    }
+                }
+                nodes.push(createCharBox(textSeg, '', false, false, false, true));
+            });
+            if (nodes.length > 0) return nodes;
         }
+        nodes.push(createCharBox(text, '', isInterim, false, false, true));
         return nodes;
     }
 
+    // 🇰🇷 韓文：因為無分段，僅針對全句保留英文羅馬拼音
+    if (srcLang === 'ko') {
+        let overallPron = "";
+        if (translationData && translationData.rawData && translationData.rawData[0]) {
+            let info = translationData.rawData[0].find(x => x[0] === null);
+            if (info) overallPron = isTarget ? (info[2] || "") : (info[3] || "");
+        }
+        if (overallPron && !isInterim) nodes.push(createCharBox(text, "SENTENCE_RUBY", false, false, false, true, overallPron));
+        else nodes.push(createCharBox(text, '', isInterim, false, false, true));
+        return nodes;
+    }
+
+    // 其他語系 (德/俄/法/西/英)
     if (srcLang !== 'zh-TW') {
         const tokens = text.split(/([ \n，。！？、：；,.?!;:])/);
         for(let i=0; i<tokens.length; i++) {
             let token = tokens[i]; if (!token) continue;
-            if (srcLang === 'fr' && token === ' ' && tokens[i-1] && /[stpxz]$/i.test(tokens[i-1]) && tokens[i+1] && /^[aeiouy]/i.test(tokens[i+1])) {
-                nodes.push(createCharBox('<span class="liaison">&#8255;</span>', '', isInterim, false, false, true)); continue;
-            }
             if (/^[ \n，。！？、：；,.?!;:]+$/.test(token)) nodes.push(createCharBox(token, '', isInterim, true, false, false));
-            else nodes.push(createCharBox(parseForeignToHTML(token, srcLang), '', isInterim, false, false, true));
+            else nodes.push(createCharBox(token, '', isInterim, false, false, true));
         }
         return nodes;
     }
 
+    // 中文處理
     const tokens = text.match(/[\u4e00-\u9fa5]+|[a-zA-Z0-9\s'-]+|[^\u4e00-\u9fa5a-zA-Z0-9\s'-]+/g) || [];
     tokens.forEach(token => {
         if (/^[a-zA-Z0-9\s'-]+$/.test(token)) nodes.push(createCharBox(token, '', isInterim, false, true, false));
@@ -602,8 +608,7 @@ const ControlSystem = (() => {
         const color = forceColor || tagColors[Math.floor(Math.random() * tagColors.length)];
         lineObj.isTagged = true; lineObj.tagColor = color; lineObj.speechLine.style.borderColor = color;
         
-        // 標籤防呆鎖定
-        lineObj.wrapper.classList.add('is-tagged');
+        lineObj.wrapper.classList.add('is-tagged'); // 標籤防呆鎖定
 
         const tagEl = document.createElement('div'); tagEl.className = 'circle-tag'; tagEl.style.borderColor = color; tagEl.style.backgroundColor = color + '40'; 
         lineObj.tagEl = tagEl;
@@ -611,7 +616,6 @@ const ControlSystem = (() => {
         
         tagEl.addEventListener('click', () => {
             lineObj.wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            // 改用內發光，杜絕透視底層殘影
             lineObj.speechLine.style.boxShadow = `inset 0 0 0 100px ${color}30, 0 4px 15px rgba(0,0,0,0.25)`;
             setTimeout(() => lineObj.speechLine.style.boxShadow = '0 4px 15px rgba(0,0,0,0.25)', 1000);
         });
@@ -639,9 +643,19 @@ const ControlSystem = (() => {
             if (!isSwiping && !isVertical) { if (Math.abs(dY) > Math.abs(dX) + 5) isVertical = true; else if (Math.abs(dX) > 10) isSwiping = true; }
             if (isSwiping && !isVertical) { 
                 e.preventDefault(); 
-                // 鎖死已標籤卡片的左滑刪除
-                if (lineObj.isTagged && dX < 0) dX = 0; 
-                if (dX !== 0) lineObj.wrapper.classList.add('is-swiping'); // 只有產生位移才顯示底板
+                if (lineObj.isTagged && dX < 0) dX = 0; // 鎖死已標籤卡片的左滑刪除
+                
+                // 動態設定圖層顯隱，杜絕互漏殘影！
+                if (dX > 0) {
+                    lineObj.wrapper.classList.add('is-swiping-right');
+                    lineObj.wrapper.classList.remove('is-swiping-left');
+                } else if (dX < 0) {
+                    lineObj.wrapper.classList.add('is-swiping-left');
+                    lineObj.wrapper.classList.remove('is-swiping-right');
+                } else {
+                    lineObj.wrapper.classList.remove('is-swiping-right', 'is-swiping-left');
+                }
+
                 lineObj.speechLine.style.transform = `translateX(${dX}px)`; translateVal = dX; 
             }
         });
@@ -649,16 +663,18 @@ const ControlSystem = (() => {
             if (!isSwiping) return; 
             lineObj.speechLine.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.4s, border-color 0.4s';
             if (Math.abs(translateVal) > 10) preventClick = true;
+            
+            // 瞬間清除滑動狀態，絕對不會有殘影閃爍
+            lineObj.wrapper.classList.remove('is-swiping-right', 'is-swiping-left');
+
             if (translateVal < -100 && !lineObj.isTagged) { lineObj.speechLine.style.transform = `translateX(-120%)`; removeCard(lineObj); }
             else if (translateVal > 100) { lineObj.speechLine.style.transform = `translateX(0)`; if (lineObj.isTagged) removeTag(lineObj); else applyTag(lineObj); }
             else { lineObj.speechLine.style.transform = `translateX(0)`; } translateVal = 0;
-            setTimeout(() => lineObj.wrapper.classList.remove('is-swiping'), 300); // 動畫結束後徹底隱藏底板防閃爍
         });
         lineObj.speechLine.addEventListener('click', (e) => {
             if (preventClick) { e.stopPropagation(); preventClick = false; return; }
             if (lineObj.speechLine.style.transform && lineObj.speechLine.style.transform !== 'translateX(0px)') { 
                 lineObj.speechLine.style.transform = `translateX(0)`; e.stopPropagation(); 
-                setTimeout(() => lineObj.wrapper.classList.remove('is-swiping'), 300);
             }
         });
     }
@@ -668,8 +684,14 @@ const ControlSystem = (() => {
         
         let wrapper = document.createElement('div'); wrapper.className = 'speech-line-wrapper is-empty';
         let innerWrapper = document.createElement('div'); innerWrapper.className = 'speech-line-inner';
-        let actionsBg = document.createElement('div'); actionsBg.className = 'swipe-actions-bg';
-        actionsBg.innerHTML = `<div class="swipe-btn tag"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="m9 12 2 2 4-4"/></svg></div><div class="swipe-btn delete"><svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></div>`;
+        
+        // 分離式滑動按鈕：不再包成同一個大群組，徹底防漏
+        let actionTag = document.createElement('div'); actionTag.className = 'swipe-action tag-action';
+        actionTag.innerHTML = `<svg viewBox="0 0 24 24" style="width:28px;height:28px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;"><path d="M4 4h16v16H4z"/><path d="m9 12 2 2 4-4"/></svg>`;
+        
+        let actionDel = document.createElement('div'); actionDel.className = 'swipe-action delete-action';
+        actionDel.innerHTML = `<svg viewBox="0 0 24 24" style="width:28px;height:28px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
+
         let deskLeft = document.createElement('div'); deskLeft.className = 'desktop-action left'; deskLeft.innerHTML = `<svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
         let deskRight = document.createElement('div'); deskRight.className = 'desktop-action right'; deskRight.innerHTML = `<svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
 
@@ -678,13 +700,12 @@ const ControlSystem = (() => {
         let finalAnchor = document.createElement('span'); finalAnchor.className = 'final-anchor';
         let interimAnchor = document.createElement('span'); interimAnchor.className = 'interim-anchor';
         
-        // 真實分隔線
         let layerDivider = document.createElement('div'); layerDivider.className = 'layer-divider';
         let translationContainer = document.createElement('div'); translationContainer.className = 'text-layer target-layer';
         
         textContainer.appendChild(finalAnchor); textContainer.appendChild(interimAnchor);
         speechLine.append(deskLeft, deskRight, textContainer, layerDivider, translationContainer);
-        innerWrapper.append(actionsBg, speechLine); wrapper.appendChild(innerWrapper);
+        innerWrapper.append(actionTag, actionDel, speechLine); wrapper.appendChild(innerWrapper);
         if(isAppending) linesContainer.appendChild(wrapper); else linesContainer.prepend(wrapper);
         
         void wrapper.offsetWidth; setTimeout(()=> wrapper.classList.add('active'), 10);
@@ -692,12 +713,11 @@ const ControlSystem = (() => {
         const lineObj = { id: forceId || "c_" + Date.now(), wrapper, speechLine, finalAnchor, interimAnchor, translationContainer, fullText: '', translatedText: '', translated: false, isTagged: false, tagColor: null, tagEl: null, srcLang: getSourceLang(), tgtLang: getTargetLang(), translationData: null };
         wrapper.lineObj = lineObj; attachSwipeGestures(lineObj);
 
-        // 重置新卡的語速計時器
         speechStartTime = Date.now();
 
         const toggleTag = e => { e.stopPropagation(); if(lineObj.fullText==='')return; lineObj.isTagged ? removeTag(lineObj) : applyTag(lineObj); };
         const delCard = e => { e.stopPropagation(); if(lineObj.fullText==='')return; removeCard(lineObj); };
-        actionsBg.querySelector('.tag').onclick = deskLeft.onclick = toggleTag; actionsBg.querySelector('.delete').onclick = deskRight.onclick = delCard;
+        actionTag.onclick = deskLeft.onclick = toggleTag; actionDel.onclick = deskRight.onclick = delCard;
 
         textContainer.addEventListener('click', (e) => {
             if (lineObj.fullText === '') return;
@@ -744,6 +764,7 @@ const ControlSystem = (() => {
         } else {
             parseTokensToNodes(res.translated, false, lineObj.tgtLang, res, true).forEach(n => lineObj.translationContainer.appendChild(n));
             
+            // 🎌 重構後的日/韓文反溯標註
             if (lineObj.srcLang === 'ja' || lineObj.srcLang === 'ko') {
                 lineObj.finalAnchor.innerHTML = '';
                 parseTokensToNodes(lineObj.fullText, false, lineObj.srcLang, res, false).forEach(n => lineObj.finalAnchor.appendChild(n));
@@ -758,7 +779,7 @@ const ControlSystem = (() => {
         recognition.onresult = (e) => {
             if (currentLineObj && currentLineObj.wrapper.classList.contains('is-empty')) {
                 currentLineObj.wrapper.classList.remove('is-empty');
-                speechStartTime = Date.now(); // 從講出第一個字開始算起
+                speechStartTime = Date.now(); 
             }
             
             let interimHTML = document.createDocumentFragment(), finalAdded = false, lastFinal = '';
@@ -781,11 +802,11 @@ const ControlSystem = (() => {
             // ✨ 語速動態適應引擎 (Adaptive CPS)
             let elapsedSec = (Date.now() - speechStartTime) / 1000;
             let totalChars = currentLineObj.fullText.length + interimLength;
-            let dynamicDelay = 1500; // 預設 1.5 秒
+            let dynamicDelay = 1500; 
             if (elapsedSec > 1) {
                 let cps = totalChars / elapsedSec;
-                if (cps > 6) dynamicDelay = 600; // 講極快，縮短至 0.6 秒
-                else if (cps > 4) dynamicDelay = 900; // 偏快，0.9 秒
+                if (cps > 6) dynamicDelay = 600; 
+                else if (cps > 4) dynamicDelay = 900; 
             }
 
             if (finalAdded && /[。！？，、：；\n]/.test(lastFinal)) {
@@ -798,7 +819,7 @@ const ControlSystem = (() => {
                         triggerTranslation(currentLineObj); 
                         if(!isUserRequestedStop) currentLineObj = createNewActiveLine(); 
                     } 
-                }, dynamicDelay); // 套用動態適應時間
+                }, dynamicDelay); 
             }
         };
         recognition.onerror = () => { isUserRequestedStop = true; document.body.className = ""; };
@@ -834,12 +855,12 @@ const ControlSystem = (() => {
         },
         toggleMic: () => {
             if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') { DeviceMotionEvent.requestPermission().catch(()=>{}); }
-            if (!SpeechRecognition) return alert("瀏覽器不支援 Speech API。");
+            if (!SpeechRecognition) return alert("The browser doesn't support Speech API。");
             if (isUserRequestedStop) { isUserRequestedStop = false; recognition.lang = localeMap[getSourceLang()]; try { recognition.start(); } catch(e) {} } 
             else { isUserRequestedStop = true; clearTimeout(lineBreakTimer); try { recognition.stop(); } catch(e) {} }
         },
         playSpeech: (text, lang) => {
-            if (!text || text.includes("即時翻譯中") || text.includes("失敗")) return;
+            if (!text || text.includes("Translating") || text.includes("Failed")) return;
             window.speechSynthesis.cancel(); isTTSPlaying = true;
             let wasRecording = !isUserRequestedStop; if (wasRecording && recognition) { try { recognition.stop(); } catch(e) {} }
             const u = new SpeechSynthesisUtterance(text); u.lang = lang;
@@ -849,7 +870,7 @@ const ControlSystem = (() => {
         copyText: () => {
             let getCleanText = (node) => {
                 let clone = node.cloneNode(true);
-                Array.from(clone.querySelectorAll('rt, .ruby-zhuyin, .jp-furi, .tone-light, .tone-mark, .liaison')).forEach(el => el.remove());
+                Array.from(clone.querySelectorAll('rt, .ruby-zhuyin, .jp-furi')).forEach(el => el.remove());
                 return clone.textContent.replace(/\s+/g, ' ').trim();
             };
             let textToCopy = Array.from(linesContainer.querySelectorAll('.speech-line-wrapper.active:not(.is-empty)')).reverse().map(w => {
