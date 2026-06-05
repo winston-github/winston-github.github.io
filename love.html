@@ -28,7 +28,6 @@
         
         html, body { height: 100dvh; background-color: var(--bg-base); color: var(--text-main); overflow: hidden; position: fixed; inset: 0; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
 
-        /* SVG 通用樣式 */
         .svg-icon { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 
         /* --- 視覺介面 --- */
@@ -49,7 +48,8 @@
         .question-card.prev { opacity: 0; transform: translateY(-50px) scale(0.9) rotateX(-10deg); z-index: 4; }
         
         .card-category { font-size: 11px; color: var(--accent-gold); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 25px; text-align: center; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 6px;}
-        .card-text { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 300; line-height: 1.7; text-align: center; color: var(--text-main); letter-spacing: 0.5px; word-break: keep-all; }
+        /* 修正文字跑版元凶：拔掉 keep-all，改用 break-word */
+        .card-text { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 300; line-height: 1.7; text-align: center; color: var(--text-main); letter-spacing: 0.5px; word-break: break-word; }
         .card-footer { font-size: 10px; color: var(--text-sub); text-align: center; letter-spacing: 2px; }
 
         .controls { display: flex; justify-content: space-between; align-items: center; padding: 15px 40px calc(30px + env(safe-area-inset-bottom)); }
@@ -65,11 +65,13 @@
         .glass-overlay.active, .modal-overlay.open { opacity: 1; pointer-events: auto; }
         
         .modal-content { width: 85%; max-width: 340px; background: var(--bg-card); border-radius: 24px; padding: 30px 25px; border: 1px solid rgba(255,255,255,0.05); color: var(--text-main); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); transform: translateY(20px); transition: transform 0.3s; }
-        .modal-overlay.open .modal-content { transform: translateY(0); }
+        .modal-overlay.open .modal-content, .glass-overlay.active .modal-content { transform: translateY(0); }
 
         .btn-system { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 16px; margin-bottom: 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; color: var(--text-main); font-size: 14px; cursor: pointer; transition: background 0.2s; }
         .btn-system:active { background: rgba(255,255,255,0.1); }
         .btn-system.danger { color: var(--danger-red); border-color: rgba(239,68,68,0.2); margin-top: 25px; }
+        .btn-system.primary { color: var(--accent-gold); background: rgba(212, 175, 55, 0.1); border-color: rgba(212, 175, 55, 0.3); }
+        .btn-system.primary:active { background: rgba(212, 175, 55, 0.2); }
 
         #toast-container { position: fixed; top: env(safe-area-inset-top, 20px); left: 50%; transform: translateX(-50%); z-index: 20000; display: flex; flex-direction: column; gap: 10px; pointer-events: none; width: 90%; max-width: 320px; }
         
@@ -94,7 +96,8 @@
                 <svg class="svg-icon" style="width:16px;height:16px;color:var(--accent-gold)" viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
                 OUR TIME
             </div>
-            <button class="icon-btn" onclick="UI.triggerEndSequence()">
+            <!-- 觸發退場的電源按鈕 -->
+            <button class="icon-btn" onclick="UI.showEndConfirm()">
                 <svg class="svg-icon" viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
             </button>
         </header>
@@ -118,6 +121,18 @@
         <div id="secret-trigger"></div>
     </div>
 
+    <!-- 完美的自訂結束確認彈窗 (取代原生的 confirm) -->
+    <div id="end-confirm-overlay" class="glass-overlay">
+        <div class="modal-content" style="text-align: center; padding: 40px 25px;">
+            <div style="font-size:18px; margin-bottom:15px; letter-spacing:2px; color: var(--text-main); font-weight: 300;">結束對話</div>
+            <div style="font-size:13px; color:var(--text-sub); margin-bottom:30px; line-height:1.6;" id="end-confirm-msg"></div>
+            <div style="display: flex; gap: 15px;">
+                <button class="btn-system" style="margin-bottom:0; flex:1;" onclick="document.getElementById('end-confirm-overlay').classList.remove('active')">取消</button>
+                <button class="btn-system primary" style="margin-bottom:0; flex:1;" onclick="UI.executeEndSequence()">確定</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 隱藏的系統後台 Modal -->
     <div id="system-modal" class="modal-overlay">
         <div class="modal-content">
@@ -125,7 +140,7 @@
             
             <button class="btn-system" onclick="CoreManager.setupNewFlow(); closeSystemModal();">
                 <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
-                首次建立 (綁定雲端)
+                首次建立 (靜默綁定雲端)
             </button>
 
             <button class="btn-system" onclick="CoreManager.restoreFlow(); closeSystemModal();">
@@ -264,19 +279,27 @@
         };
 
         const UI = {
-            triggerEndSequence: async function() {
-                // 用自訂的玻璃感彈窗取代原生的 confirm，保護氣氛
+            showEndConfirm: function() {
                 const isCloudBound = STATE.cloud.folderId ? true : false;
-                const msg = isCloudBound ? "準備結束今晚的對話？\n(系統將自動備份至雲端並無痕關閉)" : "準備結束今晚的對話？\n(將無痕關閉並清空暫存紀錄)";
+                // 取代原本又醜又突兀的 confirm()
+                const msg = isCloudBound 
+                    ? "準備結束今晚的對話？<br><span style='font-size:11px;opacity:0.6;'>(系統將自動備份至雲端並無痕關閉)</span>" 
+                    : "準備結束今晚的對話？<br><span style='font-size:11px;opacity:0.6;'>(將無痕關閉並清空暫存紀錄)</span>";
                 
-                if (confirm(msg)) {
-                    if (isCloudBound) {
-                        showToast("正在加密備份並準備關閉...");
-                        await CoreManager.syncAndWipeAndClose();
-                    } else {
-                        localStorage.removeItem('points_sys_data'); 
-                        setTimeout(() => { window.close(); location.href = 'about:blank'; }, 500);
-                    }
+                document.getElementById('end-confirm-msg').innerHTML = msg;
+                document.getElementById('end-confirm-overlay').classList.add('active');
+                if(navigator.vibrate) navigator.vibrate(10);
+            },
+            executeEndSequence: async function() {
+                document.getElementById('end-confirm-overlay').classList.remove('active');
+                const isCloudBound = STATE.cloud.folderId ? true : false;
+                
+                if (isCloudBound) {
+                    showToast("正在加密備份並準備關閉...");
+                    await CoreManager.syncAndWipeAndClose();
+                } else {
+                    localStorage.removeItem('points_sys_data'); 
+                    setTimeout(() => { window.close(); location.href = 'about:blank'; }, 500);
                 }
             }
         };
@@ -344,19 +367,20 @@
                 const res = await DriveAPI.fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&pageSize=100`);
                 const data = await res.json(); return data.files || [];
             },
-            showSelector: function() {
-                return new Promise(async (resolve, reject) => {
-                    const folders = await this.fetchFolders();
-                    const fname = prompt(`找到以下資料夾，請手動輸入要綁定的資料夾名稱\n(例如: OurTime)\n\n已存在:\n${folders.map(f=>f.name).join(', ')}`);
-                    if(fname) {
-                        const existing = folders.find(f => f.name === fname);
-                        if(existing) resolve(existing);
-                        else {
-                            const res = await DriveAPI.fetch('https://www.googleapis.com/drive/v3/files?fields=id,name', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: fname, mimeType: 'application/vnd.google-apps.folder' }) });
-                            resolve(await res.json());
-                        }
-                    } else reject(new Error("取消選擇"));
+            // 改寫：不再彈出醜陋的原生 prompt，自動靜默尋找或建立名為 OurTime 的資料夾
+            getOrCreateTargetFolder: async function() {
+                const folders = await this.fetchFolders();
+                const targetName = "OurTime";
+                const existing = folders.find(f => f.name === targetName);
+                if(existing) return existing;
+                
+                showToast("正在配置您的專屬保險箱...");
+                const res = await DriveAPI.fetch('https://www.googleapis.com/drive/v3/files?fields=id,name', { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ name: targetName, mimeType: 'application/vnd.google-apps.folder' }) 
                 });
+                return await res.json();
             }
         };
 
@@ -431,7 +455,6 @@
 
         const CoreManager = {
             init: async function() {
-                // 拔掉所有初始化時的 confirm 與 alert，讓畫面100%保證順利渲染
                 const localStr = localStorage.getItem('points_sys_data');
                 const cloudStr = localStorage.getItem('points_sys_cloud');
                 if (localStr) {
@@ -440,23 +463,26 @@
                         if(cloudStr) { const c = JSON.parse(cloudStr); STATE.cloud.folderId = c.folderId; STATE.cloud.fileId = c.fileId; }
                     } catch(e) {}
                 }
-                // 直接渲染卡片，不再卡死
                 Game.init();
             },
             setupNewFlow: async function() {
                 try {
                     await CloudManager.authorize();
-                    const folder = await DriveUI.showSelector(); STATE.cloud.folderId = folder.id;
+                    // 改用靜默建立資料夾，不再彈出 prompt
+                    const folder = await DriveUI.getOrCreateTargetFolder(); 
+                    STATE.cloud.folderId = folder.id;
                     const pwd = await PinLock.open("設定專屬金鑰", "請輸入 4 位以上數字密碼\n(未來皆用此密碼解密，請務必牢記)");
                     if(!pwd) throw new Error("取消");
                     localStorage.setItem('sys_pin_cache', pwd);
                     await this.performFullSync(true);
+                    showToast("綁定完成，資料已加密存放於雲端！");
                 } catch(e) { if(e.message !== "取消" && e.message !== "GIS_NOT_LOADED") showToast("設定失敗，請確認已登入 Google", true); }
             },
             restoreFlow: async function() {
                 try {
                     await CloudManager.authorize();
-                    const folder = await DriveUI.showSelector(); STATE.cloud.folderId = folder.id;
+                    const folder = await DriveUI.getOrCreateTargetFolder(); 
+                    STATE.cloud.folderId = folder.id;
                     const q = encodeURIComponent(`parents in '${folder.id}' and mimeType='application/json' and trashed=false`);
                     const res = await DriveAPI.fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)&orderBy=modifiedTime desc&pageSize=1`);
                     const data = await res.json();
@@ -488,7 +514,6 @@
                     this.saveLocal();
                     const encStr = await CryptoEngine.encrypt(JSON.stringify(STATE.data), pwd);
                     const success = await CloudManager.resumableUpload(STATE.cloud.fileId, STATE.cloud.folderId, `OurTime_${new Date().toISOString().split('T')[0]}.json`, encStr);
-                    if(success) showToast("雲端同步成功");
                     return success;
                 } catch(e) { showToast("同步失敗", true); return false; }
             },
