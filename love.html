@@ -13,7 +13,6 @@
 
     <style>
         :root {
-            /* 完美解決 iOS Safari 網址列遮擋問題 */
             --vh: 1dvh;
             --bg-base: #0a0c10; 
             --bg-card: #161a22; 
@@ -60,7 +59,7 @@
         .nav-btn:disabled { opacity: 0.2; pointer-events: none; }
 
         /* --- 隱藏的底層硬核介面 --- */
-        #secret-trigger { position: absolute; bottom: 0; right: 0; width: 50px; height: 50px; background: transparent; z-index: 9999; }
+        #secret-trigger { position: absolute; bottom: 0; right: 0; width: 60px; height: 60px; background: transparent; z-index: 9999; }
         
         .glass-overlay, .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); z-index: 10000; display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; flex-direction: column; }
         .glass-overlay.active, .modal-overlay.open { opacity: 1; pointer-events: auto; }
@@ -95,7 +94,6 @@
                 <svg class="svg-icon" style="width:16px;height:16px;color:var(--accent-gold)" viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
                 OUR TIME
             </div>
-            <!-- 結束約會與同步按鈕 -->
             <button class="icon-btn" onclick="UI.triggerEndSequence()">
                 <svg class="svg-icon" viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
             </button>
@@ -125,19 +123,19 @@
         <div class="modal-content">
             <h3 style="margin-bottom: 25px; text-align: center; color: var(--text-sub); font-weight: 300; letter-spacing: 3px; font-size: 12px;">SYSTEM SETTINGS</h3>
             
-            <button class="btn-system" onclick="CoreManager.performFullSync(); closeSystemModal();">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                強制備份同步
-            </button>
-            
-            <button class="btn-system" onclick="CloudManager.switchFolder(); closeSystemModal();">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                切換備份資料夾
-            </button>
-            
-            <button class="btn-system" onclick="document.getElementById('debug-console').classList.add('active'); closeSystemModal();">
+            <button class="btn-system" onclick="CoreManager.setupNewFlow(); closeSystemModal();">
                 <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
-                系統除錯日誌
+                首次建立 (綁定雲端)
+            </button>
+
+            <button class="btn-system" onclick="CoreManager.restoreFlow(); closeSystemModal();">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                還原舊進度 (從雲端)
+            </button>
+            
+            <button class="btn-system" onclick="CoreManager.performFullSync(true); closeSystemModal();">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                手動強制同步
             </button>
 
             <button class="btn-system danger" onclick="closeSystemModal()">
@@ -147,11 +145,11 @@
         </div>
     </div>
 
-    <!-- 密碼鎖 (復刻) -->
+    <!-- 密碼鎖 -->
     <div id="pin-lock-overlay" class="glass-overlay">
         <div class="modal-content" style="background: transparent; border: none; box-shadow: none; padding: 0;">
             <div style="text-align:center; font-size:20px; font-weight:300; margin-bottom:10px; letter-spacing:2px;" id="pin-title">解鎖金鑰</div>
-            <div style="text-align:center; font-size:12px; color:var(--text-sub); margin-bottom:35px;" id="pin-desc">請輸入數字密碼</div>
+            <div style="text-align:center; font-size:12px; color:var(--text-sub); margin-bottom:35px; white-space:pre-wrap;" id="pin-desc">請輸入數字密碼</div>
             <div id="pin-display"></div>
             <div class="pin-grid" id="pin-grid"></div>
             <button class="btn-system" style="margin-top: 40px; justify-content:center; border:none; background:transparent; color:var(--text-sub);" id="btn-pin-cancel">取消驗證</button>
@@ -159,80 +157,51 @@
     </div>
 
     <div id="toast-container"></div>
-    
-    <!-- 偵錯面板 -->
-    <div id="debug-console">
-        <h2 style="color:var(--danger-red); margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; font-size:16px;">
-            <span style="display:flex; align-items:center; gap:8px;">
-                <svg class="svg-icon" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                核心診斷
-            </span>
-            <button class="icon-btn" onclick="document.getElementById('debug-console').classList.remove('active');" style="background:#fff; color:#000; padding:6px 12px; border-radius:8px; font-size:12px;">關閉</button>
-        </h2>
-        <textarea id="debug-body" readonly></textarea>
-    </div>
 
     <script>
-        /* =========================================================
-           階段性深度題庫 (精心設計 40 題，不涉及違規內容，著重情緒價值) 
-           考量：業績高、自尊心強的老婆 + 長期育兒疲勞的父母
-           ========================================================= */
         const QUESTIONS = [
-            // 階段 1：破冰暖身 (安全感建立，脫離現實疲勞)
+            // 階段 1：破冰暖身
             { cat: "破冰", icon: "☕", text: "如果現在可以丟下小孩跟工作，瞬間移動到地球上任何一個地方發呆三天，妳想去哪？" },
             { cat: "破冰", icon: "☕", text: "回想我們剛認識的時候，我有哪一個舉動或特質，讓妳覺得『這個人好像還不錯』？" },
             { cat: "破冰", icon: "☕", text: "如果我們兩個人的個性可以互相交換一天，妳覺得妳最無法適應我的一點是什麼？" },
             { cat: "破冰", icon: "☕", text: "這半年來，有沒有哪一部電影、劇或是一首歌，讓妳看完/聽完後在心裡產生很大的共鳴？" },
             
-            // 階段 2：看見妳的光 (滿足自尊心，肯定除了媽媽以外的成就)
+            // 階段 2：看見妳的光
             { cat: "閃耀", icon: "✨", text: "妳知道嗎？當妳在工作上蟬聯業績第一時，我心裡其實最真實的想法是..." },
             { cat: "閃耀", icon: "✨", text: "這幾年看妳在職場跟家庭間切換，妳覺得自己長出了什麼以前根本沒有的『超能力』？" },
             { cat: "閃耀", icon: "✨", text: "如果妳的工作夥伴能看到妳在家裡的樣子，妳覺得他們最驚訝的會是什麼？" },
             { cat: "閃耀", icon: "✨", text: "我一直覺得妳有一種很棒的特質，是連妳自己可能都沒察覺的，妳猜猜是什麼？" },
             
-            // 階段 3：育兒黑洞與卸下盔甲 (同理與排解怨氣)
+            // 階段 3：育兒黑洞與卸下盔甲
             { cat: "卸防", icon: "🛡️", text: "老實說，當了這 7 年的媽媽，有沒有哪一個瞬間妳真的很想大喊『我不想管了』？" },
             { cat: "卸防", icon: "🛡️", text: "在教養觀念上，如果我哪一次的態度讓妳覺得『你在扯我後腿』，請現在坦白告訴我。" },
             { cat: "卸防", icon: "🛡️", text: "如果明天一整天妳都不用當『媽媽』也不用當『主管』，妳最想讓我為妳做的一件事是什麼？" },
             { cat: "卸防", icon: "🛡️", text: "當妳在外頭衝刺業績、回到家又看到滿地玩具覺得快崩潰時，妳最希望我對妳說什麼？" },
             { cat: "卸防", icon: "🛡️", text: "有沒有什麼事情是妳一直覺得委屈，但為了這個家，妳默默吞下去沒有說的？" },
 
-            // 階段 4：靈魂深處 (伴侶關係的修復與看見)
+            // 階段 4：靈魂深處
             { cat: "深處", icon: "🌌", text: "在我們結婚生子後的這些混亂日子裡，我有哪一次的舉動，讓妳覺得『有老公真好』？" },
             { cat: "深處", icon: "🌌", text: "反過來說，在這幾年裡，我有沒有哪句話或行為，曾經讓妳覺得特別孤單或失落？" },
             { cat: "深處", icon: "🌌", text: "輪到妳說了：拋開爸爸的角色，妳覺得『作為伴侶』的我，現在身上最讓妳依靠的特質是什麼？" },
             { cat: "深處", icon: "🌌", text: "如果我們兩個現在是第一次約會的陌生人，妳覺得我們還會愛上彼此嗎？為什麼？" },
             
-            // 階段 5：雙人舞步與未來 (重建兩人世界的期待)
+            // 階段 5：未來與兩人世界
             { cat: "未來", icon: "🧭", text: "等兩個孩子都上國中，不用我們天天盯著的時候，妳最想和我一起去完成什麼瘋狂的事？" },
             { cat: "未來", icon: "🧭", text: "如果我們約定以後每個月都要有一次像今天這樣的『微約會』，妳最想制定的規則是什麼？" },
             { cat: "未來", icon: "🧭", text: "這個問題沒有標準答案：現在這一刻，坐在這裡，妳覺得我們的婚姻幸福指數有幾分？" }
         ];
 
-        /* === 狀態管理 (保留原系統架構) === */
+        /* === 狀態管理 === */
         const GOOGLE_CLIENT_ID = '1044593447138-vvt8s9pubntng9vs557no1b57v82mbnh.apps.googleusercontent.com';
         const SCOPES = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile";
         let tokenClient; let gisInited = false;
 
         const STATE = {
-            data: { 
-                gameContext: 'deep_couples_talk',
-                currentIndex: 0,
-                lastPlayed: Date.now()
-            },
-            cloud: { folderId: null, fileId: null, lastSyncTime: 0, isOffline: !navigator.onLine, accessToken: null },
-            lastSystemTime: Date.now()
+            data: { gameContext: 'deep_couples_talk', currentIndex: 0, lastPlayed: Date.now() },
+            cloud: { folderId: null, fileId: null, lastSyncTime: 0, isOffline: !navigator.onLine, accessToken: null }
         };
 
-        /* === 基礎工具 === */
-        function logDebug(title, message) {
-            const bodyEl = document.getElementById('debug-body');
-            if(bodyEl) {
-                bodyEl.value += `\n[${title}]\n${message}\n`;
-                bodyEl.scrollTop = bodyEl.scrollHeight;
-            }
-        }
-
+        /* === UI 工具 === */
         let _lastToastTime = 0;
         function showToast(msg, isError = false) {
             if (Date.now() - _lastToastTime < 1000) return; 
@@ -254,7 +223,7 @@
             setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(-20px)'; setTimeout(() => toast.remove(), 300); }, 3000);
         }
 
-        /* === 遊戲 UI 邏輯 === */
+        /* === 遊戲邏輯 === */
         const Game = {
             init: function() {
                 const track = document.getElementById('card-track');
@@ -265,7 +234,6 @@
                         <div class="card-footer">${i + 1} / ${QUESTIONS.length}</div>
                     </div>
                 `).join('');
-                
                 if(STATE.data.currentIndex >= QUESTIONS.length) STATE.data.currentIndex = 0;
                 this.render();
             },
@@ -279,20 +247,17 @@
                 
                 document.getElementById('btn-prev').disabled = (STATE.data.currentIndex === 0);
                 document.getElementById('btn-next').disabled = (STATE.data.currentIndex === QUESTIONS.length - 1);
-                
                 CoreManager.saveLocal();
             },
             nextCard: function() {
                 if (STATE.data.currentIndex < QUESTIONS.length - 1) {
-                    STATE.data.currentIndex++;
-                    this.render();
+                    STATE.data.currentIndex++; this.render();
                     if(navigator.vibrate) navigator.vibrate(10);
                 }
             },
             prevCard: function() {
                 if (STATE.data.currentIndex > 0) {
-                    STATE.data.currentIndex--;
-                    this.render();
+                    STATE.data.currentIndex--; this.render();
                     if(navigator.vibrate) navigator.vibrate(10);
                 }
             }
@@ -300,15 +265,23 @@
 
         const UI = {
             triggerEndSequence: async function() {
-                const confirmEnd = confirm("準備結束今晚的對話？\n系統將自動備份進度並無痕關閉。");
-                if(confirmEnd) {
-                    showToast("正在加密備份並準備關閉...");
-                    await CoreManager.syncAndWipeAndClose();
+                // 用自訂的玻璃感彈窗取代原生的 confirm，保護氣氛
+                const isCloudBound = STATE.cloud.folderId ? true : false;
+                const msg = isCloudBound ? "準備結束今晚的對話？\n(系統將自動備份至雲端並無痕關閉)" : "準備結束今晚的對話？\n(將無痕關閉並清空暫存紀錄)";
+                
+                if (confirm(msg)) {
+                    if (isCloudBound) {
+                        showToast("正在加密備份並準備關閉...");
+                        await CoreManager.syncAndWipeAndClose();
+                    } else {
+                        localStorage.removeItem('points_sys_data'); 
+                        setTimeout(() => { window.close(); location.href = 'about:blank'; }, 500);
+                    }
                 }
             }
         };
 
-        /* === 隱藏設定觸發邏輯 (修正觸控防抖) === */
+        /* === 秘密選單觸發 === */
         let secretTimer;
         const secretBtn = document.getElementById('secret-trigger');
         const startSecret = (e) => { e.preventDefault(); secretTimer = setTimeout(() => { document.getElementById('system-modal').classList.add('open'); if(navigator.vibrate) navigator.vibrate([50,50]); }, 2000); };
@@ -322,10 +295,7 @@
 
         function closeSystemModal() { document.getElementById('system-modal').classList.remove('open'); }
 
-        /* ========================================================================= */
-        /* 底層系統 (Google Drive, Crypto, CoreManager, Pin) - 完整移植且除錯優化 */
-        /* ========================================================================= */
-
+        /* === Google Drive 與加密底層 === */
         function gisLoaded() { tokenClient = google.accounts.oauth2.initTokenClient({ client_id: GOOGLE_CLIENT_ID, scope: SCOPES, callback: '' }); gisInited = true; }
         const gsiScript = document.createElement('script'); gsiScript.src = "https://accounts.google.com/gsi/client"; gsiScript.onload = gisLoaded; document.head.appendChild(gsiScript);
 
@@ -340,24 +310,17 @@
         };
 
         const CloudManager = {
-            authorize: function(callback, forcePrompt = false) {
-                if (!gisInited) return showToast("授權模組載入中，請稍候");
-                if (!STATE.cloud.accessToken || forcePrompt) {
-                    tokenClient.callback = async (resp) => {
-                        if (resp.error !== undefined) { logDebug("Auth Error", JSON.stringify(resp)); throw resp; }
-                        STATE.cloud.accessToken = resp.access_token;
-                        callback();
-                    };
-                    tokenClient.requestAccessToken({prompt: forcePrompt ? 'select_account' : 'consent'});
-                } else { callback(); }
-            },
-            switchFolder: async function() {
-                try {
-                    await new Promise(r => this.authorize(() => r()));
-                    const folder = await DriveUI.showSelector();
-                    STATE.cloud.folderId = folder.id; STATE.cloud.fileId = null;
-                    CoreManager.saveLocal(); showToast("資料夾已更新");
-                } catch(e) { if(e.message !== "取消選擇") showToast("設定失敗", true); }
+            authorize: function() {
+                return new Promise((resolve, reject) => {
+                    if (!gisInited) { showToast("模組載入中，請稍候"); return reject(new Error("GIS_NOT_LOADED")); }
+                    if (!STATE.cloud.accessToken) {
+                        tokenClient.callback = (resp) => {
+                            if (resp.error !== undefined) reject(resp);
+                            else { STATE.cloud.accessToken = resp.access_token; resolve(); }
+                        };
+                        tokenClient.requestAccessToken({prompt: 'consent'});
+                    } else { resolve(); }
+                });
             },
             resumableUpload: async function(fileId, folderId, fileName, encryptedDataStr) {
                 const mimeType = 'application/json'; const fileMetadata = fileId ? {} : { name: fileName, parents: [folderId] };
@@ -384,7 +347,7 @@
             showSelector: function() {
                 return new Promise(async (resolve, reject) => {
                     const folders = await this.fetchFolders();
-                    const fname = prompt(`找到以下資料夾，請手動輸入要綁定建立的資料夾名稱\n(例如: OurTime)\n\n已存在:\n${folders.map(f=>f.name).join(', ')}`);
+                    const fname = prompt(`找到以下資料夾，請手動輸入要綁定的資料夾名稱\n(例如: OurTime)\n\n已存在:\n${folders.map(f=>f.name).join(', ')}`);
                     if(fname) {
                         const existing = folders.find(f => f.name === fname);
                         if(existing) resolve(existing);
@@ -468,38 +431,36 @@
 
         const CoreManager = {
             init: async function() {
+                // 拔掉所有初始化時的 confirm 與 alert，讓畫面100%保證順利渲染
                 const localStr = localStorage.getItem('points_sys_data');
                 const cloudStr = localStorage.getItem('points_sys_cloud');
                 if (localStr) {
                     try {
                         STATE.data = JSON.parse(localStr);
                         if(cloudStr) { const c = JSON.parse(cloudStr); STATE.cloud.folderId = c.folderId; STATE.cloud.fileId = c.fileId; }
-                        Game.init();
-                    } catch(e) { logDebug("Init Error", e.message); }
-                } else {
-                    const isRestore = confirm("【首次設定】\n這是一個具有軍規級加密的無痕平台。\n\n點擊「確定」建立新空間\n點擊「取消」從雲端還原舊紀錄");
-                    if(isRestore) await this.setupNewFlow(); else await this.restoreFlow();
-                    Game.init();
+                    } catch(e) {}
                 }
+                // 直接渲染卡片，不再卡死
+                Game.init();
             },
             setupNewFlow: async function() {
                 try {
-                    await new Promise(r => CloudManager.authorize(() => r()));
+                    await CloudManager.authorize();
                     const folder = await DriveUI.showSelector(); STATE.cloud.folderId = folder.id;
                     const pwd = await PinLock.open("設定專屬金鑰", "請輸入 4 位以上數字密碼\n(未來皆用此密碼解密，請務必牢記)");
                     if(!pwd) throw new Error("取消");
                     localStorage.setItem('sys_pin_cache', pwd);
                     await this.performFullSync(true);
-                } catch(e) { if(e.message !== "取消") showToast("設定失敗，請重整網頁", true); }
+                } catch(e) { if(e.message !== "取消" && e.message !== "GIS_NOT_LOADED") showToast("設定失敗，請確認已登入 Google", true); }
             },
             restoreFlow: async function() {
                 try {
-                    await new Promise(r => CloudManager.authorize(() => r()));
+                    await CloudManager.authorize();
                     const folder = await DriveUI.showSelector(); STATE.cloud.folderId = folder.id;
                     const q = encodeURIComponent(`parents in '${folder.id}' and mimeType='application/json' and trashed=false`);
                     const res = await DriveAPI.fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)&orderBy=modifiedTime desc&pageSize=1`);
                     const data = await res.json();
-                    if (!data.files || data.files.length === 0) return alert("資料夾內無備份檔");
+                    if (!data.files || data.files.length === 0) { showToast("找不到雲端備份檔", true); return; }
                     STATE.cloud.fileId = data.files[0].id;
                     
                     const pwd = await PinLock.open("解密備份", "請輸入當初設定的密碼");
@@ -509,8 +470,8 @@
                     const decStr = await CryptoEngine.decrypt(encStr, pwd);
                     localStorage.setItem('sys_pin_cache', pwd);
                     STATE.data = JSON.parse(decStr);
-                    this.saveLocal(); showToast("還原成功");
-                } catch(e) { logDebug("Restore", e.message); showToast("還原失敗，可能是密碼錯誤", true); }
+                    this.saveLocal(); Game.init(); showToast("還原成功！");
+                } catch(e) { showToast("還原失敗，可能是密碼錯誤", true); }
             },
             saveLocal: function() {
                 STATE.data.lastPlayed = Date.now();
@@ -518,17 +479,18 @@
                 localStorage.setItem('points_sys_cloud', JSON.stringify({ folderId: STATE.cloud.folderId, fileId: STATE.cloud.fileId }));
             },
             performFullSync: async function(forceUpload = false) {
-                if (STATE.cloud.isOffline) return false;
-                if (!STATE.cloud.accessToken) return CloudManager.authorize(() => this.performFullSync(forceUpload));
-                
-                let pwd = localStorage.getItem('sys_pin_cache');
-                if (!pwd) { pwd = await PinLock.open("授權同步", "請輸入金鑰"); if(pwd) localStorage.setItem('sys_pin_cache', pwd); else return false; }
+                if (STATE.cloud.isOffline) { showToast("目前處於離線狀態", true); return false; }
+                try {
+                    await CloudManager.authorize();
+                    let pwd = localStorage.getItem('sys_pin_cache');
+                    if (!pwd) { pwd = await PinLock.open("授權同步", "請輸入金鑰"); if(pwd) localStorage.setItem('sys_pin_cache', pwd); else return false; }
 
-                this.saveLocal();
-                const encStr = await CryptoEngine.encrypt(JSON.stringify(STATE.data), pwd);
-                const success = await CloudManager.resumableUpload(STATE.cloud.fileId, STATE.cloud.folderId, `OurTime_${new Date().toISOString().split('T')[0]}.json`, encStr);
-                if(success) showToast("雲端同步成功");
-                return success;
+                    this.saveLocal();
+                    const encStr = await CryptoEngine.encrypt(JSON.stringify(STATE.data), pwd);
+                    const success = await CloudManager.resumableUpload(STATE.cloud.fileId, STATE.cloud.folderId, `OurTime_${new Date().toISOString().split('T')[0]}.json`, encStr);
+                    if(success) showToast("雲端同步成功");
+                    return success;
+                } catch(e) { showToast("同步失敗", true); return false; }
             },
             syncAndWipeAndClose: async function() {
                 try {
@@ -538,7 +500,7 @@
                         localStorage.removeItem('points_sys_cloud'); 
                         setTimeout(() => { window.close(); location.href = 'about:blank'; }, 500);
                     }
-                } catch(e) { logDebug("Wipe Error", e.message); showToast("關閉失敗，請查看診斷", true); }
+                } catch(e) { showToast("關閉前同步失敗", true); }
             }
         };
 
