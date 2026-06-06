@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>歷史時空急流 - 專業重構版</title>
+    <title>歷史時空急流 - 最終修復版</title>
     <style>
         :root { --primary: #00ffcc; --danger: #ff3366; --bg: #0b0c10; }
         body, html { margin: 0; overflow: hidden; background: var(--bg); font-family: sans-serif; user-select: none; }
         canvas { display: block; position: absolute; z-index: 1; }
         
-        /* UI 層剝離，減少與 WebGL 搶奪效能 */
+        /* UI 層剝離，預設不擋觸控 */
         .ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; display: flex; flex-direction: column; }
         .pointer-auto { pointer-events: auto; }
         
@@ -25,13 +25,12 @@
         #health-bar { width: 100%; height: 100%; background: var(--primary); transition: width 0.3s; }
         
         #question-ui { position: absolute; top: 15%; width: 100%; display: flex; flex-direction: column; align-items: center; color: white; }
-        .choices { display: flex; width: 80%; max-width: 600px; justify-content: space-between; margin-top: 20px; }
-        .choice-box { background: rgba(0,0,0,0.6); padding: 10px; border: 1px solid white; border-radius: 5px; width: 45%; text-align: center; }
         
-        #crosshair { position: absolute; top: 50%; left: 50%; width: 40px; height: 40px; transform: translate(-50%, -50%); border: 2px dashed rgba(255,255,255,0.5); border-radius: 50%; display: flex; justify-content: center; align-items: center; }
-        #crosshair::after { content: ''; width: 6px; height: 6px; background: rgba(255,255,255,0.5); border-radius: 50%; }
+        /* 修改點 1：將選項區塊的 pointer-events 打開，並加入點擊特效 */
+        .choices { display: flex; width: 90%; max-width: 600px; justify-content: space-between; margin-top: 20px; pointer-events: auto; }
+        .choice-box { background: rgba(0,0,0,0.8); padding: 15px 10px; border: 2px solid white; border-radius: 8px; width: 45%; text-align: center; cursor: pointer; transition: transform 0.1s, background 0.2s; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.5); }
+        .choice-box:active { transform: scale(0.95); background: rgba(255,255,255,0.2); }
         
-        /* 避免操作 DOM classList 引發重繪，使用 opacity 控制特效 */
         #fx-damage { position: absolute; width: 100%; height: 100%; background: radial-gradient(circle, transparent 50%, rgba(255,0,0,0.5) 100%); opacity: 0; z-index: 50; transition: opacity 0.2s; pointer-events: none; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -39,8 +38,8 @@
 <body>
 
     <div id="screen-start" class="pointer-auto">
-        <h1>歷史時空急流 (V2)</h1>
-        <p>專業重構版：物件池、防穿透物理、獨立 UI 管理器</p>
+        <h1>歷史時空急流</h1>
+        <p>滑動螢幕躲避，或直接點擊選項！</p>
         <button id="btn-start">啟動引擎</button>
     </div>
 
@@ -58,7 +57,7 @@
         </div>
         
         <div id="question-ui" class="hidden">
-            <div id="q-text" style="background: rgba(0,0,0,0.7); padding: 10px 20px; border-radius: 10px; border: 1px solid var(--primary);">前提</div>
+            <div id="q-text" style="background: rgba(0,0,0,0.8); padding: 10px 20px; border-radius: 10px; border: 1px solid var(--primary);">前提</div>
             <div class="choices" id="choices-container">
                 <div class="choice-box" id="c-left" style="border-color: #ff9900;">⬅️ 選項1</div>
                 <div class="choice-box" id="c-right" style="border-color: #ff3366;">➡️ 選項2</div>
@@ -66,39 +65,31 @@
         </div>
     </div>
 
-    <div id="crosshair" class="hidden"></div>
     <div id="fx-damage"></div>
     <canvas id="game-canvas"></canvas>
 
 <script>
-/**
- * ============================================================================
- * 模組 1：系統全域設定 (Configuration) - 消滅魔法數字
- * ============================================================================
- */
 const CONFIG = {
-    PLAYER: { MAX_HEALTH: 100, DAMAGE_PENALTY: 30, SCORE_REWARD: 500 },
+    PLAYER: { MAX_HEALTH: 100, DAMAGE_PENALTY: 35, SCORE_REWARD: 500 },
     CAMERA: { SENSITIVITY_GYRO: 12, SENSITIVITY_TOUCH: 20, SMOOTHING: 5 },
-    SPAWN: { Z_START: -300, Z_END: 20 }, // 物件生成與回收的 Z 軸邊界
-    PHYSICS: { PLAYER_Z: 0 } // 玩家所在的 Z 軸，用於防穿透檢測
+    SPAWN: { Z_START: -250, Z_END: 20 }, 
+    PHYSICS: { PLAYER_Z: 0 } 
 };
 
+// 修改點 2：加入完整且會依序推進的題庫
 const GameDB = {
     eras: [
         { id: 0, name: "古埃及", color: 0xffaa00, speed: 1.0 },
         { id: 1, name: "羅馬帝國", color: 0xcccccc, speed: 1.3 }
     ],
     events: [
-        { eraId: 0, type: "branch", premise: "尼羅河氾濫", left: "發展農業", right: "沙漠游牧", correct: "left" },
-        { eraId: 1, type: "branch", premise: "凱撒遇刺", left: "羅馬和平", right: "屋大維崛起", correct: "right" }
+        { eraId: 0, type: "branch", premise: "尼羅河每年定期氾濫", left: "發展農業與幾何", right: "轉向沙漠游牧", correct: "left" },
+        { eraId: 0, type: "branch", premise: "為了彰顯法老權力", left: "修建金字塔", right: "推廣民主選舉", correct: "left" },
+        { eraId: 1, type: "branch", premise: "凱撒大帝遇刺身亡", left: "羅馬恢復和平", right: "內戰爆發屋大維崛起", correct: "right" },
+        { eraId: 1, type: "branch", premise: "為連接廣大羅馬領土", left: "發明蒸汽火車", right: "鋪設大道與引水渠", correct: "right" }
     ]
 };
 
-/**
- * ============================================================================
- * 模組 2：物件池系統 (Object Pool Pattern) - 解決效能與擴展性問題
- * ============================================================================
- */
 class ObjectPool {
     constructor(factoryFunc, initialSize) {
         this.factory = factoryFunc;
@@ -123,11 +114,6 @@ class ObjectPool {
     }
 }
 
-/**
- * ============================================================================
- * 模組 3：UI 管理器 (UI Manager) - 抽離 DOM 操作，保持渲染純淨
- * ============================================================================
- */
 class UIManager {
     constructor() {
         this.els = {
@@ -141,18 +127,17 @@ class UIManager {
             qText: document.getElementById('q-text'),
             cLeft: document.getElementById('c-left'),
             cRight: document.getElementById('c-right'),
-            crosshair: document.getElementById('crosshair'),
             fxDamage: document.getElementById('fx-damage')
         };
     }
     
     showStart() { this.els.start.classList.remove('hidden'); this.els.gameover.classList.add('hidden'); }
-    startGame() { this.els.start.classList.add('hidden'); this.els.game.classList.remove('hidden'); this.els.crosshair.classList.remove('hidden'); }
+    startGame() { this.els.start.classList.add('hidden'); this.els.game.classList.remove('hidden'); }
     showGameOver(score, isWin) { 
-        this.els.game.classList.add('hidden'); this.els.crosshair.classList.add('hidden');
+        this.els.game.classList.add('hidden'); 
         this.els.gameover.classList.remove('hidden');
         document.getElementById('go-score').innerText = score;
-        document.getElementById('go-title').innerText = isWin ? "任務成功" : "時間線崩塌";
+        document.getElementById('go-title').innerText = isWin ? "修復成功！通關" : "時間線崩塌";
     }
     
     updateHUD(health, score) {
@@ -169,21 +154,15 @@ class UIManager {
     showQuestion(evt) {
         this.els.qUI.classList.remove('hidden');
         this.els.qText.innerText = evt.premise;
-        this.els.cLeft.innerText = `⬅️ ${evt.left}`;
-        this.els.cRight.innerText = `➡️ ${evt.right}`;
+        this.els.cLeft.innerText = `⬅️ 點擊: ${evt.left}`;
+        this.els.cRight.innerText = `點擊: ${evt.right} ➡️`;
     }
     hideQuestion() { this.els.qUI.classList.add('hidden'); }
 }
 
-/**
- * ============================================================================
- * 模組 4：輸入管理器 (Input Manager) - 統一處理硬體差異
- * ============================================================================
- */
 class InputManager {
     constructor() {
         this.targetX = 0;
-        this.targetY = 2;
         this.isDragging = false;
         this.startX = 0;
         this.bindEvents();
@@ -204,29 +183,8 @@ class InputManager {
         });
         window.addEventListener('mouseup', () => this.isDragging = false);
     }
-
-    requestGyro() {
-        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-            DeviceOrientationEvent.requestPermission().then(res => {
-                if (res === 'granted') window.addEventListener('deviceorientation', this.handleGyro.bind(this));
-            }).catch(console.error);
-        } else {
-            window.addEventListener('deviceorientation', this.handleGyro.bind(this));
-        }
-    }
-
-    handleGyro(e) {
-        if(!e.gamma || !e.beta) return;
-        let gamma = Math.max(-45, Math.min(45, e.gamma));
-        this.targetX = (gamma / 45) * CONFIG.CAMERA.SENSITIVITY_GYRO; 
-    }
 }
 
-/**
- * ============================================================================
- * 模組 5：場景與渲染器 (Scene Manager) - 負責 3D 世界的一切
- * ============================================================================
- */
 class SceneManager {
     constructor(canvas) {
         this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
@@ -243,12 +201,9 @@ class SceneManager {
         this.scene.add(dl);
 
         this.scene.fog = new THREE.Fog(0x000000, 50, 250);
-        
-        // 地板網格
         this.grid = new THREE.GridHelper(100, 20, 0xffffff, 0xffffff);
         this.scene.add(this.grid);
 
-        // 初始化物件池：柱子
         const pillarMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
         this.pillarPool = new ObjectPool(() => {
             const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 20, 2), pillarMat);
@@ -256,7 +211,6 @@ class SceneManager {
             return mesh;
         }, 40);
 
-        // 初始化物件池：傳送門 (左右一組作為一個實體)
         const pGeo = new THREE.BoxGeometry(8, 10, 1);
         this.portalPool = new ObjectPool(() => {
             const group = new THREE.Group();
@@ -268,7 +222,10 @@ class SceneManager {
             return group;
         }, 3);
 
-        this.initEnvironment();
+        for(let i=0; i<40; i++) {
+            const p = this.pillarPool.get();
+            p.position.set((Math.random() > 0.5 ? 1 : -1) * (10 + Math.random() * 20), 10, -Math.random() * 300);
+        }
         
         window.addEventListener('resize', () => {
             this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -276,13 +233,6 @@ class SceneManager {
             this.camera.updateProjectionMatrix();
             this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
-    }
-
-    initEnvironment() {
-        for(let i=0; i<40; i++) {
-            const p = this.pillarPool.get();
-            p.position.set((Math.random() > 0.5 ? 1 : -1) * (10 + Math.random() * 20), 10, -Math.random() * 300);
-        }
     }
 
     setEraStyle(eraConfig) {
@@ -294,18 +244,13 @@ class SceneManager {
     }
 }
 
-/**
- * ============================================================================
- * 模組 6：核心遊戲引擎 (Game Engine) - 狀態機與防穿透邏輯
- * ============================================================================
- */
 class GameEngine {
     constructor() {
         this.ui = new UIManager();
         this.input = new InputManager();
         this.sceneMgr = new SceneManager(document.getElementById('game-canvas'));
         
-        this.state = { isPlaying: false, health: 100, score: 0, eraIndex: 0 };
+        this.state = { isPlaying: false, health: 100, score: 0, eraIndex: 0, currentEventIndex: 0 };
         this.clock = new THREE.Clock();
         this.speed = 60;
         
@@ -315,20 +260,34 @@ class GameEngine {
         document.getElementById('btn-start').addEventListener('click', () => this.start());
         document.getElementById('btn-restart').addEventListener('click', () => location.reload());
         
+        // 修改點 3：將按鈕綁定點擊事件，讓玩家可以直接按按鈕答題
+        this.ui.els.cLeft.addEventListener('click', () => {
+            if(this.activeEvent) {
+                this.input.targetX = -10; // 讓車子自動靠左
+                this.resolveBranch("left");
+            }
+        });
+        
+        this.ui.els.cRight.addEventListener('click', () => {
+            if(this.activeEvent) {
+                this.input.targetX = 10; // 讓車子自動靠右
+                this.resolveBranch("right");
+            }
+        });
+
         this.loop();
     }
 
     start() {
-        this.input.requestGyro();
         this.ui.startGame();
-        this.state = { isPlaying: true, health: CONFIG.PLAYER.MAX_HEALTH, score: 0, eraIndex: 0 };
+        // 重置所有變數（包含題目 index）
+        this.state = { isPlaying: true, health: CONFIG.PLAYER.MAX_HEALTH, score: 0, eraIndex: 0, currentEventIndex: 0 };
         this.ui.updateHUD(this.state.health, this.state.score);
         this.changeEra(0);
         this.scheduleEvent();
     }
 
     changeEra(index) {
-        if(index >= GameDB.eras.length) return this.gameOver(true);
         this.state.eraIndex = index;
         const era = GameDB.eras[index];
         this.ui.els.era.innerText = era.name;
@@ -338,23 +297,34 @@ class GameEngine {
 
     scheduleEvent() {
         if(!this.state.isPlaying) return;
+        
         setTimeout(() => {
-            const evt = GameDB.events[this.state.eraIndex];
-            if(!evt) return this.changeEra(this.state.eraIndex + 1);
+            // 修改點 4：正確讀取目前的題號，而不是卡死在時代 Index
+            const evt = GameDB.events[this.state.currentEventIndex];
+            
+            // 如果沒題目了，代表遊戲全破
+            if(!evt) return this.gameOver(true);
+
+            // 自動推進時代 (如果新題目的 eraId 比較大)
+            if(evt.eraId > this.state.eraIndex) {
+                this.changeEra(evt.eraId);
+            }
 
             this.activeEvent = evt;
             this.activePortal = this.sceneMgr.portalPool.get();
             this.activePortal.position.set(0, 5, CONFIG.SPAWN.Z_START);
-            
-            // 記錄上一幀的 Z 座標，用於防穿透檢測 (Anti-Tunneling)
             this.activePortal.userData.prevZ = CONFIG.SPAWN.Z_START;
             
             this.ui.showQuestion(evt);
-        }, 3000);
+        }, 1500); // 縮短出題間隔節奏
     }
 
-    resolveBranch(playerX) {
-        const choice = playerX < 0 ? "left" : "right";
+    // 修改點 5：支援按鈕字串傳入 ("left" / "right")，或是透過車子座標判斷
+    resolveBranch(inputMethod) {
+        if(!this.activeEvent) return;
+
+        let choice = typeof inputMethod === "string" ? inputMethod : (inputMethod < 0 ? "left" : "right");
+
         if (choice === this.activeEvent.correct) {
             this.state.score += CONFIG.PLAYER.SCORE_REWARD;
         } else {
@@ -365,9 +335,14 @@ class GameEngine {
         this.ui.hideQuestion();
         this.ui.updateHUD(this.state.health, this.state.score);
         
-        this.sceneMgr.portalPool.release(this.activePortal);
+        if (this.activePortal) {
+            this.sceneMgr.portalPool.release(this.activePortal);
+            this.activePortal = null;
+        }
         this.activeEvent = null;
-        this.activePortal = null;
+        
+        // 修改點 6：至關重要！將題目往後推一題
+        this.state.currentEventIndex++;
         
         if(this.state.health <= 0) this.gameOver(false);
         else this.scheduleEvent();
@@ -380,9 +355,8 @@ class GameEngine {
 
     loop() {
         requestAnimationFrame(() => this.loop());
-        const dt = Math.min(this.clock.getDelta(), 0.1); // 限制最大 delta 避免切換分頁回來崩潰
+        const dt = Math.min(this.clock.getDelta(), 0.1); 
 
-        // 平滑相機移動 (Lerp)
         const cam = this.sceneMgr.camera;
         cam.position.x += (this.input.targetX - cam.position.x) * CONFIG.CAMERA.SMOOTHING * dt;
         cam.rotation.z = -(cam.position.x * 0.05);
@@ -390,26 +364,23 @@ class GameEngine {
         if (this.state.isPlaying) {
             const moveDist = this.speed * dt;
             
-            // 軌道無限流動
             this.sceneMgr.grid.position.z += moveDist;
             if (this.sceneMgr.grid.position.z > 20) this.sceneMgr.grid.position.z -= 20;
 
-            // 柱子回收
             this.sceneMgr.pillarPool.activeItems.forEach(p => {
                 p.position.z += moveDist;
                 if(p.position.z > CONFIG.SPAWN.Z_END) {
-                    p.position.z = CONFIG.SPAWN.Z_START; // 重置到最遠端
+                    p.position.z = CONFIG.SPAWN.Z_START; 
                     p.position.x = (Math.random() > 0.5 ? 1 : -1) * (10 + Math.random() * 20);
                 }
             });
 
-            // 實體碰撞檢測 (防穿透 Anti-Tunneling)
             if (this.activePortal) {
                 const p = this.activePortal;
-                p.userData.prevZ = p.position.z; // 記錄上一幀位置
+                p.userData.prevZ = p.position.z; 
                 p.position.z += moveDist;
                 
-                // 穿越檢測：如果上一幀在相機前方，這一幀跑到相機後方，代表發生「穿越」！
+                // 如果是用滑動車子物理撞擊的，就傳入 X 座標讓引擎判斷
                 if (p.userData.prevZ <= CONFIG.PHYSICS.PLAYER_Z && p.position.z > CONFIG.PHYSICS.PLAYER_Z) {
                     this.resolveBranch(cam.position.x);
                 }
@@ -420,7 +391,6 @@ class GameEngine {
     }
 }
 
-// 啟動應用程式
 window.onload = () => new GameEngine();
 
 </script>
