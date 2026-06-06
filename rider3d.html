@@ -3,414 +3,426 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>歷史時空急流 (Chronos Rider)</title>
+    <title>歷史時空急流 - 專業重構版</title>
     <style>
         :root { --primary: #00ffcc; --danger: #ff3366; --bg: #0b0c10; }
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: var(--bg); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; -webkit-user-select: none; }
-        #game-canvas { display: block; width: 100%; height: 100%; position: absolute; z-index: 1; }
+        body, html { margin: 0; overflow: hidden; background: var(--bg); font-family: sans-serif; user-select: none; }
+        canvas { display: block; position: absolute; z-index: 1; }
         
-        .ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; display: flex; flex-direction: column; justify-content: space-between; }
+        /* UI 層剝離，減少與 WebGL 搶奪效能 */
+        .ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; display: flex; flex-direction: column; }
         .pointer-auto { pointer-events: auto; }
         
-        #start-screen { position: absolute; z-index: 100; width: 100%; height: 100%; background: rgba(11, 12, 16, 0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; text-align: center; backdrop-filter: blur(10px); }
-        h1 { font-size: 2.5rem; margin-bottom: 10px; color: var(--primary); text-shadow: 0 0 15px var(--primary); }
-        p { font-size: 1.2rem; max-width: 80%; line-height: 1.5; margin-bottom: 30px; }
-        button { background: transparent; border: 2px solid var(--primary); color: var(--primary); padding: 15px 40px; font-size: 1.5rem; font-weight: bold; border-radius: 30px; cursor: pointer; transition: all 0.3s; box-shadow: 0 0 10px rgba(0, 255, 204, 0.3); }
-        button:hover, button:active { background: var(--primary); color: var(--bg); box-shadow: 0 0 30px var(--primary); }
+        #screen-start, #screen-gameover { position: absolute; width: 100%; height: 100%; background: rgba(11,12,16,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; z-index: 100; backdrop-filter: blur(10px); }
+        .hidden { display: none !important; }
         
-        #hud { display: none; padding: 20px; box-sizing: border-box; }
-        .hud-header { display: flex; justify-content: space-between; width: 100%; font-size: 1.2rem; color: white; font-weight: bold; text-shadow: 1px 1px 3px black; }
-        .health-bar-container { width: 150px; height: 15px; background: rgba(255,255,255,0.2); border-radius: 10px; overflow: hidden; border: 1px solid white; }
-        #health-bar { width: 100%; height: 100%; background: var(--primary); transition: width 0.3s, background 0.3s; }
+        h1 { color: var(--primary); text-shadow: 0 0 15px var(--primary); }
+        button { background: transparent; border: 2px solid var(--primary); color: var(--primary); padding: 15px 40px; font-size: 1.5rem; border-radius: 30px; cursor: pointer; transition: 0.3s; pointer-events: auto; }
+        button:hover { background: var(--primary); color: var(--bg); }
         
-        #question-ui { position: absolute; top: 15%; width: 100%; text-align: center; color: white; display: none; flex-direction: column; align-items: center; }
-        #question-text { font-size: 1.5rem; background: rgba(0,0,0,0.7); padding: 10px 20px; border-radius: 10px; border: 1px solid var(--primary); box-shadow: 0 0 15px var(--primary); max-width: 80%; }
-        .choices-container { display: flex; justify-content: space-between; width: 80%; max-width: 600px; margin-top: 20px; }
-        .choice-box { background: rgba(0,0,0,0.6); padding: 10px; border: 1px solid white; border-radius: 5px; width: 45%; font-size: 1rem; }
+        #hud { padding: 20px; display: flex; justify-content: space-between; color: white; font-weight: bold; }
+        #health-bar-bg { width: 150px; height: 15px; background: rgba(255,255,255,0.2); border-radius: 10px; border: 1px solid white; }
+        #health-bar { width: 100%; height: 100%; background: var(--primary); transition: width 0.3s; }
         
-        #crosshair { position: absolute; top: 50%; left: 50%; width: 40px; height: 40px; transform: translate(-50%, -50%); border: 2px dashed rgba(255,255,255,0.5); border-radius: 50%; display: none; justify-content: center; align-items: center; transition: border-color 0.2s; }
+        #question-ui { position: absolute; top: 15%; width: 100%; display: flex; flex-direction: column; align-items: center; color: white; }
+        .choices { display: flex; width: 80%; max-width: 600px; justify-content: space-between; margin-top: 20px; }
+        .choice-box { background: rgba(0,0,0,0.6); padding: 10px; border: 1px solid white; border-radius: 5px; width: 45%; text-align: center; }
+        
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 40px; height: 40px; transform: translate(-50%, -50%); border: 2px dashed rgba(255,255,255,0.5); border-radius: 50%; display: flex; justify-content: center; align-items: center; }
         #crosshair::after { content: ''; width: 6px; height: 6px; background: rgba(255,255,255,0.5); border-radius: 50%; }
-        #crosshair.locked { border-color: var(--danger); border-style: solid; }
-        #crosshair.locked::after { background: var(--danger); }
         
-        #scan-ui { position: absolute; bottom: 10%; width: 100%; display: none; justify-content: center; gap: 20px; pointer-events: auto; }
-        .scan-btn { background: rgba(0,0,0,0.8); border: 2px solid #aaa; color: white; padding: 15px 30px; font-size: 1.2rem; border-radius: 10px; }
-        
-        #damage-overlay { position: absolute; top:0; left:0; width:100%; height:100%; background: radial-gradient(circle, transparent 50%, rgba(255, 0, 0, 0.5) 100%); opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 50; }
-        .glitch { animation: glitch-anim 0.3s infinite; filter: invert(1) hue-rotate(90deg); }
-        @keyframes glitch-anim { 0% { transform: translate(0) } 20% { transform: translate(-5px, 5px) } 40% { transform: translate(-5px, -5px) } 60% { transform: translate(5px, 5px) } 80% { transform: translate(5px, -5px) } 100% { transform: translate(0) } }
-        #flash-overlay { position: absolute; top:0; left:0; width:100%; height:100%; background: white; opacity: 0; pointer-events: none; z-index: 51; }
+        /* 避免操作 DOM classList 引發重繪，使用 opacity 控制特效 */
+        #fx-damage { position: absolute; width: 100%; height: 100%; background: radial-gradient(circle, transparent 50%, rgba(255,0,0,0.5) 100%); opacity: 0; z-index: 50; transition: opacity 0.2s; pointer-events: none; }
     </style>
-    <!-- 引入 Three.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
-    <div id="start-screen" class="pointer-auto">
-        <h1>歷史時空急流</h1>
-        <p>滑鼠拖曳 / 手機傾斜控制方向<br>點擊畫面發射掃描光束！</p>
-        <button id="btn-start">啟動時空引擎</button>
+    <div id="screen-start" class="pointer-auto">
+        <h1>歷史時空急流 (V2)</h1>
+        <p>專業重構版：物件池、防穿透物理、獨立 UI 管理器</p>
+        <button id="btn-start">啟動引擎</button>
     </div>
 
-    <div class="ui-layer" id="hud">
-        <div class="hud-header">
-            <div>紀元: <span id="era-display">古埃及</span></div>
-            <div>
-                耐久度
-                <div class="health-bar-container"><div id="health-bar"></div></div>
+    <div id="screen-gameover" class="hidden pointer-auto">
+        <h1 id="go-title">時間線崩塌</h1>
+        <p>最終得分: <span id="go-score">0</span></p>
+        <button id="btn-restart">重新挑戰</button>
+    </div>
+
+    <div class="ui-layer hidden" id="ui-game">
+        <div id="hud">
+            <div>紀元: <span id="ui-era">古埃及</span></div>
+            <div>耐久: <div id="health-bar-bg"><div id="health-bar"></div></div></div>
+            <div>分數: <span id="ui-score">0</span></div>
+        </div>
+        
+        <div id="question-ui" class="hidden">
+            <div id="q-text" style="background: rgba(0,0,0,0.7); padding: 10px 20px; border-radius: 10px; border: 1px solid var(--primary);">前提</div>
+            <div class="choices" id="choices-container">
+                <div class="choice-box" id="c-left" style="border-color: #ff9900;">⬅️ 選項1</div>
+                <div class="choice-box" id="c-right" style="border-color: #ff3366;">➡️ 選項2</div>
             </div>
-            <div>分數: <span id="score-display">0</span></div>
         </div>
     </div>
 
-    <div class="ui-layer" id="question-ui">
-        <div id="question-text">前提：尼羅河定期氾濫...</div>
-        <div class="choices-container" id="choices-container">
-            <div class="choice-box" id="choice-left" style="border-color: #ff9900;">⬅️ 發展農業與幾何</div>
-            <div class="choice-box" id="choice-right" style="border-color: #ff3366;">➡️ 轉向沙漠游牧</div>
-        </div>
-    </div>
-
-    <div id="crosshair"></div>
-    <div id="scan-ui">
-        <button class="scan-btn" id="scan-a">選項 A</button>
-        <button class="scan-btn" id="scan-b">選項 B</button>
-    </div>
-
-    <div id="damage-overlay"></div>
-    <div id="flash-overlay"></div>
-
+    <div id="crosshair" class="hidden"></div>
+    <div id="fx-damage"></div>
     <canvas id="game-canvas"></canvas>
 
 <script>
+/**
+ * ============================================================================
+ * 模組 1：系統全域設定 (Configuration) - 消滅魔法數字
+ * ============================================================================
+ */
+const CONFIG = {
+    PLAYER: { MAX_HEALTH: 100, DAMAGE_PENALTY: 30, SCORE_REWARD: 500 },
+    CAMERA: { SENSITIVITY_GYRO: 12, SENSITIVITY_TOUCH: 20, SMOOTHING: 5 },
+    SPAWN: { Z_START: -300, Z_END: 20 }, // 物件生成與回收的 Z 軸邊界
+    PHYSICS: { PLAYER_Z: 0 } // 玩家所在的 Z 軸，用於防穿透檢測
+};
+
 const GameDB = {
     eras: [
-        { id: 0, name: "古埃及", color: 0xffaa00, fogColor: 0xaa4400, speed: 1.0 },
-        { id: 1, name: "羅馬帝國", color: 0xcccccc, fogColor: 0x444455, speed: 1.3 },
-        { id: 2, name: "大航海時代", color: 0x00aaff, fogColor: 0x002244, speed: 1.6 },
-        { id: 3, name: "現代工業", color: 0xff4444, fogColor: 0x221111, speed: 2.0 }
+        { id: 0, name: "古埃及", color: 0xffaa00, speed: 1.0 },
+        { id: 1, name: "羅馬帝國", color: 0xcccccc, speed: 1.3 }
     ],
     events: [
-        { eraId: 0, type: "branch", premise: "尼羅河每年定期氾濫", left: "發展幾何與農業", right: "轉向沙漠游牧", correct: "left" },
-        { eraId: 0, type: "artifact", name: "羅塞塔石碑", options: ["A. 兩河流域", "B. 古埃及"], correct: "B" },
-        { eraId: 1, type: "branch", premise: "凱撒大帝遇刺身亡", left: "羅馬恢復百年和平", right: "內戰爆發屋大維崛起", correct: "right" },
-        { eraId: 1, type: "artifact", name: "青銅短劍", options: ["A. 古羅馬", "B. 古代中國"], correct: "A" }
+        { eraId: 0, type: "branch", premise: "尼羅河氾濫", left: "發展農業", right: "沙漠游牧", correct: "left" },
+        { eraId: 1, type: "branch", premise: "凱撒遇刺", left: "羅馬和平", right: "屋大維崛起", correct: "right" }
     ]
 };
 
-const state = {
-    isPlaying: false, health: 100, score: 0, currentEra: 0,
-    baseSpeed: 60, speedMultiplier: 1,
-    cameraX: 0, cameraY: 2, eventActive: false, currentEvent: null
-};
-
-const UI = {
-    startScreen: document.getElementById('start-screen'),
-    hud: document.getElementById('hud'),
-    healthBar: document.getElementById('health-bar'),
-    score: document.getElementById('score-display'),
-    era: document.getElementById('era-display'),
-    questionUI: document.getElementById('question-ui'),
-    qText: document.getElementById('question-text'),
-    choicesContainer: document.getElementById('choices-container'),
-    cLeft: document.getElementById('choice-left'),
-    cRight: document.getElementById('choice-right'),
-    crosshair: document.getElementById('crosshair'),
-    scanUI: document.getElementById('scan-ui'),
-    damageOver: document.getElementById('damage-overlay'),
-    flashOver: document.getElementById('flash-overlay')
-};
-
-const canvas = document.getElementById('game-canvas');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 300);
-camera.position.set(0, 2, 0);
-
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-scene.add(ambientLight);
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-dirLight.position.set(0, 10, -10);
-scene.add(dirLight);
-
-scene.fog = new THREE.Fog(GameDB.eras[0].fogColor, 50, 250);
-scene.background = new THREE.Color(GameDB.eras[0].fogColor);
-
-let gridHelper = new THREE.GridHelper(100, 20, GameDB.eras[0].color, GameDB.eras[0].color);
-gridHelper.position.y = 0;
-scene.add(gridHelper);
-
-const pillars = [];
-const pillarGeo = new THREE.BoxGeometry(2, 20, 2);
-const pillarMat = new THREE.MeshLambertMaterial({ color: GameDB.eras[0].color });
-
-for(let i=0; i<40; i++) {
-    const mesh = new THREE.Mesh(pillarGeo, pillarMat);
-    mesh.position.x = (Math.random() > 0.5 ? 1 : -1) * (10 + Math.random() * 20);
-    mesh.position.y = 10;
-    mesh.position.z = -Math.random() * 300;
-    scene.add(mesh);
-    pillars.push(mesh);
-}
-
-const portalGeo = new THREE.BoxGeometry(8, 10, 1);
-const portalLeft = new THREE.Mesh(portalGeo, new THREE.MeshBasicMaterial({ color: 0xff9900, transparent: true, opacity: 0.5 }));
-const portalRight = new THREE.Mesh(portalGeo, new THREE.MeshBasicMaterial({ color: 0xff3366, transparent: true, opacity: 0.5 }));
-portalLeft.position.set(-6, 5, 100); 
-portalRight.position.set(6, 5, 100);
-scene.add(portalLeft); scene.add(portalRight);
-
-const artifactMesh = new THREE.Mesh(new THREE.DodecahedronGeometry(2), new THREE.MeshLambertMaterial({ color: 0xffffff }));
-artifactMesh.position.set(0, 5, 100);
-scene.add(artifactMesh);
-
-let isDragging = false;
-let startX = 0;
-
-function initInputs() {
-    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission().then(res => {
-            if (res == 'granted') window.addEventListener('deviceorientation', handleOrientation);
-        }).catch(console.error);
-    } else {
-        window.addEventListener('deviceorientation', handleOrientation);
-    }
-
-    // 觸控與滑鼠操作邏輯
-    window.addEventListener('touchstart', (e) => { isDragging = true; startX = e.touches[0].clientX; }, {passive: true});
-    window.addEventListener('touchmove', (e) => {
-        if(!isDragging) return;
-        state.cameraX = ((e.touches[0].clientX - startX) / window.innerWidth) * 20; 
-    }, {passive: true});
-    window.addEventListener('touchend', () => isDragging = false);
-    
-    window.addEventListener('mousedown', (e) => { isDragging = true; startX = e.clientX; });
-    window.addEventListener('mousemove', (e) => {
-        if(!isDragging) return;
-        state.cameraX = Math.max(-10, Math.min(10, ((e.clientX - startX) / window.innerWidth) * 30));
-    });
-    window.addEventListener('mouseup', () => isDragging = false);
-}
-
-function handleOrientation(event) {
-    if(!event.gamma || !event.beta) return;
-    let gamma = Math.max(-45, Math.min(45, event.gamma));
-    state.cameraX = (gamma / 45) * 12; 
-    let beta = Math.max(0, Math.min(90, event.beta));
-    state.cameraY = 2 + ((beta - 45) / 45) * 3;
-}
-
-const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2(0, 0); 
-window.addEventListener('click', (e) => {
-    // 避免點擊開始按鈕時觸發射線
-    if(e.target.id === 'btn-start' || !state.isPlaying || !state.eventActive || state.currentEvent.type !== 'artifact') return;
-    
-    raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObject(artifactMesh);
-    if (intersects.length > 0) {
-        UI.crosshair.classList.add('locked');
-        state.speedMultiplier = 0.2; 
-        UI.scanUI.style.display = 'flex';
-        document.getElementById('scan-a').innerText = state.currentEvent.options[0];
-        document.getElementById('scan-b').innerText = state.currentEvent.options[1];
-    }
-});
-
-document.getElementById('scan-a').onclick = () => resolveArtifact("A");
-document.getElementById('scan-b').onclick = () => resolveArtifact("B");
-
-function startGame() {
-    initInputs();
-    UI.startScreen.style.display = 'none';
-    UI.hud.style.display = 'block';
-    UI.crosshair.style.display = 'flex';
-    state.isPlaying = true;
-    state.health = 100;
-    state.score = 0;
-    state.currentEra = 0;
-    updateHUD();
-    changeEra(0);
-    scheduleNextEvent();
-}
-
-document.getElementById('btn-start').addEventListener('click', startGame);
-
-function takeDamage(amount) {
-    state.health -= amount;
-    updateHUD();
-    UI.damageOver.style.opacity = 1;
-    document.body.classList.add('glitch');
-    setTimeout(() => {
-        UI.damageOver.style.opacity = 0;
-        document.body.classList.remove('glitch');
-    }, 300);
-    if(state.health <= 0) gameOver();
-}
-
-function updateHUD() {
-    UI.healthBar.style.width = Math.max(0, state.health) + '%';
-    // 【修復 1】將 var() 包裝成字串
-    if(state.health < 30) UI.healthBar.style.background = 'var(--danger)';
-    else UI.healthBar.style.background = 'var(--primary)';
-    UI.score.innerText = state.score;
-}
-
-function flashScreen() {
-    UI.flashOver.style.opacity = 1;
-    setTimeout(() => { UI.flashOver.style.opacity = 0; }, 500);
-}
-
-function changeEra(eraId) {
-    if (eraId >= GameDB.eras.length) { gameOver(true); return; }
-    state.currentEra = eraId;
-    const era = GameDB.eras[eraId];
-    UI.era.innerText = era.name;
-    scene.fog.color.setHex(era.fogColor);
-    scene.background.setHex(era.fogColor);
-    gridHelper.material.color.setHex(era.color);
-    pillarMat.color.setHex(era.color);
-    state.baseSpeed = 60 * era.speed;
-    flashScreen();
-}
-
-function scheduleNextEvent() {
-    if(!state.isPlaying) return;
-    setTimeout(() => {
-        const eraEvents = GameDB.events.filter(e => e.eraId === state.currentEra);
-        if(eraEvents.length === 0) {
-            changeEra(state.currentEra + 1);
-            scheduleNextEvent();
-            return;
+/**
+ * ============================================================================
+ * 模組 2：物件池系統 (Object Pool Pattern) - 解決效能與擴展性問題
+ * ============================================================================
+ */
+class ObjectPool {
+    constructor(factoryFunc, initialSize) {
+        this.factory = factoryFunc;
+        this.pool = [];
+        this.activeItems = [];
+        for (let i = 0; i < initialSize; i++) {
+            const item = this.factory();
+            item.visible = false;
+            this.pool.push(item);
         }
-        spawnEvent(eraEvents[Math.floor(Math.random() * eraEvents.length)]);
-    }, 5000);
-}
-
-function spawnEvent(evt) {
-    state.eventActive = true;
-    state.currentEvent = evt;
-    
-    if (evt.type === 'branch') {
-        portalLeft.position.z = -250; portalRight.position.z = -250;
-        UI.questionUI.style.display = 'flex';
-        // 【修復 2】正確存取 DOM 元件
-        UI.choicesContainer.style.display = 'flex'; 
-        UI.qText.innerText = `歷史前提：${evt.premise}`;
-        UI.cLeft.innerText = `⬅️ ${evt.left}`;
-        UI.cRight.innerText = `➡️ ${evt.right}`;
-    } else if (evt.type === 'artifact') {
-        artifactMesh.position.z = -250;
-        artifactMesh.position.x = (Math.random() - 0.5) * 10;
-        UI.qText.innerText = `掃描接近的文物！`;
-        UI.questionUI.style.display = 'flex';
-        UI.choicesContainer.style.display = 'none'; 
+    }
+    get() {
+        const item = this.pool.length > 0 ? this.pool.pop() : this.factory();
+        item.visible = true;
+        this.activeItems.push(item);
+        return item;
+    }
+    release(item) {
+        item.visible = false;
+        this.activeItems = this.activeItems.filter(i => i !== item);
+        this.pool.push(item);
     }
 }
 
-function resolveBranch(choice) {
-    state.eventActive = false;
-    UI.questionUI.style.display = 'none';
-    if (choice === state.currentEvent.correct) {
-        state.score += 500;
-        state.speedMultiplier = 2.0; 
-        setTimeout(() => state.speedMultiplier = 1.0, 1500);
-    } else {
-        takeDamage(30);
+/**
+ * ============================================================================
+ * 模組 3：UI 管理器 (UI Manager) - 抽離 DOM 操作，保持渲染純淨
+ * ============================================================================
+ */
+class UIManager {
+    constructor() {
+        this.els = {
+            start: document.getElementById('screen-start'),
+            game: document.getElementById('ui-game'),
+            gameover: document.getElementById('screen-gameover'),
+            health: document.getElementById('health-bar'),
+            score: document.getElementById('ui-score'),
+            era: document.getElementById('ui-era'),
+            qUI: document.getElementById('question-ui'),
+            qText: document.getElementById('q-text'),
+            cLeft: document.getElementById('c-left'),
+            cRight: document.getElementById('c-right'),
+            crosshair: document.getElementById('crosshair'),
+            fxDamage: document.getElementById('fx-damage')
+        };
     }
-    updateHUD();
-    portalLeft.position.z = 100; portalRight.position.z = 100;
-    scheduleNextEvent();
-}
-
-function resolveArtifact(choice) {
-    state.eventActive = false;
-    UI.scanUI.style.display = 'none';
-    UI.questionUI.style.display = 'none';
-    UI.crosshair.classList.remove('locked');
-    state.speedMultiplier = 1.0;
     
-    if (choice === state.currentEvent.correct.charAt(0)) {
-        state.score += 300;
-        artifactMesh.scale.set(0,0,0);
-    } else { takeDamage(20); }
-    
-    artifactMesh.position.z = 100; 
-    artifactMesh.scale.set(1,1,1);
-    updateHUD();
-    scheduleNextEvent();
-}
-
-function gameOver(isWin = false) {
-    state.isPlaying = false;
-    UI.hud.style.display = 'none';
-    UI.crosshair.style.display = 'none';
-    UI.questionUI.style.display = 'none';
-    UI.scanUI.style.display = 'none';
-    
-    UI.startScreen.style.display = 'flex';
-    if(isWin) {
-        UI.startScreen.innerHTML = `<h1>任務成功！</h1><p>你修復了時間線。<br>最終得分: ${state.score}</p><button onclick="location.reload()">重新挑戰</button>`;
-    } else {
-        UI.startScreen.innerHTML = `<h1>時間線崩塌</h1><p>你的過山車已解體。<br>最終得分: ${state.score}</p><button onclick="location.reload()">重新啟動任務</button>`;
+    showStart() { this.els.start.classList.remove('hidden'); this.els.gameover.classList.add('hidden'); }
+    startGame() { this.els.start.classList.add('hidden'); this.els.game.classList.remove('hidden'); this.els.crosshair.classList.remove('hidden'); }
+    showGameOver(score, isWin) { 
+        this.els.game.classList.add('hidden'); this.els.crosshair.classList.add('hidden');
+        this.els.gameover.classList.remove('hidden');
+        document.getElementById('go-score').innerText = score;
+        document.getElementById('go-title').innerText = isWin ? "任務成功" : "時間線崩塌";
     }
+    
+    updateHUD(health, score) {
+        this.els.health.style.width = `${Math.max(0, health)}%`;
+        this.els.health.style.background = health < 30 ? 'var(--danger)' : 'var(--primary)';
+        this.els.score.innerText = score;
+    }
+    
+    showDamageFx() {
+        this.els.fxDamage.style.opacity = 1;
+        setTimeout(() => this.els.fxDamage.style.opacity = 0, 300);
+    }
+
+    showQuestion(evt) {
+        this.els.qUI.classList.remove('hidden');
+        this.els.qText.innerText = evt.premise;
+        this.els.cLeft.innerText = `⬅️ ${evt.left}`;
+        this.els.cRight.innerText = `➡️ ${evt.right}`;
+    }
+    hideQuestion() { this.els.qUI.classList.add('hidden'); }
 }
 
-const clock = new THREE.Clock();
-function animate() {
-    requestAnimationFrame(animate);
-    const delta = clock.getDelta();
-    
-    camera.position.x += (state.cameraX - camera.position.x) * 5 * delta;
-    camera.position.y += (state.cameraY - camera.position.y) * 5 * delta;
-    camera.rotation.z = -(camera.position.x * 0.05);
+/**
+ * ============================================================================
+ * 模組 4：輸入管理器 (Input Manager) - 統一處理硬體差異
+ * ============================================================================
+ */
+class InputManager {
+    constructor() {
+        this.targetX = 0;
+        this.targetY = 2;
+        this.isDragging = false;
+        this.startX = 0;
+        this.bindEvents();
+    }
 
-    if (state.isPlaying) {
-        const moveDist = state.baseSpeed * state.speedMultiplier * delta;
-        gridHelper.position.z += moveDist;
-        if (gridHelper.position.z > 20) gridHelper.position.z = 0;
-
-        pillars.forEach(p => {
-            p.position.z += moveDist;
-            if (p.position.z > 20) p.position.z -= 300; 
+    bindEvents() {
+        window.addEventListener('touchstart', (e) => { this.isDragging = true; this.startX = e.touches[0].clientX; }, {passive: true});
+        window.addEventListener('touchmove', (e) => {
+            if(!this.isDragging) return;
+            this.targetX = ((e.touches[0].clientX - this.startX) / window.innerWidth) * CONFIG.CAMERA.SENSITIVITY_TOUCH; 
+        }, {passive: true});
+        window.addEventListener('touchend', () => this.isDragging = false);
+        
+        window.addEventListener('mousedown', (e) => { this.isDragging = true; this.startX = e.clientX; });
+        window.addEventListener('mousemove', (e) => {
+            if(!this.isDragging) return;
+            this.targetX = ((e.clientX - this.startX) / window.innerWidth) * CONFIG.CAMERA.SENSITIVITY_TOUCH;
         });
+        window.addEventListener('mouseup', () => this.isDragging = false);
+    }
 
-        if (state.eventActive) {
-            if (state.currentEvent.type === 'branch') {
-                portalLeft.position.z += moveDist; portalRight.position.z += moveDist;
-                if (portalLeft.position.z > 0 && portalLeft.position.z < 10) {
-                    if (camera.position.x < 0) resolveBranch("left");
-                    else resolveBranch("right");
+    requestGyro() {
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            DeviceOrientationEvent.requestPermission().then(res => {
+                if (res === 'granted') window.addEventListener('deviceorientation', this.handleGyro.bind(this));
+            }).catch(console.error);
+        } else {
+            window.addEventListener('deviceorientation', this.handleGyro.bind(this));
+        }
+    }
+
+    handleGyro(e) {
+        if(!e.gamma || !e.beta) return;
+        let gamma = Math.max(-45, Math.min(45, e.gamma));
+        this.targetX = (gamma / 45) * CONFIG.CAMERA.SENSITIVITY_GYRO; 
+    }
+}
+
+/**
+ * ============================================================================
+ * 模組 5：場景與渲染器 (Scene Manager) - 負責 3D 世界的一切
+ * ============================================================================
+ */
+class SceneManager {
+    constructor(canvas) {
+        this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+        this.scene = new THREE.Scene();
+        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 300);
+        this.camera.position.set(0, 2, 0);
+
+        this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const dl = new THREE.DirectionalLight(0xffffff, 0.8);
+        dl.position.set(0, 10, -10);
+        this.scene.add(dl);
+
+        this.scene.fog = new THREE.Fog(0x000000, 50, 250);
+        
+        // 地板網格
+        this.grid = new THREE.GridHelper(100, 20, 0xffffff, 0xffffff);
+        this.scene.add(this.grid);
+
+        // 初始化物件池：柱子
+        const pillarMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+        this.pillarPool = new ObjectPool(() => {
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 20, 2), pillarMat);
+            this.scene.add(mesh);
+            return mesh;
+        }, 40);
+
+        // 初始化物件池：傳送門 (左右一組作為一個實體)
+        const pGeo = new THREE.BoxGeometry(8, 10, 1);
+        this.portalPool = new ObjectPool(() => {
+            const group = new THREE.Group();
+            const left = new THREE.Mesh(pGeo, new THREE.MeshBasicMaterial({ color: 0xff9900, transparent: true, opacity: 0.5 }));
+            const right = new THREE.Mesh(pGeo, new THREE.MeshBasicMaterial({ color: 0xff3366, transparent: true, opacity: 0.5 }));
+            left.position.x = -6; right.position.x = 6;
+            group.add(left); group.add(right);
+            this.scene.add(group);
+            return group;
+        }, 3);
+
+        this.initEnvironment();
+        
+        window.addEventListener('resize', () => {
+            this.camera.aspect = window.innerWidth / window.innerHeight;
+            this.camera.fov = window.innerHeight > window.innerWidth ? 90 : 75;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    }
+
+    initEnvironment() {
+        for(let i=0; i<40; i++) {
+            const p = this.pillarPool.get();
+            p.position.set((Math.random() > 0.5 ? 1 : -1) * (10 + Math.random() * 20), 10, -Math.random() * 300);
+        }
+    }
+
+    setEraStyle(eraConfig) {
+        this.scene.fog.color.setHex(eraConfig.color);
+        this.scene.background = new THREE.Color(eraConfig.color);
+        this.grid.material.color.setHex(eraConfig.color);
+        this.pillarPool.pool.forEach(p => p.material.color.setHex(eraConfig.color));
+        this.pillarPool.activeItems.forEach(p => p.material.color.setHex(eraConfig.color));
+    }
+}
+
+/**
+ * ============================================================================
+ * 模組 6：核心遊戲引擎 (Game Engine) - 狀態機與防穿透邏輯
+ * ============================================================================
+ */
+class GameEngine {
+    constructor() {
+        this.ui = new UIManager();
+        this.input = new InputManager();
+        this.sceneMgr = new SceneManager(document.getElementById('game-canvas'));
+        
+        this.state = { isPlaying: false, health: 100, score: 0, eraIndex: 0 };
+        this.clock = new THREE.Clock();
+        this.speed = 60;
+        
+        this.activeEvent = null;
+        this.activePortal = null;
+
+        document.getElementById('btn-start').addEventListener('click', () => this.start());
+        document.getElementById('btn-restart').addEventListener('click', () => location.reload());
+        
+        this.loop();
+    }
+
+    start() {
+        this.input.requestGyro();
+        this.ui.startGame();
+        this.state = { isPlaying: true, health: CONFIG.PLAYER.MAX_HEALTH, score: 0, eraIndex: 0 };
+        this.ui.updateHUD(this.state.health, this.state.score);
+        this.changeEra(0);
+        this.scheduleEvent();
+    }
+
+    changeEra(index) {
+        if(index >= GameDB.eras.length) return this.gameOver(true);
+        this.state.eraIndex = index;
+        const era = GameDB.eras[index];
+        this.ui.els.era.innerText = era.name;
+        this.sceneMgr.setEraStyle(era);
+        this.speed = 60 * era.speed;
+    }
+
+    scheduleEvent() {
+        if(!this.state.isPlaying) return;
+        setTimeout(() => {
+            const evt = GameDB.events[this.state.eraIndex];
+            if(!evt) return this.changeEra(this.state.eraIndex + 1);
+
+            this.activeEvent = evt;
+            this.activePortal = this.sceneMgr.portalPool.get();
+            this.activePortal.position.set(0, 5, CONFIG.SPAWN.Z_START);
+            
+            // 記錄上一幀的 Z 座標，用於防穿透檢測 (Anti-Tunneling)
+            this.activePortal.userData.prevZ = CONFIG.SPAWN.Z_START;
+            
+            this.ui.showQuestion(evt);
+        }, 3000);
+    }
+
+    resolveBranch(playerX) {
+        const choice = playerX < 0 ? "left" : "right";
+        if (choice === this.activeEvent.correct) {
+            this.state.score += CONFIG.PLAYER.SCORE_REWARD;
+        } else {
+            this.state.health -= CONFIG.PLAYER.DAMAGE_PENALTY;
+            this.ui.showDamageFx();
+        }
+        
+        this.ui.hideQuestion();
+        this.ui.updateHUD(this.state.health, this.state.score);
+        
+        this.sceneMgr.portalPool.release(this.activePortal);
+        this.activeEvent = null;
+        this.activePortal = null;
+        
+        if(this.state.health <= 0) this.gameOver(false);
+        else this.scheduleEvent();
+    }
+
+    gameOver(isWin) {
+        this.state.isPlaying = false;
+        this.ui.showGameOver(this.state.score, isWin);
+    }
+
+    loop() {
+        requestAnimationFrame(() => this.loop());
+        const dt = Math.min(this.clock.getDelta(), 0.1); // 限制最大 delta 避免切換分頁回來崩潰
+
+        // 平滑相機移動 (Lerp)
+        const cam = this.sceneMgr.camera;
+        cam.position.x += (this.input.targetX - cam.position.x) * CONFIG.CAMERA.SMOOTHING * dt;
+        cam.rotation.z = -(cam.position.x * 0.05);
+
+        if (this.state.isPlaying) {
+            const moveDist = this.speed * dt;
+            
+            // 軌道無限流動
+            this.sceneMgr.grid.position.z += moveDist;
+            if (this.sceneMgr.grid.position.z > 20) this.sceneMgr.grid.position.z -= 20;
+
+            // 柱子回收
+            this.sceneMgr.pillarPool.activeItems.forEach(p => {
+                p.position.z += moveDist;
+                if(p.position.z > CONFIG.SPAWN.Z_END) {
+                    p.position.z = CONFIG.SPAWN.Z_START; // 重置到最遠端
+                    p.position.x = (Math.random() > 0.5 ? 1 : -1) * (10 + Math.random() * 20);
                 }
-            } 
-            else if (state.currentEvent.type === 'artifact') {
-                artifactMesh.position.z += moveDist * 1.5; 
-                artifactMesh.rotation.x += delta;
-                artifactMesh.rotation.y += delta;
+            });
+
+            // 實體碰撞檢測 (防穿透 Anti-Tunneling)
+            if (this.activePortal) {
+                const p = this.activePortal;
+                p.userData.prevZ = p.position.z; // 記錄上一幀位置
+                p.position.z += moveDist;
                 
-                if (artifactMesh.position.z > 10) {
-                    state.eventActive = false;
-                    UI.questionUI.style.display = 'none';
-                    takeDamage(10); 
-                    scheduleNextEvent();
+                // 穿越檢測：如果上一幀在相機前方，這一幀跑到相機後方，代表發生「穿越」！
+                if (p.userData.prevZ <= CONFIG.PHYSICS.PLAYER_Z && p.position.z > CONFIG.PHYSICS.PLAYER_Z) {
+                    this.resolveBranch(cam.position.x);
                 }
             }
         }
+
+        this.sceneMgr.renderer.render(this.sceneMgr.scene, cam);
     }
-    renderer.render(scene, camera);
 }
 
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.fov = window.innerHeight > window.innerWidth ? 90 : 75;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-});
+// 啟動應用程式
+window.onload = () => new GameEngine();
 
-animate();
 </script>
 </body>
 </html>
