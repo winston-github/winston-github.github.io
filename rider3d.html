@@ -3,64 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>歷史時空急流 - 最終修復版</title>
+    <title>歷史時空急流 - 高空躍遷典藏版</title>
     <style>
         :root { --primary: #00ffcc; --danger: #ff3366; --bg: #0b0c10; }
-        body, html { margin: 0; overflow: hidden; background: var(--bg); font-family: sans-serif; user-select: none; }
+        body, html { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; touch-action: none; }
         canvas { display: block; position: absolute; z-index: 1; }
         
-        /* UI 層剝離，預設不擋觸控 */
         .ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; display: flex; flex-direction: column; }
         .pointer-auto { pointer-events: auto; }
         
-        #screen-start, #screen-gameover { position: absolute; width: 100%; height: 100%; background: rgba(11,12,16,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; z-index: 100; backdrop-filter: blur(10px); }
+        #screen-start, #screen-gameover { position: absolute; width: 100%; height: 100%; background: rgba(10,15,30,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; z-index: 100; backdrop-filter: blur(12px); }
         .hidden { display: none !important; }
         
-        h1 { color: var(--primary); text-shadow: 0 0 15px var(--primary); }
-        button { background: transparent; border: 2px solid var(--primary); color: var(--primary); padding: 15px 40px; font-size: 1.5rem; border-radius: 30px; cursor: pointer; transition: 0.3s; pointer-events: auto; }
-        button:hover { background: var(--primary); color: var(--bg); }
+        h1 { color: var(--primary); text-shadow: 0 0 20px var(--primary); margin-bottom: 5px; font-size: clamp(2.2rem, 6vw, 3.5rem); text-align: center; letter-spacing: 2px; }
+        p { font-size: 1.15rem; color: #d0f0ff; margin-bottom: 30px; text-align: center; line-height: 1.6; padding: 0 20px; text-shadow: 0 2px 5px rgba(0,0,0,0.8); }
+        button { background: rgba(0,255,204,0.1); border: 2px solid var(--primary); color: var(--primary); padding: 15px 45px; font-size: 1.5rem; font-weight: bold; border-radius: 40px; cursor: pointer; transition: 0.3s; pointer-events: auto; box-shadow: 0 0 20px rgba(0,255,204,0.3); text-transform: uppercase; letter-spacing: 1px; }
+        button:hover, button:active { background: var(--primary); color: #000; transform: scale(1.05); box-shadow: 0 0 40px var(--primary); }
         
-        #hud { padding: 20px; display: flex; justify-content: space-between; color: white; font-weight: bold; }
-        #health-bar-bg { width: 150px; height: 15px; background: rgba(255,255,255,0.2); border-radius: 10px; border: 1px solid white; }
-        #health-bar { width: 100%; height: 100%; background: var(--primary); transition: width 0.3s; }
+        #hud { padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; color: white; font-weight: bold; font-size: 1.2rem; background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent); text-shadow: 0 2px 4px black; }
+        #health-bar-bg { width: 130px; height: 14px; background: rgba(255,255,255,0.2); border-radius: 10px; border: 1px solid rgba(255,255,255,0.5); margin-top: 5px; overflow: hidden; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
+        #health-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #00bfff, var(--primary)); transition: width 0.3s, background 0.3s; border-radius: 8px;}
         
-        #question-ui { position: absolute; top: 15%; width: 100%; display: flex; flex-direction: column; align-items: center; color: white; }
+        #question-ui { position: absolute; top: 18%; width: 100%; display: flex; flex-direction: column; align-items: center; color: white; }
+        #q-text { background: rgba(0,10,30,0.85); padding: 18px 30px; border-radius: 15px; border: 1px solid var(--primary); font-size: clamp(1.15rem, 4.5vw, 1.5rem); font-weight: bold; text-align: center; box-shadow: 0 0 30px rgba(0,255,204,0.4); width: 85%; max-width: 650px; line-height: 1.5; backdrop-filter: blur(5px); }
         
-        /* 修改點 1：將選項區塊的 pointer-events 打開，並加入點擊特效 */
-        .choices { display: flex; width: 90%; max-width: 600px; justify-content: space-between; margin-top: 20px; pointer-events: auto; }
-        .choice-box { background: rgba(0,0,0,0.8); padding: 15px 10px; border: 2px solid white; border-radius: 8px; width: 45%; text-align: center; cursor: pointer; transition: transform 0.1s, background 0.2s; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.5); }
-        .choice-box:active { transform: scale(0.95); background: rgba(255,255,255,0.2); }
+        .choices { display: flex; width: 95%; max-width: 700px; justify-content: space-between; margin-top: 25px; pointer-events: auto; gap: 15px; padding: 0 15px; box-sizing: border-box; }
+        .choice-box { background: rgba(0,0,0,0.7); padding: 20px 15px; border: 2px solid white; border-radius: 12px; flex: 1; text-align: center; cursor: pointer; transition: 0.2s; font-weight: bold; font-size: clamp(0.95rem, 3.8vw, 1.25rem); display: flex; align-items: center; justify-content: center; min-height: 80px; box-shadow: 0 8px 20px rgba(0,0,0,0.5); backdrop-filter: blur(5px); }
+        .choice-box:active { transform: scale(0.92); background: rgba(255,255,255,0.3); }
         
-        #fx-damage { position: absolute; width: 100%; height: 100%; background: radial-gradient(circle, transparent 50%, rgba(255,0,0,0.5) 100%); opacity: 0; z-index: 50; transition: opacity 0.2s; pointer-events: none; }
+        #fx-damage { position: absolute; width: 100%; height: 100%; background: radial-gradient(circle, transparent 30%, rgba(255,0,50,0.7) 100%); opacity: 0; z-index: 50; transition: opacity 0.2s; pointer-events: none; mix-blend-mode: multiply; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
     <div id="screen-start" class="pointer-auto">
-        <h1>歷史時空急流</h1>
-        <p>滑動螢幕躲避，或直接點擊選項！</p>
-        <button id="btn-start">啟動引擎</button>
+        <h1>時空躍遷引擎</h1>
+        <p>告別壓抑地面，迎向高空時空蟲洞！<br>10 大紀元，120 個史詩歷史節點。<br>滑動螢幕飛行，或點擊選項抉擇歷史！</p>
+        <button id="btn-start">啟動躍遷</button>
     </div>
 
     <div id="screen-gameover" class="hidden pointer-auto">
         <h1 id="go-title">時間線崩塌</h1>
-        <p>最終得分: <span id="go-score">0</span></p>
-        <button id="btn-restart">重新挑戰</button>
+        <p>歷史同步率 (得分): <br><span id="go-score" style="color: var(--primary); font-size: 2.5rem; font-weight:bold; text-shadow: 0 0 20px var(--primary);">0</span></p>
+        <button id="btn-restart">重新修復歷史</button>
     </div>
 
     <div class="ui-layer hidden" id="ui-game">
         <div id="hud">
-            <div>紀元: <span id="ui-era">古埃及</span></div>
-            <div>耐久: <div id="health-bar-bg"><div id="health-bar"></div></div></div>
-            <div>分數: <span id="ui-score">0</span></div>
+            <div><span id="ui-era" style="color: var(--primary); font-size: 1.3rem; text-transform: uppercase;">古埃及</span></div>
+            <div>護盾 <div id="health-bar-bg"><div id="health-bar"></div></div></div>
+            <div>得分: <span id="ui-score">0</span></div>
         </div>
         
         <div id="question-ui" class="hidden">
-            <div id="q-text" style="background: rgba(0,0,0,0.8); padding: 10px 20px; border-radius: 10px; border: 1px solid var(--primary);">前提</div>
+            <div id="q-text">前提</div>
             <div class="choices" id="choices-container">
-                <div class="choice-box" id="c-left" style="border-color: #ff9900;">⬅️ 選項1</div>
-                <div class="choice-box" id="c-right" style="border-color: #ff3366;">➡️ 選項2</div>
+                <div class="choice-box" id="c-left" style="border-color: #ffaa00; text-shadow: 0 0 10px #ffaa00;">⬅️ 選項1</div>
+                <div class="choice-box" id="c-right" style="border-color: #ff3366; text-shadow: 0 0 10px #ff3366;">選項2 ➡️</div>
             </div>
         </div>
     </div>
@@ -71,22 +71,84 @@
 <script>
 const CONFIG = {
     PLAYER: { MAX_HEALTH: 100, DAMAGE_PENALTY: 35, SCORE_REWARD: 500 },
-    CAMERA: { SENSITIVITY_GYRO: 12, SENSITIVITY_TOUCH: 20, SMOOTHING: 5 },
-    SPAWN: { Z_START: -250, Z_END: 20 }, 
+    CAMERA: { SENSITIVITY_GYRO: 12, SENSITIVITY_TOUCH: 18, SMOOTHING: 6 },
+    SPAWN: { Z_START: -300, Z_END: 50 }, 
     PHYSICS: { PLAYER_Z: 0 } 
 };
 
-// 修改點 2：加入完整且會依序推進的題庫
+// 【終極擴充：10大紀元，40條因果鏈，120個事件】
 const GameDB = {
     eras: [
-        { id: 0, name: "古埃及", color: 0xffaa00, speed: 1.0 },
-        { id: 1, name: "羅馬帝國", color: 0xcccccc, speed: 1.3 }
+        { id: 0, name: "古埃及", color: 0xffcc55, speed: 1.0 },       // 金色天空
+        { id: 1, name: "兩河流域", color: 0xff8855, speed: 1.1 },      // 橘色夕陽
+        { id: 2, name: "古希臘", color: 0x44aaff, speed: 1.2 },        // 地中海藍
+        { id: 3, name: "羅馬帝國", color: 0xcc3333, speed: 1.35 },     // 帝國紅
+        { id: 4, name: "古代亞洲", color: 0x22cc88, speed: 1.45 },     // 翡翠綠
+        { id: 5, name: "中世紀與伊斯蘭", color: 0x6644aa, speed: 1.6 }, // 暮色紫
+        { id: 6, name: "大航海與美洲", color: 0x0044aa, speed: 1.75 },  // 深洋藍
+        { id: 7, name: "文藝與啟蒙", color: 0xff88aa, speed: 1.9 },     // 曙光粉
+        { id: 8, name: "工業與大戰", color: 0xaa5522, speed: 2.15 },   // 煉鋼橘
+        { id: 9, name: "資訊與太空", color: 0x00ffff, speed: 2.4 }      // 賽博青 (極速)
     ],
-    events: [
-        { eraId: 0, type: "branch", premise: "尼羅河每年定期氾濫", left: "發展農業與幾何", right: "轉向沙漠游牧", correct: "left" },
-        { eraId: 0, type: "branch", premise: "為了彰顯法老權力", left: "修建金字塔", right: "推廣民主選舉", correct: "left" },
-        { eraId: 1, type: "branch", premise: "凱撒大帝遇刺身亡", left: "羅馬恢復和平", right: "內戰爆發屋大維崛起", correct: "right" },
-        { eraId: 1, type: "branch", premise: "為連接廣大羅馬領土", left: "發明蒸汽火車", right: "鋪設大道與引水渠", correct: "right" }
+    chains: [
+        // 0: 古埃及
+        { eraId: 0, events: [{ premise: "尼羅河定期氾濫帶來淤泥", left: "發展定居農業", right: "轉向沙漠游牧", correct: "left" }, { premise: "為了丈量被淹沒的土地", left: "發明幾何學", right: "依賴神明占卜", correct: "left" }, { premise: "農業豐收帶來行政需求", left: "閉關鎖國", right: "發展象形文字與紙草", correct: "right" }]},
+        { eraId: 0, events: [{ premise: "鞏固絕對統治權威", left: "法老神格化", right: "建立民主議會", correct: "left" }, { premise: "相信死後靈魂不滅", left: "推廣火葬", right: "製作木乃伊保存", correct: "right" }, { premise: "彰顯法老死後榮耀", left: "修建宏偉金字塔", right: "將財富分給平民", correct: "left" }]},
+        { eraId: 0, events: [{ premise: "發現西奈半島豐富銅礦", left: "建立常備軍向外擴張", right: "築起高牆隔絕外界", correct: "left" }, { premise: "面對外族戰車部隊入侵", left: "學習並改良青銅武器", right: "堅持使用石器", correct: "left" }, { premise: "與西臺帝國爆發卡疊石戰役", left: "簽署人類首份和平條約", right: "雙方徹底毀滅", correct: "left" }]},
+        { eraId: 0, events: [{ premise: "多神信仰導致祭司權力過大", left: "法老阿肯那頓推行一神教", right: "法老主動讓位給祭司", correct: "left" }, { premise: "新首都建立與藝術變革", left: "推行寫實自然的阿馬爾奈風格", right: "禁止一切藝術創作", correct: "left" }, { premise: "阿肯那頓死後", left: "舊祭司復辟，抹除他的名字", right: "一神教徹底統治全球", correct: "left" }]},
+
+        // 1: 兩河流域與波斯
+        { eraId: 1, events: [{ premise: "底格里斯河與幼發拉底河氾濫無常", left: "蘇美人生產悲觀文學與史詩", right: "認為神明極度慈愛", correct: "left" }, { premise: "為了記錄神廟的龐大帳目", left: "在泥板上壓出楔形文字", right: "發明了打字機", correct: "left" }, { premise: "城市逐漸發展為城邦", left: "建立巨大塔廟(Ziggurat)", right: "所有人都搬到地下居住", correct: "left" }]},
+        { eraId: 1, events: [{ premise: "巴比倫國王漢摩拉比統治時期", left: "頒布人類已知最早的成文法典", right: "廢除所有法律", correct: "left" }, { premise: "法典的核心精神是", left: "人人絕對平等", right: "以眼還眼，以牙還牙", correct: "right" }, { premise: "為了防禦外敵與彰顯國威", left: "建造巴比倫空中花園", right: "把城市沉入海底", correct: "left" }]},
+        { eraId: 1, events: [{ premise: "亞述帝國崛起", left: "依靠殘暴軍事與鐵器征服", right: "用愛與和平感化鄰國", correct: "left" }, { premise: "為了管理龐大帝國的知識", left: "建立尼尼微圖書館", right: "燒毀所有書籍", correct: "left" }, { premise: "統治過於殘暴導致各國反抗", left: "亞述帝國迅速崩潰滅亡", right: "亞述統治了世界一千年", correct: "left" }]},
+        { eraId: 1, events: [{ premise: "波斯國王居魯士大帝征服巴比倫", left: "實施寬容政策，釋放猶太人", right: "將所有俘虜屠殺殆盡", correct: "left" }, { premise: "為了有效管理橫跨歐亞的帝國", left: "大流士劃分行省並修建御道", right: "國王每天親自巡邏全國", correct: "left" }, { premise: "波斯人信仰瑣羅亞斯德教", left: "強調善惡二元對立與火之純潔", right: "信仰無數個動物神明", correct: "left" }]},
+
+        // 2: 古希臘
+        { eraId: 2, events: [{ premise: "希臘地形崎嶇多山", left: "發展成獨立自治的城邦(Polis)", right: "立刻統一成巨大帝國", correct: "left" }, { premise: "土地貧瘠難以種植小麥", left: "發展海上貿易種植橄欖", right: "全民餓死", correct: "left" }, { premise: "為了解決人口過剩", left: "向地中海沿岸建立殖民地", right: "實施殘酷的人口淘汰", correct: "left" }]},
+        { eraId: 2, events: [{ premise: "雅典面臨嚴重貧富差距", left: "梭倫改革廢除債務奴隸", right: "將窮人全數流放", correct: "left" }, { premise: "為了防止僭主獨裁", left: "發明陶片放逐法", right: "實施世襲君主制", correct: "left" }, { premise: "波希戰爭擊敗波斯後", left: "雅典迎來民主與文化的黃金時代", right: "雅典被波斯同化", correct: "left" }]},
+        { eraId: 2, events: [{ premise: "斯巴達為控制大量的黑勞士(奴隸)", left: "實施極端軍事化教育", right: "推廣自由藝術與詩歌", correct: "left" }, { premise: "溫泉關戰役面對波斯大軍", left: "斯巴達三百壯士死守隘口", right: "立刻投降", correct: "left" }, { premise: "不滿雅典過度擴張與跋扈", left: "爆發伯羅奔尼撒戰爭，希臘內耗衰敗", right: "斯巴達與雅典永遠合併", correct: "left" }]},
+        { eraId: 2, events: [{ premise: "希臘城邦內戰衰弱", left: "馬其頓王國趁機崛起統一希臘", right: "被埃及全面併吞", correct: "left" }, { premise: "亞歷山大大帝繼位", left: "東征消滅波斯，打到印度邊界", right: "留守本土不擴張", correct: "left" }, { premise: "亞歷山大橫跨歐亞的征服", left: "促成希臘化時代(Hellenistic)文化融合", right: "導致希臘文明徹底滅絕", correct: "left" }]},
+
+        // 3: 羅馬帝國
+        { eraId: 3, events: [{ premise: "羅馬建立共和國", left: "由元老院與兩名執政官共治", right: "由皇帝一人獨裁", correct: "left" }, { premise: "平民為了爭取政治權利", left: "制定了《十二銅表法》", right: "引發了核戰爭", correct: "left" }, { premise: "羅馬為爭奪地中海霸權", left: "與迦太基爆發布匿戰爭並獲勝", right: "與中國爆發戰爭", correct: "left" }]},
+        { eraId: 3, events: [{ premise: "凱撒大帝挾帶高盧戰功返回羅馬", left: "遭到元老院暗殺身亡", right: "和平退休務農", correct: "left" }, { premise: "凱撒死後爆發內戰", left: "屋大維擊敗安東尼崛起", right: "羅馬恢復了長久的共和", correct: "left" }, { premise: "屋大維被尊為「奧古斯都」", left: "終結內戰，開創兩百年的「羅馬和平」", right: "導致羅馬立刻崩潰", correct: "left" }]},
+        { eraId: 3, events: [{ premise: "隨著城市人口暴增", left: "修建高架引水渠解決供水", right: "強制驅離平民", correct: "left" }, { premise: "為了軍隊快速調動與貿易", left: "鋪設四通八達的羅馬大道", right: "只依賴海運", correct: "left" }, { premise: "為了娛樂大眾與安撫平民", left: "建造競技場舉行神鬼戰士比賽", right: "廢除所有娛樂活動", correct: "left" }]},
+        { eraId: 3, events: [{ premise: "帝國晚期版圖過大難以管理", left: "戴克里先實施四帝共治", right: "將領土還給原住民", correct: "left" }, { premise: "為了尋求精神統一與鞏固統治", left: "君士坦丁頒布米蘭詔書合法化基督教", right: "繼續迫害基督教徒", correct: "left" }, { premise: "面對日耳曼蠻族的不斷入侵", left: "帝國最終分裂為東西，西羅馬滅亡", right: "發明火藥成功反殺", correct: "left" }]},
+
+        // 4: 古代亞洲 (中國與印度)
+        { eraId: 4, events: [{ premise: "秦始皇統一天下", left: "實施書同文、車同軌與郡縣制", right: "實施分封制", correct: "left" }, { premise: "漢武帝為反擊匈奴", left: "派張騫出使西域開通絲路", right: "將首都遷往西伯利亞", correct: "left" }, { premise: "文化與行政需求大增", left: "蔡倫改良造紙術", right: "繼續刻字在竹簡上", correct: "left" }]},
+        { eraId: 4, events: [{ premise: "印度孔雀王朝阿育王早年殘暴", left: "經歷羯陵伽戰役後改信佛教", right: "變本加厲屠殺平民", correct: "left" }, { premise: "為了推廣佛教與和平", left: "在全國豎立阿育王石柱", right: "強制全印度人出家", correct: "left" }, { premise: "笈多王朝時期", left: "發明了「零」的概念與阿拉伯數字", right: "發明了印刷術", correct: "left" }]},
+        { eraId: 4, events: [{ premise: "隋唐結束長期分裂", left: "開鑿大運河連接南北", right: "修建長城隔絕南北", correct: "left" }, { premise: "為了選拔優秀官員", left: "全面實施科舉制度", right: "只任用貴族子弟", correct: "left" }, { premise: "唐朝國力達到鼎盛", left: "長安成為國際化大都市", right: "全面禁止外國人入境", correct: "left" }]},
+        { eraId: 4, events: [{ premise: "宋朝為避免武將跋扈", left: "實施重文輕武國策", right: "讓武將世襲皇位", correct: "left" }, { premise: "商業極度繁榮與銅錢笨重", left: "發行世界最早的紙幣(交子)", right: "退回以物易物", correct: "left" }, { premise: "科技達到古代巔峰", left: "發明指南針與火藥武器", right: "成功發明蒸汽機", correct: "left" }]},
+
+        // 5: 中世紀與伊斯蘭
+        { eraId: 5, events: [{ premise: "西羅馬帝國滅亡後", left: "日耳曼人建立封建與莊園制", right: "歐洲進入高度工業化", correct: "left" }, { premise: "查理曼大帝統一西歐", left: "被教宗加冕為神聖羅馬皇帝", right: "徹底消滅了基督教", correct: "left" }, { premise: "英國國王約翰濫用權力", left: "被迫簽署大憲章限制王權", right: "成功建立絕對專制", correct: "left" }]},
+        { eraId: 5, events: [{ premise: "穆罕默德創立伊斯蘭教", left: "迅速統一阿拉伯半島", right: "被羅馬帝國徹底鎮壓", correct: "left" }, { premise: "阿拉伯帝國擴張", left: "建立橫跨歐亞非的大帝國", right: "只停留在沙漠中", correct: "left" }, { premise: "伊斯蘭黃金時代", left: "保留希臘古籍並發展代數與醫學", right: "燒毀了所有外國書籍", correct: "left" }]},
+        { eraId: 5, events: [{ premise: "為了奪回聖地耶路撒冷", left: "教宗發動十字軍東征", right: "與伊斯蘭世界和平談判", correct: "left" }, { premise: "十字軍接觸到東方文明", left: "帶回失傳的希臘古籍與香料", right: "發現了美洲新大陸", correct: "left" }, { premise: "東西方貿易需求大增", left: "威尼斯等義大利城邦崛起", right: "歐洲經濟徹底崩潰", correct: "left" }]},
+        { eraId: 5, events: [{ premise: "亞洲商船帶來了老鼠與跳蚤", left: "黑死病(鼠疫)席捲歐洲", right: "帶來了豐富的蛋白質", correct: "left" }, { premise: "歐洲人口銳減三分之一", left: "導致勞動力極度短缺", right: "農民變得一文不值", correct: "left" }, { premise: "領主不得不提高農奴待遇", left: "加速了農奴制與莊園的瓦解", right: "農奴制變得更加殘酷", correct: "left" }]},
+
+        // 6: 大航海與美洲古文明
+        { eraId: 6, events: [{ premise: "君士坦丁堡陷落陸路中斷", left: "歐洲轉向海洋尋找新航路", right: "歐洲決定放棄香料", correct: "left" }, { premise: "葡萄牙在航海家亨利支持下", left: "沿非洲西海岸向下探索", right: "向北極尋找冰雪航線", correct: "left" }, { premise: "達伽馬繞過好望角", left: "成功抵達印度開啟海上帝國", right: "掉進了地球的邊緣", correct: "left" }]},
+        { eraId: 6, events: [{ premise: "中美洲馬雅文明", left: "發展出精準曆法與階梯金字塔", right: "發明了蒸汽火車", correct: "left" }, { premise: "阿茲特克人建立特諾奇提特蘭", left: "進行浮島農業與活人獻祭", right: "實行絕對和平主義", correct: "left" }, { premise: "印加帝國在安地斯山脈", left: "修建高山道路與結繩記事(奇普)", right: "發展出發達的文字系統", correct: "left" }]},
+        { eraId: 6, events: [{ premise: "哥倫布相信地球是圓的向西航", left: "意外抵達美洲新大陸", right: "順利抵達了日本", correct: "left" }, { premise: "西班牙征服者帶來了天花等疾病", left: "導致美洲原住民人口毀滅性暴跌", right: "原住民獲得了免疫力", correct: "left" }, { premise: "美洲馬鈴薯與玉米傳入歐洲", left: "解決饑荒，觸發哥倫布大交換", right: "導致全歐洲人中毒", correct: "left" }]},
+        { eraId: 6, events: [{ premise: "麥哲倫船隊一路向西航行", left: "完成人類首次環球航行", right: "證明地球是平的", correct: "left" }, { premise: "為了獨佔亞洲貿易與分攤風險", left: "荷蘭成立東印度公司與股市", right: "完全依賴國王個人出資", correct: "left" }, { premise: "列強為了爭奪全球霸權", left: "爆發激烈海戰與殖民地爭奪", right: "簽署了全球和平禁航條約", correct: "left" }]},
+
+        // 7: 文藝復興與啟蒙
+        { eraId: 7, events: [{ premise: "拜占庭學者逃亡帶回古希臘羅馬典籍", left: "引發義大利文藝復興", right: "引發了第二次十字軍", correct: "left" }, { premise: "達文西與米開朗基羅等巨匠", left: "強調人文主義與寫實人體", right: "只畫神聖不可侵犯的聖像", correct: "left" }, { premise: "古騰堡發明活字印刷術", left: "打破教會壟斷，知識大爆炸", right: "導致書籍變得更昂貴", correct: "left" }]},
+        { eraId: 7, events: [{ premise: "哥白尼觀察星象後提出", left: "日心說(地球繞太陽轉)", right: "地心說(太陽繞地球轉)", correct: "left" }, { premise: "伽利略使用望遠鏡證實日心說", left: "遭宗教裁判所審判軟禁", right: "立刻被教宗封為聖人", correct: "left" }, { premise: "牛頓發表萬有引力定律", left: "奠定近代物理學與科學方法", right: "證明魔法確實存在", correct: "left" }]},
+        { eraId: 7, events: [{ premise: "啟蒙運動強調理性與天賦人權", left: "影響了美國獨立與法國大革命", right: "促使各國恢復君權神授", correct: "left" }, { premise: "法國大革命爆發", left: "巴黎市民攻陷巴士底監獄", right: "國王主動將權力交給平民", correct: "left" }, { premise: "革命進入激進期", left: "羅伯斯比爾實行恐怖統治", right: "法國迎來永久的和平", correct: "left" }]},
+        { eraId: 7, events: [{ premise: "法國大革命後政局動盪", left: "拿破崙趁勢崛起稱帝", right: "法國恢復傳統封建制", correct: "left" }, { premise: "拿破崙橫掃歐洲大陸", left: "傳播了自由平等與法典精神", right: "將全歐洲人都變成奴隸", correct: "left" }, { premise: "拿破崙遠征俄國慘敗", left: "最終在滑鐵盧戰役被徹底擊敗", right: "成功征服了俄羅斯", correct: "left" }]},
+
+        // 8: 工業革命與大戰
+        { eraId: 8, events: [{ premise: "早期礦井積水嚴重", left: "紐科門發明早期蒸汽機抽水", right: "只能靠人力一桶桶撈", correct: "left" }, { premise: "瓦特大幅改良蒸汽機提高效率", left: "為工廠提供穩定的強大動力", right: "被認為太危險全面禁用", correct: "left" }, { premise: "蒸汽動力應用於交通", left: "促成鐵路網與火車大擴張", right: "導致馬車運輸業更加繁榮", correct: "left" }]},
+        { eraId: 8, events: [{ premise: "機器取代人力，工廠制度建立", left: "大量農民湧入城市成為工人", right: "工人獲得極高工資與休假", correct: "left" }, { premise: "城市夜晚的照明需求大增", left: "愛迪生改良並推廣白熾燈泡", right: "規定日落後全國強制就寢", correct: "left" }, { premise: "第二次工業革命到來", left: "石油、電力與內燃機廣泛應用", right: "人類放棄科技回歸自然", correct: "left" }]},
+        { eraId: 8, events: [{ premise: "奧匈帝國斐迪南大公在塞拉耶佛遇刺", left: "引發第一次世界大戰", right: "和平談判圓滿解決", correct: "left" }, { premise: "面對機槍與火炮的致命火力", left: "西線陷入殘酷的壕溝戰", right: "騎兵衝鋒依然是致勝關鍵", correct: "left" }, { premise: "為打破壕溝戰僵局", left: "發明了坦克與毒氣", right: "發明了核子武器", correct: "left" }]},
+        { eraId: 8, events: [{ premise: "一戰後凡爾賽條約對德國嚴厲懲罰", left: "導致德國經濟崩潰與納粹崛起", right: "德國欣然接受並永久中立", correct: "left" }, { premise: "二戰爆發，德軍使用新戰術", left: "結合坦克與飛機的「閃電戰」", right: "緩慢推進的「步兵方陣」", correct: "left" }, { premise: "盟軍為了開闢歐洲第二戰場", left: "發動諾曼第登陸(D-Day)", right: "從北極圈發動空降", correct: "left" }]},
+
+        // 9: 資訊與太空時代
+        { eraId: 9, events: [{ premise: "二戰結束後，美蘇意識形態對立", left: "進入長達半世紀的冷戰", right: "全球國家統一為地球聯邦", correct: "left" }, { premise: "為了防禦核打擊與分散通訊風險", left: "美國軍方開發了網際網路雛形(ARPANET)", right: "全面回歸信鴿通訊", correct: "left" }, { premise: "為了在意識形態上壓倒對方", left: "美蘇展開了激烈的太空競賽", right: "雙方決定舉辦奧運定勝負", correct: "left" }]},
+        { eraId: 9, events: [{ premise: "蘇聯發射史普尼克1號人造衛星", left: "引發美國恐慌，成立NASA", right: "美國表示毫不在乎", correct: "left" }, { premise: "美國甘迺迪總統發布阿波羅計畫", left: "阿姆斯壯成為首位登月人類", right: "發現月球上住著外星人", correct: "left" }, { premise: "柏林圍牆倒塌與蘇聯解體", left: "冷戰結束，美國成為唯一超級大國", right: "爆發了第三次世界大戰", correct: "left" }]},
+        { eraId: 9, events: [{ premise: "微處理器與個人電腦發明", left: "引發第三次工業革命(資訊革命)", right: "導致人類智商大幅退化", correct: "left" }, { premise: "全球資訊網(WWW)普及", left: "人類進入全球化與資訊爆炸時代", right: "各國立刻切斷海底電纜", correct: "left" }, { premise: "進入21世紀，人工智慧(AI)突破", left: "引發第四次工業革命的自動化浪潮", right: "AI立刻毀滅了全人類", correct: "left" }]}
     ]
 };
 
@@ -130,32 +192,29 @@ class UIManager {
             fxDamage: document.getElementById('fx-damage')
         };
     }
-    
     showStart() { this.els.start.classList.remove('hidden'); this.els.gameover.classList.add('hidden'); }
-    startGame() { this.els.start.classList.add('hidden'); this.els.game.classList.remove('hidden'); }
+    startGame() { this.els.start.classList.add('hidden'); this.els.gameover.classList.add('hidden'); this.els.game.classList.remove('hidden'); }
     showGameOver(score, isWin) { 
         this.els.game.classList.add('hidden'); 
         this.els.gameover.classList.remove('hidden');
         document.getElementById('go-score').innerText = score;
-        document.getElementById('go-title').innerText = isWin ? "修復成功！通關" : "時間線崩塌";
+        document.getElementById('go-title').innerText = isWin ? "時空躍遷完成！" : "歷史線已崩塌";
+        document.getElementById('go-title').style.color = isWin ? "var(--primary)" : "var(--danger)";
     }
-    
     updateHUD(health, score) {
         this.els.health.style.width = `${Math.max(0, health)}%`;
-        this.els.health.style.background = health < 30 ? 'var(--danger)' : 'var(--primary)';
+        this.els.health.style.background = health < 30 ? 'linear-gradient(90deg, #ff0000, #ff3366)' : 'linear-gradient(90deg, #00bfff, var(--primary))';
         this.els.score.innerText = score;
     }
-    
     showDamageFx() {
         this.els.fxDamage.style.opacity = 1;
         setTimeout(() => this.els.fxDamage.style.opacity = 0, 300);
     }
-
     showQuestion(evt) {
         this.els.qUI.classList.remove('hidden');
         this.els.qText.innerText = evt.premise;
-        this.els.cLeft.innerText = `⬅️ 點擊: ${evt.left}`;
-        this.els.cRight.innerText = `點擊: ${evt.right} ➡️`;
+        this.els.cLeft.innerHTML = `⬅️ ${evt.left}`;
+        this.els.cRight.innerHTML = `${evt.right} ➡️`;
     }
     hideQuestion() { this.els.qUI.classList.add('hidden'); }
 }
@@ -167,16 +226,21 @@ class InputManager {
         this.startX = 0;
         this.bindEvents();
     }
-
     bindEvents() {
-        window.addEventListener('touchstart', (e) => { this.isDragging = true; this.startX = e.touches[0].clientX; }, {passive: true});
+        window.addEventListener('touchstart', (e) => { 
+            if(e.target.closest('.choice-box') || e.target.tagName === 'BUTTON') return;
+            this.isDragging = true; this.startX = e.touches[0].clientX; 
+        }, {passive: false});
         window.addEventListener('touchmove', (e) => {
             if(!this.isDragging) return;
             this.targetX = ((e.touches[0].clientX - this.startX) / window.innerWidth) * CONFIG.CAMERA.SENSITIVITY_TOUCH; 
         }, {passive: true});
         window.addEventListener('touchend', () => this.isDragging = false);
         
-        window.addEventListener('mousedown', (e) => { this.isDragging = true; this.startX = e.clientX; });
+        window.addEventListener('mousedown', (e) => { 
+            if(e.target.closest('.choice-box') || e.target.tagName === 'BUTTON') return;
+            this.isDragging = true; this.startX = e.clientX; 
+        });
         window.addEventListener('mousemove', (e) => {
             if(!this.isDragging) return;
             this.targetX = ((e.clientX - this.startX) / window.innerWidth) * CONFIG.CAMERA.SENSITIVITY_TOUCH;
@@ -192,39 +256,51 @@ class SceneManager {
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
         this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 300);
-        this.camera.position.set(0, 2, 0);
+        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 800);
+        this.camera.position.set(0, 0, 0); // 相機置中，營造飛行感
 
-        this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-        const dl = new THREE.DirectionalLight(0xffffff, 0.8);
-        dl.position.set(0, 10, -10);
-        this.scene.add(dl);
+        // 【高空飛行感：星空/雲海粒子系統】
+        const starGeo = new THREE.BufferGeometry();
+        const starCount = 2500;
+        const starPos = new Float32Array(starCount * 3);
+        for(let i=0; i<starCount*3; i+=3) {
+            starPos[i] = (Math.random() - 0.5) * 400; // X
+            starPos[i+1] = (Math.random() - 0.5) * 400; // Y
+            starPos[i+2] = (Math.random() - 0.5) * 800; // Z
+        }
+        starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 1.5, transparent: true, opacity: 0.8 });
+        this.stars = new THREE.Points(starGeo, starMat);
+        this.scene.add(this.stars);
 
-        this.scene.fog = new THREE.Fog(0x000000, 50, 250);
-        this.grid = new THREE.GridHelper(100, 20, 0xffffff, 0xffffff);
-        this.scene.add(this.grid);
+        // 調整霧化範圍，去除壓抑感，變成深遠的時空隧道
+        this.scene.fog = new THREE.Fog(0x000000, 100, 600);
 
-        const pillarMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-        this.pillarPool = new ObjectPool(() => {
-            const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 20, 2), pillarMat);
+        // 【時空環：取代原本的地板柱子】
+        const ringGeo = new THREE.TorusGeometry(20, 0.3, 8, 30);
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 });
+        this.ringPool = new ObjectPool(() => {
+            const mesh = new THREE.Mesh(ringGeo, ringMat);
             this.scene.add(mesh);
             return mesh;
-        }, 40);
+        }, 30);
 
-        const pGeo = new THREE.BoxGeometry(8, 10, 1);
+        // 時空隧道 Portal (左右抉擇門)
+        const pGeo = new THREE.BoxGeometry(10, 15, 1);
         this.portalPool = new ObjectPool(() => {
             const group = new THREE.Group();
-            const left = new THREE.Mesh(pGeo, new THREE.MeshBasicMaterial({ color: 0xff9900, transparent: true, opacity: 0.5 }));
-            const right = new THREE.Mesh(pGeo, new THREE.MeshBasicMaterial({ color: 0xff3366, transparent: true, opacity: 0.5 }));
-            left.position.x = -6; right.position.x = 6;
+            const left = new THREE.Mesh(pGeo, new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.6 }));
+            const right = new THREE.Mesh(pGeo, new THREE.MeshBasicMaterial({ color: 0xff3366, transparent: true, opacity: 0.6 }));
+            left.position.x = -8; right.position.x = 8;
             group.add(left); group.add(right);
             this.scene.add(group);
             return group;
         }, 3);
 
-        for(let i=0; i<40; i++) {
-            const p = this.pillarPool.get();
-            p.position.set((Math.random() > 0.5 ? 1 : -1) * (10 + Math.random() * 20), 10, -Math.random() * 300);
+        // 初始化佈置時空環
+        for(let i=0; i<30; i++) {
+            const r = this.ringPool.get();
+            r.position.set(0, 0, -Math.random() * 600);
         }
         
         window.addEventListener('resize', () => {
@@ -238,9 +314,8 @@ class SceneManager {
     setEraStyle(eraConfig) {
         this.scene.fog.color.setHex(eraConfig.color);
         this.scene.background = new THREE.Color(eraConfig.color);
-        this.grid.material.color.setHex(eraConfig.color);
-        this.pillarPool.pool.forEach(p => p.material.color.setHex(eraConfig.color));
-        this.pillarPool.activeItems.forEach(p => p.material.color.setHex(eraConfig.color));
+        this.ringPool.pool.forEach(r => r.material.color.setHex(eraConfig.color));
+        this.ringPool.activeItems.forEach(r => r.material.color.setHex(eraConfig.color));
     }
 }
 
@@ -250,38 +325,57 @@ class GameEngine {
         this.input = new InputManager();
         this.sceneMgr = new SceneManager(document.getElementById('game-canvas'));
         
-        this.state = { isPlaying: false, health: 100, score: 0, eraIndex: 0, currentEventIndex: 0 };
+        this.state = { isPlaying: false, health: 100, score: 0, eraIndex: 0, currentEventIndex: 0, time: 0 };
+        this.runQueue = []; 
         this.clock = new THREE.Clock();
         this.speed = 60;
         
         this.activeEvent = null;
         this.activePortal = null;
+        this.eventTimeoutId = null; 
 
         document.getElementById('btn-start').addEventListener('click', () => this.start());
-        document.getElementById('btn-restart').addEventListener('click', () => location.reload());
+        document.getElementById('btn-restart').addEventListener('click', () => this.start());
         
-        // 修改點 3：將按鈕綁定點擊事件，讓玩家可以直接按按鈕答題
-        this.ui.els.cLeft.addEventListener('click', () => {
+        const handleChoice = (dir) => {
             if(this.activeEvent) {
-                this.input.targetX = -10; // 讓車子自動靠左
-                this.resolveBranch("left");
+                this.input.targetX = dir === 'left' ? -10 : 10;
+                this.resolveBranch(dir);
             }
-        });
-        
-        this.ui.els.cRight.addEventListener('click', () => {
-            if(this.activeEvent) {
-                this.input.targetX = 10; // 讓車子自動靠右
-                this.resolveBranch("right");
-            }
-        });
+        };
+        this.ui.els.cLeft.addEventListener('pointerdown', (e) => { e.preventDefault(); handleChoice("left"); });
+        this.ui.els.cRight.addEventListener('pointerdown', (e) => { e.preventDefault(); handleChoice("right"); });
 
         this.loop();
     }
 
+    generateRunQueue() {
+        this.runQueue = [];
+        for(let i = 0; i < GameDB.eras.length; i++) {
+            const availableChains = GameDB.chains.filter(c => c.eraId === i);
+            if(availableChains.length === 0) continue;
+            const randomChain = availableChains[Math.floor(Math.random() * availableChains.length)];
+            const eventsWithEra = randomChain.events.map(evt => ({...evt, eraId: i}));
+            this.runQueue = this.runQueue.concat(eventsWithEra);
+        }
+    }
+
     start() {
+        if(this.eventTimeoutId) clearTimeout(this.eventTimeoutId);
+        
+        const activePortals = [...this.sceneMgr.portalPool.activeItems];
+        activePortals.forEach(p => this.sceneMgr.portalPool.release(p));
+
+        this.generateRunQueue();
         this.ui.startGame();
-        // 重置所有變數（包含題目 index）
-        this.state = { isPlaying: true, health: CONFIG.PLAYER.MAX_HEALTH, score: 0, eraIndex: 0, currentEventIndex: 0 };
+        this.ui.hideQuestion();
+        
+        this.state = { isPlaying: true, health: CONFIG.PLAYER.MAX_HEALTH, score: 0, eraIndex: 0, currentEventIndex: 0, time: 0 };
+        this.input.targetX = 0;
+        this.sceneMgr.camera.position.set(0,0,0);
+        this.activeEvent = null;
+        this.activePortal = null;
+        
         this.ui.updateHUD(this.state.health, this.state.score);
         this.changeEra(0);
         this.scheduleEvent();
@@ -292,34 +386,30 @@ class GameEngine {
         const era = GameDB.eras[index];
         this.ui.els.era.innerText = era.name;
         this.sceneMgr.setEraStyle(era);
-        this.speed = 60 * era.speed;
+        this.speed = 80 * era.speed; // 基礎速度提升，強化高空躍遷感
     }
 
     scheduleEvent() {
         if(!this.state.isPlaying) return;
         
-        setTimeout(() => {
-            // 修改點 4：正確讀取目前的題號，而不是卡死在時代 Index
-            const evt = GameDB.events[this.state.currentEventIndex];
+        this.eventTimeoutId = setTimeout(() => {
+            const evt = this.runQueue[this.state.currentEventIndex];
             
-            // 如果沒題目了，代表遊戲全破
             if(!evt) return this.gameOver(true);
 
-            // 自動推進時代 (如果新題目的 eraId 比較大)
             if(evt.eraId > this.state.eraIndex) {
                 this.changeEra(evt.eraId);
             }
 
             this.activeEvent = evt;
             this.activePortal = this.sceneMgr.portalPool.get();
-            this.activePortal.position.set(0, 5, CONFIG.SPAWN.Z_START);
+            this.activePortal.position.set(0, 0, CONFIG.SPAWN.Z_START);
             this.activePortal.userData.prevZ = CONFIG.SPAWN.Z_START;
             
             this.ui.showQuestion(evt);
-        }, 1500); // 縮短出題間隔節奏
+        }, 1200); // 縮短節奏
     }
 
-    // 修改點 5：支援按鈕字串傳入 ("left" / "right")，或是透過車子座標判斷
     resolveBranch(inputMethod) {
         if(!this.activeEvent) return;
 
@@ -340,9 +430,9 @@ class GameEngine {
             this.activePortal = null;
         }
         this.activeEvent = null;
-        
-        // 修改點 6：至關重要！將題目往後推一題
         this.state.currentEventIndex++;
+        
+        this.input.targetX = 0; 
         
         if(this.state.health <= 0) this.gameOver(false);
         else this.scheduleEvent();
@@ -350,6 +440,7 @@ class GameEngine {
 
     gameOver(isWin) {
         this.state.isPlaying = false;
+        if(this.eventTimeoutId) clearTimeout(this.eventTimeoutId);
         this.ui.showGameOver(this.state.score, isWin);
     }
 
@@ -358,29 +449,38 @@ class GameEngine {
         const dt = Math.min(this.clock.getDelta(), 0.1); 
 
         const cam = this.sceneMgr.camera;
-        cam.position.x += (this.input.targetX - cam.position.x) * CONFIG.CAMERA.SMOOTHING * dt;
-        cam.rotation.z = -(cam.position.x * 0.05);
-
+        
         if (this.state.isPlaying) {
+            this.state.time += dt;
             const moveDist = this.speed * dt;
-            
-            this.sceneMgr.grid.position.z += moveDist;
-            if (this.sceneMgr.grid.position.z > 20) this.sceneMgr.grid.position.z -= 20;
 
-            this.sceneMgr.pillarPool.activeItems.forEach(p => {
-                p.position.z += moveDist;
-                if(p.position.z > CONFIG.SPAWN.Z_END) {
-                    p.position.z = CONFIG.SPAWN.Z_START; 
-                    p.position.x = (Math.random() > 0.5 ? 1 : -1) * (10 + Math.random() * 20);
+            // 相機平滑跟隨 (X軸躲避) 與 Y軸微幅浮動 (飛行感)
+            cam.position.x += (this.input.targetX - cam.position.x) * CONFIG.CAMERA.SMOOTHING * dt;
+            cam.position.y = Math.sin(this.state.time * 2) * 0.8; 
+            cam.rotation.z = -(cam.position.x * 0.03); // 微幅傾斜
+
+            // 星辰高速流動
+            const positions = this.sceneMgr.stars.geometry.attributes.position.array;
+            for(let i=2; i<positions.length; i+=3) {
+                positions[i] += moveDist * 1.5; 
+                if(positions[i] > 50) positions[i] = -750; // 回收粒子
+            }
+            this.sceneMgr.stars.geometry.attributes.position.needsUpdate = true;
+
+            // 時空環流動
+            this.sceneMgr.ringPool.activeItems.forEach(r => {
+                r.position.z += moveDist;
+                if(r.position.z > CONFIG.SPAWN.Z_END) {
+                    r.position.z -= 600; 
                 }
             });
 
+            // 抉擇傳送門碰撞檢測
             if (this.activePortal) {
                 const p = this.activePortal;
                 p.userData.prevZ = p.position.z; 
                 p.position.z += moveDist;
                 
-                // 如果是用滑動車子物理撞擊的，就傳入 X 座標讓引擎判斷
                 if (p.userData.prevZ <= CONFIG.PHYSICS.PLAYER_Z && p.position.z > CONFIG.PHYSICS.PLAYER_Z) {
                     this.resolveBranch(cam.position.x);
                 }
