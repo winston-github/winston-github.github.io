@@ -3,21 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>時空急流 - V9 大師級沉浸版</title>
+    <title>時空急流 - V9 大師級全息沉浸版</title>
     <style>
         :root { --primary: #00e5ff; --danger: #ff3366; --warning: #ffcc00; --bg: #030308; }
         body, html { margin: 0; padding: 0; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', Tahoma, sans-serif; user-select: none; touch-action: none; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; color: white;}
-        canvas { display: block; position: absolute; z-index: 1; outline: none; }
+        canvas { display: block; position: absolute; z-index: 1; outline: none; pointer-events: auto; }
         
         #damage-overlay { position: absolute; inset: 0; background: radial-gradient(circle, transparent 30%, rgba(255,0,50,0.8) 100%); opacity: 0; pointer-events: none; z-index: 5; transition: opacity 0.3s ease-out; }
         .flash-red { opacity: 1 !important; transition: none !important; }
         
-        .ui-layer { position: absolute; inset: 0; pointer-events: none; z-index: 10; display: flex; flex-direction: column; justify-content: space-between; }
         .pointer-auto { pointer-events: auto; }
         .hidden { display: none !important; opacity: 0 !important; pointer-events: none !important; transition: opacity 0.3s; }
         svg.icon { width: 1.5rem; height: 1.5rem; fill: currentColor; vertical-align: middle; }
         
-        /* 啟動與結算畫面 (保留 2D 作為系統暫停選單) */
+        /* 啟動與結算畫面 (維持 2D DOM 作為系統層選單) */
         #screen-start, #screen-gameover { position: absolute; inset: 0; background: rgba(5, 10, 20, 0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(15px); transition: opacity 0.4s ease; }
         h1 { color: var(--primary); text-shadow: 0 0 25px var(--primary); margin-bottom: 10px; font-size: clamp(2rem, 6vw, 3.5rem); text-align: center; letter-spacing: 2px;}
         p.subtitle { font-size: 1.15rem; color: #d0f0ff; margin-bottom: 35px; text-align: center; line-height: 1.6; padding: 0 20px; max-width: 650px;}
@@ -25,20 +24,21 @@
         button.btn-main:active { background: var(--primary); color: #000; transform: scale(0.95); box-shadow: 0 0 40px rgba(0,229,255,0.6); }
 
         .side-controls { position: absolute; bottom: 30px; right: 20px; display: flex; flex-direction: column; gap: 15px; z-index: 20; pointer-events: auto; }
-        .btn-icon { background: rgba(0,0,0,0.8); border: 1px solid var(--primary); color: var(--primary); width: 45px; height: 45px; border-radius: 50%; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: 0.1s; }
+        .btn-icon { background: rgba(0,0,0,0.8); border: 1px solid var(--primary); color: var(--primary); width: 45px; height: 45px; border-radius: 50%; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: 0.1s; box-shadow: 0 0 15px rgba(0,0,0,0.6);}
         .btn-icon:active { transform: scale(0.9); background: var(--primary); color: black; }
 
+        /* 解說彈窗 */
         #explanation-screen, #kb-modal { position: absolute; inset: 0; background: rgba(0,0,0,0.9); z-index: 90; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; transition: opacity 0.3s; }
-        .exp-content { background: rgba(15,25,35,0.9); width: 85%; max-width: 800px; padding: 30px; border-radius: 10px; border: 1px solid #444; font-size: 1.1rem; line-height: 1.7; margin-bottom: 25px; box-shadow: 0 10px 40px rgba(0,0,0,1); max-height: 65vh; overflow-y: auto;}
-        .exp-title { font-size: 1.3rem; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid; padding-bottom: 5px; display: flex; align-items: center;}
+        .exp-content { background: rgba(15,25,35,0.95); width: 85%; max-width: 800px; padding: 30px; border-radius: 15px; border: 1px solid #444; font-size: 1.1rem; line-height: 1.7; margin-bottom: 25px; box-shadow: 0 15px 50px rgba(0,0,0,1); max-height: 65vh; overflow-y: auto;}
+        .exp-title { font-size: 1.3rem; font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid; padding-bottom: 8px; display: flex; align-items: center;}
         .correct-text { color: var(--primary); border-color: var(--primary); }
         .wrong-text { color: var(--danger); border-color: var(--danger); margin-top: 25px; }
         
-        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 10px; }
         
-        .kb-item { background: rgba(0,0,0,0.6); padding: 15px; margin-bottom: 15px; border-left: 4px solid var(--primary); font-size: 1rem; line-height: 1.6; }
+        .kb-item { background: rgba(0,0,0,0.6); padding: 20px; margin-bottom: 15px; border-left: 4px solid var(--primary); font-size: 1rem; line-height: 1.6; border-radius: 6px;}
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
@@ -51,18 +51,19 @@
         <symbol id="icon-check" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></symbol>
         <symbol id="icon-cross" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></symbol>
         <symbol id="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></symbol>
+        <symbol id="icon-skip" viewBox="0 0 24 24"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></symbol>
     </svg>
 
     <div id="damage-overlay"></div>
 
     <div id="screen-start" class="pointer-auto">
         <h1>時空急流 <span>V9 大師版</span></h1>
-        <p class="subtitle">【全 3D 沉浸視野】<br>按住螢幕左右滑動，感受絲滑的物理側傾駕駛。<br>享受子彈時間的感官縮放，撞碎錯誤的歷史光門！</p>
+        <p class="subtitle">【100% 全息 3D 沉浸視野】<br>雙手觸控螢幕左右，感受絲滑的物理慣性側傾。<br>在子彈時間中鎖定目標，享受極致的躍遷飆速！</p>
         <button id="btn-start" class="btn-main"><svg class="icon"><use href="#icon-play"></use></svg> 點火躍遷</button>
     </div>
 
     <div id="screen-gameover" class="hidden pointer-auto">
-        <h1 id="go-title" style="color:var(--danger); text-shadow: 0 0 20px var(--danger);">時間線崩塌</h1>
+        <h1 id="go-title" style="color:var(--danger); text-shadow: 0 0 25px var(--danger);">時間線已崩塌</h1>
         <p class="subtitle">最終評級得分</p>
         <div id="go-score" style="color: var(--primary); font-size: 4rem; font-weight:900; margin-bottom: 30px;">0</div>
         <button id="btn-restart" class="btn-main">重啟迴圈</button>
@@ -79,24 +80,24 @@
     <div id="kb-modal" class="hidden">
         <h2 style="color: var(--primary); margin-bottom: 15px;">阿卡西全紀錄</h2>
         <div class="exp-content" id="kb-list"></div>
-        <button id="btn-close-kb" class="btn-main">關閉</button>
+        <button id="btn-close-kb" class="btn-main">返回待機</button>
     </div>
 
     <div id="explanation-screen" class="hidden">
         <div class="exp-content" id="exp-scroll-area">
             <div id="exp-correct-title" class="exp-title correct-text"><svg class="icon" style="margin-right:10px;"><use href="#icon-check"></use></svg> 歷史正道</div>
-            <div id="exp-correct-text" style="margin-bottom: 20px;"></div>
+            <div id="exp-correct-text" style="margin-bottom: 25px;"></div>
             <div id="exp-wrong-title" class="exp-title wrong-text"><svg class="icon" style="margin-right:10px;"><use href="#icon-cross"></use></svg> 平行盲點</div>
             <div id="exp-wrong-text"></div>
         </div>
-        <button id="btn-skip-exp" class="btn-main">強行加速</button>
+        <button id="btn-skip-exp" class="btn-main" style="border-color: #666; color: #aaa;"><svg class="icon"><use href="#icon-skip"></use></svg> 強行躍遷</button>
     </div>
 
     <canvas id="game-canvas"></canvas>
 
 <script>
 // ==========================================
-// 1. 80 大精編核心歷史題庫 (完整保留)
+// 1. 80 大精編核心歷史題庫 (完整無刪減)
 // ==========================================
 const BaseFacts = [
     { era: "商周革命", color: 0xffaa00, premise: "周武王滅商後，疆域擴大但交通不便，且商朝舊勢力仍存。", correctOpt: "實施「封建制度」，分封宗室功臣建立諸侯國防衛。", wrongOpt: "實施「郡縣制」，由中央直接指派流動官僚進行集權。", expCorrect: "西周初期缺乏強大官僚與交通，只能透過血緣分封鞏固控制。", expWrong: "郡縣制是秦朝統一天下後才具備條件實施的制度。" },
@@ -160,7 +161,6 @@ const BaseFacts = [
     { era: "達爾文演化論", color: 0x4caf50, premise: "19世紀生物學家面對加拉巴哥群島上各種鳥類鳥喙形狀適應不同食物。", correctOpt: "提出「物競天擇，適者生存」的演化論，打破神創論迷思。", wrongOpt: "認為這些鳥類是外星人搭乘飛碟來到地球時遺留的寵物。", expCorrect: "《物種起源》徹底改變了人類對生物界起源認知，是現代生物學基石。", expWrong: "外星人播種論是現代科幻小說情節，達爾文是以嚴謹實地觀察提出演化論。" }
 ];
 
-// 擴充至 80 題
 while(BaseFacts.length < 80) {
     let source = BaseFacts[Math.floor(Math.random() * 39)];
     BaseFacts.push({ ...source, era: source.era + " (平行時空)", id: Math.random().toString() });
@@ -191,14 +191,13 @@ class UniverseGenerator {
 }
 
 // ==========================================
-// 2. 音效與 TTS 系統
+// 2. 音效與 TTS 系統 (完美連貫朗讀防當機)
 // ==========================================
 class AudioSystem {
     constructor() {
         this.ctx = null;
         this.isMuted = false;
         this.ttsActive = false;
-        window._ttsUtterances = []; 
         document.getElementById('btn-mute').addEventListener('click', () => this.toggleMute());
     }
 
@@ -235,7 +234,7 @@ class AudioSystem {
         });
     }
 
-    playWin() { this.playTone([523.25, 659.25, 783.99, 1046.50], 1.0, 'sine', 0.1); }
+    playWin() { this.playTone([523.25, 659.25, 783.99, 1046.50], 1.5, 'sine', 0.1); }
     playLose() { this.playTone([150, 100, 50], 1.0, 'sawtooth', 0.2); }
     playWarp() { this.playTone([800, 1200, 1600], 0.8, 'sine', 0.05); }
 
@@ -244,16 +243,13 @@ class AudioSystem {
         this.ttsActive = true;
         
         if (!window.speechSynthesis || this.isMuted) {
-            setTimeout(() => { if(this.ttsActive && onEnd) onEnd(); }, fallbackMs);
+            this.fallbackTimer = setTimeout(() => { if(this.ttsActive && onEnd) onEnd(); }, fallbackMs);
             return;
         }
 
         const cleanEra = eraRaw.replace(/ \[(異變|平行時空)\].*/, '');
-        const sentences = [
-            `${cleanEra}面臨情境：${qText}`,
-            `左方選項：${lText}`,
-            `右方選項：${rText}`
-        ];
+        const fullText = `${cleanEra}面臨情境：${qText} 左方抉擇：${lText} 右方抉擇：${rText}`;
+        const parts = fullText.split(/(?<=[。！？：])/).filter(s=>s.trim().length>0);
 
         let voices = window.speechSynthesis.getVoices();
         let twVoice = voices.find(v => v.lang.includes('zh-TW') || v.lang.includes('zh-HK') || v.name.includes('Taiwan'));
@@ -261,24 +257,65 @@ class AudioSystem {
         let index = 0;
         const speakNext = () => {
             if(!this.ttsActive) return;
-            if(index >= sentences.length) {
+            if(index >= parts.length) {
+                clearTimeout(this.fallbackTimer);
                 if(onEnd) onEnd();
                 return;
             }
-            let u = new SpeechSynthesisUtterance(sentences[index]);
+            let u = new SpeechSynthesisUtterance(parts[index]);
             if(twVoice) u.voice = twVoice;
             u.rate = 1.15; u.pitch = 1.05;
             u.onend = () => { index++; speakNext(); };
             u.onerror = () => { index++; speakNext(); };
-            window._ttsUtterances.push(u);
-            if(window._ttsUtterances.length > 5) window._ttsUtterances.shift();
             window.speechSynthesis.speak(u);
         };
         setTimeout(speakNext, 50);
+
+        // 防 iOS 卡死
+        this.fallbackTimer = setTimeout(() => {
+            if(this.ttsActive && onEnd) { this.stopTTS(); onEnd(); }
+        }, fallbackMs + 3000);
+    }
+
+    playExplanationTTS(correctText, wrongText, fallbackMs, onEnd) {
+        this.stopTTS(); 
+        this.ttsActive = true;
+        
+        if (this.isMuted || !window.speechSynthesis) { 
+            this.fallbackTimer = setTimeout(() => { if(this.ttsActive && onEnd) onEnd(); }, fallbackMs);
+            return; 
+        }
+
+        const rawText = `歷史正道！${correctText} 平行盲點！${wrongText}`;
+        const parts = rawText.split(/(?<=[。！？])/).filter(s=>s.trim().length>0);
+        let voices = window.speechSynthesis.getVoices();
+        let twVoice = voices.find(v => v.lang.includes('zh-TW') || v.lang.includes('zh-HK') || v.name.includes('Taiwan'));
+        
+        let index = 0;
+        const speakNext = () => {
+            if(!this.ttsActive) return;
+            if(index >= parts.length) {
+                clearTimeout(this.fallbackTimer);
+                if(onEnd) onEnd();
+                return;
+            }
+            let u = new SpeechSynthesisUtterance(parts[index]);
+            if(twVoice) u.voice = twVoice;
+            u.rate = 1.15; u.pitch = 1.05;
+            u.onend = () => { index++; speakNext(); };
+            u.onerror = () => { index++; speakNext(); };
+            window.speechSynthesis.speak(u);
+        };
+        setTimeout(speakNext, 50);
+
+        this.fallbackTimer = setTimeout(() => {
+            if(this.ttsActive && onEnd) { this.stopTTS(); onEnd(); }
+        }, fallbackMs + 3000);
     }
 
     stopTTS() {
         this.ttsActive = false;
+        clearTimeout(this.fallbackTimer);
         if(window.speechSynthesis) window.speechSynthesis.cancel();
     }
 }
@@ -301,8 +338,8 @@ class KnowledgeBase {
         this.records.forEach(r => {
             const div = document.createElement('div'); div.className = 'kb-item';
             div.innerHTML = `
-                <div class="era-badge" style="color:var(--primary); font-weight:bold; margin-bottom:5px;">${r.era}</div>
-                <strong style="font-size:1.1rem; display:block; margin-bottom:10px; color:#fff;">情境：${r.premise}</strong>
+                <div style="color:var(--primary); font-weight:bold; margin-bottom:5px; font-size:1.1rem;">${r.era}</div>
+                <strong style="display:block; margin-bottom:10px; color:#fff;">情境：${r.premise}</strong>
                 <span style="color:var(--warning);">✔️ 正解：${r.correctOpt}</span><br>
                 <span style="color:var(--danger);">❌ 盲點：${r.wrongOpt}</span>`;
             list.appendChild(div);
@@ -312,11 +349,11 @@ class KnowledgeBase {
 const KB = new KnowledgeBase();
 
 // ==========================================
-// 4. V9 全 3D 沉浸式引擎 (彈簧物理 + HUD + 光門)
+// 4. V9 全息 3D 引擎 (防白塊、防死機、絲滑物理)
 // ==========================================
 class GameEngine {
     constructor() {
-        this.state = { isPlaying: false, phase: 'explaining', health: 100, score: 0, displayScore: 0, qIndex: 0, loop: 1, baseSpeed: 180 };
+        this.state = { isPlaying: false, phase: 'explaining', health: 100, score: 0, displayScore: 0, qIndex: 0, loop: 1, baseSpeed: 200 };
         this.clock = new THREE.Clock();
         this.runQueue = [];
         this.timeScale = 1.0;
@@ -324,17 +361,14 @@ class GameEngine {
         this.targetFov = 90;
         this.rafId = null; 
         
-        // 物理滑動參數
+        // 彈簧物理參數
         this.targetInputX = 0; 
-        this.velocityX = 0;
-        
         this.isCorrectOnLeft = true;
         this.hitTriggered = false;
 
         this.els = {
             start: document.getElementById('screen-start'),
             gameover: document.getElementById('screen-gameover'),
-            ui: document.getElementById('ui-game'),
             expScreen: document.getElementById('explanation-screen'),
             kbModal: document.getElementById('kb-modal'),
             dmgFlash: document.getElementById('damage-overlay')
@@ -358,11 +392,11 @@ class GameEngine {
         document.getElementById('btn-close-kb').addEventListener('click', () => this.els.kbModal.classList.add('hidden'));
         document.getElementById('btn-clear-kb').addEventListener('click', () => { KB.clear(); });
 
-        // 彈簧物理滑動觸控
+        // 觸控操控：根據點擊畫面左右比例，映射到 3D 空間的 X 軸
         const updateSteering = (clientX) => {
             if(!this.state.isPlaying || this.state.phase === 'explaining') return;
             const ratio = (clientX / window.innerWidth) - 0.5; 
-            this.targetInputX = ratio * 32; // 控制極限範圍
+            this.targetInputX = ratio * 32; // 飛船極限活動範圍 -16 到 +16
         };
 
         window.addEventListener('touchstart', (e) => { 
@@ -394,86 +428,88 @@ class GameEngine {
         });
     }
 
-    // 將文字渲染為 WebGL Canvas 材質 (用於 3D HUD 與 3D 門)
-    createTextTexture(text, borderColorHex, isHud = false) {
-        const canvas = document.createElement('canvas');
-        canvas.width = 1024; canvas.height = isHud ? 512 : 1024;
+    // 單例模式：安全更新 WebGL Texture，防止 iOS Memory Leak 產生白塊
+    updateTexture(tex, text, colorHex, isHUD = false) {
+        const canvas = tex.image;
         const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        if(!isHud) {
+        if(!isHUD) {
             ctx.fillStyle = 'rgba(5, 10, 20, 0.85)';
-            ctx.fillRect(0,0, 1024, 1024);
-            ctx.strokeStyle = borderColorHex;
-            ctx.lineWidth = 25;
-            ctx.strokeRect(12, 12, 1000, 1000);
-            ctx.shadowColor = borderColorHex;
-            ctx.shadowBlur = 40;
+            ctx.fillRect(0,0, canvas.width, canvas.height);
+            ctx.strokeStyle = colorHex;
+            ctx.lineWidth = 15;
+            ctx.strokeRect(10, 10, canvas.width-20, canvas.height-20);
         }
-
-        ctx.fillStyle = isHud ? '#00e5ff' : '#ffffff';
-        ctx.font = isHud ? 'bold 75px "Segoe UI", sans-serif' : 'bold 65px "Segoe UI", sans-serif';
-        if(isHud) {
-            ctx.shadowColor = '#00e5ff';
-            ctx.shadowBlur = 20;
-        }
+        
+        ctx.fillStyle = colorHex === '#ffffff' ? '#ffffff' : colorHex;
+        ctx.font = isHUD ? 'bold 60px "Segoe UI", sans-serif' : 'bold 45px "Segoe UI", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        ctx.shadowColor = colorHex;
+        ctx.shadowBlur = isHUD ? 15 : 30;
 
+        const maxWidth = canvas.width - 60;
         const words = text.split('');
         let line = '';
         let lines = [];
-        const maxWidth = 850;
-        for(let n = 0; n < words.length; n++) {
-            let testLine = line + words[n];
-            let metrics = ctx.measureText(testLine);
-            if (metrics.width > maxWidth && n > 0) {
+        for(let i=0; i<words.length; i++) {
+            let test = line + words[i];
+            if(ctx.measureText(test).width > maxWidth && i > 0) {
                 lines.push(line);
-                line = words[n];
-            } else { line = testLine; }
+                line = words[i];
+            } else { line = test; }
         }
         lines.push(line);
 
-        const lineHeight = isHud ? 100 : 90;
-        let startY = (canvas.height / 2) - ((lines.length - 1) * lineHeight) / 2;
-        
-        for(let i = 0; i < lines.length; i++) {
-            ctx.fillText(lines[i], 512, startY + (i * lineHeight));
+        const lh = isHUD ? 75 : 65;
+        const startY = (canvas.height / 2) - ((lines.length - 1) * lh) / 2;
+        for(let i=0; i<lines.length; i++) {
+            ctx.fillText(lines[i], canvas.width / 2, startY + i*lh);
         }
-
-        const tex = new THREE.CanvasTexture(canvas);
-        tex.minFilter = THREE.LinearFilter; 
-        return tex;
+        tex.needsUpdate = true;
     }
 
     init3D() {
-        this.renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('game-canvas'), antialias: true });
+        this.renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('game-canvas'), antialias: true, alpha: false });
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); 
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x030308);
-        this.scene.fog = new THREE.FogExp2(0x030308, 0.0012);
+        this.scene.fog = new THREE.FogExp2(0x030308, 0.0015);
 
         this.camera = new THREE.PerspectiveCamera(90, window.innerWidth/window.innerHeight, 0.1, 2000);
         this.camera.position.set(0, 3, 15); 
-
-        // 3D 抬頭顯示器 (HUD 綁定在相機前方)
         this.scene.add(this.camera);
-        
-        this.holoMat = new THREE.MeshBasicMaterial({ transparent: true, depthTest: false });
-        this.holoMesh = new THREE.Mesh(new THREE.PlaneGeometry(16, 8), this.holoMat);
-        this.holoMesh.position.set(0, 5, -20); // 放在相機正前方偏上
-        this.camera.add(this.holoMesh);
-        
-        this.warnMat = new THREE.MeshBasicMaterial({ transparent: true, depthTest: false, color: 0xff3366 });
-        this.warnMesh = new THREE.Mesh(new THREE.PlaneGeometry(12, 6), this.warnMat);
-        this.warnMesh.position.set(0, -6, -15); // 放在相機正前方偏下
-        this.warnMesh.visible = false;
-        this.camera.add(this.warnMesh);
-        const warnTex = this.createTextTexture("⚡ 躍遷加速！撞擊光門 ⚡", null, true);
-        this.warnMat.map = warnTex;
 
-        // 星空
+        // 【安全化 3D HUD 紋理】建立 512x512 Canvas 防 iOS 白塊
+        const createPlaneText = (w, h, cw, ch) => {
+            const cvs = document.createElement('canvas');
+            cvs.width = cw; cvs.height = ch;
+            const tex = new THREE.CanvasTexture(cvs);
+            tex.minFilter = THREE.LinearFilter;
+            const mat = new THREE.MeshBasicMaterial({map: tex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false});
+            const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+            return { mesh, tex };
+        };
+
+        // 1. 全息題目 HUD
+        this.holo = createPlaneText(20, 10, 512, 256);
+        this.holo.mesh.position.set(0, 4, -15);
+        this.camera.add(this.holo.mesh);
+
+        // 2. 躍遷警告 HUD
+        this.warn = createPlaneText(12, 4, 512, 128);
+        this.warn.mesh.position.set(0, -5, -12);
+        this.updateTexture(this.warn.tex, "⚡ 躍遷飆速！衝擊光門 ⚡", "#ff3366", true);
+        this.camera.add(this.warn.mesh);
+
+        // 3. 飛船頂部數字分數
+        this.scoreHolo = createPlaneText(5, 2.5, 256, 128);
+        this.scoreHolo.mesh.position.set(0, 2.5, -2);
+        
+        // 4. 星空背景
         const starGeo = new THREE.BufferGeometry();
         const starPos = new Float32Array(2000 * 3);
         for(let i=0; i<6000; i+=3) {
@@ -485,69 +521,89 @@ class GameEngine {
         this.stars = new THREE.Points(starGeo, new THREE.PointsMaterial({color: 0xffffff, size: 2, transparent: true, opacity: 0.8}));
         this.scene.add(this.stars);
 
-        // 網格地板 (營造速度感)
-        this.grid = new THREE.GridHelper(400, 40, 0x00e5ff, 0x002244);
+        // 5. 科幻網格地板
+        this.grid = new THREE.GridHelper(500, 50, 0x00e5ff, 0x002244);
         this.grid.position.y = -8;
         this.scene.add(this.grid);
 
-        // 隧道光環
+        // 6. 隧道光環
         this.rings = [];
-        const ringGeo = new THREE.TorusGeometry(35, 0.3, 8, 32);
+        const ringGeo = new THREE.TorusGeometry(40, 0.2, 8, 32);
         const ringMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.15 });
-        for(let i=0; i<25; i++) {
+        for(let i=0; i<30; i++) {
             let r = new THREE.Mesh(ringGeo, ringMat);
             r.position.z = -Math.random() * 1500;
             this.scene.add(r);
             this.rings.push(r);
         }
 
-        // 實體飛船 Group
+        // 7. 重新建模：高光實體戰機
         this.shipGroup = new THREE.Group();
-        this.shipGroup.position.set(0, -1.5, 5);
+        this.shipGroup.position.set(0, -1.5, 5); // 飛船位於 Z=5
         this.scene.add(this.shipGroup);
+        this.shipGroup.add(this.scoreHolo.mesh); // 分數掛載在飛船上
 
-        const bodyGeo = new THREE.CylinderGeometry(0.2, 1.5, 5, 8);
-        bodyGeo.rotateX(Math.PI / 2);
-        const shipMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, wireframe: true });
-        const body = new THREE.Mesh(bodyGeo, shipMat);
-        this.shipGroup.add(body);
+        // 飛船機體
+        const fuseGeom = new THREE.ConeGeometry(0.8, 5, 4);
+        fuseGeom.rotateX(Math.PI / 2); fuseGeom.rotateZ(Math.PI / 4);
+        const matDark = new THREE.MeshStandardMaterial({color: 0x111122, roughness: 0.2, metalness: 0.8});
+        const fuselage = new THREE.Mesh(fuseGeom, matDark);
         
-        const wingGeo = new THREE.BoxGeometry(6, 0.2, 1.5);
-        const wing = new THREE.Mesh(wingGeo, shipMat);
-        wing.position.set(0, -0.5, 1);
-        this.shipGroup.add(wing);
+        const wingGeom = new THREE.BoxGeometry(7, 0.1, 2);
+        const wings = new THREE.Mesh(wingGeom, matDark);
+        wings.position.set(0, -0.2, 1);
+        
+        const glassGeom = new THREE.ConeGeometry(0.6, 2.5, 4);
+        glassGeom.rotateX(Math.PI / 2); glassGeom.rotateZ(Math.PI / 4);
+        const matGlass = new THREE.MeshStandardMaterial({color: 0x00e5ff, emissive: 0x005588, transparent: true, opacity: 0.9});
+        const glass = new THREE.Mesh(glassGeom, matGlass);
+        glass.position.set(0, 0.3, -0.5);
 
-        // 實體護盾環 (取代血條)
+        // 發光尾焰引擎
+        const thrustGeom = new THREE.CylinderGeometry(0.4, 0.4, 0.8, 16);
+        thrustGeom.rotateX(Math.PI / 2);
+        const matGlow = new THREE.MeshBasicMaterial({color: 0x00e5ff});
+        const thrusterL = new THREE.Mesh(thrustGeom, matGlow); thrusterL.position.set(-1.8, -0.2, 2.0);
+        const thrusterR = new THREE.Mesh(thrustGeom, matGlow); thrusterR.position.set(1.8, -0.2, 2.0);
+
+        this.shipGroup.add(fuselage, wings, glass, thrusterL, thrusterR);
+
+        // 打光讓金屬材質顯現
+        const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+        this.scene.add(ambient);
+        const pLight = new THREE.PointLight(0x00e5ff, 2, 20);
+        pLight.position.set(0, 3, 5);
+        this.shipGroup.add(pLight);
+
+        // 三道實體護盾環 (取代 UI 血條)
         this.healthRings = [];
         for(let i=0; i<3; i++) {
-            let rMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.7 });
-            let r = new THREE.Mesh(new THREE.TorusGeometry(2.5 + i*0.6, 0.1, 8, 32), rMat);
+            let rMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.8 });
+            let r = new THREE.Mesh(new THREE.TorusGeometry(3.0 + i*0.8, 0.1, 8, 32), rMat);
             r.rotation.x = Math.PI / 2;
             r.position.z = 1;
             this.shipGroup.add(r);
             this.healthRings.push(r);
         }
 
-        // 實體 3D 光門 (Box + Edges)
+        // 8. 3D 歷史實體光門 (Box + CanvasTexture + 發光框)
         this.gateGroup = new THREE.Group();
         this.scene.add(this.gateGroup);
         
-        const boxGeo = new THREE.BoxGeometry(16, 14, 2);
-        this.matLeft = new THREE.MeshBasicMaterial({ transparent:true, opacity: 0.95 });
-        this.matRight = new THREE.MeshBasicMaterial({ transparent:true, opacity: 0.95 });
+        this.gateL = createPlaneText(16, 12, 512, 512);
+        this.gateR = createPlaneText(16, 12, 512, 512);
         
-        this.gateL = new THREE.Mesh(boxGeo, this.matLeft);
-        this.gateR = new THREE.Mesh(boxGeo, this.matRight);
-        
+        // 幫光門加上實體邊框
+        const boxGeo = new THREE.BoxGeometry(16, 12, 2);
         const edgeGeo = new THREE.EdgesGeometry(boxGeo);
-        this.edgeL = new THREE.LineSegments(edgeGeo, new THREE.LineBasicMaterial({color: 0xffcc00, linewidth: 3}));
-        this.edgeR = new THREE.LineSegments(edgeGeo, new THREE.LineBasicMaterial({color: 0xff3366, linewidth: 3}));
-        this.gateL.add(this.edgeL); this.gateR.add(this.edgeR);
+        this.gateL.mesh.add(new THREE.LineSegments(edgeGeo, new THREE.LineBasicMaterial({color: 0xffcc00, linewidth: 2})));
+        this.gateR.mesh.add(new THREE.LineSegments(edgeGeo, new THREE.LineBasicMaterial({color: 0xff3366, linewidth: 2})));
         
-        this.gateGroup.add(this.gateL); this.gateGroup.add(this.gateR);
+        this.gateGroup.add(this.gateL.mesh); 
+        this.gateGroup.add(this.gateR.mesh);
         this.gateGroup.visible = false;
 
-        // 爆炸粒子
+        // 9. 爆炸粒子
         this.particleGeo = new THREE.BufferGeometry();
         this.baseParticlePos = new Float32Array(300 * 3);
         this.particleGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(this.baseParticlePos), 3));
@@ -563,9 +619,8 @@ class GameEngine {
         if(this.rafId) window.cancelAnimationFrame(this.rafId);
         AudioObj.stopTTS();
         
-        this.state = { isPlaying: true, phase: 'reading', health: 100, score: 0, displayScore: 0, qIndex: 0, loop: 1, baseSpeed: 200 };
+        this.state = { isPlaying: true, phase: 'reading', health: 3, score: 0, displayScore: 0, qIndex: 0, loop: 1, baseSpeed: 250 };
         this.targetInputX = 0;
-        this.velocityX = 0;
         this.shipGroup.position.x = 0;
         this.camera.position.x = 0;
         this.healthRings.forEach(r => r.visible = true);
@@ -575,7 +630,6 @@ class GameEngine {
         this.els.start.classList.add('hidden');
         this.els.gameover.classList.add('hidden');
         this.els.expScreen.classList.add('hidden');
-        this.els.ui.classList.remove('hidden');
         
         this.updateHUD();
         this.scheduleQuestion();
@@ -590,54 +644,45 @@ class GameEngine {
         }
         
         const q = this.runQueue[this.state.qIndex];
-        document.getElementById('ui-era').innerText = q.era.replace(/ \[.*/, '');
-        document.getElementById('ui-loop').innerText = this.state.loop;
-        
         this.isCorrectOnLeft = Math.random() > 0.5; 
-        const txtQ = q.premise;
         const txtL = this.isCorrectOnLeft ? q.correctOpt : q.wrongOpt;
         const txtR = this.isCorrectOnLeft ? q.wrongOpt : q.correctOpt;
 
-        // 渲染 3D 全息題目與光門
-        if(this.holoMat.map) this.holoMat.map.dispose();
-        this.holoMat.map = this.createTextTexture(txtQ, null, true);
-        this.holoMat.needsUpdate = true;
-
-        if(this.matLeft.map) this.matLeft.map.dispose();
-        if(this.matRight.map) this.matRight.map.dispose();
-        this.matLeft.map = this.createTextTexture(txtL, '#ffcc00'); this.matLeft.needsUpdate = true;
-        this.matRight.map = this.createTextTexture(txtR, '#ff3366'); this.matRight.needsUpdate = true;
+        // 更新 3D WebGL 文字
+        this.updateTexture(this.holo.tex, `【第 ${this.state.loop} 宇宙】 ${q.era.replace(/ \[.*/, '')}\n\n${q.premise}`, '#00e5ff', true);
+        this.updateTexture(this.gateL.tex, txtL, '#ffcc00');
+        this.updateTexture(this.gateR.tex, txtR, '#ff3366');
 
         // 【子彈時間】
         this.state.phase = 'reading';
         this.timeScale = 0.2; 
         this.targetTimeScale = 0.2;
-        this.targetFov = 65; // 鏡頭壓縮
+        this.targetFov = 65; 
         
-        this.gateGroup.position.z = -500;
-        this.gateL.position.set(-10, 2, 0); 
-        this.gateR.position.set(10, 2, 0);
+        this.gateGroup.position.z = -400;
+        this.gateL.mesh.position.set(-10, 2, 0); 
+        this.gateR.mesh.position.set(10, 2, 0);
         this.gateGroup.visible = true;
-        this.holoMesh.visible = true;
-        this.warnMesh.visible = false;
+        this.holo.mesh.visible = true;
+        this.warn.mesh.visible = false;
         this.hitTriggered = false;
 
-        const totalChars = q.era.length + txtQ.length + txtL.length + txtR.length;
+        const totalChars = q.era.length + q.premise.length + txtL.length + txtR.length;
         const fallbackMs = Math.max(4500, (totalChars / 5) * 1000);
 
-        AudioObj.playPreReading(q.era, txtQ, txtL, txtR, fallbackMs, () => {
+        AudioObj.playPreReading(q.era, q.premise, txtL, txtR, fallbackMs, () => {
             if(!this.state.isPlaying || this.state.phase !== 'reading') return;
             
             // 【衝擊躍遷】
             this.state.phase = 'action';
-            this.holoMesh.visible = false;
-            this.warnMesh.visible = true;
+            this.holo.mesh.visible = false;
+            this.warn.mesh.visible = true;
             
             this.targetTimeScale = 1.0 + (this.state.loop * 0.1); 
-            this.targetFov = 110; // 鏡頭猛烈拉伸
+            this.targetFov = 110; 
             
             const targetSpeed = this.state.baseSpeed * this.targetTimeScale;
-            const impactDist = targetSpeed * 3.0;
+            const impactDist = targetSpeed * 3.0; // 絕對 3 秒衝擊
             this.gateGroup.position.z = 5 - impactDist;
         });
     }
@@ -663,29 +708,28 @@ class GameEngine {
         this.state.phase = 'explaining'; 
         
         AudioObj.stopTTS(); 
-        this.warnMesh.visible = false;
+        this.warn.mesh.visible = false;
         
         const q = this.runQueue[this.state.qIndex];
-        // 寬容判定：只要船在對的那一半邊就算對
+        // 半場絕對防呆判定
         const hitSide = this.shipGroup.position.x < 0 ? 'left' : 'right';
         const isCorrect = (hitSide === 'left' && this.isCorrectOnLeft) || (hitSide === 'right' && !this.isCorrectOnLeft);
         
         const hitPos = new THREE.Vector3();
-        if(hitSide === 'left') this.gateL.getWorldPosition(hitPos);
-        else this.gateR.getWorldPosition(hitPos);
-        
+        if(hitSide === 'left') this.gateL.mesh.getWorldPosition(hitPos);
+        else this.gateR.mesh.getWorldPosition(hitPos);
         hitPos.z = this.shipGroup.position.z; 
 
         this.triggerExplosion(hitPos, isCorrect);
         this.gateGroup.visible = false;
-        this.targetFov = 80; // 結算時視角回正
+        this.targetFov = 85; 
         
         if(isCorrect) {
             AudioObj.playWin();
             this.state.score += (500 + this.state.loop * 100);
         } else {
             AudioObj.playLose();
-            this.state.health -= 34;
+            this.state.health -= 1;
             // 碎裂一圈實體護盾
             const ringToBreak = this.healthRings.find(r => r.visible);
             if(ringToBreak) ringToBreak.visible = false;
@@ -694,127 +738,4 @@ class GameEngine {
             setTimeout(() => this.els.dmgFlash.classList.remove('flash-red'), 80);
         }
         
-        this.updateHUD(); KB.save(q); 
-        
-        if(this.state.health <= 0) { 
-            setTimeout(() => this.gameOver(), 1000); 
-            return; 
-        }
-
-        document.getElementById('exp-correct-text').innerText = q.expCorrect;
-        document.getElementById('exp-wrong-text').innerText = q.expWrong;
-        
-        setTimeout(() => {
-            this.els.expScreen.classList.remove('hidden');
-        }, 800);
-    }
-
-    updateHUD() {
-        const hb = document.getElementById('health-bar');
-        hb.style.width = Math.max(0, this.state.health) + '%';
-        hb.classList.toggle('health-low', this.state.health <= 35);
-    }
-
-    resumeAfterExplanation() {
-        this.els.expScreen.classList.add('hidden');
-        AudioObj.playWarp(); 
-        this.state.qIndex++;
-        this.state.baseSpeed = Math.min(300, 200 + (this.state.qIndex * 3)); 
-        this.scheduleQuestion();
-    }
-
-    gameOver() {
-        this.state.isPlaying = false;
-        AudioObj.stopTTS();
-        this.els.ui.classList.add('hidden');
-        this.els.gameover.classList.remove('hidden');
-        document.getElementById('go-score').innerText = this.state.score;
-    }
-
-    loop() {
-        this.rafId = requestAnimationFrame(() => this.loop());
-        const dt = Math.min(this.clock.getDelta(), 0.1);
-        
-        if(this.state.displayScore < this.state.score) {
-            this.state.displayScore += Math.ceil((this.state.score - this.state.displayScore) * 0.1);
-            document.getElementById('ui-score').innerText = this.state.displayScore;
-        }
-
-        // 1. 平滑子彈時間與 FOV 過渡
-        this.timeScale += (this.targetTimeScale - this.timeScale) * 5.0 * dt;
-        this.camera.fov += (this.targetFov - this.camera.fov) * 5.0 * dt;
-        this.camera.updateProjectionMatrix();
-
-        // 2. 爆炸粒子動畫
-        if(this.particles.visible && this.particleTime > 0) {
-            this.particleTime -= dt;
-            const pos = this.particles.geometry.attributes.position.array;
-            for(let i=0; i<pos.length; i+=3) { pos[i]*=1.04; pos[i+1]*=1.04; pos[i+2]*=1.04; }
-            this.particles.geometry.attributes.position.needsUpdate = true;
-            this.particleMat.opacity = this.particleTime;
-            if(this.particleTime <= 0) this.particles.visible = false;
-        }
-
-        if (this.state.isPlaying && this.state.phase !== 'explaining') {
-            
-            // 3. 彈簧物理阻尼操控 (Spring Physics)
-            const acceleration = (this.targetInputX - this.shipGroup.position.x) * 15.0;
-            this.velocityX += acceleration * dt;
-            this.velocityX *= 0.85; // 阻尼
-            this.shipGroup.position.x += this.velocityX * dt;
-            
-            // 動態側傾 (Roll)
-            this.shipGroup.rotation.z = -this.velocityX * 0.05;
-            // 相機微距跟隨
-            this.camera.position.x = this.shipGroup.position.x * 0.3;
-
-            // 4. 環境流動 (受子彈時間影響)
-            const moveDist = this.state.baseSpeed * dt * this.timeScale;
-            this.grid.position.z = (this.grid.position.z + moveDist) % 40;
-
-            const pos = this.stars.geometry.attributes.position.array;
-            for(let i=2; i<pos.length; i+=3) {
-                pos[i] += moveDist * 2.5; 
-                if(pos[i] > 20) pos[i] -= 2000; 
-            }
-            this.stars.geometry.attributes.position.needsUpdate = true;
-            this.rings.forEach(r => { 
-                r.position.z += moveDist; 
-                if(r.position.z > 20) r.position.z -= 1500; 
-            });
-
-            // 5. 光門逼近與碰撞判定
-            if(this.gateGroup.visible) {
-                const prevZ = this.gateGroup.position.z;
-                this.gateGroup.position.z += moveDist;
-                
-                // 飛船 Z=5，光門越過 Z=5 瞬間觸發
-                if(prevZ < 5 && this.gateGroup.position.z >= 5) {
-                    this.resolveAnswer();
-                }
-            }
-        }
-        
-        // 待機畫面相機環繞
-        if(!this.state.isPlaying) {
-            this.camera.position.x = Math.sin(Date.now() * 0.001) * 3;
-            this.camera.position.y = 3 + Math.cos(Date.now() * 0.001) * 1;
-            this.camera.lookAt(0,0,-20);
-        } else {
-            this.camera.lookAt(this.camera.position.x, 3, -100);
-        }
-
-        this.renderer.render(this.scene, this.camera);
-    }
-}
-
-window.onload = () => {
-    if(window.speechSynthesis) {
-        window.speechSynthesis.getVoices();
-        window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
-    }
-    new GameEngine();
-};
-</script>
-</body>
-</html>
+        this.updateHUD(); KB.save
