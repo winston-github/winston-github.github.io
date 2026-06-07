@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>時空急流 - V9.1 浴火重生版</title>
+    <title>時空急流 - V9.2 絕對啟動版</title>
     <style>
         :root { --primary: #00e5ff; --danger: #ff3366; --warning: #ffcc00; --bg: #030308; }
         body, html { margin: 0; padding: 0; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', Tahoma, sans-serif; user-select: none; touch-action: none; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; color: white;}
@@ -55,8 +55,8 @@
     <div id="damage-overlay"></div>
 
     <div id="screen-start" class="pointer-auto">
-        <h1>時空急流 <span>V9.1 浴火版</span></h1>
-        <p class="subtitle">【修復白塊與死機 Bug】<br>雙手觸控螢幕左右，感受絲滑的物理慣性側傾。<br>在子彈時間中鎖定目標，享受極致的躍遷飆速！</p>
+        <h1>時空急流 <span>V9.2 啟動版</span></h1>
+        <p class="subtitle">【修復初始化死鎖與白塊】<br>雙手觸控螢幕左右，感受絲滑的物理側傾與躍遷。<br>你準備好改變歷史了嗎？</p>
         <button id="btn-start" class="btn-main"><svg class="icon"><use href="#icon-play"></use></svg> 點火躍遷</button>
     </div>
 
@@ -75,10 +75,14 @@
         </div>
     </div>
 
+    <!-- 加入完整的記憶庫按鈕防錯 -->
     <div id="kb-modal" class="hidden">
         <h2 style="color: var(--primary); margin-bottom: 15px;">阿卡西全紀錄</h2>
         <div class="exp-content" id="kb-list"></div>
-        <button id="btn-close-kb" class="btn-main">返回待機</button>
+        <div style="display:flex; gap: 20px;">
+            <button id="btn-close-kb" class="btn-main">返回待機</button>
+            <button id="btn-clear-kb" class="btn-main" style="border-color: var(--danger); color: var(--danger);">清除</button>
+        </div>
     </div>
 
     <div id="explanation-screen" class="hidden">
@@ -189,50 +193,60 @@ class UniverseGenerator {
 }
 
 // ==========================================
-// 2. 音效與 TTS 系統 (修復 Regex iOS 卡死)
+// 2. 音效與 TTS 系統 (完美修復防當機機制)
 // ==========================================
 class AudioSystem {
     constructor() {
         this.ctx = null;
         this.isMuted = false;
         this.ttsActive = false;
-        document.getElementById('btn-mute').addEventListener('click', () => this.toggleMute());
+        
+        const muteBtn = document.getElementById('btn-mute');
+        if (muteBtn) muteBtn.addEventListener('click', () => this.toggleMute());
     }
 
     init() {
-        if(!this.ctx) {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            this.ctx = new AudioContext();
-        }
-        if(this.ctx.state === 'suspended') this.ctx.resume();
-        if(window.speechSynthesis) {
-            window.speechSynthesis.cancel();
-            let u = new SpeechSynthesisUtterance(''); u.volume = 0; 
-            window.speechSynthesis.speak(u);
-        }
+        try {
+            if(!this.ctx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                this.ctx = new AudioContext();
+            }
+            if(this.ctx.state === 'suspended') this.ctx.resume();
+            if(window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+                let u = new SpeechSynthesisUtterance(''); u.volume = 0; 
+                window.speechSynthesis.speak(u);
+            }
+        } catch(e) { console.warn("音訊或TTS初始化受阻，但將繼續遊戲", e); }
     }
 
     toggleMute() {
         this.isMuted = !this.isMuted;
-        document.getElementById('icon-sound-on-svg').classList.toggle('hidden', this.isMuted);
-        document.getElementById('icon-sound-off-svg').classList.toggle('hidden', !this.isMuted);
+        const son = document.getElementById('icon-sound-on-svg');
+        const soff = document.getElementById('icon-sound-off-svg');
+        if (son && soff) {
+            son.classList.toggle('hidden', this.isMuted);
+            soff.classList.toggle('hidden', !this.isMuted);
+        }
         if(this.isMuted) this.stopTTS();
     }
 
     playTone(freqs, duration, type='sine', vol=0.1) {
         if(this.isMuted || !this.ctx) return;
-        if(this.ctx.state === 'suspended') this.ctx.resume();
-        const t = this.ctx.currentTime;
-        freqs.forEach((freq, i) => {
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.type = type; osc.frequency.value = freq;
-            osc.connect(gain); gain.connect(this.ctx.destination);
-            gain.gain.setValueAtTime(0, t + i*0.05);
-            gain.gain.linearRampToValueAtTime(vol, t + i*0.05 + 0.05);
-            gain.gain.exponentialRampToValueAtTime(0.001, t + i*0.05 + duration);
-            osc.start(t + i*0.05); osc.stop(t + i*0.05 + duration);
-        });
+        try {
+            if(this.ctx.state === 'suspended') this.ctx.resume();
+            const t = this.ctx.currentTime;
+            freqs.forEach((freq, i) => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type; osc.frequency.value = freq;
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                gain.gain.setValueAtTime(0, t + i*0.05);
+                gain.gain.linearRampToValueAtTime(vol, t + i*0.05 + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + i*0.05 + duration);
+                osc.start(t + i*0.05); osc.stop(t + i*0.05 + duration);
+            });
+        } catch(e) {}
     }
 
     playWin() { this.playTone([523.25, 659.25, 783.99, 1046.50], 1.5, 'sine', 0.1); }
@@ -250,7 +264,7 @@ class AudioSystem {
 
         const cleanEra = eraRaw.replace(/ \[(異變|平行時空)\].*/, '');
         const fullText = `${cleanEra}面臨情境：${qText} 左方抉擇：${lText} 右方抉擇：${rText}`;
-        // 【修復】捨棄 Safari 殺手 (?<=)，改用全平台相容的 .replace.split
+        // 使用跨平台的 replace + split
         const parts = fullText.replace(/([。！？：])/g, "$1|").split("|").filter(s=>s.trim().length>0);
 
         let voices = window.speechSynthesis.getVoices();
@@ -266,14 +280,18 @@ class AudioSystem {
                 if(onEnd) onEnd();
                 return;
             }
-            let u = new SpeechSynthesisUtterance(parts[index]);
-            if(twVoice) u.voice = twVoice;
-            u.rate = 1.15; u.pitch = 1.05;
-            u.onend = () => { index++; speakNext(); };
-            u.onerror = () => { index++; speakNext(); };
-            window._ttsUtterances.push(u);
-            if(window._ttsUtterances.length > 5) window._ttsUtterances.shift();
-            window.speechSynthesis.speak(u);
+            try {
+                let u = new SpeechSynthesisUtterance(parts[index]);
+                if(twVoice) u.voice = twVoice;
+                u.rate = 1.15; u.pitch = 1.05;
+                u.onend = () => { index++; speakNext(); };
+                u.onerror = () => { index++; speakNext(); };
+                window._ttsUtterances.push(u);
+                if(window._ttsUtterances.length > 5) window._ttsUtterances.shift();
+                window.speechSynthesis.speak(u);
+            } catch (e) {
+                index++; speakNext();
+            }
         };
         setTimeout(speakNext, 50);
 
@@ -307,14 +325,18 @@ class AudioSystem {
                 if(onEnd) onEnd();
                 return;
             }
-            let u = new SpeechSynthesisUtterance(parts[index]);
-            if(twVoice) u.voice = twVoice;
-            u.rate = 1.15; u.pitch = 1.05;
-            u.onend = () => { index++; speakNext(); };
-            u.onerror = () => { index++; speakNext(); };
-            window._ttsUtterances.push(u);
-            if(window._ttsUtterances.length > 5) window._ttsUtterances.shift();
-            window.speechSynthesis.speak(u);
+            try {
+                let u = new SpeechSynthesisUtterance(parts[index]);
+                if(twVoice) u.voice = twVoice;
+                u.rate = 1.15; u.pitch = 1.05;
+                u.onend = () => { index++; speakNext(); };
+                u.onerror = () => { index++; speakNext(); };
+                window._ttsUtterances.push(u);
+                if(window._ttsUtterances.length > 5) window._ttsUtterances.shift();
+                window.speechSynthesis.speak(u);
+            } catch (e) {
+                index++; speakNext();
+            }
         };
         setTimeout(speakNext, 50);
 
@@ -326,7 +348,7 @@ class AudioSystem {
     stopTTS() {
         this.ttsActive = false;
         clearTimeout(this.fallbackTimer);
-        if(window.speechSynthesis) window.speechSynthesis.cancel();
+        try { if(window.speechSynthesis) window.speechSynthesis.cancel(); } catch(e) {}
     }
 }
 const AudioObj = new AudioSystem();
@@ -344,6 +366,7 @@ class KnowledgeBase {
     clear() { this.records = []; localStorage.removeItem('chronos_v9_kb'); this.render(); }
     render() {
         const list = document.getElementById('kb-list');
+        if(!list) return;
         list.innerHTML = this.records.length === 0 ? "<p style='text-align:center;'>尚未解鎖任何歷史記憶。</p>" : "";
         this.records.forEach(r => {
             const div = document.createElement('div'); div.className = 'kb-item';
@@ -359,7 +382,7 @@ class KnowledgeBase {
 const KB = new KnowledgeBase();
 
 // ==========================================
-// 4. V9.1 全息 3D 引擎 (防白塊、防死機、絲滑物理)
+// 4. V9.2 絕對啟動版 3D 引擎 (強壯事件綁定器)
 // ==========================================
 class GameEngine {
     constructor() {
@@ -391,18 +414,41 @@ class GameEngine {
     }
 
     bindEvents() {
-        document.getElementById('btn-start').addEventListener('click', () => { AudioObj.init(); this.start(); });
-        document.getElementById('btn-restart').addEventListener('click', () => { this.els.gameover.classList.add('hidden'); this.start(); });
+        // 安全綁定器 (防死鎖核心)
+        const safeAdd = (id, evt, handler) => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener(evt, handler);
+            else console.warn(`找不到按鈕 ${id}，跳過綁定`);
+        };
+
+        safeAdd('btn-start', 'click', () => { 
+            AudioObj.init(); 
+            this.start(); 
+        });
+
+        safeAdd('btn-restart', 'click', () => { 
+            if(this.els.gameover) this.els.gameover.classList.add('hidden'); 
+            this.start(); 
+        });
         
-        document.getElementById('btn-skip-exp').addEventListener('click', () => {
+        safeAdd('btn-skip-exp', 'click', () => {
             if(!this.state.isPlaying || this.state.phase !== 'explaining') return;
             AudioObj.init(); AudioObj.stopTTS(); 
             this.resumeAfterExplanation();
         });
         
-        document.getElementById('btn-kb').addEventListener('click', () => { KB.render(); this.els.kbModal.classList.remove('hidden'); });
-        document.getElementById('btn-close-kb').addEventListener('click', () => this.els.kbModal.classList.add('hidden'));
-        document.getElementById('btn-clear-kb').addEventListener('click', () => { KB.clear(); });
+        safeAdd('btn-kb', 'click', () => { 
+            KB.render(); 
+            if(this.els.kbModal) this.els.kbModal.classList.remove('hidden'); 
+        });
+
+        safeAdd('btn-close-kb', 'click', () => { 
+            if(this.els.kbModal) this.els.kbModal.classList.add('hidden'); 
+        });
+
+        safeAdd('btn-clear-kb', 'click', () => { 
+            KB.clear(); 
+        });
 
         const updateSteering = (clientX) => {
             if(!this.state.isPlaying || this.state.phase === 'explaining') return;
@@ -439,52 +485,55 @@ class GameEngine {
         });
     }
 
-    // 【修復】支援智慧換行的 3D Texture 生成器
+    // 支援多行智慧斷行的 Texture 生成器
     updateTexture(tex, text, colorHex, isHUD = false) {
-        const canvas = tex.image;
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        if(!isHUD) {
-            ctx.fillStyle = 'rgba(5, 10, 20, 0.85)';
-            ctx.fillRect(0,0, canvas.width, canvas.height);
-            ctx.strokeStyle = colorHex;
-            ctx.lineWidth = 15;
-            ctx.strokeRect(10, 10, canvas.width-20, canvas.height-20);
-        }
-        
-        ctx.fillStyle = colorHex === '#ffffff' ? '#ffffff' : colorHex;
-        ctx.font = isHUD ? 'bold 60px "Segoe UI", sans-serif' : 'bold 45px "Segoe UI", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.shadowColor = colorHex;
-        ctx.shadowBlur = isHUD ? 15 : 30;
-
-        const maxWidth = canvas.width - 60;
-        let lines = [];
-        
-        // 支援手動換行 \n
-        const paragraphs = text.split('\n');
-        for(let p of paragraphs) {
-            if(p === '') { lines.push(''); continue; }
-            const words = p.split('');
-            let line = '';
-            for(let i=0; i<words.length; i++) {
-                let test = line + words[i];
-                if(ctx.measureText(test).width > maxWidth && i > 0) {
-                    lines.push(line);
-                    line = words[i];
-                } else { line = test; }
+        try {
+            const canvas = tex.image;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if(!isHUD) {
+                ctx.fillStyle = 'rgba(5, 10, 20, 0.85)';
+                ctx.fillRect(0,0, canvas.width, canvas.height);
+                ctx.strokeStyle = colorHex;
+                ctx.lineWidth = 15;
+                ctx.strokeRect(10, 10, canvas.width-20, canvas.height-20);
             }
-            lines.push(line);
-        }
+            
+            ctx.fillStyle = colorHex === '#ffffff' ? '#ffffff' : colorHex;
+            ctx.font = isHUD ? 'bold 60px "Segoe UI", sans-serif' : 'bold 45px "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor = colorHex;
+            ctx.shadowBlur = isHUD ? 15 : 30;
 
-        const lh = isHUD ? 75 : 65;
-        const startY = (canvas.height / 2) - ((lines.length - 1) * lh) / 2;
-        for(let i=0; i<lines.length; i++) {
-            ctx.fillText(lines[i], canvas.width / 2, startY + i*lh);
+            const maxWidth = canvas.width - 60;
+            let lines = [];
+            
+            const paragraphs = text.split('\n');
+            for(let p of paragraphs) {
+                if(p === '') { lines.push(''); continue; }
+                const words = p.split('');
+                let line = '';
+                for(let i=0; i<words.length; i++) {
+                    let test = line + words[i];
+                    if(ctx.measureText(test).width > maxWidth && i > 0) {
+                        lines.push(line);
+                        line = words[i];
+                    } else { line = test; }
+                }
+                lines.push(line);
+            }
+
+            const lh = isHUD ? 75 : 65;
+            const startY = (canvas.height / 2) - ((lines.length - 1) * lh) / 2;
+            for(let i=0; i<lines.length; i++) {
+                ctx.fillText(lines[i], canvas.width / 2, startY + i*lh);
+            }
+            tex.needsUpdate = true;
+        } catch (e) {
+            console.warn("紋理渲染失敗", e);
         }
-        tex.needsUpdate = true;
     }
 
     init3D() {
@@ -500,7 +549,6 @@ class GameEngine {
         this.camera.position.set(0, 3, 15); 
         this.scene.add(this.camera);
 
-        // 輔助函式：建立乾淨的 3D Canvas 面板
         const createPlaneText = (w, h, cw, ch) => {
             const cvs = document.createElement('canvas');
             cvs.width = cw; cvs.height = ch;
@@ -511,23 +559,19 @@ class GameEngine {
             return { mesh, tex };
         };
 
-        // 1. 全息題目 HUD
         this.holo = createPlaneText(20, 10, 512, 256);
         this.holo.mesh.position.set(0, 4, -15);
         this.camera.add(this.holo.mesh);
 
-        // 2. 躍遷警告 HUD
         this.warn = createPlaneText(12, 4, 512, 128);
         this.warn.mesh.position.set(0, -5, -12);
         this.updateTexture(this.warn.tex, "⚡ 躍遷飆速！衝擊光門 ⚡", "#ff3366", true);
         this.warn.mesh.visible = false;
         this.camera.add(this.warn.mesh);
 
-        // 3. 飛船頂部數字分數
         this.scoreHolo = createPlaneText(5, 2.5, 256, 128);
         this.scoreHolo.mesh.position.set(0, 2.5, -2);
         
-        // 4. 星空背景
         const starGeo = new THREE.BufferGeometry();
         const starPos = new Float32Array(2000 * 3);
         for(let i=0; i<6000; i+=3) {
@@ -539,12 +583,10 @@ class GameEngine {
         this.stars = new THREE.Points(starGeo, new THREE.PointsMaterial({color: 0xffffff, size: 2, transparent: true, opacity: 0.8}));
         this.scene.add(this.stars);
 
-        // 5. 科幻網格地板
         this.grid = new THREE.GridHelper(500, 50, 0x00e5ff, 0x002244);
         this.grid.position.y = -8;
         this.scene.add(this.grid);
 
-        // 6. 隧道光環
         this.rings = [];
         const ringGeo = new THREE.TorusGeometry(40, 0.2, 8, 32);
         const ringMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.15 });
@@ -555,7 +597,6 @@ class GameEngine {
             this.rings.push(r);
         }
 
-        // 7. 重新建模：高光實體戰機
         this.shipGroup = new THREE.Group();
         this.shipGroup.position.set(0, -1.5, 5);
         this.scene.add(this.shipGroup);
@@ -590,7 +631,6 @@ class GameEngine {
         pLight.position.set(0, 3, 5);
         this.shipGroup.add(pLight);
 
-        // 三道實體護盾環
         this.healthRings = [];
         for(let i=0; i<3; i++) {
             let rMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.8 });
@@ -601,7 +641,6 @@ class GameEngine {
             this.healthRings.push(r);
         }
 
-        // 8. 3D 歷史實體光門
         this.gateGroup = new THREE.Group();
         this.scene.add(this.gateGroup);
         
@@ -617,7 +656,6 @@ class GameEngine {
         this.gateGroup.add(this.gateR.mesh);
         this.gateGroup.visible = false;
 
-        // 9. 爆炸粒子
         this.particleGeo = new THREE.BufferGeometry();
         this.baseParticlePos = new Float32Array(300 * 3);
         this.particleGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(this.baseParticlePos), 3));
@@ -630,72 +668,82 @@ class GameEngine {
     }
 
     start() {
-        if(this.rafId) window.cancelAnimationFrame(this.rafId);
-        AudioObj.stopTTS();
-        
-        this.state = { isPlaying: true, phase: 'reading', health: 3, score: 0, displayScore: 0, qIndex: 0, loop: 1, baseSpeed: 250 };
-        this.targetInputX = 0;
-        this.shipGroup.position.x = 0;
-        this.camera.position.x = 0;
-        this.healthRings.forEach(r => r.visible = true);
-        
-        this.runQueue = UniverseGenerator.getQueue(this.state.loop);
-        
-        this.els.start.classList.add('hidden');
-        this.els.gameover.classList.add('hidden');
-        this.els.expScreen.classList.add('hidden');
-        
-        this.updateTexture(this.scoreHolo.tex, `同步率: 0`, '#00e5ff', true);
-        this.scheduleQuestion();
-        this.loop();
+        try {
+            if(this.rafId) window.cancelAnimationFrame(this.rafId);
+            AudioObj.stopTTS();
+            
+            this.state = { isPlaying: true, phase: 'reading', health: 3, score: 0, displayScore: 0, qIndex: 0, loop: 1, baseSpeed: 250 };
+            this.targetInputX = 0;
+            this.shipGroup.position.x = 0;
+            this.camera.position.x = 0;
+            this.healthRings.forEach(r => r.visible = true);
+            
+            this.runQueue = UniverseGenerator.getQueue(this.state.loop);
+            
+            if(this.els.start) this.els.start.classList.add('hidden');
+            if(this.els.gameover) this.els.gameover.classList.add('hidden');
+            if(this.els.expScreen) this.els.expScreen.classList.add('hidden');
+            
+            this.updateTexture(this.scoreHolo.tex, `同步率: 0`, '#00e5ff', true);
+            this.scheduleQuestion();
+            this.loop();
+        } catch(e) {
+            console.error("引擎啟動異常", e);
+        }
     }
 
     scheduleQuestion() {
-        if(this.state.qIndex >= this.runQueue.length) { 
-            this.state.loop++;
-            this.state.qIndex = 0;
-            this.runQueue = UniverseGenerator.getQueue(this.state.loop); 
-        }
-        
-        const q = this.runQueue[this.state.qIndex];
-        this.isCorrectOnLeft = Math.random() > 0.5; 
-        const txtL = this.isCorrectOnLeft ? q.correctOpt : q.wrongOpt;
-        const txtR = this.isCorrectOnLeft ? q.wrongOpt : q.correctOpt;
-
-        this.updateTexture(this.holo.tex, `【第 ${this.state.loop} 宇宙】 ${q.era.replace(/ \[.*/, '')}\n\n${q.premise}`, '#00e5ff', true);
-        this.updateTexture(this.gateL.tex, txtL, '#ffcc00');
-        this.updateTexture(this.gateR.tex, txtR, '#ff3366');
-
-        this.state.phase = 'reading';
-        this.timeScale = 0.2; 
-        this.targetTimeScale = 0.2;
-        this.targetFov = 65; 
-        
-        this.gateGroup.position.z = -400;
-        this.gateL.mesh.position.set(-10, 2, 0); 
-        this.gateR.mesh.position.set(10, 2, 0);
-        this.gateGroup.visible = true;
-        this.holo.mesh.visible = true;
-        this.warn.mesh.visible = false;
-        this.hitTriggered = false;
-
-        const totalChars = q.era.length + q.premise.length + txtL.length + txtR.length;
-        const fallbackMs = Math.max(4500, (totalChars / 5) * 1000);
-
-        AudioObj.playPreReading(q.era, q.premise, txtL, txtR, fallbackMs, () => {
-            if(!this.state.isPlaying || this.state.phase !== 'reading') return;
+        try {
+            if(this.state.qIndex >= this.runQueue.length) { 
+                this.state.loop++;
+                this.state.qIndex = 0;
+                this.runQueue = UniverseGenerator.getQueue(this.state.loop); 
+            }
             
+            const q = this.runQueue[this.state.qIndex];
+            this.isCorrectOnLeft = Math.random() > 0.5; 
+            const txtL = this.isCorrectOnLeft ? q.correctOpt : q.wrongOpt;
+            const txtR = this.isCorrectOnLeft ? q.wrongOpt : q.correctOpt;
+
+            this.updateTexture(this.holo.tex, `【第 ${this.state.loop} 宇宙】 ${q.era.replace(/ \[.*/, '')}\n\n${q.premise}`, '#00e5ff', true);
+            this.updateTexture(this.gateL.tex, txtL, '#ffcc00');
+            this.updateTexture(this.gateR.tex, txtR, '#ff3366');
+
+            this.state.phase = 'reading';
+            this.timeScale = 0.2; 
+            this.targetTimeScale = 0.2;
+            this.targetFov = 65; 
+            
+            this.gateGroup.position.z = -400;
+            this.gateL.mesh.position.set(-10, 2, 0); 
+            this.gateR.mesh.position.set(10, 2, 0);
+            this.gateGroup.visible = true;
+            this.holo.mesh.visible = true;
+            this.warn.mesh.visible = false;
+            this.hitTriggered = false;
+
+            const totalChars = q.era.length + q.premise.length + txtL.length + txtR.length;
+            const fallbackMs = Math.max(4500, (totalChars / 5) * 1000);
+
+            AudioObj.playPreReading(q.era, q.premise, txtL, txtR, fallbackMs, () => {
+                if(!this.state.isPlaying || this.state.phase !== 'reading') return;
+                
+                this.state.phase = 'action';
+                this.holo.mesh.visible = false;
+                this.warn.mesh.visible = true;
+                
+                this.targetTimeScale = 1.0 + (this.state.loop * 0.1); 
+                this.targetFov = 110; 
+                
+                const targetSpeed = this.state.baseSpeed * this.targetTimeScale;
+                const impactDist = targetSpeed * 3.0; 
+                this.gateGroup.position.z = 5 - impactDist;
+            });
+        } catch (err) {
+            console.error("題目加載異常，強制啟動", err);
             this.state.phase = 'action';
-            this.holo.mesh.visible = false;
-            this.warn.mesh.visible = true;
-            
-            this.targetTimeScale = 1.0 + (this.state.loop * 0.1); 
-            this.targetFov = 110; 
-            
-            const targetSpeed = this.state.baseSpeed * this.targetTimeScale;
-            const impactDist = targetSpeed * 3.0; 
-            this.gateGroup.position.z = 5 - impactDist;
-        });
+            this.targetTimeScale = 1.0;
+        }
     }
 
     triggerExplosion(pos, isCorrect) {
@@ -719,7 +767,7 @@ class GameEngine {
         this.state.phase = 'explaining'; 
         
         AudioObj.stopTTS(); 
-        this.warn.mesh.visible = false;
+        if(this.warn.mesh) this.warn.mesh.visible = false;
         
         const q = this.runQueue[this.state.qIndex];
         const hitSide = this.shipGroup.position.x < 0 ? 'left' : 'right';
@@ -740,11 +788,4 @@ class GameEngine {
         } else {
             AudioObj.playLose();
             this.state.health -= 1;
-            const ringToBreak = this.healthRings.find(r => r.visible);
-            if(ringToBreak) ringToBreak.visible = false;
-
-            this.els.dmgFlash.classList.add('flash-red');
-            setTimeout(() => this.els.dmgFlash.classList.remove('flash-red'), 80);
-        }
-        
-        KB.save(q);
+            const ringToBreak = this.healthRi
