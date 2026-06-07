@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>時空急流 - V8 沉浸式子彈時間版</title>
+    <title>時空急流 - V9 大師級沉浸版</title>
     <style>
         :root { --primary: #00e5ff; --danger: #ff3366; --warning: #ffcc00; --bg: #030308; }
         body, html { margin: 0; padding: 0; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', Tahoma, sans-serif; user-select: none; touch-action: none; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; color: white;}
         canvas { display: block; position: absolute; z-index: 1; outline: none; }
         
-        /* 視覺受傷特效層 */
         #damage-overlay { position: absolute; inset: 0; background: radial-gradient(circle, transparent 30%, rgba(255,0,50,0.8) 100%); opacity: 0; pointer-events: none; z-index: 5; transition: opacity 0.3s ease-out; }
         .flash-red { opacity: 1 !important; transition: none !important; }
         
@@ -18,38 +17,19 @@
         .hidden { display: none !important; opacity: 0 !important; pointer-events: none !important; transition: opacity 0.3s; }
         svg.icon { width: 1.5rem; height: 1.5rem; fill: currentColor; vertical-align: middle; }
         
-        /* 啟動與結算 */
-        #screen-start, #screen-gameover { position: absolute; inset: 0; background: rgba(10, 15, 30, 0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(15px); transition: opacity 0.4s ease; }
+        /* 啟動與結算畫面 (保留 2D 作為系統暫停選單) */
+        #screen-start, #screen-gameover { position: absolute; inset: 0; background: rgba(5, 10, 20, 0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(15px); transition: opacity 0.4s ease; }
         h1 { color: var(--primary); text-shadow: 0 0 25px var(--primary); margin-bottom: 10px; font-size: clamp(2rem, 6vw, 3.5rem); text-align: center; letter-spacing: 2px;}
         p.subtitle { font-size: 1.15rem; color: #d0f0ff; margin-bottom: 35px; text-align: center; line-height: 1.6; padding: 0 20px; max-width: 650px;}
-        button.btn-main { display: flex; align-items: center; justify-content: center; background: rgba(0,229,255,0.1); border: 2px solid var(--primary); color: var(--primary); padding: 15px 35px; font-size: 1.25rem; font-weight: bold; border-radius: 40px; cursor: pointer; transition: transform 0.1s, box-shadow 0.2s; pointer-events: auto; box-shadow: 0 0 20px rgba(0,229,255,0.2); backdrop-filter: blur(5px); }
+        button.btn-main { display: flex; align-items: center; justify-content: center; background: rgba(0,229,255,0.1); border: 2px solid var(--primary); color: var(--primary); padding: 15px 40px; font-size: 1.25rem; font-weight: bold; border-radius: 40px; cursor: pointer; transition: 0.1s; pointer-events: auto; box-shadow: 0 0 20px rgba(0,229,255,0.2); backdrop-filter: blur(5px); }
         button.btn-main:active { background: var(--primary); color: #000; transform: scale(0.95); box-shadow: 0 0 40px rgba(0,229,255,0.6); }
 
-        /* HUD 科幻邊框化 - 極簡不干擾畫面 */
-        #hud-top { padding: 15px 25px; display: flex; justify-content: space-between; background: linear-gradient(to bottom, rgba(0,229,255,0.15), transparent); border-top: 2px solid var(--primary); font-size: 1rem; text-shadow: 0 2px 4px black; }
-        .hud-left { color: var(--primary); font-weight: bold; font-size: 1.2rem; display: flex; align-items: baseline; gap: 10px;}
-        .hud-right { text-align: right; font-weight: bold; }
-        #health-bar-bg { width: 120px; height: 8px; background: rgba(0,0,0,0.8); border-radius: 10px; border: 1px solid rgba(255,255,255,0.4); overflow: hidden; display: inline-block; vertical-align: middle; margin-left: 10px;}
-        #health-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #00e5ff, #0088ff); transition: width 0.3s ease-out, background 0.3s; }
-        .health-low { background: linear-gradient(90deg, var(--danger), #aa0000) !important; }
-
-        /* 全息投影題目 (僅保留情境題幹，選項已 3D 化) */
-        #hologram-q { width: 100%; display: flex; justify-content: center; position: absolute; top: 15%; transition: opacity 0.5s; }
-        #q-text { background: rgba(0, 20, 40, 0.6); padding: 15px 30px; border: 1px solid rgba(0,229,255,0.3); border-radius: 30px; font-size: clamp(1rem, 3.5vw, 1.2rem); font-weight: bold; text-align: center; max-width: 800px; line-height: 1.5; box-shadow: 0 0 20px rgba(0,229,255,0.2); backdrop-filter: blur(5px); }
-
-        /* 躍遷警告字樣 */
-        #action-warning { position: absolute; bottom: 20%; width: 100%; text-align: center; color: var(--danger); font-size: 1.5rem; font-weight: bold; text-shadow: 0 0 15px var(--danger); letter-spacing: 4px; opacity: 0; pointer-events: none;}
-        .show-warning { animation: pulse-warn 0.4s infinite alternate; }
-        @keyframes pulse-warn { 0% { opacity: 0.3; transform: scale(0.95); } 100% { opacity: 1; text-shadow: 0 0 30px var(--danger); transform: scale(1.05); } }
-
-        /* 側邊按鈕 */
         .side-controls { position: absolute; bottom: 30px; right: 20px; display: flex; flex-direction: column; gap: 15px; z-index: 20; pointer-events: auto; }
         .btn-icon { background: rgba(0,0,0,0.8); border: 1px solid var(--primary); color: var(--primary); width: 45px; height: 45px; border-radius: 50%; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: 0.1s; }
         .btn-icon:active { transform: scale(0.9); background: var(--primary); color: black; }
 
-        /* 解說彈窗 */
         #explanation-screen, #kb-modal { position: absolute; inset: 0; background: rgba(0,0,0,0.9); z-index: 90; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; transition: opacity 0.3s; }
-        .exp-content { background: rgba(20,30,50,0.85); width: 85%; max-width: 800px; padding: 30px; border-radius: 10px; border: 1px solid #444; font-size: 1.1rem; line-height: 1.7; margin-bottom: 25px; box-shadow: 0 10px 40px rgba(0,0,0,1); max-height: 65vh; overflow-y: auto;}
+        .exp-content { background: rgba(15,25,35,0.9); width: 85%; max-width: 800px; padding: 30px; border-radius: 10px; border: 1px solid #444; font-size: 1.1rem; line-height: 1.7; margin-bottom: 25px; box-shadow: 0 10px 40px rgba(0,0,0,1); max-height: 65vh; overflow-y: auto;}
         .exp-title { font-size: 1.3rem; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid; padding-bottom: 5px; display: flex; align-items: center;}
         .correct-text { color: var(--primary); border-color: var(--primary); }
         .wrong-text { color: var(--danger); border-color: var(--danger); margin-top: 25px; }
@@ -57,11 +37,8 @@
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 10px; }
-
+        
         .kb-item { background: rgba(0,0,0,0.6); padding: 15px; margin-bottom: 15px; border-left: 4px solid var(--primary); font-size: 1rem; line-height: 1.6; }
-        #tts-indicator { display: flex; gap: 3px; margin-top: 15px; align-items: flex-end; height: 20px; justify-content: center; width: 100%; transition: opacity 0.3s;}
-        .bar { width: 4px; background: var(--primary); animation: sound 0ms -800ms linear infinite alternate;}
-        @keyframes sound { 0% { height: 4px; opacity: 0.5; } 100% { height: 20px; opacity: 1; box-shadow: 0 0 10px var(--primary); } }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
@@ -79,14 +56,14 @@
     <div id="damage-overlay"></div>
 
     <div id="screen-start" class="pointer-auto">
-        <h1>時空急流 <span>V8 沉浸版</span></h1>
-        <p class="subtitle">【廢除點擊介面】<br>雙手觸控左右畫面，駕駛 3D 飛船撞擊實體「歷史光門」。<br>進入子彈時間聆聽阿卡西紀錄，享受極致飆速！</p>
-        <button id="btn-start" class="btn-main"><svg class="icon"><use href="#icon-play"></use></svg> 啟動躍遷</button>
+        <h1>時空急流 <span>V9 大師版</span></h1>
+        <p class="subtitle">【全 3D 沉浸視野】<br>按住螢幕左右滑動，感受絲滑的物理側傾駕駛。<br>享受子彈時間的感官縮放，撞碎錯誤的歷史光門！</p>
+        <button id="btn-start" class="btn-main"><svg class="icon"><use href="#icon-play"></use></svg> 點火躍遷</button>
     </div>
 
     <div id="screen-gameover" class="hidden pointer-auto">
-        <h1 id="go-title">時間線已崩塌</h1>
-        <p class="subtitle">評級得分</p>
+        <h1 id="go-title" style="color:var(--danger); text-shadow: 0 0 20px var(--danger);">時間線崩塌</h1>
+        <p class="subtitle">最終評級得分</p>
         <div id="go-score" style="color: var(--primary); font-size: 4rem; font-weight:900; margin-bottom: 30px;">0</div>
         <button id="btn-restart" class="btn-main">重啟迴圈</button>
     </div>
@@ -102,7 +79,7 @@
     <div id="kb-modal" class="hidden">
         <h2 style="color: var(--primary); margin-bottom: 15px;">阿卡西全紀錄</h2>
         <div class="exp-content" id="kb-list"></div>
-        <button id="btn-close-kb" class="btn-main">返回</button>
+        <button id="btn-close-kb" class="btn-main">關閉</button>
     </div>
 
     <div id="explanation-screen" class="hidden">
@@ -111,37 +88,15 @@
             <div id="exp-correct-text" style="margin-bottom: 20px;"></div>
             <div id="exp-wrong-title" class="exp-title wrong-text"><svg class="icon" style="margin-right:10px;"><use href="#icon-cross"></use></svg> 平行盲點</div>
             <div id="exp-wrong-text"></div>
-            <div id="tts-indicator">
-                <div class="bar" style="animation-duration: 0.3s;"></div>
-                <div class="bar" style="animation-duration: 0.2s;"></div>
-                <div class="bar" style="animation-duration: 0.5s;"></div>
-            </div>
         </div>
-        <button id="btn-skip-exp" class="btn-main">強制跳過</button>
-    </div>
-
-    <div class="ui-layer hidden" id="ui-game">
-        <!-- 科幻 HUD 儀表板 -->
-        <div id="hud-top">
-            <div class="hud-left">
-                <span id="ui-era">紀元加載中</span> | 第 <span id="ui-loop">1</span> 宇宙
-            </div>
-            <div class="hud-right">
-                <div>評級: <span id="ui-score" style="color: var(--warning);">0</span></div>
-                <div style="font-size: 0.85rem; margin-top:5px; font-weight:normal;">護盾 <div id="health-bar-bg"><div id="health-bar"></div></div></div>
-            </div>
-        </div>
-        
-        <!-- 中央全息文字 (僅題目，選項已轉為 3D) -->
-        <div id="hologram-q" class="hidden"><div id="q-text"></div></div>
-        <div id="action-warning">⚡ 躍遷加速！做出抉擇 ⚡</div>
+        <button id="btn-skip-exp" class="btn-main">強行加速</button>
     </div>
 
     <canvas id="game-canvas"></canvas>
 
 <script>
 // ==========================================
-// 1. 80 大精編核心歷史題庫 (完整保留，絕不縮水)
+// 1. 80 大精編核心歷史題庫 (完整保留)
 // ==========================================
 const BaseFacts = [
     { era: "商周革命", color: 0xffaa00, premise: "周武王滅商後，疆域擴大但交通不便，且商朝舊勢力仍存。", correctOpt: "實施「封建制度」，分封宗室功臣建立諸侯國防衛。", wrongOpt: "實施「郡縣制」，由中央直接指派流動官僚進行集權。", expCorrect: "西周初期缺乏強大官僚與交通，只能透過血緣分封鞏固控制。", expWrong: "郡縣制是秦朝統一天下後才具備條件實施的制度。" },
@@ -205,9 +160,9 @@ const BaseFacts = [
     { era: "達爾文演化論", color: 0x4caf50, premise: "19世紀生物學家面對加拉巴哥群島上各種鳥類鳥喙形狀適應不同食物。", correctOpt: "提出「物競天擇，適者生存」的演化論，打破神創論迷思。", wrongOpt: "認為這些鳥類是外星人搭乘飛碟來到地球時遺留的寵物。", expCorrect: "《物種起源》徹底改變了人類對生物界起源認知，是現代生物學基石。", expWrong: "外星人播種論是現代科幻小說情節，達爾文是以嚴謹實地觀察提出演化論。" }
 ];
 
-// 動態擴充補齊 80 題 (無盡變化)
+// 擴充至 80 題
 while(BaseFacts.length < 80) {
-    let source = BaseFacts[Math.floor(Math.random() * 39)]; // 以上共39題不重複史實
+    let source = BaseFacts[Math.floor(Math.random() * 39)];
     BaseFacts.push({ ...source, era: source.era + " (平行時空)", id: Math.random().toString() });
 }
 
@@ -236,7 +191,7 @@ class UniverseGenerator {
 }
 
 // ==========================================
-// 2. 音效與 TTS 控制系統 (穩定不中斷語音)
+// 2. 音效與 TTS 系統
 // ==========================================
 class AudioSystem {
     constructor() {
@@ -244,16 +199,11 @@ class AudioSystem {
         this.isMuted = false;
         this.ttsActive = false;
         window._ttsUtterances = []; 
-        this.ttsIndicator = document.getElementById('tts-indicator');
-        
         document.getElementById('btn-mute').addEventListener('click', () => this.toggleMute());
     }
 
     init() {
-        if(!this.ctx) {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            this.ctx = new AudioContext();
-        }
+        if(!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
         if(this.ctx.state === 'suspended') this.ctx.resume();
         if(window.speechSynthesis) {
             window.speechSynthesis.cancel();
@@ -289,7 +239,6 @@ class AudioSystem {
     playLose() { this.playTone([150, 100, 50], 1.0, 'sawtooth', 0.2); }
     playWarp() { this.playTone([800, 1200, 1600], 0.8, 'sine', 0.05); }
 
-    // 連貫朗讀
     playPreReading(eraRaw, qText, lText, rText, fallbackMs, onEnd) {
         this.stopTTS();
         this.ttsActive = true;
@@ -300,7 +249,6 @@ class AudioSystem {
         }
 
         const cleanEra = eraRaw.replace(/ \[(異變|平行時空)\].*/, '');
-        // 將標題、題目、左右選項合成三大段
         const sentences = [
             `${cleanEra}面臨情境：${qText}`,
             `左方選項：${lText}`,
@@ -329,77 +277,34 @@ class AudioSystem {
         setTimeout(speakNext, 50);
     }
 
-    playExplanationTTS(correctText, wrongText, fallbackMs, onEnd) {
-        this.stopTTS(); 
-        this.ttsActive = true;
-        
-        if (this.isMuted || !window.speechSynthesis) { 
-            setTimeout(() => { if(this.ttsActive && onEnd) onEnd(); }, fallbackMs);
-            return; 
-        }
-        
-        this.ttsIndicator.classList.remove('hidden');
-
-        const rawText = `歷史正道！${correctText} 平行盲點！${wrongText}`;
-        const sentences = rawText.replace(/([。！？])/g, "$1|").split("|").filter(s => s.trim().length > 0);
-        let voices = window.speechSynthesis.getVoices();
-        let twVoice = voices.find(v => v.lang.includes('zh-TW') || v.lang.includes('zh-HK') || v.name.includes('Taiwan'));
-        let currentIndex = 0;
-
-        const speakNext = () => {
-            if (!this.ttsActive) return;
-            if (currentIndex >= sentences.length) {
-                this.stopTTS();
-                if(onEnd) onEnd();
-                return;
-            }
-            let u = new SpeechSynthesisUtterance(sentences[currentIndex]);
-            if(twVoice) u.voice = twVoice;
-            u.rate = 1.15; u.pitch = 1.05;
-            u.onend = () => { currentIndex++; speakNext(); };
-            u.onerror = () => { currentIndex++; speakNext(); };
-            window._ttsUtterances.push(u);
-            if(window._ttsUtterances.length > 5) window._ttsUtterances.shift();
-            window.speechSynthesis.speak(u);
-        };
-        setTimeout(speakNext, 50);
-    }
-
     stopTTS() {
         this.ttsActive = false;
-        this.ttsIndicator.classList.add('hidden');
         if(window.speechSynthesis) window.speechSynthesis.cancel();
     }
 }
 const AudioObj = new AudioSystem();
 
-// ==========================================
-// 3. 記憶庫模組
-// ==========================================
 class KnowledgeBase {
-    constructor() { 
-        try { this.records = JSON.parse(localStorage.getItem('chronos_v8_kb')) || []; } catch(e) { this.records = []; } 
-    }
+    constructor() { try { this.records = JSON.parse(localStorage.getItem('chronos_v9_kb')) || []; } catch(e) { this.records = []; } }
     save(eventData) {
         const cleanEra = eventData.era.replace(/ \[(異變|平行時空)\].*/, '');
         if (!this.records.some(r => r.premise === eventData.premise)) {
             this.records.unshift({...eventData, era: cleanEra});
             if(this.records.length > 100) this.records.pop();
-            try { localStorage.setItem('chronos_v8_kb', JSON.stringify(this.records)); } catch(e){}
+            try { localStorage.setItem('chronos_v9_kb', JSON.stringify(this.records)); } catch(e){}
         }
     }
-    clear() { this.records = []; localStorage.removeItem('chronos_v8_kb'); this.render(); }
+    clear() { this.records = []; localStorage.removeItem('chronos_v9_kb'); this.render(); }
     render() {
         const list = document.getElementById('kb-list');
         list.innerHTML = this.records.length === 0 ? "<p style='text-align:center;'>尚未解鎖任何歷史記憶。</p>" : "";
         this.records.forEach(r => {
             const div = document.createElement('div'); div.className = 'kb-item';
             div.innerHTML = `
-                <div class="era-badge">${r.era}</div>
-                <strong style="font-size:1.15rem; display:block; margin-bottom:10px; color:#fff;">情境：${r.premise}</strong>
-                <span style="color:var(--warning); font-weight:bold;">✔️ 正解：${r.correctOpt}</span><br>
-                <span style="color:var(--danger); font-weight:bold;">❌ 盲點：${r.wrongOpt}</span><br><br>
-                <span style="color:#bbb; font-size:1rem;">${r.expCorrect}<br><br>${r.expWrong}</span>`;
+                <div class="era-badge" style="color:var(--primary); font-weight:bold; margin-bottom:5px;">${r.era}</div>
+                <strong style="font-size:1.1rem; display:block; margin-bottom:10px; color:#fff;">情境：${r.premise}</strong>
+                <span style="color:var(--warning);">✔️ 正解：${r.correctOpt}</span><br>
+                <span style="color:var(--danger);">❌ 盲點：${r.wrongOpt}</span>`;
             list.appendChild(div);
         });
     }
@@ -407,20 +312,21 @@ class KnowledgeBase {
 const KB = new KnowledgeBase();
 
 // ==========================================
-// 4. V8 終極 3D 引擎 (子彈時間 + 3D 光門 + 實體飛船)
+// 4. V9 全 3D 沉浸式引擎 (彈簧物理 + HUD + 光門)
 // ==========================================
 class GameEngine {
     constructor() {
-        // phase: 'reading' (子彈時間) -> 'action' (正常飆速) -> 'explaining' (暫停)
-        this.state = { isPlaying: false, phase: 'explaining', health: 100, score: 0, displayScore: 0, qIndex: 0, loop: 1, baseSpeed: 150 };
+        this.state = { isPlaying: false, phase: 'explaining', health: 100, score: 0, displayScore: 0, qIndex: 0, loop: 1, baseSpeed: 180 };
         this.clock = new THREE.Clock();
         this.runQueue = [];
         this.timeScale = 1.0;
         this.targetTimeScale = 1.0;
+        this.targetFov = 90;
         this.rafId = null; 
         
-        // 絕對轉向目標
+        // 物理滑動參數
         this.targetInputX = 0; 
+        this.velocityX = 0;
         
         this.isCorrectOnLeft = true;
         this.hitTriggered = false;
@@ -429,11 +335,9 @@ class GameEngine {
             start: document.getElementById('screen-start'),
             gameover: document.getElementById('screen-gameover'),
             ui: document.getElementById('ui-game'),
-            qText: document.getElementById('hologram-q'),
             expScreen: document.getElementById('explanation-screen'),
             kbModal: document.getElementById('kb-modal'),
-            dmgFlash: document.getElementById('damage-overlay'),
-            warning: document.getElementById('action-warning')
+            dmgFlash: document.getElementById('damage-overlay')
         };
 
         this.init3D();
@@ -442,24 +346,23 @@ class GameEngine {
 
     bindEvents() {
         document.getElementById('btn-start').addEventListener('click', () => { AudioObj.init(); this.start(); });
-        document.getElementById('btn-restart').addEventListener('click', () => this.start());
+        document.getElementById('btn-restart').addEventListener('click', () => { this.els.gameover.classList.add('hidden'); this.start(); });
         
         document.getElementById('btn-skip-exp').addEventListener('click', () => {
             if(!this.state.isPlaying || this.state.phase !== 'explaining') return;
-            AudioObj.init(); 
-            AudioObj.stopTTS(); 
+            AudioObj.init(); AudioObj.stopTTS(); 
             this.resumeAfterExplanation();
         });
         
         document.getElementById('btn-kb').addEventListener('click', () => { KB.render(); this.els.kbModal.classList.remove('hidden'); });
         document.getElementById('btn-close-kb').addEventListener('click', () => this.els.kbModal.classList.add('hidden'));
-        document.getElementById('btn-clear-kb').addEventListener('click', () => KB.clear());
+        document.getElementById('btn-clear-kb').addEventListener('click', () => { KB.clear(); });
 
-        // 絕對座標跟隨方向盤 (Left/Right Steering)
+        // 彈簧物理滑動觸控
         const updateSteering = (clientX) => {
             if(!this.state.isPlaying || this.state.phase === 'explaining') return;
             const ratio = (clientX / window.innerWidth) - 0.5; 
-            this.targetInputX = ratio * 24; // 放大為虛擬 3D 世界座標極限 (-12 ~ +12)
+            this.targetInputX = ratio * 32; // 控制極限範圍
         };
 
         window.addEventListener('touchstart', (e) => { 
@@ -491,48 +394,47 @@ class GameEngine {
         });
     }
 
-    // 核心：將文字渲染為 3D 材質
-    createTextTexture(text, borderColorHex) {
+    // 將文字渲染為 WebGL Canvas 材質 (用於 3D HUD 與 3D 門)
+    createTextTexture(text, borderColorHex, isHud = false) {
         const canvas = document.createElement('canvas');
-        canvas.width = 1024; canvas.height = 1024;
+        canvas.width = 1024; canvas.height = isHud ? 512 : 1024;
         const ctx = canvas.getContext('2d');
         
-        // 背景與邊框
-        ctx.fillStyle = 'rgba(10, 20, 40, 0.85)';
-        ctx.fillRect(0,0, 1024, 1024);
-        ctx.strokeStyle = borderColorHex;
-        ctx.lineWidth = 20;
-        ctx.strokeRect(10, 10, 1004, 1004);
+        if(!isHud) {
+            ctx.fillStyle = 'rgba(5, 10, 20, 0.85)';
+            ctx.fillRect(0,0, 1024, 1024);
+            ctx.strokeStyle = borderColorHex;
+            ctx.lineWidth = 25;
+            ctx.strokeRect(12, 12, 1000, 1000);
+            ctx.shadowColor = borderColorHex;
+            ctx.shadowBlur = 40;
+        }
 
-        // 發光效果
-        ctx.shadowColor = borderColorHex;
-        ctx.shadowBlur = 30;
-
-        // 文字設定
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 65px "Segoe UI", sans-serif';
+        ctx.fillStyle = isHud ? '#00e5ff' : '#ffffff';
+        ctx.font = isHud ? 'bold 75px "Segoe UI", sans-serif' : 'bold 65px "Segoe UI", sans-serif';
+        if(isHud) {
+            ctx.shadowColor = '#00e5ff';
+            ctx.shadowBlur = 20;
+        }
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
-        // 簡易換行邏輯
         const words = text.split('');
         let line = '';
         let lines = [];
-        const maxWidth = 800;
+        const maxWidth = 850;
         for(let n = 0; n < words.length; n++) {
             let testLine = line + words[n];
             let metrics = ctx.measureText(testLine);
             if (metrics.width > maxWidth && n > 0) {
                 lines.push(line);
                 line = words[n];
-            } else {
-                line = testLine;
-            }
+            } else { line = testLine; }
         }
         lines.push(line);
 
-        const lineHeight = 90;
-        let startY = 512 - ((lines.length - 1) * lineHeight) / 2;
+        const lineHeight = isHud ? 100 : 90;
+        let startY = (canvas.height / 2) - ((lines.length - 1) * lineHeight) / 2;
         
         for(let i = 0; i < lines.length; i++) {
             ctx.fillText(lines[i], 512, startY + (i * lineHeight));
@@ -550,59 +452,106 @@ class GameEngine {
         
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x030308);
-        this.scene.fog = new THREE.FogExp2(0x030308, 0.0015);
+        this.scene.fog = new THREE.FogExp2(0x030308, 0.0012);
 
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 2000);
-        // 相機放在 Z=10
-        this.camera.position.set(0, 2, 10); 
+        this.camera = new THREE.PerspectiveCamera(90, window.innerWidth/window.innerHeight, 0.1, 2000);
+        this.camera.position.set(0, 3, 15); 
 
-        // 1. 星空
+        // 3D 抬頭顯示器 (HUD 綁定在相機前方)
+        this.scene.add(this.camera);
+        
+        this.holoMat = new THREE.MeshBasicMaterial({ transparent: true, depthTest: false });
+        this.holoMesh = new THREE.Mesh(new THREE.PlaneGeometry(16, 8), this.holoMat);
+        this.holoMesh.position.set(0, 5, -20); // 放在相機正前方偏上
+        this.camera.add(this.holoMesh);
+        
+        this.warnMat = new THREE.MeshBasicMaterial({ transparent: true, depthTest: false, color: 0xff3366 });
+        this.warnMesh = new THREE.Mesh(new THREE.PlaneGeometry(12, 6), this.warnMat);
+        this.warnMesh.position.set(0, -6, -15); // 放在相機正前方偏下
+        this.warnMesh.visible = false;
+        this.camera.add(this.warnMesh);
+        const warnTex = this.createTextTexture("⚡ 躍遷加速！撞擊光門 ⚡", null, true);
+        this.warnMat.map = warnTex;
+
+        // 星空
         const starGeo = new THREE.BufferGeometry();
         const starPos = new Float32Array(2000 * 3);
         for(let i=0; i<6000; i+=3) {
-            starPos[i] = (Math.random()-0.5)*800;
-            starPos[i+1] = (Math.random()-0.5)*800;
+            starPos[i] = (Math.random()-0.5)*1000;
+            starPos[i+1] = (Math.random()-0.5)*1000;
             starPos[i+2] = (Math.random()-0.5)*2000;
         }
         starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
         this.stars = new THREE.Points(starGeo, new THREE.PointsMaterial({color: 0xffffff, size: 2, transparent: true, opacity: 0.8}));
         this.scene.add(this.stars);
 
-        // 2. 隧道環
+        // 網格地板 (營造速度感)
+        this.grid = new THREE.GridHelper(400, 40, 0x00e5ff, 0x002244);
+        this.grid.position.y = -8;
+        this.scene.add(this.grid);
+
+        // 隧道光環
         this.rings = [];
-        const ringGeo = new THREE.TorusGeometry(35, 0.2, 5, 32);
+        const ringGeo = new THREE.TorusGeometry(35, 0.3, 8, 32);
         const ringMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.15 });
-        for(let i=0; i<30; i++) {
+        for(let i=0; i<25; i++) {
             let r = new THREE.Mesh(ringGeo, ringMat);
             r.position.z = -Math.random() * 1500;
             this.scene.add(r);
             this.rings.push(r);
         }
 
-        // 3. 實體玩家飛船 (Wireframe 科幻機體)
-        const shipGeo = new THREE.ConeGeometry(1.5, 4, 16);
-        shipGeo.rotateX(Math.PI / 2); // 尖端朝前
-        const shipMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, wireframe: true });
-        this.ship = new THREE.Mesh(shipGeo, shipMat);
-        this.ship.position.set(0, -1.5, 5); // 飛船在 Z=5，相機前方
-        this.scene.add(this.ship);
+        // 實體飛船 Group
+        this.shipGroup = new THREE.Group();
+        this.shipGroup.position.set(0, -1.5, 5);
+        this.scene.add(this.shipGroup);
 
-        // 4. 3D 文字光門 (Gates)
-        this.gateGeo = new THREE.PlaneGeometry(14, 14);
-        // 先建立空的材質，後續動態更新
+        const bodyGeo = new THREE.CylinderGeometry(0.2, 1.5, 5, 8);
+        bodyGeo.rotateX(Math.PI / 2);
+        const shipMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, wireframe: true });
+        const body = new THREE.Mesh(bodyGeo, shipMat);
+        this.shipGroup.add(body);
+        
+        const wingGeo = new THREE.BoxGeometry(6, 0.2, 1.5);
+        const wing = new THREE.Mesh(wingGeo, shipMat);
+        wing.position.set(0, -0.5, 1);
+        this.shipGroup.add(wing);
+
+        // 實體護盾環 (取代血條)
+        this.healthRings = [];
+        for(let i=0; i<3; i++) {
+            let rMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.7 });
+            let r = new THREE.Mesh(new THREE.TorusGeometry(2.5 + i*0.6, 0.1, 8, 32), rMat);
+            r.rotation.x = Math.PI / 2;
+            r.position.z = 1;
+            this.shipGroup.add(r);
+            this.healthRings.push(r);
+        }
+
+        // 實體 3D 光門 (Box + Edges)
+        this.gateGroup = new THREE.Group();
+        this.scene.add(this.gateGroup);
+        
+        const boxGeo = new THREE.BoxGeometry(16, 14, 2);
         this.matLeft = new THREE.MeshBasicMaterial({ transparent:true, opacity: 0.95 });
         this.matRight = new THREE.MeshBasicMaterial({ transparent:true, opacity: 0.95 });
         
-        this.gateL = new THREE.Mesh(this.gateGeo, this.matLeft);
-        this.gateR = new THREE.Mesh(this.gateGeo, this.matRight);
-        this.scene.add(this.gateL); this.scene.add(this.gateR);
-        this.gateL.visible = false; this.gateR.visible = false;
+        this.gateL = new THREE.Mesh(boxGeo, this.matLeft);
+        this.gateR = new THREE.Mesh(boxGeo, this.matRight);
+        
+        const edgeGeo = new THREE.EdgesGeometry(boxGeo);
+        this.edgeL = new THREE.LineSegments(edgeGeo, new THREE.LineBasicMaterial({color: 0xffcc00, linewidth: 3}));
+        this.edgeR = new THREE.LineSegments(edgeGeo, new THREE.LineBasicMaterial({color: 0xff3366, linewidth: 3}));
+        this.gateL.add(this.edgeL); this.gateR.add(this.edgeR);
+        
+        this.gateGroup.add(this.gateL); this.gateGroup.add(this.gateR);
+        this.gateGroup.visible = false;
 
-        // 5. 爆炸粒子
+        // 爆炸粒子
         this.particleGeo = new THREE.BufferGeometry();
         this.baseParticlePos = new Float32Array(300 * 3);
         this.particleGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(this.baseParticlePos), 3));
-        this.particleMat = new THREE.PointsMaterial({ color: 0xffffff, size: 4, transparent: true });
+        this.particleMat = new THREE.PointsMaterial({ color: 0xffffff, size: 5, transparent: true });
         this.particles = new THREE.Points(this.particleGeo, this.particleMat);
         this.particles.visible = false;
         this.scene.add(this.particles);
@@ -614,10 +563,13 @@ class GameEngine {
         if(this.rafId) window.cancelAnimationFrame(this.rafId);
         AudioObj.stopTTS();
         
-        this.state = { isPlaying: true, phase: 'reading', health: 100, score: 0, displayScore: 0, qIndex: 0, loop: 1, baseSpeed: 180 };
+        this.state = { isPlaying: true, phase: 'reading', health: 100, score: 0, displayScore: 0, qIndex: 0, loop: 1, baseSpeed: 200 };
         this.targetInputX = 0;
-        this.ship.position.x = 0;
+        this.velocityX = 0;
+        this.shipGroup.position.x = 0;
         this.camera.position.x = 0;
+        this.healthRings.forEach(r => r.visible = true);
+        
         this.runQueue = UniverseGenerator.getQueue(this.state.loop);
         
         this.els.start.classList.add('hidden');
@@ -646,50 +598,47 @@ class GameEngine {
         const txtL = this.isCorrectOnLeft ? q.correctOpt : q.wrongOpt;
         const txtR = this.isCorrectOnLeft ? q.wrongOpt : q.correctOpt;
 
-        document.getElementById('q-text').innerText = txtQ;
-        
-        // 動態生成 3D Canvas 材質
-        const texL = this.createTextTexture(txtL, '#ffcc00'); // Warning Color
-        const texR = this.createTextTexture(txtR, '#ff3366'); // Danger Color
-        
+        // 渲染 3D 全息題目與光門
+        if(this.holoMat.map) this.holoMat.map.dispose();
+        this.holoMat.map = this.createTextTexture(txtQ, null, true);
+        this.holoMat.needsUpdate = true;
+
         if(this.matLeft.map) this.matLeft.map.dispose();
         if(this.matRight.map) this.matRight.map.dispose();
-        this.matLeft.map = texL; this.matLeft.needsUpdate = true;
-        this.matRight.map = texR; this.matRight.needsUpdate = true;
+        this.matLeft.map = this.createTextTexture(txtL, '#ffcc00'); this.matLeft.needsUpdate = true;
+        this.matRight.map = this.createTextTexture(txtR, '#ff3366'); this.matRight.needsUpdate = true;
 
-        // 【子彈時間：閱讀期】
+        // 【子彈時間】
         this.state.phase = 'reading';
-        this.timeScale = 0.15; // 速度降為 15%
-        this.targetTimeScale = 0.15;
+        this.timeScale = 0.2; 
+        this.targetTimeScale = 0.2;
+        this.targetFov = 65; // 鏡頭壓縮
         
-        // 將門放在極遠處 (-500)
-        this.gateL.position.set(-8, 0, -500); 
-        this.gateR.position.set(8, 0, -500);
-        this.gateL.visible = true; this.gateR.visible = true;
-        
+        this.gateGroup.position.z = -500;
+        this.gateL.position.set(-10, 2, 0); 
+        this.gateR.position.set(10, 2, 0);
+        this.gateGroup.visible = true;
+        this.holoMesh.visible = true;
+        this.warnMesh.visible = false;
         this.hitTriggered = false;
-        this.els.warning.classList.remove('show-warning');
-        this.els.qText.classList.remove('hidden'); // 顯示全息題目
 
         const totalChars = q.era.length + txtQ.length + txtL.length + txtR.length;
         const fallbackMs = Math.max(4500, (totalChars / 5) * 1000);
 
-        // 語音朗讀
         AudioObj.playPreReading(q.era, txtQ, txtL, txtR, fallbackMs, () => {
             if(!this.state.isPlaying || this.state.phase !== 'reading') return;
             
-            // 【衝擊：躍遷期】
+            // 【衝擊躍遷】
             this.state.phase = 'action';
-            this.els.warning.classList.add('show-warning');
+            this.holoMesh.visible = false;
+            this.warnMesh.visible = true;
             
-            // 恢復狂飆速度 (依據週目略微加快)
             this.targetTimeScale = 1.0 + (this.state.loop * 0.1); 
+            this.targetFov = 110; // 鏡頭猛烈拉伸
             
-            // 精準重置光門距離，確保在 targetTimeScale 滿載下，剛好 3 秒撞到 Z=5 (飛船位置)
             const targetSpeed = this.state.baseSpeed * this.targetTimeScale;
             const impactDist = targetSpeed * 3.0;
-            this.gateL.position.z = 5 - impactDist;
-            this.gateR.position.z = 5 - impactDist;
+            this.gateGroup.position.z = 5 - impactDist;
         });
     }
 
@@ -700,9 +649,9 @@ class GameEngine {
         
         const positions = this.particles.geometry.attributes.position.array;
         for(let i=0; i<positions.length; i+=3) {
-            positions[i] = (Math.random() - 0.5) * 12;
-            positions[i+1] = (Math.random() - 0.5) * 12;
-            positions[i+2] = (Math.random() - 0.5) * 12;
+            positions[i] = (Math.random() - 0.5) * 20;
+            positions[i+1] = (Math.random() - 0.5) * 20;
+            positions[i+2] = (Math.random() - 0.5) * 20;
         }
         this.particles.geometry.attributes.position.needsUpdate = true;
         this.particleTime = 1.0;
@@ -714,27 +663,33 @@ class GameEngine {
         this.state.phase = 'explaining'; 
         
         AudioObj.stopTTS(); 
-        this.els.warning.classList.remove('show-warning');
-        this.els.qText.classList.add('hidden');
+        this.warnMesh.visible = false;
         
         const q = this.runQueue[this.state.qIndex];
-        // 判定依據飛船的 X 位置
-        const hitSide = this.ship.position.x < 0 ? 'left' : 'right';
+        // 寬容判定：只要船在對的那一半邊就算對
+        const hitSide = this.shipGroup.position.x < 0 ? 'left' : 'right';
         const isCorrect = (hitSide === 'left' && this.isCorrectOnLeft) || (hitSide === 'right' && !this.isCorrectOnLeft);
         
-        const hitPos = hitSide === 'left' ? this.gateL.position : this.gateR.position;
-        // 撞擊瞬間位置設為飛船位置
-        hitPos.z = this.ship.position.z; 
+        const hitPos = new THREE.Vector3();
+        if(hitSide === 'left') this.gateL.getWorldPosition(hitPos);
+        else this.gateR.getWorldPosition(hitPos);
+        
+        hitPos.z = this.shipGroup.position.z; 
 
         this.triggerExplosion(hitPos, isCorrect);
-        this.gateL.visible = false; this.gateR.visible = false;
+        this.gateGroup.visible = false;
+        this.targetFov = 80; // 結算時視角回正
         
         if(isCorrect) {
             AudioObj.playWin();
             this.state.score += (500 + this.state.loop * 100);
         } else {
             AudioObj.playLose();
-            this.state.health = Math.max(0, this.state.health - 35);
+            this.state.health -= 34;
+            // 碎裂一圈實體護盾
+            const ringToBreak = this.healthRings.find(r => r.visible);
+            if(ringToBreak) ringToBreak.visible = false;
+
             this.els.dmgFlash.classList.add('flash-red');
             setTimeout(() => this.els.dmgFlash.classList.remove('flash-red'), 80);
         }
@@ -742,44 +697,29 @@ class GameEngine {
         this.updateHUD(); KB.save(q); 
         
         if(this.state.health <= 0) { 
-            setTimeout(() => this.gameOver(), 800); 
+            setTimeout(() => this.gameOver(), 1000); 
             return; 
         }
 
         document.getElementById('exp-correct-text').innerText = q.expCorrect;
         document.getElementById('exp-wrong-text').innerText = q.expWrong;
         
-        // 稍作停頓後彈出視窗
         setTimeout(() => {
-            const expArea = document.getElementById('exp-scroll-area');
-            expArea.scrollTop = 0; 
-            setTimeout(()=> expArea.scrollTop = 0, 50); 
-            
             this.els.expScreen.classList.remove('hidden');
-            
-            const expChars = q.expCorrect.length + q.expWrong.length;
-            const expFallbackMs = Math.max(4500, (expChars / 5) * 1000);
-
-            AudioObj.playExplanationTTS(q.expCorrect, q.expWrong, expFallbackMs, () => {
-                if(this.state.isPlaying && !this.els.expScreen.classList.contains('hidden')) {
-                    this.resumeAfterExplanation();
-                }
-            });
-        }, 600);
+        }, 800);
     }
 
     updateHUD() {
         const hb = document.getElementById('health-bar');
-        hb.style.width = this.state.health + '%';
+        hb.style.width = Math.max(0, this.state.health) + '%';
         hb.classList.toggle('health-low', this.state.health <= 35);
     }
 
     resumeAfterExplanation() {
         this.els.expScreen.classList.add('hidden');
         AudioObj.playWarp(); 
-        
         this.state.qIndex++;
-        this.state.baseSpeed = Math.min(250, 150 + (this.state.qIndex * 2)); 
+        this.state.baseSpeed = Math.min(300, 200 + (this.state.qIndex * 3)); 
         this.scheduleQuestion();
     }
 
@@ -795,16 +735,17 @@ class GameEngine {
         this.rafId = requestAnimationFrame(() => this.loop());
         const dt = Math.min(this.clock.getDelta(), 0.1);
         
-        // 平滑分數顯示
         if(this.state.displayScore < this.state.score) {
             this.state.displayScore += Math.ceil((this.state.score - this.state.displayScore) * 0.1);
             document.getElementById('ui-score').innerText = this.state.displayScore;
         }
 
-        // 平滑子彈時間過渡
+        // 1. 平滑子彈時間與 FOV 過渡
         this.timeScale += (this.targetTimeScale - this.timeScale) * 5.0 * dt;
+        this.camera.fov += (this.targetFov - this.camera.fov) * 5.0 * dt;
+        this.camera.updateProjectionMatrix();
 
-        // 爆炸粒子動畫
+        // 2. 爆炸粒子動畫
         if(this.particles.visible && this.particleTime > 0) {
             this.particleTime -= dt;
             const pos = this.particles.geometry.attributes.position.array;
@@ -816,43 +757,53 @@ class GameEngine {
 
         if (this.state.isPlaying && this.state.phase !== 'explaining') {
             
-            // 飛船跟隨絕對座標 (平滑插值)
-            const steerSpeed = 8.0 * dt;
-            this.ship.position.x += (this.targetInputX - this.ship.position.x) * steerSpeed;
-            // 飛船因為左右轉向產生傾角 (Roll)
-            this.ship.rotation.z = -this.ship.position.x * 0.1;
+            // 3. 彈簧物理阻尼操控 (Spring Physics)
+            const acceleration = (this.targetInputX - this.shipGroup.position.x) * 15.0;
+            this.velocityX += acceleration * dt;
+            this.velocityX *= 0.85; // 阻尼
+            this.shipGroup.position.x += this.velocityX * dt;
             
-            // 相機微幅跟隨飛船，增強動態感
-            this.camera.position.x = this.ship.position.x * 0.4;
-            this.camera.rotation.z = -this.camera.position.x * 0.015;
+            // 動態側傾 (Roll)
+            this.shipGroup.rotation.z = -this.velocityX * 0.05;
+            // 相機微距跟隨
+            this.camera.position.x = this.shipGroup.position.x * 0.3;
 
-            // 所有環境物件的移動距離受到 timeScale (子彈時間) 影響
+            // 4. 環境流動 (受子彈時間影響)
             const moveDist = this.state.baseSpeed * dt * this.timeScale;
+            this.grid.position.z = (this.grid.position.z + moveDist) % 40;
 
-            // 星空與隧道流動
             const pos = this.stars.geometry.attributes.position.array;
             for(let i=2; i<pos.length; i+=3) {
                 pos[i] += moveDist * 2.5; 
-                if(pos[i] > 10) pos[i] -= 2000; 
+                if(pos[i] > 20) pos[i] -= 2000; 
             }
             this.stars.geometry.attributes.position.needsUpdate = true;
             this.rings.forEach(r => { 
                 r.position.z += moveDist; 
-                if(r.position.z > 10) r.position.z -= 1500; 
+                if(r.position.z > 20) r.position.z -= 1500; 
             });
 
-            // 實體光門逼近邏輯
-            if(this.gateL.visible) {
-                const prevZ = this.gateL.position.z;
-                this.gateL.position.z += moveDist;
-                this.gateR.position.z += moveDist;
+            // 5. 光門逼近與碰撞判定
+            if(this.gateGroup.visible) {
+                const prevZ = this.gateGroup.position.z;
+                this.gateGroup.position.z += moveDist;
                 
-                // 飛船固定在 Z=5，光門穿越 Z=5 即判定碰撞
-                if(prevZ < 5 && this.gateL.position.z >= 5) {
+                // 飛船 Z=5，光門越過 Z=5 瞬間觸發
+                if(prevZ < 5 && this.gateGroup.position.z >= 5) {
                     this.resolveAnswer();
                 }
             }
         }
+        
+        // 待機畫面相機環繞
+        if(!this.state.isPlaying) {
+            this.camera.position.x = Math.sin(Date.now() * 0.001) * 3;
+            this.camera.position.y = 3 + Math.cos(Date.now() * 0.001) * 1;
+            this.camera.lookAt(0,0,-20);
+        } else {
+            this.camera.lookAt(this.camera.position.x, 3, -100);
+        }
+
         this.renderer.render(this.scene, this.camera);
     }
 }
