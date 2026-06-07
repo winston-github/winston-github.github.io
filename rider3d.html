@@ -812,3 +812,136 @@ class GameEngine {
             this.state.health -= 1;
             // 相容性寫法
             for(let i=0; i<this.healthRings.length; i++) {
+                if(this.healthRings[i].visible) {
+                    this.healthRings[i].visible = false;
+                    break;
+                }
+            }
+
+            if(this.els.dmgFlash) {
+                this.els.dmgFlash.classList.add('flash-red');
+                setTimeout(() => this.els.dmgFlash.classList.remove('flash-red'), 80);
+            }
+        }
+        
+        KB.save(q); 
+        
+        if(this.state.health <= 0) { 
+            setTimeout(() => this.gameOver(), 1000); 
+            return; 
+        }
+
+        const domCorrect = document.getElementById('exp-correct-text');
+        const domWrong = document.getElementById('exp-wrong-text');
+        if(domCorrect) domCorrect.innerText = q.expCorrect;
+        if(domWrong) domWrong.innerText = q.expWrong;
+        
+        setTimeout(() => {
+            if(this.els.expScreen) this.els.expScreen.classList.remove('hidden');
+            const expChars = q.expCorrect.length + q.expWrong.length;
+            const expFallbackMs = Math.max(4500, (expChars / 5) * 1000);
+
+            AudioObj.playExplanationTTS(q.expCorrect, q.expWrong, expFallbackMs, () => {
+                if(this.state.isPlaying && this.els.expScreen && !this.els.expScreen.classList.contains('hidden')) {
+                    this.resumeAfterExplanation();
+                }
+            });
+        }, 800);
+    }
+
+    resumeAfterExplanation() {
+        if(this.els.expScreen) this.els.expScreen.classList.add('hidden');
+        AudioObj.playWarp(); 
+        this.state.qIndex++;
+        this.state.baseSpeed = Math.min(400, 250 + (this.state.qIndex * 4)); 
+        this.scheduleQuestion();
+    }
+
+    gameOver() {
+        this.state.isPlaying = false;
+        AudioObj.stopTTS();
+        if(this.els.gameover) this.els.gameover.classList.remove('hidden');
+        const domScore = document.getElementById('go-score');
+        if(domScore) domScore.innerText = this.state.score;
+    }
+
+    loop() {
+        this.rafId = requestAnimationFrame(() => this.loop());
+        const dt = Math.min(this.clock.getDelta(), 0.1);
+        
+        if(this.state.displayScore < this.state.score) {
+            this.state.displayScore += Math.ceil((this.state.score - this.state.displayScore) * 0.1);
+            this.updateTexture(this.scoreHolo.tex, "同步率: " + this.state.displayScore, '#00e5ff', true);
+        }
+
+        const lerpFactor = 1.0 - Math.exp(-5.0 * dt);
+        this.timeScale += (this.targetTimeScale - this.timeScale) * lerpFactor;
+        this.camera.fov += (this.targetFov - this.camera.fov) * lerpFactor;
+        this.camera.updateProjectionMatrix();
+
+        if(this.particles.visible && this.particleTime > 0) {
+            this.particleTime -= dt;
+            const pos = this.particles.geometry.attributes.position.array;
+            for(let i=0; i<pos.length; i+=3) { pos[i]*=1.05; pos[i+1]*=1.05; pos[i+2]*=1.05; }
+            this.particles.geometry.attributes.position.needsUpdate = true;
+            this.particleMat.opacity = this.particleTime;
+            if(this.particleTime <= 0) this.particles.visible = false;
+        }
+
+        if (this.state.isPlaying && this.state.phase !== 'explaining') {
+            const steerLerp = 1.0 - Math.exp(-12.0 * dt);
+            this.shipGroup.position.x += (this.targetInputX - this.shipGroup.position.x) * steerLerp;
+            
+            const targetRoll = (this.shipGroup.position.x - this.targetInputX) * 0.08;
+            this.shipGroup.rotation.z += (targetRoll - this.shipGroup.rotation.z) * steerLerp;
+            
+            this.camera.position.x = this.shipGroup.position.x * 0.35; 
+
+            const moveDist = this.state.baseSpeed * dt * this.timeScale;
+            this.grid.position.z = (this.grid.position.z + moveDist) % 50;
+
+            const pos = this.stars.geometry.attributes.position.array;
+            for(let i=2; i<pos.length; i+=3) {
+                pos[i] += moveDist * 2.5; 
+                if(pos[i] > 20) pos[i] -= 2000; 
+            }
+            this.stars.geometry.attributes.position.needsUpdate = true;
+            
+            this.rings.forEach(r => { 
+                r.position.z += moveDist; 
+                if(r.position.z > 20) r.position.z -= 1500; 
+            });
+
+            if(this.gateGroup.visible) {
+                const prevZ = this.gateGroup.position.z;
+                this.gateGroup.position.z += moveDist;
+                if(prevZ < 5 && this.gateGroup.position.z >= 5) {
+                    this.resolveAnswer();
+                }
+            }
+        }
+        
+        if(!this.state.isPlaying) {
+            this.camera.position.x = Math.sin(Date.now() * 0.001) * 4;
+            this.camera.position.y = 3 + Math.cos(Date.now() * 0.001) * 2;
+            this.camera.lookAt(0,0,-20);
+        } else {
+            this.camera.lookAt(this.camera.position.x, 3, -100);
+        }
+
+        this.renderer.render(this.scene, this.camera);
+    }
+}
+
+window.onload = () => {
+    try {
+        if(window.speechSynthesis) {
+            window.speechSynthesis.getVoices();
+            window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+        }
+    } catch(e) {}
+    window.gameEngine = new GameEngine();
+};
+</script>
+</body>
+</html>
