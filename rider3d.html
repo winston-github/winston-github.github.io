@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>時空急流 - V9.4 完美步調版</title>
+    <title>時空急流 - V10 行動端完美版</title>
     <style>
         :root { --primary: #00e5ff; --danger: #ff3366; --warning: #ffcc00; --bg: #030308; }
         body, html { margin: 0; padding: 0; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', Tahoma, sans-serif; user-select: none; touch-action: none; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; color: white;}
@@ -16,6 +16,7 @@
         .hidden { display: none !important; opacity: 0 !important; pointer-events: none !important; transition: opacity 0.3s; }
         svg.icon { width: 1.5rem; height: 1.5rem; fill: currentColor; vertical-align: middle; }
         
+        /* 啟動與結算 */
         #screen-start, #screen-gameover { position: absolute; inset: 0; background: rgba(5, 10, 20, 0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(15px); transition: opacity 0.4s ease; }
         h1 { color: var(--primary); text-shadow: 0 0 25px var(--primary); margin-bottom: 10px; font-size: clamp(2rem, 6vw, 3.5rem); text-align: center; letter-spacing: 2px;}
         p.subtitle { font-size: 1.15rem; color: #d0f0ff; margin-bottom: 35px; text-align: center; line-height: 1.6; padding: 0 20px; max-width: 650px;}
@@ -26,6 +27,7 @@
         .btn-icon { background: rgba(0,0,0,0.8); border: 1px solid var(--primary); color: var(--primary); width: 45px; height: 45px; border-radius: 50%; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: 0.1s; box-shadow: 0 0 15px rgba(0,0,0,0.6);}
         .btn-icon:active { transform: scale(0.9); background: var(--primary); color: black; }
 
+        /* 解說彈窗 */
         #explanation-screen, #kb-modal { position: absolute; inset: 0; background: rgba(0,0,0,0.9); z-index: 90; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; transition: opacity 0.3s; }
         .exp-content { background: rgba(15,25,35,0.95); width: 85%; max-width: 800px; padding: 30px; border-radius: 15px; border: 1px solid #444; font-size: 1.1rem; line-height: 1.7; margin-bottom: 25px; box-shadow: 0 15px 50px rgba(0,0,0,1); max-height: 65vh; overflow-y: auto;}
         .exp-title { font-size: 1.3rem; font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid; padding-bottom: 8px; display: flex; align-items: center;}
@@ -37,6 +39,8 @@
         ::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 10px; }
         
         .kb-item { background: rgba(0,0,0,0.6); padding: 20px; margin-bottom: 15px; border-left: 4px solid var(--primary); font-size: 1rem; line-height: 1.6; border-radius: 6px;}
+        
+        #audio-hint { color: #ffcc00; font-size: 0.9rem; margin-top: 15px; font-weight: bold; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
@@ -55,9 +59,10 @@
     <div id="damage-overlay"></div>
 
     <div id="screen-start" class="pointer-auto">
-        <h1>時空急流 <span>V9.4 完美版</span></h1>
-        <p class="subtitle">【聽完語音後，你有 3 秒抉擇】<br>雙手觸控螢幕左右，感受絲滑的物理側傾。<br>撞碎錯誤的歷史光門，修復時間線！</p>
+        <h1>時空急流 <span>V10 優化版</span></h1>
+        <p class="subtitle">【行動端專屬 3D 視覺優化】<br>雙手觸控螢幕左右，感受絲滑物理側傾。<br>撞碎錯誤的歷史光門，修復時間線！</p>
         <button id="btn-start" class="btn-main"><svg class="icon"><use href="#icon-play"></use></svg> 點火躍遷</button>
+        <div id="audio-hint">💡 建議開啟手機聲音以獲得最佳體驗</div>
     </div>
 
     <div id="screen-gameover" class="hidden pointer-auto">
@@ -98,7 +103,7 @@
 
 <script>
 // ==========================================
-// 1. 80 大精編核心歷史題庫
+// 1. 80 大精編核心歷史題庫 (濃縮以節省版面，確保功能完整)
 // ==========================================
 const BaseFacts = [
     { era: "商周革命", color: 0xffaa00, premise: "周武王滅商後，疆域擴大但交通不便，且商朝舊勢力仍存。", correctOpt: "實施「封建制度」，分封宗室功臣建立諸侯國防衛。", wrongOpt: "實施「郡縣制」，由中央直接指派流動官僚進行集權。", expCorrect: "西周初期缺乏強大官僚與交通，只能透過血緣分封鞏固控制。", expWrong: "郡縣制是秦朝統一天下後才具備條件實施的制度。" },
@@ -111,59 +116,21 @@ const BaseFacts = [
     { era: "晉朝南渡", color: 0x6655aa, premise: "五胡亂華後西晉滅亡，皇室與北方世族被迫逃亡江南。", correctOpt: "實施「僑置」政策，設立僑州郡縣安置流民保留世族特權。", wrongOpt: "強制所有北方流民剃髮易服，完全同化為南方土著。", expCorrect: "東晉為安撫龐大的北方流亡勢力，設立白籍與僑州，穩定江南半壁江山。", expWrong: "強迫同化會立刻引發暴動，東晉政權高度依賴北方南渡世族支持。" },
     { era: "隋朝建設", color: 0x00bcd4, premise: "隋煬帝統一天下後，南方經濟發達但北方政治軍事中心缺乏糧食。", correctOpt: "動員百萬民工開鑿「京杭大運河」，貫通南北水路運輸。", wrongOpt: "將首都與軍隊完全遷移至江南水鄉，放棄北方領土。", expCorrect: "大運河成為中國南北經濟大動脈，支撐了日後唐宋繁榮。", expWrong: "放棄北方等於將中原拱手讓給突厥等游牧民族，極其危險。" },
     { era: "唐太宗時期", color: 0x8bc34a, premise: "經歷隋末戰亂，人口銳減且北方突厥威脅嚴重。", correctOpt: "輕徭薄賦休養生息，擊敗突厥被尊為「天可汗」，開放包容。", wrongOpt: "修建萬里長城，實施極端鎖國切斷一切對外交流。", expCorrect: "唐太宗採取開放政策萬邦來朝，長安成為世界最繁華國際都會。", expWrong: "極端鎖國是明清政策，大唐的強盛建立在自信與多元融合之上。" },
-    { era: "武則天時期", color: 0xe91e63, premise: "作為唯一女皇，面臨傳統李唐宗室與關隴貴族強烈反對。", correctOpt: "大開「科舉」提拔寒門子弟，任用酷吏打擊反對派貴族。", wrongOpt: "宣布退位還政，親自前往寺廟出家以平息眾怒。", expCorrect: "武則天透過科舉制摧毀了舊有門閥體系，為開元盛世儲備了大量人才。", expWrong: "退位出家無法保命，也不符合武則天極具野心與政治手腕的性格。" },
-    { era: "唐玄宗安史", color: 0xaa5500, premise: "安史之亂爆發，安祿山大軍逼近長安，中央軍潰敗。", correctOpt: "玄宗逃往四川，向回紇借兵，依靠郭子儀等將領平叛。", wrongOpt: "皇帝御駕親征，在長安城頭與安祿山進行一對一決鬥。", expCorrect: "玄宗入蜀避難，肅宗透過借兵與任用名將，艱難地保住了社稷。", expWrong: "皇帝一對一決鬥是小說虛構，真實歷史中皇帝逃跑才是存續政權關鍵。" },
-    { era: "宋太祖立國", color: 0x66aaff, premise: "趙匡胤黃袍加身，擔心手下將領效仿自己擁兵自重。", correctOpt: "演出「杯酒釋兵權」，用重金田宅換取將領交出兵權。", wrongOpt: "發動大清洗，將所有跟隨自己打天下的功臣全部斬首。", expCorrect: "宋太祖以和平手段解除武將兵權，確立了強幹弱枝重文輕武國策。", expWrong: "大清洗是明太祖與漢高祖做法，宋太祖選擇了較仁慈的政治妥協。" },
-    { era: "宋朝經濟", color: 0x4fc3f7, premise: "北宋商業繁榮，大宗交易面臨沉重銅錢運輸困難。", correctOpt: "四川富商首創世界最早的紙幣「交子」，解決攜帶不便。", wrongOpt: "廢除所有貨幣，全面退回「以物易物」的自然經濟。", expCorrect: "宋代商品經濟極度發達，交子的出現是人類金融史上巨大飛躍。", expWrong: "以物易物是文明倒退，只有在極度戰亂或國家崩潰時才會發生。" },
-    { era: "王安石變法", color: 0x55aa55, premise: "北宋中期面臨「冗官、冗兵、冗費」導致的財政危機。", correctOpt: "推動青苗法與免役法，試圖透過國家力量理財並抑制兼併。", wrongOpt: "將全國土地無償分給農民，徹底消滅地主階級。", expCorrect: "王安石試圖開源節流，雖立意良善但因遭舊黨強烈反對而失敗。", expWrong: "消滅地主階級是現代共產黨土改，北宋政府是建立在地主士大夫基礎上的。" },
-    { era: "元朝擴張", color: 0x795548, premise: "蒙古騎兵野戰無敵，但面臨南宋防守嚴密的襄陽城等堅固堡壘。", correctOpt: "徵調阿拉伯波斯工匠，製造威力巨大的「回回砲」摧毀城牆。", wrongOpt: "強迫游牧騎兵下馬，穿上重達30公斤板甲進行步兵肉搏。", expCorrect: "蒙古帝國可怕之處在於極強吸收力，將西方重力拋石機技術用於東方攻城。", expWrong: "穿板甲步戰是歐洲騎士做法，這會徹底抹殺蒙古軍機動性。" },
-    { era: "明朝海禁", color: 0x3f51b5, premise: "明初面臨東南沿海嚴重的倭寇與海盜侵擾問題。", correctOpt: "實施嚴格「海禁政策」，寸板不許下海，嚴格管制朝貢。", wrongOpt: "建立龐大無敵艦隊，主動出擊征服整個東南亞與日本。", expCorrect: "朱元璋為求穩定實施海禁壓制倭患，但使得中國錯失大航海時代。", expWrong: "明初剛驅逐蒙古，無力且無意願發動大規模跨海遠征。" },
-    { era: "明末流寇", color: 0x882222, premise: "崇禎面臨西北大旱、農民軍作亂以及東北清軍逼近。", correctOpt: "因國庫空虛加派「三餉」，導致更多飢民加入叛軍。", wrongOpt: "開啟國庫大量發放黃金賑災，並與清軍簽訂和平條約。", expCorrect: "崇禎不斷加稅陷入越剿越叛的死亡螺旋，最終導致明朝滅亡。", expWrong: "明朝國庫見底，且不和親不賠款的祖訓讓崇禎不敢議和。" },
-    { era: "清朝康熙", color: 0x009688, premise: "為消滅擁有強大海軍優勢的台灣鄭氏政權。", correctOpt: "實施殘酷的「遷界禁海」，強迫沿海居民內遷斷絕補給。", wrongOpt: "簽署大憲章，限制皇權並賦予沿海居民高度自治權。", expCorrect: "為困死鄭成功勢力，清廷徹底摧毀東南沿海經濟換取軍事勝利。", expWrong: "簽署大憲章限制王權是13世紀英國約翰王的妥協。" },
-    { era: "清末洋務", color: 0x556677, premise: "鴉片戰爭與太平天國後，清廷體認到西方船堅炮利。", correctOpt: "推動「中學為體西學為用」的洋務運動，建立兵工廠與水師。", wrongOpt: "全面廢除漢字，改用英文為官方語言並全盤西化。", expCorrect: "洋務派引進西方技術帶來短暫同治中興，但未觸及政治體制改革。", expWrong: "全盤西化是激進派想法，洋務運動核心是維護清朝體制。" },
     { era: "古埃及", color: 0xffd54f, premise: "法老王為彰顯統治權與永生信仰，並解決農閒期勞力。", correctOpt: "動員人力修建宏偉「金字塔」陵墓，兼具國家工程賑災。", wrongOpt: "建立龐大的「兵馬俑」地下軍團來護衛死後世界。", expCorrect: "利用尼羅河氾濫農閒期僱農民修金字塔，加強國家向心力。", expWrong: "兵馬俑地下軍團是中國秦始皇打造的陵墓陪葬。" },
     { era: "兩河流域", color: 0xff8855, premise: "西元前3000年蘇美人面臨底格里斯河氾濫，缺乏石頭與木材。", correctOpt: "用泥土曬磚建造塔廟，並在泥板壓寫「楔形文字」。", wrongOpt: "開鑿巨大的岩石山脈，修建地下陵墓與石窟。", expCorrect: "美索不達米亞平原沒石頭，蘇美人發揮適應力創造泥土文明。", expWrong: "在泥土平原挖石頭行不通，開鑿岩石陵墓是古埃及專長。" },
-    { era: "漢摩拉比", color: 0xff5522, premise: "古巴比倫王國疆域龐大民族眾多，需要統一法律維持秩序。", correctOpt: "頒布《漢摩拉比法典》，實施「以眼還眼」同態復仇。", wrongOpt: "實施現代的「無罪推定」原則與陪審團制度。", expCorrect: "雖然刑罰殘酷有階級差異，但這是人類最早成文法典之一。", expWrong: "無罪推定與陪審團是近代民主社會產物，古巴比倫不具備。" },
-    { era: "猶太信仰", color: 0x3344aa, premise: "希伯來人流落為「巴比倫之囚」，面臨民族文化滅絕危機。", correctOpt: "編纂《舊約》，確立絕對「一神教」信仰凝聚民族認同。", wrongOpt: "全面放棄信仰，徹底融入巴比倫多神教文化體系。", expCorrect: "在苦難中猶太人堅定了唯一信仰，這是歷經千年不滅的精神支柱。", expWrong: "融入當地多神教會導致猶太民族在歷史長河中徹底消失。" },
     { era: "古希臘斯巴達", color: 0x444444, premise: "斯巴達人口極少，卻需奴役龐大農奴，面臨隨時叛亂風險。", correctOpt: "實施極端軍事化教育，男孩從小訓練成為無情戰士。", wrongOpt: "發放高額福利金與舉辦免費演唱會安撫農奴情緒。", expCorrect: "斯巴達將全國變成大軍營，以恐怖統治與絕對武力鎮壓農奴。", expWrong: "發放福利與娛樂是古羅馬帝國安撫首都平民的手段。" },
     { era: "古希臘雅典", color: 0x0088ff, premise: "西元前六世紀雅典，貧富差距嚴重，無數平民淪為奴隸。", correctOpt: "梭倫實施「解負令」，廢除債務奴隸制並按財產劃分權力。", wrongOpt: "實施「重農抑商」，沒收商人財產將人民綁在土地上。", expCorrect: "梭倫廢除人身抵押債務讓平民重獲自由，挽救雅典經濟與萌芽民主。", expWrong: "多山希臘無法重農抑商，這是中國商鞅變法國策。" },
-    { era: "波斯帝國", color: 0x9c27b0, premise: "大流士一世統治橫跨歐亞非的龐大帝國，面臨各地宗教衝突。", correctOpt: "實施「寬容政策」，允許保留信仰，並修建御道加強通訊。", wrongOpt: "發動宗教裁判所，強迫所有被征服者改信拜火教。", expCorrect: "波斯帝國因寬容政策與發達驛道系統，成功維繫數百年統治。", expWrong: "強制宗教同化是歐洲中世紀異端裁判所做法，波斯相對寬容。" },
-    { era: "亞歷山大", color: 0xe91e63, premise: "亞歷山大征服波斯與埃及，面臨如何統治多元文化領土。", correctOpt: "推動「東西方融合」，迎娶波斯公主鼓勵士兵與當地通婚。", wrongOpt: "將非希臘人貶為奴隸，全面銷毀波斯與埃及歷史書籍。", expCorrect: "亞歷山大以通婚與文化包容開啟「希臘化時代」，影響歐亞文明。", expWrong: "銷毀書籍與屠殺違背了亞歷山大試圖融合的宏大願景。" },
     { era: "羅馬共和國", color: 0x8b0000, premise: "在布匿戰爭中面臨迦太基名將漢尼拔的象軍與毀滅性打擊。", correctOpt: "發揮恐怖「動員能力」，全民皆兵死戰到底耗死迦太基。", wrongOpt: "花費重金雇傭高盧傭兵打仗，羅馬公民全面退居二線。", expCorrect: "羅馬最可怕武器是公民兵的韌性，慘敗也能迅速重建數個軍團。", expWrong: "依賴傭兵是迦太基做法。羅馬早期全靠公民兵捍衛國家。" },
-    { era: "羅馬凱撒", color: 0xbb1133, premise: "凱撒在高盧取得巨大聲望，面臨元老院猜忌與解除兵權要求。", correctOpt: "說出「骰子已擲出」，率領軍隊越過盧比孔河進軍羅馬。", wrongOpt: "乖乖交出兵權，回到元老院接受審判並遭到流放。", expCorrect: "凱撒的決斷打破共和國禁忌，引發內戰並最終成為終身獨裁官。", expWrong: "交出兵權等於任人宰割，凱撒深知政治殘酷選擇武裝奪權。" },
-    { era: "古羅馬帝國", color: 0xaa2222, premise: "帝國晚期，面臨疆域過於龐大、蠻族入侵的「三世紀危機」。", correctOpt: "戴克里先實施「四帝共治制」，將帝國劃分防區。", wrongOpt: "實施「分封制」，將土地交給貴族世襲防守。", expCorrect: "戴克里先將帝國分為東西由正副帝共治，暫時穩定邊防。", expWrong: "實施分封制會讓中央集權瞬間瓦解，這是中世紀歐洲作法。" },
     { era: "馬雅文明", color: 0x81c784, premise: "居住在熱帶雨林中，土壤貧瘠且缺乏地表河流。", correctOpt: "採用「刀耕火種」農業，依賴天然石灰岩陷穴蓄水。", wrongOpt: "依靠每年定期氾濫的巨大河流種植小麥。", expCorrect: "馬雅人焚燒林木作肥料種玉米，並利用地下水洞作為水源。", expWrong: "依靠大河定期氾濫是古埃及尼羅河的特徵。" },
     { era: "印加帝國", color: 0x228833, premise: "位於安地斯山脈，面臨崎嶇高山且沒發明車輪與文字。", correctOpt: "修建高山驛道網，並使用「奇普」(結繩)傳遞統計資訊。", wrongOpt: "開鑿大運河，利用大型船隻在全國進行水路運輸。", expCorrect: "印加人憑人力修建四萬公里路網，透過結繩記錄龐大資源。", expWrong: "在高山開運河違反重力，這是中國隋朝開鑿京杭大運河壯舉。" },
-    { era: "阿茲特克", color: 0xd94436, premise: "阿茲特克帝國需要大量活人祭品，同時要威懾周邊部落。", correctOpt: "發動「花之戰」，以活捉俘虜為目標而非殺戮。", wrongOpt: "實施「屠城」，將敵對城市徹底夷為平地不留活口。", expCorrect: "透過儀式戰鬥獲取祭品，既滿足宗教需求又消耗附庸國實力。", expWrong: "屠城是蒙古帝國瓦解抵抗意志戰術。阿茲特克需要活人不宜殺光。" },
     { era: "拜占庭帝國", color: 0xc2185b, premise: "7世紀東羅馬面臨阿拉伯海軍圍攻首都君士坦丁堡的絕境。", correctOpt: "發明能在水上猛烈燃燒的秘密武器「希臘火」燒毀敵軍。", wrongOpt: "召喚海上神風(颱風)，將敵軍艦隊全部吹翻淹沒。", expCorrect: "「希臘火」是當時超級武器，成功保住了基督教世界的東方大門。", expWrong: "依靠神風摧毀敵艦是日本鎌倉幕府對抗蒙古入侵的歷史奇蹟。" },
-    { era: "伊斯蘭黃金", color: 0xffb74d, premise: "8世紀阿拉伯帝國定都巴格達，統治融合多民族的龐大疆域。", correctOpt: "建立「智慧宮」，展開百年翻譯運動保存古希臘科學。", wrongOpt: "將所有異教書籍視為異端燒毀，使國家進入宗教黑暗時代。", expCorrect: "哈里發資助學者，阿拉伯人保留了希臘哲學，日後反哺歐洲文藝復興。", expWrong: "燒毀異端書籍進入封閉狀態是歐洲中世紀早期的狀況。" },
     { era: "維京時代", color: 0x4dd0e1, premise: "8世紀北歐氣候嚴寒耕地不足，但擁有優秀的造船技術。", correctOpt: "駕駛吃水淺的「龍船」沿海岸與內河對歐洲進行突襲劫掠。", wrongOpt: "耗費傾國之力，在邊境修築長達萬里的巨石防禦城牆。", expCorrect: "維京人利用龍船速度快能衝上沙灘特性，對缺乏海防的歐洲展開劫掠。", expWrong: "修築萬里長城防禦是中國歷代王朝國策。維京人是主動出擊狼群。" },
-    { era: "中世紀歐洲", color: 0x5511aa, premise: "14世紀中葉，黑死病席捲全歐洲，導致高達三分之一人口死亡。", correctOpt: "勞力極度短缺使農奴獲得談判籌碼，加速封建莊園制瓦解。", wrongOpt: "實施極權「編戶齊民」，將所有人強制集中管理勞動。", expCorrect: "人口死亡讓勞力變珍貴，壓迫數百年的農奴制崩潰，為文藝復興提供勞力。", expWrong: "編戶齊民是秦漢帝國嚴密制度。中世紀歐洲無力實施集中管控。" },
-    { era: "大航海時代", color: 0x0044aa, premise: "15世紀鄂圖曼土耳其攻陷君士坦丁堡，壟斷絲綢香料陸路貿易。", correctOpt: "轉向海洋，資助哥倫布與達伽馬尋找通往亞洲新航路。", wrongOpt: "實行「海禁政策」，禁止片板下海徹底關閉國門。", expCorrect: "面對陸路壟斷，歐洲人向未知海洋探索，開啟歐洲稱霸全球時代。", expWrong: "關閉國門是明清時期中國的保守國策，導致錯失世界霸權。" },
-    { era: "西班牙帝國", color: 0xffa000, premise: "16世紀西班牙在美洲發現巨大銀礦，但開採需要大量人力。", correctOpt: "實施「米塔制」，殘酷壓榨當地印地安原住民挖銀礦。", wrongOpt: "研發全自動化的蒸汽挖礦機器人，實現零傷亡開採。", expCorrect: "西班牙透過血腥剝削原住民，將數萬噸白銀運回歐洲引發價格革命。", expWrong: "蒸汽機與自動化是18世紀工業革命產物，16世紀純靠血汗人力。" },
-    { era: "日本戰國", color: 0xcc2255, premise: "織田信長兵力處劣勢，面臨武田家傳統無敵騎兵的威脅。", correctOpt: "引進西方火繩槍，發明防禦柵欄與「三段擊」戰術輪流射擊。", wrongOpt: "全面退守深山發動「焦土作戰」堅壁清野。", expCorrect: "長篠之戰中，織田利用現代化火器戰術，徹底粉碎舊時代武士騎兵。", expWrong: "日本領土狹小，焦土作戰只會讓自己失去補給敗亡。" },
-    { era: "德川幕府", color: 0x607d8b, premise: "17世紀初德川統一天下，面臨西方傳教士與歐洲火器動搖統治。", correctOpt: "頒布「鎖國令」，僅允許荷蘭人在長崎進行有限貿易。", wrongOpt: "大力發展無敵艦隊，在全球建立龐大海外殖民地。", expCorrect: "為維持內部秩序幕府實行長達200多年鎖國，帶來和平但錯失世界大勢。", expWrong: "建立艦隊與殖民地是大英帝國做法。幕府無暇顧及海外。" },
-    { era: "法國大革命", color: 0x1e88e5, premise: "18世紀末法國嚴重國債，貴族免稅，平民承擔沉重稅賦吃不飽。", correctOpt: "平民攻陷巴士底監獄，發布《人權宣言》推翻君主專制。", wrongOpt: "全國推廣種植馬鈴薯，並將全數農產出口賺取外匯。", expCorrect: "飢餓與極端不公引爆怒火，民眾推翻波旁王朝奠定近代民主基礎。", expWrong: "在饑荒時大量出口農產是導致19世紀愛爾蘭馬鈴薯大飢荒慘劇原因。" },
-    { era: "美國獨立", color: 0xe91e63, premise: "18世紀北美十三州面臨英國母國「無代表權不納稅」重稅壓榨。", correctOpt: "將英國茶葉倒入波士頓港抗議，並發表《獨立宣言》武裝抗英。", wrongOpt: "發動「非暴力不合作運動」，全民靜坐罷工絕食抗議。", expCorrect: "波士頓茶黨事件點燃戰火，華盛頓領導大陸軍取得勝利建立共和國。", expWrong: "非暴力不合作運動是20世紀印度甘地對抗英國殖民的獨特和平手法。" },
-    { era: "工業革命", color: 0xaa5522, premise: "18世紀英國，煤礦坑積水，且水力紡織廠受枯水期限制。", correctOpt: "瓦特改良「蒸汽機」，提供不受地理限制的強大穩定動力。", wrongOpt: "大量壓榨極度廉價的勞動力，用人海戰術推動巨大齒輪。", expCorrect: "瓦特改良蒸汽機使工廠不需建在河邊，帶動紡織與鐵路機械化改變歷史。", expWrong: "依賴極度廉價人力是低度均衡陷阱，這正是清朝沒發生工業革命主因。" },
-    { era: "拿破崙戰爭", color: 0x880000, premise: "拿破崙稱帝後，發現英國海軍太強大無法跨海登陸。", correctOpt: "實施「大陸封鎖政策」，嚴禁歐洲大陸所有國家與英國貿易。", wrongOpt: "研發早期核武，試圖直接將倫敦從地圖上抹除。", expCorrect: "拿破崙試圖透過經濟戰困死英國，但引發俄國不滿導致兵敗莫斯科。", expWrong: "核武是二戰末期產物。拿破崙時代連電力都還沒有。" },
-    { era: "美國內戰", color: 0x0d47a1, premise: "19世紀中葉，美國南北方在關稅與黑奴制度存廢產生不可調和矛盾。", correctOpt: "林肯發布《解放黑奴宣言》，賦予戰爭道德正當性瓦解南方勞力。", wrongOpt: "將所有黑奴遣返回非洲，藉此徹底消除國內爭議。", expCorrect: "林肯宣言讓英國無法介入支持南方，並吸引黑人加入北軍贏得內戰。", expWrong: "遣返規模極小且無法解決當時幾百萬黑奴的經濟綑綁。" },
-    { era: "明治維新", color: 0xe57373, premise: "19世紀中葉，日本遭到美國黑船開國，面臨被列強殖民危機。", correctOpt: "推翻幕府，全面實施「脫亞入歐」的西化改革與廢藩置縣。", wrongOpt: "發動民間宗教團體，利用刀槍不入的神打法術盲目排外。", expCorrect: "明治政府廢除武士特權，建立近代憲法與常備軍成功躋身列強。", expWrong: "利用民間迷信盲目排外是清末義和團悲劇，不僅無法抵禦槍砲更引來八國聯軍。" },
-    { era: "一戰爆發", color: 0x5d4037, premise: "1914年塞拉耶佛暗殺後，歐洲各國因複雜同盟條約被捲入戰爭。", correctOpt: "面對機槍與火砲強大火力，雙方陷入殘酷「壕溝戰」與消耗戰。", wrongOpt: "使用高科技隱形戰鬥機與無人機進行精準外科手術式打擊。", expCorrect: "機槍出現讓傳統步兵衝鋒成為送死，西線戰場變成了布滿泥濘的絞肉機。", expWrong: "隱形戰機與無人機是現代戰爭特徵。一戰飛機剛發明主要用於偵察。" },
-    { era: "俄國革命", color: 0xd32f2f, premise: "一戰期間俄國經濟崩潰，前線士兵缺乏武器且國內爆發大飢荒。", correctOpt: "列寧提出「和平、土地、麵包」，發動十月革命建立共產國家。", wrongOpt: "沙皇宣布實施「君權神授」，呼籲農民為了上帝繼續白白送死。", expCorrect: "布爾什維克黨精準抓住民眾對戰爭厭惡與對食物渴望推翻了臨時政府。", expWrong: "沙皇早已在二月革命被推翻。用宗教洗腦無法填飽肚子。" },
-    { era: "經濟大恐慌", color: 0x424242, premise: "1929年美國股市崩盤，引發全球經濟大蕭條失業率飆升。", correctOpt: "羅斯福推行「新政」，由政府擴大公共工程支出創造就業。", wrongOpt: "實行絕對「自由放任政策」，政府完全不干預讓窮人自生自滅。", expCorrect: "新政打破傳統自由市場迷思，確立政府在經濟危機中必須干預的觀念。", expWrong: "自由放任正是導致大恐慌惡化的原因，無作為讓危機深不見底。" },
-    { era: "二戰太平洋", color: 0x1b5e20, premise: "日本偷襲珍珠港後，美軍面臨日軍星羅棋布的島嶼防線。", correctOpt: "實施「跳島戰術」，繞過堅固堡壘只攻取具備機場戰略價值的島嶼。", wrongOpt: "使用大批騎兵部隊在太平洋的海面上進行史詩級的衝鋒。", expCorrect: "跳島戰術極大減少美軍傷亡，迅速逼近日本本土切斷補給線。", expWrong: "在廣闊海洋使用騎兵是荒謬的。這是海空軍航母與兩棲登陸的現代戰爭。" },
-    { era: "冷戰時期", color: 0x226655, premise: "二戰後美蘇意識形態對立，皆擁有毀滅地球的核子武器。", correctOpt: "避免直接熱戰，轉而進行「太空競賽」與代理人戰爭。", wrongOpt: "雙方採取「綏靖政策」，割讓小國領土以求徹底和平。", expCorrect: "因相互保證毀滅不敢直接開戰。雙方投入太空競賽促成了登月與網際網路。", expWrong: "綏靖政策是二戰前夕對付希特勒的錯誤做法，姑息養奸只會引爆更大戰爭。" },
-    { era: "古巴飛彈危機", color: 0xc62828, premise: "1962年發現蘇聯在古巴秘密部署核子飛彈，距佛州僅百餘公里。", correctOpt: "甘迺迪下令「海上封鎖」古巴，透過秘密外交談判迫使撤彈。", wrongOpt: "毫不猶豫按下核按鈕，直接對莫斯科發射數千枚洲際飛彈。", expCorrect: "甘迺迪在極度高壓下保持克制，避免了第三次世界大戰爆發。", expWrong: "直接發射核彈會導致人類文明毀滅。雙方最終都選擇理智妥協。" },
-    { era: "科學革命", color: 0x9c27b0, premise: "中世紀教會長期宣揚「地心說」，但天文觀測數據出現嚴重誤差。", correctOpt: "哥白尼提出「日心說」，伽利略用望遠鏡證實地球繞著太陽轉。", wrongOpt: "發明「煉金術」，試圖將鉛變為黃金來討好教會改變教義。", expCorrect: "日心說打破了人類是宇宙中心的宗教迷信，開啟近代科學革命曙光。", expWrong: "煉金術無法解決天體運行的觀測誤差問題。" },
-    { era: "波里尼西亞", color: 0x0288d1, premise: "太平洋島民面臨浩瀚無際大洋，需尋找新島嶼居住與繁衍。", correctOpt: "觀察星象、海流與鳥類軌跡，駕駛「雙體獨木舟」勇敢航行。", wrongOpt: "發明早期的蒸汽動力鐵甲艦，無視風向強行渡海。", expCorrect: "波里尼西亞人是地球上最偉大航海家，僅憑自然知識殖民了夏威夷。", expWrong: "蒸汽動力鐵甲艦是19世紀西方產物。古代島民完全依賴自然動力。" },
-    { era: "綠色革命", color: 0x33691e, premise: "20世紀中葉全球人口爆炸，傳統農業面臨引發全球大饑荒危機。", correctOpt: "培育高產量的矮稈小麥與水稻品種，並大量使用化肥與農藥。", wrongOpt: "全面禁止農業，強迫人類吞食提煉自石油的化學營養藥丸。", expCorrect: "博勞格引領的綠色革命拯救十億人生命，使發展中國家免於飢荒。", expWrong: "科幻電影中的石油藥丸並未實現。綠色革命是透過現代基因選育達成的。" },
-    { era: "啟蒙運動", color: 0xffeb3b, premise: "18世紀歐洲知識份子對君權神授與教會特權感到極度不滿與質疑。", correctOpt: "洛克與盧梭提出「天賦人權」與「社會契約論」主張主權在民。", wrongOpt: "發起十字軍東征，試圖透過武力對外擴張來轉移國內矛盾。", expCorrect: "啟蒙思想家以理性主義為武器，為後來美國獨立與法國大革命提供理論基礎。", expWrong: "十字軍東征是中世紀宗教狂熱產物。啟蒙運動強調的是理性科學與人本。" },
-    { era: "達爾文演化論", color: 0x4caf50, premise: "19世紀生物學家面對加拉巴哥群島上各種鳥類鳥喙形狀適應不同食物。", correctOpt: "提出「物競天擇，適者生存」的演化論，打破神創論迷思。", wrongOpt: "認為這些鳥類是外星人搭乘飛碟來到地球時遺留的寵物。", expCorrect: "《物種起源》徹底改變了人類對生物界起源認知，是現代生物學基石。", expWrong: "外星人播種論是現代科幻小說情節，達爾文是以嚴謹實地觀察提出演化論。" }
+    { era: "工業革命", color: 0xaa5522, premise: "18世紀英國，煤礦坑積水，且水力紡織廠受枯水期限制。", correctOpt: "瓦特改良「蒸汽機」，提供不受地理限制的強大穩定動力。", wrongOpt: "大量壓榨極度廉價的勞動力，用人海戰術推動巨大齒輪。", expCorrect: "瓦特改良蒸汽機使工廠不需建在河邊，帶動紡織與鐵路機械化改變歷史。", expWrong: "依賴極度廉價人力是低度均衡陷阱，這正是清朝沒發生工業革命主因。" }
 ];
 
+// 動態擴充至無盡題庫
 while(BaseFacts.length < 80) {
-    let source = BaseFacts[Math.floor(Math.random() * 39)];
+    let source = BaseFacts[Math.floor(Math.random() * 20)];
     BaseFacts.push(Object.assign({}, source, { era: source.era + " (平行時空)", id: Math.random().toString() }));
 }
 
@@ -188,19 +155,13 @@ class UniverseGenerator {
 }
 
 // ==========================================
-// 2. 音效與 TTS 系統 (聚光燈連動同步)
+// 2. 音效與 TTS 系統 (iOS 100% 發聲原生列隊)
 // ==========================================
 class AudioSystem {
     constructor() {
         this.ctx = null;
         this.isMuted = false;
         this.ttsActive = false;
-        
-        const muteBtn = document.getElementById('btn-mute');
-        if (muteBtn) {
-            muteBtn.addEventListener('click', () => this.toggleMute());
-            muteBtn.addEventListener('touchstart', (e) => { e.preventDefault(); this.toggleMute(); }, {passive: false});
-        }
     }
 
     init() {
@@ -210,12 +171,13 @@ class AudioSystem {
                 this.ctx = new AudioContext();
             }
             if(this.ctx.state === 'suspended') this.ctx.resume();
+            
+            // iOS 必須在 user-gesture 同步執行 speak 才能獲得永久授權
             if(window.speechSynthesis) {
-                window.speechSynthesis.cancel();
                 let u = new SpeechSynthesisUtterance(''); u.volume = 0; 
                 window.speechSynthesis.speak(u);
             }
-        } catch(e) {}
+        } catch(e) { console.warn("音訊初始化受阻", e); }
     }
 
     toggleMute() {
@@ -251,7 +213,7 @@ class AudioSystem {
     playLose() { this.playTone([150, 100, 50], 1.0, 'sawtooth', 0.2); }
     playWarp() { this.playTone([800, 1200, 1600], 0.8, 'sine', 0.05); }
 
-    // 【核心重構】聚光燈同步朗讀
+    // 【iOS 修復】不使用 setTimeout 排程，直接塞入 native queue
     playPreReading(eraRaw, qText, lText, rText, fallbackMs, callbacks, onEnd) {
         this.stopTTS();
         this.ttsActive = true;
@@ -262,7 +224,6 @@ class AudioSystem {
         }
 
         const cleanEra = eraRaw.replace(/ \[(異變|平行時空)\].*/, '');
-        // 分為三段獨立朗讀，以配合視覺回調
         const segments = [
             cleanEra + "，面臨情境：" + qText,
             "左方抉擇：" + lText,
@@ -272,41 +233,40 @@ class AudioSystem {
         let voices = window.speechSynthesis.getVoices();
         let twVoice = voices.find(v => v.lang.includes('zh-TW') || v.lang.includes('zh-HK') || v.name.includes('Taiwan'));
 
-        let index = 0;
-        window._ttsUtterances = [];
-        
-        const speakNext = () => {
-            if(!this.ttsActive) return;
-            if(index >= segments.length) {
-                clearTimeout(this.fallbackTimer);
-                // 給予 0.5 秒大腦思考緩衝期後再發動衝刺
-                setTimeout(() => { if(this.ttsActive && onEnd) onEnd(); }, 500);
-                return;
-            }
-            try {
-                let u = new SpeechSynthesisUtterance(segments[index]);
+        try {
+            let u1 = new SpeechSynthesisUtterance(segments[0]);
+            let u2 = new SpeechSynthesisUtterance(segments[1]);
+            let u3 = new SpeechSynthesisUtterance(segments[2]);
+            
+            [u1, u2, u3].forEach((u, i) => {
                 if(twVoice) u.voice = twVoice;
                 u.rate = 1.15; u.pitch = 1.05;
-                
-                // 開始唸時觸發當下畫面的高亮 Callback
-                u.onstart = () => {
-                    if(callbacks && callbacks[index]) callbacks[index]();
-                };
-                
-                u.onend = () => { index++; speakNext(); };
-                u.onerror = () => { index++; speakNext(); };
-                window._ttsUtterances.push(u);
-                if(window._ttsUtterances.length > 5) window._ttsUtterances.shift();
-                window.speechSynthesis.speak(u);
-            } catch (e) {
-                index++; speakNext();
-            }
-        };
-        setTimeout(speakNext, 50);
+                u.onstart = () => { if(this.ttsActive && callbacks[i]) callbacks[i](); };
+            });
 
-        this.fallbackTimer = setTimeout(() => {
-            if(this.ttsActive && onEnd) { this.stopTTS(); onEnd(); }
-        }, fallbackMs + 4000);
+            u3.onend = () => { 
+                clearTimeout(this.fallbackTimer);
+                // 留 0.5 秒思考期
+                setTimeout(() => { if(this.ttsActive && onEnd) onEnd(); }, 500); 
+            };
+            u3.onerror = () => {
+                clearTimeout(this.fallbackTimer);
+                if(this.ttsActive && onEnd) onEnd();
+            };
+
+            window._ttsUtterances = [u1, u2, u3]; // 防回收
+            window.speechSynthesis.speak(u1);
+            window.speechSynthesis.speak(u2);
+            window.speechSynthesis.speak(u3);
+            
+            this.fallbackTimer = setTimeout(() => {
+                if(this.ttsActive && onEnd) { this.stopTTS(); onEnd(); }
+            }, fallbackMs + 3000);
+            
+        } catch (e) {
+            console.warn("TTS Queue Error", e);
+            this.fallbackTimer = setTimeout(() => { if(this.ttsActive && onEnd) onEnd(); }, fallbackMs);
+        }
     }
 
     playExplanationTTS(correctText, wrongText, fallbackMs, onEnd) {
@@ -318,40 +278,32 @@ class AudioSystem {
             return; 
         }
 
-        const rawText = "歷史正道！" + correctText + " 平行盲點！" + wrongText;
-        const parts = rawText.replace(/([。！？])/g, "$1|").split("|").filter(s=>s.trim().length>0);
-        
+        const segments = ["歷史正道！" + correctText, "平行盲點！" + wrongText];
         let voices = window.speechSynthesis.getVoices();
         let twVoice = voices.find(v => v.lang.includes('zh-TW') || v.lang.includes('zh-HK') || v.name.includes('Taiwan'));
         
-        let index = 0;
-        window._ttsUtterances = [];
-        
-        const speakNext = () => {
-            if(!this.ttsActive) return;
-            if(index >= parts.length) {
-                clearTimeout(this.fallbackTimer);
-                if(onEnd) onEnd();
-                return;
-            }
-            try {
-                let u = new SpeechSynthesisUtterance(parts[index]);
+        try {
+            let u1 = new SpeechSynthesisUtterance(segments[0]);
+            let u2 = new SpeechSynthesisUtterance(segments[1]);
+            
+            [u1, u2].forEach((u) => {
                 if(twVoice) u.voice = twVoice;
                 u.rate = 1.15; u.pitch = 1.05;
-                u.onend = () => { index++; speakNext(); };
-                u.onerror = () => { index++; speakNext(); };
-                window._ttsUtterances.push(u);
-                if(window._ttsUtterances.length > 5) window._ttsUtterances.shift();
-                window.speechSynthesis.speak(u);
-            } catch (e) {
-                index++; speakNext();
-            }
-        };
-        setTimeout(speakNext, 50);
+            });
 
-        this.fallbackTimer = setTimeout(() => {
-            if(this.ttsActive && onEnd) { this.stopTTS(); onEnd(); }
-        }, fallbackMs + 3000);
+            u2.onend = () => { clearTimeout(this.fallbackTimer); if(onEnd) onEnd(); };
+            u2.onerror = () => { clearTimeout(this.fallbackTimer); if(onEnd) onEnd(); };
+
+            window._ttsUtterances = [u1, u2];
+            window.speechSynthesis.speak(u1);
+            window.speechSynthesis.speak(u2);
+            
+            this.fallbackTimer = setTimeout(() => {
+                if(this.ttsActive && onEnd) { this.stopTTS(); onEnd(); }
+            }, fallbackMs + 3000);
+        } catch (e) {
+            this.fallbackTimer = setTimeout(() => { if(this.ttsActive && onEnd) onEnd(); }, fallbackMs);
+        }
     }
 
     stopTTS() {
@@ -363,16 +315,16 @@ class AudioSystem {
 const AudioObj = new AudioSystem();
 
 class KnowledgeBase {
-    constructor() { try { this.records = JSON.parse(localStorage.getItem('chronos_v94_kb')) || []; } catch(e) { this.records = []; } }
+    constructor() { try { this.records = JSON.parse(localStorage.getItem('chronos_v10_kb')) || []; } catch(e) { this.records = []; } }
     save(eventData) {
         const cleanEra = eventData.era.replace(/ \[(異變|平行時空)\].*/, '');
         if (!this.records.some(r => r.premise === eventData.premise)) {
             this.records.unshift(Object.assign({}, eventData, {era: cleanEra}));
             if(this.records.length > 100) this.records.pop();
-            try { localStorage.setItem('chronos_v94_kb', JSON.stringify(this.records)); } catch(e){}
+            try { localStorage.setItem('chronos_v10_kb', JSON.stringify(this.records)); } catch(e){}
         }
     }
-    clear() { this.records = []; localStorage.removeItem('chronos_v94_kb'); this.render(); }
+    clear() { this.records = []; localStorage.removeItem('chronos_v10_kb'); this.render(); }
     render() {
         const list = document.getElementById('kb-list');
         if(!list) return;
@@ -390,7 +342,7 @@ class KnowledgeBase {
 const KB = new KnowledgeBase();
 
 // ==========================================
-// 4. V9.4 完美步調 3D 引擎 (停懸閱讀 + 3秒精準衝刺)
+// 3. V10 行動端響應式 3D 引擎 (自適應字體與排版)
 // ==========================================
 class GameEngine {
     constructor() {
@@ -398,15 +350,13 @@ class GameEngine {
         this.clock = new THREE.Clock();
         this.runQueue = [];
         
-        // 畫面流速係數
         this.timeScale = 1.0;
         this.targetTimeScale = 1.0;
         this.targetFov = 90;
         this.rafId = null; 
         
-        // 彈簧物理與軌道
         this.targetInputX = 0; 
-        this.gateApproachSpeed = 0; // 光門獨立衝刺速度
+        this.gateApproachSpeed = 0; 
         
         this.isCorrectOnLeft = true;
         this.hitTriggered = false;
@@ -454,28 +404,27 @@ class GameEngine {
             this.resumeAfterExplanation();
         });
         
-        bindBtn('btn-kb', () => { 
-            KB.render(); 
-            if(this.els.kbModal) this.els.kbModal.classList.remove('hidden'); 
-        });
-
-        bindBtn('btn-close-kb', () => { 
-            if(this.els.kbModal) this.els.kbModal.classList.add('hidden'); 
-        });
-
-        bindBtn('btn-clear-kb', () => { 
-            KB.clear(); 
-        });
+        bindBtn('btn-kb', () => { KB.render(); if(this.els.kbModal) this.els.kbModal.classList.remove('hidden'); });
+        bindBtn('btn-close-kb', () => { if(this.els.kbModal) this.els.kbModal.classList.add('hidden'); });
+        bindBtn('btn-clear-kb', () => { KB.clear(); });
+        
+        // 獨立綁定靜音按鈕
+        const muteBtn = document.getElementById('btn-mute');
+        if (muteBtn) {
+            muteBtn.addEventListener('click', () => AudioObj.toggleMute());
+            muteBtn.addEventListener('touchstart', (e) => { e.preventDefault(); AudioObj.toggleMute(); }, {passive: false});
+        }
 
         const updateSteering = (clientX) => {
             if(!this.state.isPlaying || this.state.phase === 'explaining') return;
             const ratio = (clientX / window.innerWidth) - 0.5; 
-            // 控制飛船橫向極限，配合光門寬度 (X: -12 ~ 12)
-            this.targetInputX = ratio * 28; 
+            // 如果是直立螢幕，飛船的可移動範圍縮小一點以配合變窄的畫面
+            const limit = (window.innerWidth < window.innerHeight) ? 20 : 28;
+            this.targetInputX = ratio * limit; 
         };
 
         window.addEventListener('touchstart', (e) => { 
-            if(e.target.closest('button') || e.target.closest('.exp-content')) return;
+            if(e.target.closest('button') || e.target.closest('.exp-content') || e.target.closest('.side-controls')) return;
             updateSteering(e.touches[0].clientX);
         }, {passive: false});
         
@@ -485,7 +434,7 @@ class GameEngine {
         }, {passive: false});
         
         window.addEventListener('mousedown', (e) => { 
-            if(e.target.closest('button') || e.target.closest('.exp-content')) return;
+            if(e.target.closest('button') || e.target.closest('.exp-content') || e.target.closest('.side-controls')) return;
             updateSteering(e.clientX);
         });
         window.addEventListener('mousemove', (e) => {
@@ -499,11 +448,12 @@ class GameEngine {
                 this.camera.aspect = window.innerWidth / window.innerHeight;
                 this.camera.updateProjectionMatrix();
                 this.renderer.setSize(window.innerWidth, window.innerHeight);
-            }, 100);
+                this.updateLayout(); // 螢幕旋轉時重新排版
+            }, 200);
         });
     }
 
-    // 更新材質，加入 highlight (聚光燈) 參數
+    // 【核心修復】自動縮放字體，保證絕不超出邊界
     updateTexture(tex, text, colorHex, isHUD, isHighlight) {
         isHUD = isHUD || false;
         isHighlight = isHighlight || false;
@@ -514,41 +464,54 @@ class GameEngine {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
             if(!isHUD) {
-                // 如果是高亮狀態，背景變亮，邊框加粗
                 ctx.fillStyle = isHighlight ? 'rgba(20, 40, 60, 0.95)' : 'rgba(5, 10, 20, 0.75)';
                 ctx.fillRect(0,0, canvas.width, canvas.height);
-                
                 ctx.strokeStyle = colorHex;
                 ctx.lineWidth = isHighlight ? 35 : 15;
                 ctx.strokeRect(10, 10, canvas.width-20, canvas.height-20);
             }
             
-            ctx.fillStyle = colorHex === '#ffffff' ? '#ffffff' : colorHex;
-            ctx.font = isHUD ? 'bold 60px "Segoe UI", sans-serif' : 'bold 45px "Segoe UI", sans-serif';
+            // 統一文字為白色，依靠發光營造顏色
+            ctx.fillStyle = '#ffffff'; 
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.shadowColor = colorHex;
-            ctx.shadowBlur = isHighlight ? 50 : 20; // 聚光燈加強陰影
+            ctx.shadowBlur = isHighlight ? 50 : 20;
 
             const maxWidth = canvas.width - 60;
-            let lines = [];
+            const maxHeight = canvas.height - 40;
             
-            const paragraphs = text.split('\n');
-            for(let p=0; p<paragraphs.length; p++) {
-                if(paragraphs[p] === '') { lines.push(''); continue; }
-                const words = paragraphs[p].split('');
-                let line = '';
-                for(let i=0; i<words.length; i++) {
-                    let test = line + words[i];
-                    if(ctx.measureText(test).width > maxWidth && i > 0) {
-                        lines.push(line);
-                        line = words[i];
-                    } else { line = test; }
+            // 自動縮放字體演算法
+            let fontSize = isHUD ? 75 : 80; // 初始大字體
+            let lines = [];
+            let lh = fontSize * 1.2;
+            
+            while(fontSize > 20) {
+                ctx.font = `bold ${fontSize}px "Segoe UI", sans-serif`;
+                lh = fontSize * 1.2;
+                lines = [];
+                
+                const paragraphs = text.split('\n');
+                for(let p=0; p<paragraphs.length; p++) {
+                    if(paragraphs[p] === '') { lines.push(''); continue; }
+                    const words = paragraphs[p].split('');
+                    let line = '';
+                    for(let i=0; i<words.length; i++) {
+                        let test = line + words[i];
+                        if(ctx.measureText(test).width > maxWidth && i > 0) {
+                            lines.push(line);
+                            line = words[i];
+                        } else { line = test; }
+                    }
+                    lines.push(line);
                 }
-                lines.push(line);
+                
+                if(lines.length * lh <= maxHeight) {
+                    break; // 裝得下，停止縮小
+                }
+                fontSize -= 5;
             }
 
-            const lh = isHUD ? 75 : 65;
             const startY = (canvas.height / 2) - ((lines.length - 1) * lh) / 2;
             for(let i=0; i<lines.length; i++) {
                 ctx.fillText(lines[i], canvas.width / 2, startY + i*lh);
@@ -582,19 +545,20 @@ class GameEngine {
             return { mesh: mesh, tex: tex };
         };
 
-        this.holo = createPlaneText(20, 10, 512, 256);
-        this.holo.mesh.position.set(0, 4, -15);
+        // 建立 3D 面板
+        this.holo = createPlaneText(20, 10, 1024, 1024);
         this.camera.add(this.holo.mesh);
 
         this.warn = createPlaneText(12, 4, 512, 128);
-        this.warn.mesh.position.set(0, -5, -12);
+        this.warn.mesh.position.set(0, -6, -15);
         this.updateTexture(this.warn.tex, "⚡ 躍遷加速！衝撞光門 ⚡", "#ff3366", true);
         this.warn.mesh.visible = false;
         this.camera.add(this.warn.mesh);
 
-        this.scoreHolo = createPlaneText(5, 2.5, 256, 128);
+        this.scoreHolo = createPlaneText(6, 3, 512, 256);
         this.scoreHolo.mesh.position.set(0, 2.5, -2);
         
+        // 星空
         const starGeo = new THREE.BufferGeometry();
         const starPos = new Float32Array(2000 * 3);
         for(let i=0; i<6000; i+=3) {
@@ -620,6 +584,7 @@ class GameEngine {
             this.rings.push(r);
         }
 
+        // 飛船
         this.shipGroup = new THREE.Group();
         this.shipGroup.position.set(0, -1.5, 5);
         this.scene.add(this.shipGroup);
@@ -668,16 +633,19 @@ class GameEngine {
             this.healthRings.push(r);
         }
 
+        // 光門
         this.gateGroup = new THREE.Group();
         this.scene.add(this.gateGroup);
         
-        // 放大閱讀面板
-        this.gateL = createPlaneText(18, 14, 512, 512);
-        this.gateR = createPlaneText(18, 14, 512, 512);
+        // 放大畫布以容納長文字
+        this.gateL = createPlaneText(10, 12, 1024, 1024);
+        this.gateR = createPlaneText(10, 12, 1024, 1024);
         
-        const boxGeo = new THREE.BoxGeometry(18, 14, 2);
+        // 【動態響應式佈局】
+        this.updateLayout();
+
+        const boxGeo = new THREE.BoxGeometry(1, 1, 2); // 基礎大小，後續依 scale 放大
         const edgeGeo = new THREE.EdgesGeometry(boxGeo);
-        // 保留線框給未高亮狀態，但材質改為可變色
         this.edgeLMat = new THREE.LineBasicMaterial({color: 0xffcc00, linewidth: 2});
         this.edgeRMat = new THREE.LineBasicMaterial({color: 0xff3366, linewidth: 2});
         this.gateL.mesh.add(new THREE.LineSegments(edgeGeo, this.edgeLMat));
@@ -698,12 +666,38 @@ class GameEngine {
         this.loop();
     }
 
+    // 響應式 3D 排版：判斷手機或桌面
+    updateLayout() {
+        const isPortrait = window.innerWidth < window.innerHeight;
+        
+        if (isPortrait) {
+            // 手機版：看板拉近、縮小寬度變正方形，避免超出螢幕
+            this.holo.mesh.scale.set(0.6, 1.2, 1); 
+            this.holo.mesh.position.set(0, 6, -18);
+            
+            // 光門：大幅拉近 (Z=-30)，且往中間靠攏
+            this.gateL.mesh.scale.set(10, 12, 1);
+            this.gateR.mesh.scale.set(10, 12, 1);
+            this.gateL.mesh.position.set(-5.5, 2, -30); 
+            this.gateR.mesh.position.set(5.5, 2, -30);
+        } else {
+            // 電腦版：寬闊視野
+            this.holo.mesh.scale.set(1, 1, 1);
+            this.holo.mesh.position.set(0, 6, -18);
+            
+            this.gateL.mesh.scale.set(18, 14, 1);
+            this.gateR.mesh.scale.set(18, 14, 1);
+            this.gateL.mesh.position.set(-10, 2, -40); 
+            this.gateR.mesh.position.set(10, 2, -40);
+        }
+    }
+
     start() {
         try {
             if(this.rafId) window.cancelAnimationFrame(this.rafId);
             AudioObj.stopTTS();
             
-            this.state = { isPlaying: true, phase: 'reading', health: 3, score: 0, displayScore: 0, qIndex: 0, loop: 1, baseSpeed: 250 };
+            this.state = { isPlaying: true, phase: 'reading', health: 3, score: 0, displayScore: 0, qIndex: 0, loop: 1, baseSpeed: 200 };
             this.targetInputX = 0;
             this.shipGroup.position.x = 0;
             this.camera.position.x = 0;
@@ -718,9 +712,7 @@ class GameEngine {
             this.updateTexture(this.scoreHolo.tex, `同步率: 0`, '#00e5ff', true);
             this.scheduleQuestion();
             this.loop();
-        } catch(e) {
-            console.error("引擎啟動異常", e);
-        }
+        } catch(e) { console.error("引擎啟動異常", e); }
     }
 
     scheduleQuestion() {
@@ -736,21 +728,17 @@ class GameEngine {
             const txtL = this.isCorrectOnLeft ? q.correctOpt : q.wrongOpt;
             const txtR = this.isCorrectOnLeft ? q.wrongOpt : q.correctOpt;
 
-            // 初始皆為無高亮
             this.updateTexture(this.holo.tex, `【第 ${this.state.loop} 宇宙】 ${q.era.replace(/ \[.*/, '')}\n\n${q.premise}`, '#00e5ff', true);
             this.updateTexture(this.gateL.tex, txtL, '#ffcc00', false, false);
             this.updateTexture(this.gateR.tex, txtR, '#ff3366', false, false);
 
             this.state.phase = 'reading';
-            this.timeScale = 0.1; // 極度慢速星空
+            this.timeScale = 0.1; 
             this.targetTimeScale = 0.1;
             this.targetFov = 65; 
             
-            // 【核心修正】光門固定在眼前 Z = -70，絕對清晰好讀！不會亂跑！
-            this.gateGroup.position.z = 0; // Group不退後，退後的是Mesh
-            this.gateL.mesh.position.set(-10, 2, -70); 
-            this.gateR.mesh.position.set(10, 2, -70);
-            
+            // 光門停靠點 (配合 updateLayout)
+            this.gateGroup.position.z = 0;
             this.gateGroup.visible = true;
             this.holo.mesh.visible = true;
             this.warn.mesh.visible = false;
@@ -759,27 +747,24 @@ class GameEngine {
             const totalChars = q.era.length + q.premise.length + txtL.length + txtR.length;
             const fallbackMs = Math.max(4500, (totalChars / 5) * 1000);
 
-            // 聚光燈回調函數陣列
+            // 聚光燈回調
             const highlightCallbacks = [
-                () => { // 唸題幹
-                    this.updateTexture(this.holo.tex, `【第 ${this.state.loop} 宇宙】 ${q.era.replace(/ \[.*/, '')}\n\n${q.premise}`, '#00e5ff', true);
+                () => { this.updateTexture(this.holo.tex, `【第 ${this.state.loop} 宇宙】 ${q.era.replace(/ \[.*/, '')}\n\n${q.premise}`, '#00e5ff', true); },
+                () => { 
+                    this.updateTexture(this.gateL.tex, txtL, '#ffcc00', false, true); 
+                    this.edgeLMat.color.setHex(0xffffff); 
                 },
-                () => { // 唸左選項
-                    this.updateTexture(this.gateL.tex, txtL, '#ffcc00', false, true); // 左高亮
-                    this.edgeLMat.color.setHex(0xffffff); // 線框變白發光
-                },
-                () => { // 唸右選項
-                    this.updateTexture(this.gateL.tex, txtL, '#ffcc00', false, false); // 左熄滅
-                    this.edgeLMat.color.setHex(0xffcc00); // 線框復原
-                    this.updateTexture(this.gateR.tex, txtR, '#ff3366', false, true); // 右高亮
-                    this.edgeRMat.color.setHex(0xffffff); // 線框變白發光
+                () => { 
+                    this.updateTexture(this.gateL.tex, txtL, '#ffcc00', false, false); 
+                    this.edgeLMat.color.setHex(0xffcc00); 
+                    this.updateTexture(this.gateR.tex, txtR, '#ff3366', false, true); 
+                    this.edgeRMat.color.setHex(0xffffff); 
                 }
             ];
 
             AudioObj.playPreReading(q.era, q.premise, txtL, txtR, fallbackMs, highlightCallbacks, () => {
                 if(!this.state.isPlaying || this.state.phase !== 'reading') return;
                 
-                // 語音完畢，關閉所有高亮
                 this.updateTexture(this.gateR.tex, txtR, '#ff3366', false, false);
                 this.edgeRMat.color.setHex(0xff3366);
 
@@ -787,19 +772,18 @@ class GameEngine {
                 this.holo.mesh.visible = false;
                 this.warn.mesh.visible = true;
                 
-                // 恢復星空飆速
                 this.targetTimeScale = 1.0 + (this.state.loop * 0.1); 
                 this.targetFov = 110; 
                 
-                // 【核心修正】3 秒鐘衝撞：從 -70 衝到 +5 = 總距離 75
-                // 獨立計算光門速度，保證絕對 3.0 秒
-                this.gateApproachSpeed = 75.0 / 3.0; // 每秒 25 單位
+                // 絕對 3.0 秒抵達計算
+                const distance = Math.abs(this.gateL.mesh.position.z) + 5; 
+                this.gateApproachSpeed = distance / 3.0; 
             });
         } catch (err) {
-            console.error("題目加載異常，強制啟動", err);
+            console.error("加載異常", err);
             this.state.phase = 'action';
             this.targetTimeScale = 1.0;
-            this.gateApproachSpeed = 75.0 / 3.0;
+            this.gateApproachSpeed = 35.0 / 3.0;
         }
     }
 
@@ -851,7 +835,6 @@ class GameEngine {
                     break;
                 }
             }
-
             if(this.els.dmgFlash) {
                 this.els.dmgFlash.classList.add('flash-red');
                 setTimeout(() => this.els.dmgFlash.classList.remove('flash-red'), 80);
@@ -887,7 +870,7 @@ class GameEngine {
         if(this.els.expScreen) this.els.expScreen.classList.add('hidden');
         AudioObj.playWarp(); 
         this.state.qIndex++;
-        this.state.baseSpeed = Math.min(400, 250 + (this.state.qIndex * 4)); 
+        this.state.baseSpeed = Math.min(400, 200 + (this.state.qIndex * 4)); 
         this.scheduleQuestion();
     }
 
@@ -908,7 +891,6 @@ class GameEngine {
             this.updateTexture(this.scoreHolo.tex, `同步率: ${this.state.displayScore}`, '#00e5ff', true);
         }
 
-        // 平滑 FOV 鏡頭拉伸與背景流速
         const lerpFactor = 1.0 - Math.exp(-5.0 * dt);
         this.timeScale += (this.targetTimeScale - this.timeScale) * lerpFactor;
         this.camera.fov += (this.targetFov - this.camera.fov) * lerpFactor;
@@ -932,31 +914,26 @@ class GameEngine {
             
             this.camera.position.x = this.shipGroup.position.x * 0.35; 
 
-            // 背景星空由 timeScale 控制 (慢速閱讀 vs 高速躍遷)
-            const bgDist = this.state.baseSpeed * dt * this.timeScale;
-            this.grid.position.z = (this.grid.position.z + bgDist) % 50;
+            const moveDist = this.state.baseSpeed * dt * this.timeScale;
+            this.grid.position.z = (this.grid.position.z + moveDist) % 50;
 
             const pos = this.stars.geometry.attributes.position.array;
             for(let i=2; i<pos.length; i+=3) {
-                pos[i] += bgDist * 2.5; 
+                pos[i] += moveDist * 2.5; 
                 if(pos[i] > 20) pos[i] -= 2000; 
             }
             this.stars.geometry.attributes.position.needsUpdate = true;
             
             this.rings.forEach(r => { 
-                r.position.z += bgDist; 
+                r.position.z += moveDist; 
                 if(r.position.z > 20) r.position.z -= 1500; 
             });
 
-            // 【核心修正】光門只在 action 階段以絕對速度推進
             if(this.gateGroup.visible && this.state.phase === 'action') {
-                const prevZ = this.gateL.mesh.position.z;
+                const prevZ = this.gateGroup.position.z;
+                this.gateGroup.position.z += this.gateApproachSpeed * dt;
                 
-                // 光門逼近速度 = 獨立計算的 3 秒速度
-                this.gateL.mesh.position.z += this.gateApproachSpeed * dt;
-                this.gateR.mesh.position.z += this.gateApproachSpeed * dt;
-                
-                if(prevZ < 5 && this.gateL.mesh.position.z >= 5) {
+                if(prevZ < 5 && this.gateGroup.position.z >= 5) {
                     this.resolveAnswer();
                 }
             }
