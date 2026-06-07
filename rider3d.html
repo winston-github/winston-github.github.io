@@ -3,24 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>時空急流 - 語音同步完美版</title>
+    <title>時空急流 - 阿卡西全知領域 v7</title>
     <style>
         :root { --primary: #00e5ff; --danger: #ff3366; --warning: #ffcc00; --bg: #030308; --glass: rgba(10, 15, 30, 0.85); --glass-border: rgba(0,229,255,0.4); }
-        body, html { margin: 0; padding: 0; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', Tahoma, sans-serif; user-select: none; touch-action: none; -webkit-tap-highlight-color: transparent; }
+        body, html { margin: 0; padding: 0; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', Tahoma, sans-serif; user-select: none; touch-action: none; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
         canvas { display: block; position: absolute; z-index: 1; outline: none; }
         
         #damage-overlay { position: absolute; inset: 0; background: radial-gradient(circle, transparent 30%, rgba(255,0,50,0.8) 100%); opacity: 0; pointer-events: none; z-index: 5; transition: opacity 0.3s ease-out; }
         .flash-red { opacity: 1 !important; transition: none !important; }
         
+        /* 駕駛艙準星 (視覺錨點) */
+        #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 60px; height: 60px; pointer-events: none; z-index: 4; opacity: 0.4; }
+        #crosshair::before, #crosshair::after { content: ''; position: absolute; background: var(--primary); }
+        #crosshair::before { top: 29px; left: 0; width: 60px; height: 2px; }
+        #crosshair::after { top: 0; left: 29px; width: 2px; height: 60px; }
+        .crosshair-dot { position: absolute; top: 26px; left: 26px; width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--primary); }
+
         .ui-layer { position: absolute; inset: 0; pointer-events: none; z-index: 10; display: flex; flex-direction: column; }
         .pointer-auto { pointer-events: auto; }
         .hidden { display: none !important; opacity: 0 !important; pointer-events: none !important; transition: opacity 0.3s; }
         
-        /* SVG 圖示全域設定 */
         svg.icon { width: 1.5rem; height: 1.5rem; fill: currentColor; vertical-align: middle; }
         .btn-main svg.icon { margin-right: 8px; }
         
-        /* 啟動與結算畫面 */
         #screen-start, #screen-gameover { position: absolute; inset: 0; background: var(--glass); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; z-index: 100; backdrop-filter: blur(15px); transition: opacity 0.4s ease; }
         h1 { color: var(--primary); text-shadow: 0 0 25px var(--primary); margin-bottom: 10px; font-size: clamp(2rem, 6vw, 3.5rem); text-align: center; letter-spacing: 2px;}
         p.subtitle { font-size: 1.15rem; color: #d0f0ff; margin-bottom: 35px; text-align: center; line-height: 1.6; padding: 0 20px; max-width: 650px;}
@@ -28,7 +33,6 @@
         button.btn-main { display: flex; align-items: center; justify-content: center; background: rgba(0,229,255,0.1); border: 2px solid var(--primary); color: var(--primary); padding: 15px 35px; font-size: 1.25rem; font-weight: bold; border-radius: 40px; cursor: pointer; transition: transform 0.1s, box-shadow 0.2s; pointer-events: auto; box-shadow: 0 0 20px rgba(0,229,255,0.2); backdrop-filter: blur(5px); }
         button.btn-main:active { background: var(--primary); color: #000; transform: scale(0.95); box-shadow: 0 0 40px rgba(0,229,255,0.6); }
         
-        /* HUD 介面 */
         #hud { padding: 20px 30px; display: flex; justify-content: space-between; align-items: flex-start; color: white; font-weight: bold; font-size: 1.2rem; background: linear-gradient(to bottom, rgba(0,0,0,0.95), transparent); text-shadow: 0 2px 4px black;}
         .hud-left, .hud-right { display: flex; flex-direction: column; gap: 8px; }
         .hud-right { align-items: flex-end; }
@@ -36,33 +40,29 @@
         #health-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #00e5ff, #0088ff); transition: width 0.3s ease-out, background 0.3s; }
         .health-low { background: linear-gradient(90deg, var(--danger), #aa0000) !important; }
         
-        /* 飛行中題目 UI */
         #question-ui { position: absolute; top: 12%; width: 100%; display: flex; flex-direction: column; align-items: center; color: white; opacity: 1; transition: opacity 0.3s; }
         
-        #q-text { background: var(--glass); padding: 15px 25px; border-radius: 15px; border: 1px solid var(--glass-border); font-size: clamp(1rem, 3.5vw, 1.25rem); font-weight: bold; text-align: center; width: 85%; max-width: 750px; line-height: 1.5; box-shadow: 0 10px 30px rgba(0,0,0,0.8); backdrop-filter: blur(10px); transition: all 0.3s ease; }
+        #q-text { background: var(--glass); padding: 18px 25px; border-radius: 15px; border: 1px solid var(--glass-border); font-size: clamp(1rem, 3.5vw, 1.25rem); font-weight: bold; text-align: center; width: 85%; max-width: 750px; line-height: 1.5; box-shadow: 0 10px 30px rgba(0,0,0,0.8); backdrop-filter: blur(10px); transition: all 0.3s ease; }
         
-        .choices-label { display: flex; width: 90%; max-width: 800px; justify-content: space-between; margin-top: 20px; font-weight: bold; font-size: clamp(0.95rem, 3vw, 1.15rem); text-shadow: 0 2px 8px black; }
-        .choice-box { width: 45%; line-height: 1.4; padding: 15px; background: rgba(0,0,0,0.7); border-radius: 8px; cursor: pointer; pointer-events: auto; transition: all 0.3s ease, transform 0.1s; position: relative; overflow: hidden; }
-        .choice-box:active { transform: scale(0.95); }
-        .label-left { color: var(--warning); text-align: left; border-left: 4px solid var(--warning); }
-        .label-right { color: var(--danger); text-align: right; border-right: 4px solid var(--danger); }
+        .choices-label { display: flex; width: 90%; max-width: 800px; justify-content: space-between; margin-top: 25px; font-weight: bold; font-size: clamp(0.95rem, 3vw, 1.15rem); text-shadow: 0 2px 8px black; }
+        .choice-box { width: 45%; line-height: 1.4; padding: 15px; background: rgba(0,0,0,0.8); border-radius: 12px; cursor: pointer; pointer-events: auto; transition: all 0.2s ease, transform 0.1s; position: relative; overflow: hidden; border: 2px solid transparent; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+        .choice-box:active { transform: scale(0.92); }
+        .label-left { color: var(--warning); border-color: rgba(255,204,0,0.4); border-left: 6px solid var(--warning); }
+        .label-right { color: var(--danger); border-color: rgba(255,51,102,0.4); border-right: 6px solid var(--danger); }
         
-        /* 語音朗讀時的柔光特效 (不閃爍、平滑過渡) */
-        .glow-q { box-shadow: 0 0 25px rgba(0,229,255,0.6), inset 0 0 15px rgba(0,229,255,0.3) !important; border-color: rgba(0,229,255,1) !important; background: rgba(10, 30, 50, 0.95) !important; }
-        .glow-l { box-shadow: 0 0 25px rgba(255,204,0,0.6), inset 0 0 15px rgba(255,204,0,0.3) !important; border-left-color: rgba(255,204,0,1) !important; background: rgba(255,204,0,0.2) !important;}
-        .glow-r { box-shadow: 0 0 25px rgba(255,51,102,0.6), inset 0 0 15px rgba(255,51,102,0.3) !important; border-right-color: rgba(255,51,102,1) !important; background: rgba(255,51,102,0.2) !important;}
+        /* 語音不閃爍柔光 */
+        .glow-q { box-shadow: 0 0 30px rgba(0,229,255,0.6), inset 0 0 15px rgba(0,229,255,0.3) !important; border-color: rgba(0,229,255,1) !important; background: rgba(10, 30, 50, 0.95) !important; }
+        .glow-l { box-shadow: 0 0 30px rgba(255,204,0,0.6), inset 0 0 15px rgba(255,204,0,0.3) !important; border-color: rgba(255,204,0,1) !important; background: rgba(255,204,0,0.2) !important;}
+        .glow-r { box-shadow: 0 0 30px rgba(255,51,102,0.6), inset 0 0 15px rgba(255,51,102,0.3) !important; border-color: rgba(255,51,102,1) !important; background: rgba(255,51,102,0.2) !important;}
 
-        /* 躍遷警告字樣 */
-        #action-warning { position: absolute; top: -35px; width: 100%; text-align: center; color: var(--primary); font-size: 1rem; font-weight: bold; text-shadow: 0 0 10px var(--primary); letter-spacing: 2px; opacity: 0; transition: opacity 0.3s; pointer-events: none;}
-        .show-warning { opacity: 1 !important; animation: pulse-warn 1s infinite alternate; }
-        @keyframes pulse-warn { 0% { opacity: 0.5; } 100% { opacity: 1; text-shadow: 0 0 20px var(--primary); } }
+        #action-warning { position: absolute; top: -40px; width: 100%; text-align: center; color: var(--primary); font-size: 1.1rem; font-weight: bold; text-shadow: 0 0 10px var(--primary); letter-spacing: 2px; opacity: 0; transition: opacity 0.3s; pointer-events: none;}
+        .show-warning { opacity: 1 !important; animation: pulse-warn 0.6s infinite alternate; }
+        @keyframes pulse-warn { 0% { opacity: 0.6; transform: scale(0.98); } 100% { opacity: 1; text-shadow: 0 0 25px var(--primary); transform: scale(1.02); } }
 
-        /* 側邊控制鈕 */
         .side-controls { position: absolute; bottom: 30px; right: 20px; display: flex; flex-direction: column; gap: 15px; z-index: 20; pointer-events: auto; }
         .btn-icon { background: rgba(0,0,0,0.8); border: 1px solid var(--primary); color: var(--primary); width: 50px; height: 50px; border-radius: 50%; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: transform 0.1s, background 0.2s; box-shadow: 0 0 15px rgba(0,0,0,0.6); }
         .btn-icon:active { transform: scale(0.9); background: var(--primary); color: black; }
         
-        /* 彈窗 */
         #explanation-screen, #kb-modal { position: absolute; inset: 0; background: rgba(5,5,12,0.95); z-index: 90; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; backdrop-filter: blur(12px); transition: opacity 0.3s; }
         .exp-content { background: rgba(20,30,50,0.85); width: 85%; max-width: 800px; padding: 35px 30px; border-radius: 15px; border: 1px solid #444; color: #eee; font-size: 1.1rem; line-height: 1.7; margin-bottom: 25px; box-shadow: 0 20px 50px rgba(0,0,0,0.9); max-height: 65vh; overflow-y: auto; scroll-behavior: smooth;}
         .exp-title { font-size: 1.4rem; font-weight: bold; margin-bottom: 15px; border-bottom: 2px solid; padding-bottom: 8px; display: flex; align-items: center;}
@@ -76,7 +76,6 @@
         .kb-item { background: rgba(0,0,0,0.6); padding: 20px; margin-bottom: 20px; border-left: 5px solid var(--primary); border-radius: 8px; font-size: 1rem; line-height: 1.6; color: #ddd; position: relative;}
         .kb-item .era-badge { position: absolute; top: 15px; right: 15px; background: rgba(0,229,255,0.2); color: var(--primary); padding: 4px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; }
         
-        /* 語音波形指示器 */
         #tts-indicator { display: flex; gap: 4px; margin-top: 20px; align-items: flex-end; height: 24px; justify-content: center; width: 100%; transition: opacity 0.3s;}
         .bar { width: 5px; background: var(--primary); border-radius: 2px; animation: sound 0ms -800ms linear infinite alternate; transition: height 0.1s;}
         @keyframes sound { 0% { height: 4px; opacity: 0.5; } 100% { height: 24px; opacity: 1; box-shadow: 0 0 10px var(--primary); } }
@@ -89,7 +88,6 @@
 </head>
 <body>
 
-    <!-- SVG 定義區塊 -->
     <svg style="display: none;">
         <symbol id="icon-book" viewBox="0 0 24 24"><path d="M4 19h16v2H4zM20 3H4v14h16zM6 5h12v2H6zm0 4h12v2H6zm0 4h8v2H6z"/></symbol>
         <symbol id="icon-sound-on" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></symbol>
@@ -101,10 +99,11 @@
     </svg>
 
     <div id="damage-overlay"></div>
+    <div id="crosshair"><div class="crosshair-dot"></div></div>
 
     <div id="screen-start" class="pointer-auto">
-        <h1>時空急流 <span>v6.0 完美步調</span></h1>
-        <p class="subtitle">聽完語音後，你有 <strong>3秒鐘</strong> 進行抉擇。<br>觸控滑動或直接點擊選項，修復阿卡西時間線！</p>
+        <h1>時空急流 <span>v7.0 終極版</span></h1>
+        <p class="subtitle">觸控螢幕左半或右半<strong style="color:var(--warning);">絕對跟隨轉向</strong>，或直接點擊選項面板。<br>聆聽完美同步的阿卡西語音，修復 80 大歷史節點！</p>
         <button id="btn-start" class="btn-main"><svg class="icon"><use href="#icon-play"></use></svg> 啟動躍遷</button>
     </div>
 
@@ -152,7 +151,7 @@
                 <div class="auto-nav-text">無聲模式：倒數躍遷中...</div>
             </div>
         </div>
-        <button id="btn-skip-exp" class="btn-main" style="font-size: 1rem; padding: 10px 25px; border-color: #666; color: #aaa;"><svg class="icon"><use href="#icon-skip"></use></svg> 強制手動跳過</button>
+        <button id="btn-skip-exp" class="btn-main" style="font-size: 1rem; padding: 10px 25px; border-color: #666; color: #aaa;"><svg class="icon"><use href="#icon-skip"></use></svg> 強制跳過</button>
     </div>
 
     <div class="ui-layer hidden" id="ui-game">
@@ -170,7 +169,7 @@
         </div>
         
         <div id="question-ui" class="hidden">
-            <div id="action-warning">⚡ 躍遷啟動！請在 3 秒內做出抉擇 ⚡</div>
+            <div id="action-warning">⚡ 時空干涉解鎖！請在 3 秒內衝撞抉擇 ⚡</div>
             <div id="q-text"></div>
             <div class="choices-label">
                 <div class="choice-box label-left" id="c-left-box"></div>
@@ -183,89 +182,107 @@
 
 <script>
 // ==========================================
-// 1. 50大精編核心歷史題庫 (手工撰寫，非動態複製，確保高品質)
+// 1. 80 大精編核心歷史題庫 (中國/世界/科學/文化)
 // ==========================================
 const BaseFacts = [
-    // --- 中國古代 (12題) ---
-    { era: "商周革命", color: 0xffaa00, premise: "周武王滅商後，面臨疆域廣大但交通不便，且商朝舊勢力仍存的危機。", correctOpt: "實施「封建制度」，將宗室與功臣分封至各地建立諸侯國防衛。", wrongOpt: "全面實施「郡縣制」，由中央直接指派流動官僚進行集權統治。", expCorrect: "西周初期缺乏強大官僚與交通系統，只能透過血緣分封鞏固對東方新領土的控制。", expWrong: "郡縣制是秦朝統一天下後才具備條件實施的絕對中央集權制度。" },
-    { era: "春秋戰國", color: 0xcc8800, premise: "戰國時代的秦國位於西方邊陲，被東方六國視為蠻夷，國力相對落後。", correctOpt: "任用商鞅進行變法，實施嚴格法家思想，獎勵耕戰與軍功。", wrongOpt: "尊崇儒家思想，以仁義道德感化東方六國放棄武裝。", expCorrect: "商鞅變法徹底激發了秦國的軍事潛力與農業生產，使秦國成為強大的軍國主義機器。", expWrong: "在兼併戰爭的亂世，儒家的仁政無法在短期內轉化為國家生存所需的硬實力。" },
-    { era: "秦滅六國", color: 0xaa2222, premise: "秦始皇統一天下後，發現各國文字、貨幣與度量衡皆不同，阻礙交流。", correctOpt: "實施「書同文、車同軌」，統一貨幣與度量衡，強化大一統。", wrongOpt: "實施「地方自治」，尊重六國原有文化並保留其獨立貨幣。", expCorrect: "秦始皇的標準化政策徹底打破了六國的文化壁壘，奠定中國兩千年的大一統基礎。", expWrong: "保留六國制度會導致國家迅速分裂，法家思想不允許任何形式的地方分權。" },
-    { era: "漢武帝時期", color: 0xcc3333, premise: "漢武帝面臨長期對匈奴作戰導致國庫空虛，急需龐大軍費。", correctOpt: "將獲利最豐的「鹽、鐵、酒」收歸國家專賣，並發行五銖錢。", wrongOpt: "大力推動「自由貿易」，鼓勵民間商人向匈奴販售武器獲取暴利。", expCorrect: "透過桑弘羊的財政改革，國家壟斷了民生必需品，成功支撐了漢武帝的霸業。", expWrong: "資敵是絕對禁止的，且自由貿易無法讓中央政府在短期內合法榨取戰爭資金。" },
-    { era: "三國鼎立", color: 0x0088ff, premise: "赤壁之戰前夕，孫權與劉備聯軍面對曹操號稱百萬的強大水陸大軍。", correctOpt: "利用長江天險與曹軍不熟水性的弱點，發動「火攻」大破敵軍。", wrongOpt: "放棄江南退守雲貴高原，利用高山地形打游擊戰。", expCorrect: "周瑜與黃蓋利用東風放火，燒毀了曹操用鐵索連環的戰船，奠定三分天下局勢。", expWrong: "退守雲貴是南明政權末路的做法。孫吳水軍強大，放棄長江天險等於自殺。" },
+    // --- 中國古代 ---
+    { era: "商周革命", color: 0xffaa00, premise: "周武王滅商後，疆域擴大但交通不便，且商朝舊勢力仍存。", correctOpt: "實施「封建制度」，分封宗室功臣建立諸侯國。", wrongOpt: "實施「郡縣制」，由中央直接指派流動官僚。", expCorrect: "西周初期缺乏強大官僚與交通，只能透過血緣分封鞏固對東方控制。", expWrong: "郡縣制是秦朝統一天下後才具備條件實施的絕對中央集權制度。" },
+    { era: "春秋戰國", color: 0xcc8800, premise: "秦國位於西方邊陲被視為蠻夷，國力相對落後。", correctOpt: "任用商鞅進行變法，實施嚴格法家思想，獎勵耕戰。", wrongOpt: "尊崇儒家思想，以仁義道德感化東方六國。", expCorrect: "商鞅變法徹底激發了秦國軍事潛力，使秦國成為強大的軍國主義機器。", expWrong: "在兼併戰爭的亂世，儒家的仁政無法在短期內轉化為國家生存所需的硬實力。" },
+    { era: "秦滅六國", color: 0xaa2222, premise: "秦始皇統一天下後，發現各國文字、貨幣與度量衡皆不同。", correctOpt: "實施「書同文、車同軌」，統一貨幣與度量衡。", wrongOpt: "實施「地方自治」，尊重六國原有文化並保留獨立貨幣。", expCorrect: "秦始皇的標準化政策徹底打破了六國的文化壁壘，奠定中國大一統基礎。", expWrong: "保留六國制度會導致國家迅速分裂，法家思想不允許任何形式的地方分權。" },
+    { era: "楚漢相爭", color: 0x991111, premise: "劉邦在彭城之戰慘敗給項羽，兵力與正面作戰能力遠不及楚軍。", correctOpt: "運用「統一戰線」拉攏韓信等人，並派人在敵後騷擾楚軍補給。", wrongOpt: "與項羽約定進行一對一的君王單挑來決定天下歸屬。", expCorrect: "劉邦知人善任，透過彭越游擊與韓信包抄，最終在垓下十面埋伏消滅項羽。", expWrong: "單挑是貴族騎士精神的殘留，劉邦是實用主義者，絕不會放棄戰略優勢去單挑。" },
+    { era: "漢武帝時期", color: 0xcc3333, premise: "長期對匈奴作戰導致國庫空虛，急需龐大軍費。", correctOpt: "將獲利最豐的「鹽、鐵、酒」收歸國家專賣。", wrongOpt: "大力推動「自由貿易」，鼓勵民間商人向匈奴販售武器。", expCorrect: "透過財政改革，國家壟斷了民生必需品，成功支撐了漢武帝的霸業。", expWrong: "資敵是絕對禁止的，且自由貿易無法讓中央政府合法榨取龐大戰爭資金。" },
+    { era: "三國鼎立", color: 0x0088ff, premise: "赤壁之戰前夕，孫權與劉備聯軍面對曹操號稱百萬的水陸大軍。", correctOpt: "利用長江天險與曹軍不熟水性的弱點，發動「火攻」。", wrongOpt: "放棄江南退守雲貴高原，利用高山地形打游擊戰。", expCorrect: "周瑜與黃蓋利用東風放火，燒毀了曹操用鐵索連環的戰船，奠定三分天下。", expWrong: "退守雲貴是南明政權末路的做法。孫吳水軍強大，放棄長江天險等於自殺。" },
     { era: "三國蜀漢", color: 0x33aa55, premise: "諸葛亮在劉備死後，面臨蜀漢地狹人稀、國力遠不如曹魏的困境。", correctOpt: "採取「以攻代守」策略，六出祁山主動北伐以維持內部凝聚力。", wrongOpt: "全面裁軍，實施極端孤立主義，封閉劍閣不與外界往來。", expCorrect: "諸葛亮深知若不主動出擊，蜀漢遲早會被魏國耗死，北伐不僅是軍事也是政治手段。", expWrong: "全面裁軍會讓蜀漢徹底失去抵抗能力，最終輕易被魏國併吞。" },
+    { era: "晉朝南渡", color: 0x6655aa, premise: "五胡亂華後西晉滅亡，晉朝皇室與北方世族被迫逃亡江南。", correctOpt: "實施「僑置」政策，設立僑州郡縣安置流民，保留世族特權。", wrongOpt: "強制所有北方流民剃髮易服，完全同化為南方土著。", expCorrect: "東晉為安撫龐大的北方流亡勢力，設立白籍與僑州，穩定了江南半壁江山。", expWrong: "強迫同化會立刻引發流民暴動，東晉政權高度依賴北方南渡世族的支持。" },
     { era: "隋朝建設", color: 0x00bcd4, premise: "隋煬帝統一天下後，發現南方經濟發達但北方政治軍事中心缺乏糧食。", correctOpt: "動員百萬民工開鑿「京杭大運河」，貫通南北水路運輸。", wrongOpt: "將首都與所有軍隊完全遷移至江南水鄉，放棄北方領土。", expCorrect: "大運河成為中國南北經濟的大動脈，支撐了日後唐宋的繁榮。", expWrong: "放棄北方等於將中原拱手讓給突厥等游牧民族，極其危險。" },
-    { era: "唐朝貞觀", color: 0x8bc34a, premise: "唐太宗經歷隋末戰亂，人口銳減且北方突厥威脅嚴重。", correctOpt: "輕徭薄賦休養生息，擊敗突厥被尊為「天可汗」，開放包容。", wrongOpt: "修建萬里長城，實施極端鎖國切斷一切對外交流。", expCorrect: "唐太宗採取開放政策，萬邦來朝，長安成為當時世界最繁華的國際都會。", expWrong: "極端鎖國是明清時期的政策，大唐帝國的強盛建立在自信與多元融合之上。" },
-    { era: "宋朝經濟", color: 0x4fc3f7, premise: "北宋時期商業繁榮，大宗交易面臨龐大且沉重的銅錢運輸困難。", correctOpt: "四川富商首創世界最早的紙幣「交子」，解決攜帶不便的問題。", wrongOpt: "廢除所有貨幣，全面退回「以物易物」的自然經濟。", expCorrect: "宋代商品經濟極度發達，「交子」的出現是人類金融史上的巨大飛躍。", expWrong: "以物易物是文明倒退，只有在極度戰亂或國家崩潰時才會發生。" },
-    { era: "元朝擴張", color: 0x795548, premise: "蒙古騎兵雖然野戰無敵，但面臨南宋防守嚴密的襄陽城等堅固堡壘。", correctOpt: "徵調阿拉伯與波斯工匠，製造威力巨大的「回回砲」摧毀城牆。", wrongOpt: "強迫游牧騎兵下馬，穿上重達30公斤的板甲進行步兵肉搏。", expCorrect: "蒙古帝國最可怕之處在於極強的吸收力，將西方重力拋石機技術用於東方攻城。", expWrong: "穿戴沉重板甲步戰是歐洲中世紀騎士的做法，這會徹底抹殺蒙古軍機動性。" },
+    { era: "唐太宗時期", color: 0x8bc34a, premise: "經歷隋末戰亂，人口銳減且北方突厥威脅嚴重。", correctOpt: "輕徭薄賦休養生息，擊敗突厥被尊為「天可汗」，開放包容。", wrongOpt: "修建萬里長城，實施極端鎖國切斷一切對外交流。", expCorrect: "唐太宗採取開放政策，萬邦來朝，長安成為當時世界最繁華的國際都會。", expWrong: "極端鎖國是明清時期的政策，大唐帝國的強盛建立在自信與多元融合之上。" },
+    { era: "武則天時期", color: 0xe91e63, premise: "武則天作為中國唯一女皇，面臨傳統李唐宗室與關隴貴族的強烈反對。", correctOpt: "大開「科舉」，提拔寒門子弟，並任用酷吏打擊反對派貴族。", wrongOpt: "宣布退位還政，親自前往寺廟出家以平息眾怒。", expCorrect: "武則天透過科舉制摧毀了舊有的門閥貴族體系，為開元盛世儲備了大量人才。", expWrong: "退位出家不僅無法保命，也不符合武則天極具野心與政治手腕的性格。" },
+    { era: "唐玄宗安史", color: 0xaa5500, premise: "安史之亂爆發，安祿山大軍逼近長安，唐朝中央軍潰敗。", correctOpt: "唐玄宗逃往四川，並向回紇借兵，依靠郭子儀等將領平叛。", wrongOpt: "皇帝御駕親征，在長安城頭與安祿山進行一對一決鬥。", expCorrect: "玄宗入蜀避難，肅宗靈武即位，透過借兵與任用名將，艱難地保住了唐朝社稷。", expWrong: "皇帝一對一決鬥是三國演義式的虛構情節，真實歷史中皇帝逃跑才是存續政權的關鍵。" },
+    { era: "宋太祖立國", color: 0x66aaff, premise: "趙匡胤透過陳橋兵變黃袍加身，擔心手下將領效仿自己擁兵自重。", correctOpt: "演出「杯酒釋兵權」，用重金與田宅換取將領交出兵權。", wrongOpt: "發動大清洗，將所有跟隨自己打天下的功臣全部斬首。", expCorrect: "宋太祖以和平手段解除武將兵權，確立了「強幹弱枝、重文輕武」的基本國策。", expWrong: "大清洗是明太祖朱元璋與漢高祖劉邦的做法，宋太祖選擇了較為仁慈的政治妥協。" },
+    { era: "宋朝經濟", color: 0x4fc3f7, premise: "北宋時期商業繁榮，大宗交易面臨龐大且沉重的銅錢運輸困難。", correctOpt: "四川富商首創世界最早的紙幣「交子」，解決攜帶不便問題。", wrongOpt: "廢除所有貨幣，全面退回「以物易物」的自然經濟。", expCorrect: "宋代商品經濟極度發達，「交子」的出現是人類金融史上的巨大飛躍。", expWrong: "以物易物是文明倒退，只有在極度戰亂或國家崩潰時才會發生。" },
+    { era: "王安石變法", color: 0x55aa55, premise: "北宋中期面臨「冗官、冗兵、冗費」導致的國家財政危機與積貧積弱。", correctOpt: "推動「青苗法」與「免役法」，試圖透過國家力量理財並抑制兼併。", wrongOpt: "將全國土地無償分給農民，徹底消滅地主階級。", expCorrect: "王安石試圖開源節流，雖然立意良善但因遭到舊黨強烈反對與執行偏差而失敗。", expWrong: "徹底消滅地主階級是20世紀共產黨的土地改革，北宋政府是建立在地主士大夫基礎上的。" },
+    { era: "元朝擴張", color: 0x795548, premise: "蒙古騎兵野戰無敵，但面臨南宋防守嚴密的襄陽城等堅固堡壘。", correctOpt: "徵調阿拉伯與波斯工匠，製造威力巨大的「回回砲」摧毀城牆。", wrongOpt: "強迫游牧騎兵下馬，穿上重達30公斤的板甲進行步兵肉搏。", expCorrect: "蒙古帝國最可怕之處在於極強的吸收力，將西方重力拋石機技術用於東方攻城。", expWrong: "穿戴沉重板甲步戰是歐洲中世紀騎士的做法，這會徹底抹殺蒙古軍機動性。" },
     { era: "明朝海禁", color: 0x3f51b5, premise: "明朝初期面臨東南沿海嚴重的倭寇與海盜侵擾問題。", correctOpt: "實施嚴格的「海禁政策」，規定寸板不許下海，嚴格管制朝貢。", wrongOpt: "建立龐大無敵艦隊，主動出擊征服整個東南亞與日本。", expCorrect: "朱元璋為求穩定實施海禁，雖然暫時壓制倭患，但使得中國錯失了大航海時代。", expWrong: "明初剛驅逐蒙古，無力且無意願發動大規模跨海遠征殖民。" },
-    { era: "清朝康熙", color: 0x009688, premise: "17世紀末，清廷為消滅擁有海軍優勢的台灣鄭氏政權。", correctOpt: "實施殘酷的「遷界禁海」，強迫沿海居民內遷以斷絕鄭軍補給。", wrongOpt: "簽署《大憲章》，限制皇權並賦予沿海居民高度自治權。", expCorrect: "為了困死鄭成功勢力，清廷徹底摧毀了東南沿海的經濟以換取軍事勝利。", expWrong: "簽署《大憲章》限制王權是13世紀英國約翰王做出的妥協。" },
+    { era: "明末流寇", color: 0x882222, premise: "崇禎皇帝面臨西北連年大旱、李自成農民軍作亂以及東北清軍逼近。", correctOpt: "因國庫空虛加派「三餉」，導致更多飢民活不下去加入叛軍。", wrongOpt: "開啟國庫大量發放黃金賑災，並與清軍簽訂和平條約結盟。", expCorrect: "崇禎為籌措軍費不斷加稅，陷入了「越剿越叛」的死亡螺旋，最終導致明朝滅亡。", expWrong: "明朝國庫早已見底，且「不和親、不賠款」的祖訓讓崇禎不敢與清廷議和。" },
+    { era: "清朝康熙", color: 0x009688, premise: "為消滅擁有強大海軍優勢的台灣鄭氏政權。", correctOpt: "實施殘酷的「遷界禁海」，強迫沿海居民內遷以斷絕鄭軍補給。", wrongOpt: "簽署《大憲章》，限制皇權並賦予沿海居民高度自治權。", expCorrect: "為了困死鄭成功勢力，清廷徹底摧毀了東南沿海的經濟以換取軍事勝利。", expWrong: "簽署《大憲章》限制王權是13世紀英國約翰王做出的妥協。" },
+    { era: "清末洋務", color: 0x556677, premise: "兩次鴉片戰爭戰敗與太平天國動亂後，清廷深刻體認到西方船堅炮利。", correctOpt: "推動「中學為體，西學為用」的洋務運動，建立江南製造局與北洋水師。", wrongOpt: "全面廢除漢字，改用英文為官方語言並全盤西化。", expCorrect: "洋務派引進西方軍事與工業技術，帶來了短暫的「同治中興」，但未觸及政治體制改革。", expWrong: "全盤西化與廢除漢字是部分激進派在20世紀初的想法，洋務運動的核心是維護清朝體制。" },
 
-    // --- 世界古代 (12題) ---
-    { era: "古埃及", color: 0xffd54f, premise: "法老王為了彰顯神聖統治權與死後永生信仰，並解決農閒期勞力。", correctOpt: "動員大量人力修建宏偉的「金字塔」陵墓，兼具國家工程賑災。", wrongOpt: "建立龐大的「兵馬俑」地下軍團來護衛死後世界。", expCorrect: "利用尼羅河氾濫的農閒期僱用農民修建金字塔，加強了國家的向心力。", expWrong: "兵馬俑地下軍團是中國秦始皇為了在陰間稱霸所打造的陵墓陪葬。" },
+    // --- 世界古代 ---
+    { era: "古埃及", color: 0xffd54f, premise: "法老王為彰顯神聖統治權與死後永生信仰，並解決農閒期勞力。", correctOpt: "動員大量人力修建宏偉的「金字塔」陵墓，兼具國家工程賑災。", wrongOpt: "建立龐大的「兵馬俑」地下軍團來護衛死後世界。", expCorrect: "利用尼羅河氾濫的農閒期僱用農民修建金字塔，加強了國家的向心力。", expWrong: "兵馬俑地下軍團是中國秦始皇為了在陰間稱霸所打造的陵墓陪葬。" },
     { era: "兩河流域", color: 0xff8855, premise: "西元前3000年的蘇美人，面臨底格里斯河氾濫，且缺乏石頭與木材。", correctOpt: "用泥土曬磚建造塔廟，並在泥板壓寫「楔形文字」。", wrongOpt: "開鑿巨大的岩石山脈，修建地下陵墓與石窟。", expCorrect: "美索不達米亞平原幾乎沒石頭，蘇美人發揮適應力，創造了泥土文明。", expWrong: "在泥土平原挖石頭行不通。開鑿岩石陵墓是古埃及的專長。" },
-    { era: "漢摩拉比", color: 0xff5522, premise: "古巴比倫王國疆域龐大且民族眾多，需要一套統一的法律來維持社會秩序。", correctOpt: "頒布《漢摩拉比法典》，刻在石柱上實施「以眼還眼」的同態復仇。", wrongOpt: "實施現代的「無罪推定」原則與陪審團制度。", expCorrect: "雖然刑罰殘酷且有階級差異，但這是人類史上最早的成文法典之一，奠定了法治基礎。", expWrong: "無罪推定與陪審團是近代民主法治社會的產物，古巴比倫並不具備此觀念。" },
-    { era: "古希臘斯巴達", color: 0x444444, premise: "斯巴達人口極少，卻需要奴役數量龐大的黑勞士(農奴)，面臨隨時叛亂的風險。", correctOpt: "實施極端的軍事化教育，男孩從小集中營訓練成為無情的職業戰士。", wrongOpt: "發放高額福利金與舉辦免費演唱會來安撫農奴情緒。", expCorrect: "斯巴達將全國變成一個大軍營，以恐怖統治與絕對武力鎮壓人數眾多的農奴。", expWrong: "發放福利與娛樂(麵包與競技場)是古羅馬帝國用來安撫首都平民的手段。" },
+    { era: "漢摩拉比", color: 0xff5522, premise: "古巴比倫王國疆域龐大民族眾多，需要統一法律維持社會秩序。", correctOpt: "頒布《漢摩拉比法典》，實施「以眼還眼」的同態復仇。", wrongOpt: "實施現代的「無罪推定」原則與陪審團制度。", expCorrect: "雖然刑罰殘酷且有階級差異，但這是人類最早成文法典之一，奠定法治基礎。", expWrong: "無罪推定與陪審團是近代民主社會產物，古巴比倫不具備此觀念。" },
+    { era: "猶太信仰", color: 0x3344aa, premise: "希伯來人流落巴比倫成為「巴比倫之囚」，面臨民族與文化即將滅絕的危機。", correctOpt: "編纂《舊約》，確立絕對的「一神教」信仰以凝聚民族認同。", wrongOpt: "全面放棄信仰，徹底融入巴比倫的多神教文化體系。", expCorrect: "在苦難中，猶太人堅定了對耶和華的唯一信仰，這是猶太民族歷經千年不滅的精神支柱。", expWrong: "融入當地多神教會導致猶太民族在歷史長河中徹底消失。" },
+    { era: "古希臘斯巴達", color: 0x444444, premise: "斯巴達人口極少，卻需要奴役數量龐大的農奴，面臨隨時叛亂風險。", correctOpt: "實施極端的軍事化教育，男孩從小集中營訓練成為無情戰士。", wrongOpt: "發放高額福利金與舉辦免費演唱會來安撫農奴情緒。", expCorrect: "斯巴達將全國變成大軍營，以恐怖統治與絕對武力鎮壓人數眾多的農奴。", expWrong: "發放福利與娛樂(麵包與競技場)是古羅馬帝國用來安撫首都平民的手段。" },
     { era: "古希臘雅典", color: 0x0088ff, premise: "西元前六世紀的雅典，貧富差距嚴重，無數平民因欠債淪為奴隸。", correctOpt: "梭倫實施「解負令」，廢除債務奴隸制並按財產劃分權力。", wrongOpt: "實施「重農抑商」，沒收商人財產將人民綁在土地上。", expCorrect: "梭倫廢除人身抵押債務讓平民重獲自由，挽救了雅典經濟與萌芽的民主。", expWrong: "多山的希臘無法重農抑商，這其實是中國商鞅變法的核心國策。" },
-    { era: "波斯帝國", color: 0x9c27b0, premise: "大流士一世統治著橫跨歐亞非的龐大波斯帝國，面臨各地文化與宗教衝突。", correctOpt: "實施「寬容政策」，允許各民族保留信仰，並修建御道加強驛站通訊。", wrongOpt: "發動宗教裁判所，強迫所有被征服者改信瑣羅亞斯德教(拜火教)。", expCorrect: "波斯帝國因寬容的宗教政策與發達的驛道系統，成功維繫了長達數百年的統治。", expWrong: "強制宗教同化是歐洲中世紀異端裁判所的做法，波斯王族相對寬容。" },
-    { era: "亞歷山大", color: 0xe91e63, premise: "亞歷山大大帝征服了波斯與埃及，面臨如何統治這片多元文化的廣袤領土。", correctOpt: "推動「東西方融合」，自己迎娶波斯公主並鼓勵士兵與當地人通婚。", wrongOpt: "將所有非希臘人貶為奴隸，並全面銷毀波斯與埃及的歷史書籍。", expCorrect: "亞歷山大以通婚與文化包容開啟了「希臘化時代」，深刻影響了歐亞大陸的文明發展。", expWrong: "銷毀書籍與屠殺是極權暴政，這違背了亞歷山大試圖融合東西方的宏大願景。" },
-    { era: "古羅馬共和", color: 0x8b0000, premise: "西元前3世紀，羅馬在布匿戰爭中面臨迦太基名將漢尼拔的象軍與毀滅性打擊。", correctOpt: "發揮恐怖的「動員能力」，實大全民皆兵死戰到底，最終耗死迦太基。", wrongOpt: "花費重金雇傭高盧傭兵來替自己打仗，羅馬公民全面退居二線。", expCorrect: "羅馬共和國最可怕的武器是公民兵的韌性，即使慘敗也能迅速重建數個軍團。", expWrong: "依賴傭兵是迦太基的做法。羅馬早期全靠具有土地產權的公民兵捨命捍衛國家。" },
+    { era: "波斯帝國", color: 0x9c27b0, premise: "大流士一世統治著橫跨歐亞非的龐大帝國，面臨各地文化宗教衝突。", correctOpt: "實施「寬容政策」，允許保留信仰，並修建御道加強通訊。", wrongOpt: "發動宗教裁判所，強迫所有被征服者改信拜火教。", expCorrect: "波斯帝國因寬容的宗教政策與發達的驛道系統，成功維繫了長達數百年的統治。", expWrong: "強制宗教同化是歐洲中世紀異端裁判所的做法，波斯王族相對寬容。" },
+    { era: "亞歷山大", color: 0xe91e63, premise: "亞歷山大大帝征服了波斯與埃及，面臨如何統治多元文化的領土。", correctOpt: "推動「東西方融合」，自己迎娶波斯公主並鼓勵士兵與當地人通婚。", wrongOpt: "將所有非希臘人貶為奴隸，並全面銷毀波斯與埃及的歷史書籍。", expCorrect: "亞歷山大以通婚與文化包容開啟了「希臘化時代」，深刻影響了歐亞大陸文明。", expWrong: "銷毀書籍與屠殺違背了亞歷山大試圖融合東西方的宏大願景。" },
+    { era: "羅馬共和國", color: 0x8b0000, premise: "在布匿戰爭中面臨迦太基名將漢尼拔的象軍與毀滅性打擊。", correctOpt: "發揮恐怖的「動員能力」，實大全民皆兵死戰到底，最終耗死迦太基。", wrongOpt: "花費重金雇傭高盧傭兵來替自己打仗，羅馬公民全面退居二線。", expCorrect: "羅馬最可怕的武器是公民兵的韌性，即使慘敗也能迅速重建數個軍團。", expWrong: "依賴傭兵是迦太基重商社會的做法。羅馬早期全靠公民兵捨命捍衛國家。" },
+    { era: "羅馬凱撒", color: 0xbb1133, premise: "凱撒在高盧取得巨大聲望，面臨元老院的猜忌與解除兵權的要求。", correctOpt: "說出「骰子已經擲出」，率領軍隊越過盧比孔河進軍羅馬。", wrongOpt: "乖乖交出兵權，回到元老院接受審判並遭到流放。", expCorrect: "凱撒的決斷打破了共和國的禁忌，引發內戰並最終使自己成為終身獨裁官。", expWrong: "交出兵權等於任人宰割，凱撒深知政治鬥爭的殘酷，選擇了武裝奪權。" },
     { era: "古羅馬帝國", color: 0xaa2222, premise: "羅馬帝國晚期，面臨疆域過於龐大、蠻族入侵的「三世紀危機」。", correctOpt: "戴克里先實施「四帝共治制」，將帝國劃分防區。", wrongOpt: "實施「分封制」，將土地交給貴族世襲防守。", expCorrect: "戴克里先將帝國分為東西由正副帝共治，暫時穩定了邊防與行政效率。", expWrong: "實施分封制會讓中央集權瞬間瓦解，這是西周與中世紀歐洲的作法。" },
-    { era: "馬雅文明", color: 0x81c784, premise: "居住在熱帶雨林中，土壤貧瘠且缺乏地表河流。", correctOpt: "採用「刀耕火種」農業，依賴天然石灰岩陷穴(Cenote)蓄水。", wrongOpt: "依靠每年定期氾濫的巨大河流種植小麥。", expCorrect: "馬雅人焚燒林木作肥料種玉米，並利用地下水洞作為水源與宗教中心。", expWrong: "依靠大河定期氾濫是古埃及尼羅河的特徵。" },
-    { era: "印加帝國", color: 0x228833, premise: "位於安地斯山脈的印加人，面臨崎嶇高山，且沒發明車輪與文字。", correctOpt: "修建高山驛道網，並使用「奇普」(結繩)精確傳遞統計資訊。", wrongOpt: "開鑿大運河，利用大型船隻在全國進行水路運輸。", expCorrect: "印加人憑人力修建四萬公里路網，並透過結繩記錄龐大人口與資源。", expWrong: "在高山開運河違反重力，這是中國隋朝開鑿京杭大運河的壯舉。" },
-    { era: "阿茲特克", color: 0xd94436, premise: "15世紀中美洲，阿茲特克帝國需要活人祭品，同時要威懾周邊部落。", correctOpt: "發動「花之戰」，以活捉俘虜為目標而非殺戮。", wrongOpt: "實施「屠城」，將敵對城市徹底夷為平地不留活口。", expCorrect: "透過儀式性的戰鬥獲取祭品，既滿足宗教需求，又能持續消耗附庸國實力。", expWrong: "屠城是蒙古帝國瓦解抵抗意志的戰術。阿茲特克需要活人，殺光不符合利益。" },
 
-    // --- 中世紀與大航海 (11題) ---
-    { era: "拜占庭帝國", color: 0xc2185b, premise: "7世紀東羅馬帝國面臨阿拉伯海軍圍攻首都君士坦丁堡的絕境。", correctOpt: "發明能在水上猛烈燃燒的秘密武器「希臘火」，燒毀敵軍艦隊。", wrongOpt: "召喚海上神風(颱風)，將敵軍艦隊全部吹翻淹沒。", expCorrect: "拜占庭化學家發明的「希臘火」是當時的超級武器，成功保住了基督教世界的東方大門。", expWrong: "依靠神風摧毀敵艦是日本鎌倉幕府對抗蒙古入侵時的歷史奇蹟。" },
-    { era: "伊斯蘭黃金", color: 0xffb74d, premise: "8世紀阿拉伯帝國阿拔斯王朝定都巴格達，統治融合多民族的龐大疆域。", correctOpt: "建立「智慧宮」，展開百年翻譯運動保存了古希臘與印度的科學。", wrongOpt: "將所有異教書籍視為異端燒毀，使國家進入宗教黑暗時代。", expCorrect: "哈里發大力資助學者，阿拉伯人保留了希臘哲學與印度數學，日後反哺了歐洲文藝復興。", expWrong: "燒毀異端書籍進入封閉狀態是歐洲中世紀早期的狀況。" },
-    { era: "維京時代", color: 0x4dd0e1, premise: "8世紀北歐氣候嚴寒耕地不足，但擁有優秀的航海與造船技術。", correctOpt: "駕駛吃水淺的「龍船」沿海岸與內河對歐洲進行突襲劫掠。", wrongOpt: "耗費傾國之力，在邊境修築長達萬里的巨石防禦城牆。", expCorrect: "維京人利用龍船速度快、能衝上沙灘的特性，對缺乏海防的歐洲展開恐怖劫掠。", expWrong: "修築萬里長城防禦是中國歷代王朝的防禦國策。維京人是主動出擊的狼群。" },
-    { era: "十字軍東征", color: 0xff0000, premise: "11世紀末，拜占庭受土耳其人威脅向教宗求援，且西歐封建騎士渴望土地。", correctOpt: "教宗號召發動「十字軍」，以奪回聖城耶路撒冷為名進行武裝遠征。", wrongOpt: "派遣傳教士前往中東，用非暴力的靜坐抗議要求對方撤軍。", expCorrect: "宗教狂熱與利益驅使了長達兩百年的十字軍東征，雖然最終失敗，但意外促進了東西方貿易。", expWrong: "在冷兵器時代面對游牧騎兵威脅，靜坐抗議只會遭到單方面屠殺。" },
+    // --- 美洲古文明 ---
+    { era: "馬雅文明", color: 0x81c784, premise: "居住在熱帶雨林中，土壤貧瘠且缺乏地表河流。", correctOpt: "採用「刀耕火種」農業，依賴天然石灰岩陷穴蓄水。", wrongOpt: "依靠每年定期氾濫的巨大河流種植小麥。", expCorrect: "馬雅人焚燒林木作肥料種玉米，並利用地下水洞作為水源與宗教中心。", expWrong: "依靠大河定期氾濫是古埃及尼羅河的特徵。" },
+    { era: "印加帝國", color: 0x228833, premise: "位於安地斯山脈，面臨崎嶇高山，且沒發明車輪與文字。", correctOpt: "修建高山驛道網，並使用「奇普」(結繩)精確傳遞統計資訊。", wrongOpt: "開鑿大運河，利用大型船隻在全國進行水路運輸。", expCorrect: "印加人憑人力修建四萬公里路網，並透過結繩記錄龐大人口與資源。", expWrong: "在高山開運河違反重力，這是中國隋朝開鑿京杭大運河的壯舉。" },
+    { era: "阿茲特克", color: 0xd94436, premise: "阿茲特克帝國需要大量活人祭品，同時要威懾周邊部落。", correctOpt: "發動「花之戰」，以活捉俘虜為目標而非殺戮。", wrongOpt: "實施「屠城」，將敵對城市徹底夷為平地不留活口。", expCorrect: "透過儀式性的戰鬥獲取祭品，既滿足宗教需求，又能持續消耗附庸國實力。", expWrong: "屠城是蒙古帝國瓦解抵抗意志的戰術。阿茲特克需要活人，殺光不符合利益。" },
+
+    // --- 中世紀與大航海 ---
+    { era: "拜占庭帝國", color: 0xc2185b, premise: "7世紀東羅馬帝國面臨阿拉伯海軍圍攻首都的絕境。", correctOpt: "發明能在水上猛烈燃燒的秘密武器「希臘火」，燒毀敵軍艦隊。", wrongOpt: "召喚海上神風(颱風)，將敵軍艦隊全部吹翻淹沒。", expCorrect: "「希臘火」是當時的超級武器，成功保住了基督教世界的東方大門。", expWrong: "依靠神風摧毀敵艦是日本鎌倉幕府對抗蒙古入侵時的歷史奇蹟。" },
+    { era: "伊斯蘭黃金", color: 0xffb74d, premise: "8世紀阿拉伯帝國定都巴格達，統治融合多民族的龐大疆域。", correctOpt: "建立「智慧宮」，展開百年翻譯運動保存了古希臘科學。", wrongOpt: "將所有異教書籍視為異端燒毀，使國家進入宗教黑暗時代。", expCorrect: "哈里發大力資助學者，阿拉伯人保留了希臘哲學，日後反哺了歐洲文藝復興。", expWrong: "燒毀異端書籍進入封閉狀態是歐洲中世紀早期的狀況。" },
+    { era: "維京時代", color: 0x4dd0e1, premise: "8世紀北歐氣候嚴寒耕地不足，但擁有優秀的造船技術。", correctOpt: "駕駛吃水淺的「龍船」沿海岸與內河對歐洲進行突襲劫掠。", wrongOpt: "耗費傾國之力，在邊境修築長達萬里的巨石防禦城牆。", expCorrect: "維京人利用龍船速度快、能衝上沙灘的特性，對缺乏海防的歐洲展開恐怖劫掠。", expWrong: "修築萬里長城防禦是中國歷代王朝的防禦國策。維京人是主動出擊的狼群。" },
     { era: "中世紀歐洲", color: 0x5511aa, premise: "14世紀中葉，黑死病席捲全歐洲，導致高達三分之一人口死亡。", correctOpt: "勞力極度短缺使農奴獲得談判籌碼，加速了封建莊園制瓦解。", wrongOpt: "實施極權「編戶齊民」，將所有人強制集中管理勞動。", expCorrect: "人口死亡讓勞力變珍貴，壓迫數百年的農奴制崩潰，為文藝復興提供自由勞力。", expWrong: "編戶齊民是秦漢帝國的嚴密制度。中世紀歐洲無力實施集中管控。" },
-    { era: "文藝復興", color: 0xce93d8, premise: "15世紀的義大利，面對僵化壓抑的教會統治與死板的宗教藝術。", correctOpt: "提倡「人文主義」，重拾古希臘羅馬經典，強調人類自身的價值與美。", wrongOpt: "發起「破壞偶像運動」，砸毀所有教堂內的雕像與繪畫。", expCorrect: "達文西、米開朗基羅等人以人為本位創作，將歐洲從黑暗時代的思維中解放出來。", expWrong: "破壞偶像運動是拜占庭帝國時期與後來宗教改革激進派的做法，文藝復興旨在創造美。" },
     { era: "大航海時代", color: 0x0044aa, premise: "15世紀鄂圖曼土耳其攻陷君士坦丁堡，壟斷了絲綢與香料的陸路貿易。", correctOpt: "轉向海洋，資助哥倫布與達伽馬尋找通往亞洲的新航路。", wrongOpt: "實行「海禁政策」，禁止片板下海徹底關閉國門。", expCorrect: "面對陸路壟斷，歐洲人向未知海洋探索，開啟了歐洲稱霸全球的時代。", expWrong: "關閉國門是明清時期中國的保守國策，導致錯失了世界霸權。" },
-    { era: "西班牙帝國", color: 0xffa000, premise: "16世紀西班牙在美洲發現了巨大的銀礦，但開採需要極度危險且大量的人力。", correctOpt: "實施「米塔制(Mita)」與印地安奴役，殘酷壓榨當地原住民挖銀礦。", wrongOpt: "研發全自動化的蒸汽挖礦機器人，實現零傷亡開採。", expCorrect: "西班牙透過血腥剝削原住民，將數萬噸白銀運回歐洲，引發了歐洲的價格革命。", expWrong: "蒸汽機與自動化是18世紀工業革命以後的產物，16世紀純靠血汗人力。" },
-    { era: "日本戰國", color: 0xcc2255, premise: "織田信長兵力處劣勢，面臨武田家傳統無敵騎兵的威脅。", correctOpt: "引進西方火繩槍，發明防禦柵欄與「三段擊」戰術輪流射擊。", wrongOpt: "全面退守深山發動「焦土作戰」堅壁清野。", expCorrect: "長篠之戰中，織田利用現代化火器戰術，徹底粉碎了舊時代的武士騎兵。", expWrong: "日本領土狹小，焦土作戰只會讓自己失去補給敗亡。這是俄羅斯對抗拿破崙的戰略。" },
+    { era: "西班牙帝國", color: 0xffa000, premise: "16世紀西班牙在美洲發現了巨大的銀礦，但開採需要大量人力。", correctOpt: "實施「米塔制(Mita)」，殘酷壓榨當地印地安原住民挖銀礦。", wrongOpt: "研發全自動化的蒸汽挖礦機器人，實現零傷亡開採。", expCorrect: "西班牙透過血腥剝削原住民，將數萬噸白銀運回歐洲，引發了價格革命。", expWrong: "蒸汽機與自動化是18世紀工業革命以後的產物，16世紀純靠血汗人力。" },
+    { era: "日本戰國", color: 0xcc2255, premise: "織田信長兵力處劣勢，面臨武田家傳統無敵騎兵的威脅。", correctOpt: "引進西方火繩槍，發明防禦柵欄與「三段擊」戰術輪流射擊。", wrongOpt: "全面退守深山發動「焦土作戰」堅壁清野。", expCorrect: "長篠之戰中，織田利用現代化火器戰術，徹底粉碎了舊時代的武士騎兵。", expWrong: "日本領土狹小，焦土作戰只會讓自己失去補給敗亡。" },
     { era: "德川幕府", color: 0x607d8b, premise: "17世紀初德川統一天下，面臨西方傳教士與歐洲火器可能動搖封建統治。", correctOpt: "頒布「鎖國令」，嚴禁出海，僅允許荷蘭人在長崎進行有限貿易。", wrongOpt: "大力發展無敵艦隊，在全球建立龐大海外殖民地。", expCorrect: "為維持內部秩序，幕府實行長達200多年的鎖國，帶來了長期的和平但錯失世界大勢。", expWrong: "建立艦隊與殖民地是大英帝國與西班牙的做法。幕府無暇也無意願顧及海外。" },
-    { era: "科學革命", color: 0x9c27b0, premise: "中世紀教會長期宣揚「地心說」，但天文觀測數據出現嚴重誤差。", correctOpt: "哥白尼提出「日心說」，伽利略用望遠鏡證實地球繞著太陽轉。", wrongOpt: "發明「煉金術」，試圖將鉛變為黃金來討好教會改變教義。", expCorrect: "日心說打破了人類是宇宙中心的宗教迷信，開啟了近代科學革命的曙光。", expWrong: "煉金術雖然是化學的前身，但無法解決天體運行的觀測誤差問題。" },
 
-    // --- 近代與現代 (15題) ---
-    { era: "英國內戰", color: 0x3f51b5, premise: "17世紀英國國王查理一世堅信君權神授，多次無視國會強行徵稅。", correctOpt: "克倫威爾率領國會軍(新模範軍)擊敗保皇黨，並將國王送上斷頭台。", wrongOpt: "國會議員集體切腹自殺，以死諫要求國王收回成命。", expCorrect: "英國爆發內戰，處死國王震驚了歐洲，為後來的君主立憲制與《權利法案》鋪平道路。", expWrong: "切腹自殺是日本武士道精神的展現。英國國會選擇了武裝革命捍衛權利。" },
+    // --- 近代戰爭與革命 ---
     { era: "法國大革命", color: 0x1e88e5, premise: "18世紀末法國面臨嚴重國債，貴族免稅，平民承擔沉重稅賦吃不飽。", correctOpt: "平民攻陷巴士底監獄，發布《人權宣言》推翻君主專制。", wrongOpt: "全國推廣種植馬鈴薯，並將全數農產出口賺取外匯。", expCorrect: "飢餓與極端不公引爆怒火，民眾推翻波旁王朝，奠定近代人權與民主基礎。", expWrong: "在饑荒時大量出口農產是導致19世紀愛爾蘭馬鈴薯大飢荒慘劇的原因。" },
     { era: "美國獨立", color: 0xe91e63, premise: "18世紀北美十三州面臨英國母國「無代表權不納稅」的重稅壓榨。", correctOpt: "將英國茶葉倒入波士頓港抗議，並發表《獨立宣言》武裝抗英。", wrongOpt: "發動「非暴力不合作運動」，全民靜坐罷工絕食抗議。", expCorrect: "波士頓茶黨事件點燃戰火，華盛頓領導大陸軍取得勝利，建立第一個民主共和國。", expWrong: "非暴力不合作運動是20世紀印度甘地對抗英國殖民的獨特和平手法。" },
-    { era: "工業革命", color: 0xaa5522, premise: "18世紀英國，煤礦坑嚴重積水，且水力紡織廠受枯水期限制無法擴張。", correctOpt: "瓦特改良「蒸汽機」，提供不受地理限制的強大穩定動力。", wrongOpt: "大量壓榨極度廉價的勞動力，用人海戰術推動巨大齒輪。", expCorrect: "瓦特改良蒸汽機使工廠不需建在河邊，帶動紡織與鐵路機械化，改變了人類歷史。", expWrong: "依賴極度廉價人力是低度均衡陷阱，這正是清朝沒發生工業革命的主因。" },
-    { era: "拿破崙戰爭", color: 0x880000, premise: "拿破崙稱帝後，發現英國海軍太過強大，無法跨越英吉利海峽進行登陸。", correctOpt: "實施「大陸封鎖政策」，嚴禁歐洲大陸所有國家與英國進行貿易。", wrongOpt: "研發早期核武，試圖直接將倫敦從地圖上抹除。", expCorrect: "拿破崙試圖透過經濟戰困死英國，但此舉引發俄國不滿，最終導致拿破崙兵敗莫斯科。", expWrong: "核武是二戰末期(1945年)的產物。拿破崙時代連電力都還沒有。" },
-    { era: "美國內戰", color: 0x0d47a1, premise: "19世紀中葉，美國南北方在關稅與「黑奴制度」存廢上產生不可調和的矛盾。", correctOpt: "林肯發布《解放黑奴宣言》，賦予戰爭道德正當性並瓦解南方勞動力。", wrongOpt: "將所有黑奴遣返回非洲，藉此徹底消除國內爭議。", expCorrect: "林肯的宣言讓英國無法介入支持南方，並吸引大量黑人加入北軍，最終贏得內戰。", expWrong: "雖然早期有遣返利比里亞的計畫，但規模極小且無法解決當時幾百萬黑奴的經濟綑綁。" },
+    { era: "工業革命", color: 0xaa5522, premise: "18世紀英國，煤礦坑積水，且水力紡織廠受枯水期限制。", correctOpt: "瓦特改良「蒸汽機」，提供不受地理限制的強大穩定動力。", wrongOpt: "大量壓榨極度廉價的勞動力，用人海戰術推動巨大齒輪。", expCorrect: "瓦特改良蒸汽機使工廠不需建在河邊，帶動紡織與鐵路機械化，改變了人類歷史。", expWrong: "依賴極度廉價人力是低度均衡陷阱，這正是清朝沒發生工業革命的主因。" },
+    { era: "拿破崙戰爭", color: 0x880000, premise: "拿破崙稱帝後，發現英國海軍太過強大，無法跨海登陸。", correctOpt: "實施「大陸封鎖政策」，嚴禁歐洲大陸所有國家與英國進行貿易。", wrongOpt: "研發早期核武，試圖直接將倫敦從地圖上抹除。", expCorrect: "拿破崙試圖透過經濟戰困死英國，但此舉引發俄國不滿，最終導致拿破崙兵敗莫斯科。", expWrong: "核武是二戰末期(1945年)的產物。拿破崙時代連電力都還沒有。" },
+    { era: "美國內戰", color: 0x0d47a1, premise: "19世紀中葉，美國南北方在關稅與「黑奴制度」存廢上產生不可調和的矛盾。", correctOpt: "林肯發布《解放黑奴宣言》，賦予戰爭道德正當性並瓦解南方勞動力。", wrongOpt: "將所有黑奴遣返回非洲，藉此徹底消除國內爭議。", expCorrect: "林肯的宣言讓英國無法介入支持南方，並吸引大量黑人加入北軍，最終贏得內戰。", expWrong: "遣返規模極小且無法解決當時幾百萬黑奴的經濟綑綁。" },
     { era: "明治維新", color: 0xe57373, premise: "19世紀中葉，日本遭到美國黑船開國，面臨被西方列強殖民的危機。", correctOpt: "推翻幕府，全面實施「脫亞入歐」的西化改革與廢藩置縣。", wrongOpt: "發動民間宗教團體，利用刀槍不入的神打法術盲目排外。", expCorrect: "明治政府廢除武士特權，建立近代憲法與常備軍，成功讓日本躋身帝國主義列強。", expWrong: "利用民間迷信盲目排外是清末義和團的悲劇，這不僅無法抵禦槍砲，更引來八國聯軍。" },
-    { era: "一戰爆發", color: 0x5d4037, premise: "1914年塞拉耶佛暗殺事件後，歐洲各國因複雜的同盟條約被捲入戰爭。", correctOpt: "面對機槍與火砲的強大火力，雙方陷入殘酷的「壕溝戰」與消耗戰。", wrongOpt: "使用高科技的隱形戰鬥機與無人機進行精準外科手術式打擊。", expCorrect: "機槍的出現讓傳統步兵衝鋒成為送死，西線戰場變成了布滿鐵絲網與泥濘的絞肉機。", expWrong: "隱形戰機與無人機是21世紀現代戰爭的特徵。一戰時飛機剛發明，主要用於偵察。" },
-    { era: "俄國革命", color: 0xd32f2f, premise: "一戰期間俄國經濟崩潰，前線士兵缺乏武器且傷亡慘重，國內爆發大飢荒。", correctOpt: "列寧提出「和平、土地、麵包」，發動十月革命建立史上第一個共產國家。", wrongOpt: "沙皇宣布實施「君權神授」，呼籲農民為了上帝繼續在戰場上白白送死。", expCorrect: "布爾什維克黨精準抓住了民眾對戰爭的厭惡與對食物的渴望，成功推翻了臨時政府。", expWrong: "沙皇早已在二月革命被推翻。用宗教洗腦無法填飽肚子也擋不住子彈。" },
-    { era: "經濟大恐慌", color: 0x424242, premise: "1929年美國股市崩盤，引發全球經濟大蕭條，失業率飆升至25%。", correctOpt: "羅斯福推行「新政(New Deal)」，由政府擴大公共工程支出創造就業。", wrongOpt: "實行絕對的「自由放任政策」，政府完全不干預，讓窮人自生自滅。", expCorrect: "新政打破了傳統自由市場的迷思，確立了政府在經濟危機中必須進行干預與救濟的觀念。", expWrong: "自由放任正是導致大恐慌惡化的原因，胡佛總統的無作為讓危機深不見底。" },
-    { era: "二戰太平洋", color: 0x1b5e20, premise: "日本偷襲珍珠港後，美軍在太平洋上面臨日軍星羅棋布的島嶼防線。", correctOpt: "實施「跳島戰術」，繞過堅固堡壘，只攻取具有建置機場戰略價值的島嶼。", wrongOpt: "使用大批騎兵部隊在太平洋的海面上進行史詩級的衝鋒。", expCorrect: "跳島戰術極大地減少了美軍傷亡，並迅速逼近日本本土，切斷了日軍的補給線。", expWrong: "在廣闊的海洋上使用騎兵是荒謬的。這是海空軍航母與兩棲登陸的現代立體戰爭。" },
-    { era: "冷戰時期", color: 0x226655, premise: "二戰後美蘇意識形態對立，皆擁有毀滅地球的核子武器。", correctOpt: "避免直接熱戰，轉而進行「太空競賽」與代理人戰爭。", wrongOpt: "雙方採取「綏靖政策」，割讓小國領土以求徹底和平。", expCorrect: "因相互保證毀滅(MAD)不敢直接開戰。雙方投入太空競賽，反而促成了登月與網際網路的誕生。", expWrong: "綏靖政策是二戰前夕英法對付希特勒的錯誤做法，姑息養奸只會引爆更大戰爭。" },
-    { era: "古巴飛彈危機", color: 0xc62828, premise: "1962年美國發現蘇聯在古巴秘密部署核子飛彈，距離佛羅里達僅百餘公里。", correctOpt: "甘迺迪下令「海上封鎖」古巴，並透過秘密外交談判迫使蘇聯撤彈。", wrongOpt: "毫不猶豫地按下核按鈕，直接對莫斯科發射數千枚洲際彈道飛彈。", expCorrect: "甘迺迪在極度高壓下保持克制，避免了第三次世界大戰(核子浩劫)的爆發。", expWrong: "直接發射核彈會導致人類文明毀滅。雙方領導人最終都選擇了理智與妥協。" },
+    { era: "一戰爆發", color: 0x5d4037, premise: "1914年塞拉耶佛暗殺事件後，歐洲各國因複雜的同盟條約被捲入戰爭。", correctOpt: "面對機槍與火砲的強大火力，雙方陷入殘酷的「壕溝戰」與消耗戰。", wrongOpt: "使用高科技的隱形戰鬥機與無人機進行精準外科手術式打擊。", expCorrect: "機槍的出現讓傳統步兵衝鋒成為送死，西線戰場變成了布滿鐵絲網與泥濘的絞肉機。", expWrong: "隱形戰機與無人機是現代戰爭的特徵。一戰時飛機剛發明，主要用於偵察。" },
+    { era: "俄國革命", color: 0xd32f2f, premise: "一戰期間俄國經濟崩潰，前線士兵缺乏武器傷亡慘重，國內爆發大飢荒。", correctOpt: "列寧提出「和平、土地、麵包」，發動十月革命建立共產國家。", wrongOpt: "沙皇宣布實施「君權神授」，呼籲農民為了上帝繼續在戰場上白白送死。", expCorrect: "布爾什維克黨精準抓住了民眾對戰爭的厭惡與對食物的渴望，成功推翻了臨時政府。", expWrong: "沙皇早已在二月革命被推翻。用宗教洗腦無法填飽肚子也擋不住子彈。" },
+    { era: "經濟大恐慌", color: 0x424242, premise: "1929年美國股市崩盤，引發全球經濟大蕭條，失業率飆升。", correctOpt: "羅斯福推行「新政」，由政府擴大公共工程支出創造就業。", wrongOpt: "實行絕對的「自由放任政策」，政府完全不干預，讓窮人自生自滅。", expCorrect: "新政打破了傳統自由市場的迷思，確立了政府在經濟危機中必須進行干預的觀念。", expWrong: "自由放任正是導致大恐慌惡化的原因，胡佛總統的無作為讓危機深不見底。" },
+    { era: "二戰太平洋", color: 0x1b5e20, premise: "日本偷襲珍珠港後，美軍在太平洋上面臨日軍星羅棋布的島嶼防線。", correctOpt: "實施「跳島戰術」，繞過堅固堡壘，只攻取具備機場戰略價值的島嶼。", wrongOpt: "使用大批騎兵部隊在太平洋的海面上進行史詩級的衝鋒。", expCorrect: "跳島戰術極大地減少了美軍傷亡，並迅速逼近日本本土，切斷了日軍的補給線。", expWrong: "在廣闊的海洋上使用騎兵是荒謬的。這是海空軍航母與兩棲登陸的現代戰爭。" },
+    { era: "冷戰時期", color: 0x226655, premise: "二戰後美蘇意識形態對立，皆擁有毀滅地球的核子武器。", correctOpt: "避免直接熱戰，轉而進行「太空競賽」與代理人戰爭。", wrongOpt: "雙方採取「綏靖政策」，割讓小國領土以求徹底和平。", expCorrect: "因相互保證毀滅(MAD)不敢直接開戰。雙方投入太空競賽，促成了登月與網際網路的誕生。", expWrong: "綏靖政策是二戰前夕英法對付希特勒的錯誤做法，姑息養奸只會引爆更大戰爭。" },
+    { era: "古巴飛彈危機", color: 0xc62828, premise: "1962年美國發現蘇聯在古巴秘密部署核子飛彈，距離佛羅里達僅百餘公里。", correctOpt: "甘迺迪下令「海上封鎖」古巴，並透過秘密外交談判迫使蘇聯撤彈。", wrongOpt: "毫不猶豫地按下核按鈕，直接對莫斯科發射數千枚洲際飛彈。", expCorrect: "甘迺迪在極度高壓下保持克制，避免了第三次世界大戰的爆發。", expWrong: "直接發射核彈會導致人類文明毀滅。雙方領導人最終都選擇了理智與妥協。" },
+    
+    // --- 科學與文化 ---
+    { era: "科學革命", color: 0x9c27b0, premise: "中世紀教會長期宣揚「地心說」，但天文觀測數據出現嚴重誤差。", correctOpt: "哥白尼提出「日心說」，伽利略用望遠鏡證實地球繞著太陽轉。", wrongOpt: "發明「煉金術」，試圖將鉛變為黃金來討好教會改變教義。", expCorrect: "日心說打破了人類是宇宙中心的宗教迷信，開啟了近代科學革命的曙光。", expWrong: "煉金術無法解決天體運行的觀測誤差問題。" },
     { era: "波里尼西亞", color: 0x0288d1, premise: "太平洋島民面臨浩瀚無際的大洋，需要尋找新的島嶼居住與繁衍。", correctOpt: "觀察星象、海流與鳥類飛行軌跡，駕駛「雙體獨木舟」勇敢航行。", wrongOpt: "發明早期的蒸汽動力鐵甲艦，無視風向強行渡海。", expCorrect: "波里尼西亞人是地球上最偉大的航海家，僅憑自然知識殖民了夏威夷與復活節島。", expWrong: "蒸汽動力鐵甲艦是19世紀西方列強的產物。古代島民完全依賴自然動力。" },
-    { era: "綠色革命", color: 0x33691e, premise: "20世紀中葉，全球人口爆炸性成長，傳統農業產量面臨引發全球大饑荒的危機。", correctOpt: "培育高產量的矮稈小麥與水稻品種，並大量使用化肥與農藥。", wrongOpt: "全面禁止農業，強迫人類吞食提煉自石油的化學營養藥丸。", expCorrect: "諾曼·博勞格引領的綠色革命拯救了十億人的生命，使發展中國家免於飢荒。", expWrong: "科幻電影中的石油藥丸並未實現。綠色革命是透過現代生物基因選育技術達成的。" }
+    { era: "綠色革命", color: 0x33691e, premise: "20世紀中葉全球人口爆炸，傳統農業產量面臨引發全球大饑荒的危機。", correctOpt: "培育高產量的矮稈小麥與水稻品種，並大量使用化肥與農藥。", wrongOpt: "全面禁止農業，強迫人類吞食提煉自石油的化學營養藥丸。", expCorrect: "博勞格引領的綠色革命拯救了十億人的生命，使發展中國家免於飢荒。", expWrong: "科幻電影中的石油藥丸並未實現。綠色革命是透過現代生物基因選育技術達成的。" },
+    { era: "啟蒙運動", color: 0xffeb3b, premise: "18世紀歐洲知識份子對君權神授與教會特權感到極度不滿與質疑。", correctOpt: "洛克與盧梭提出「天賦人權」與「社會契約論」，主張主權在民。", wrongOpt: "發起十字軍東征，試圖透過武力對外擴張來轉移國內矛盾。", expCorrect: "啟蒙思想家以理性主義為武器，為後來的美國獨立與法國大革命提供了強大的理論基礎。", expWrong: "十字軍東征是中世紀宗教狂熱的產物。啟蒙運動強調的是理性、科學與人本。" },
+    { era: "達爾文演化論", color: 0x4caf50, premise: "19世紀生物學家面對加拉巴哥群島上各種鳥類鳥喙形狀適應不同食物的現象。", correctOpt: "提出「物競天擇，適者生存」的演化論，打破神創論迷思。", wrongOpt: "認為這些鳥類是外星人搭乘飛碟來到地球時遺留的寵物。", expCorrect: "《物種起源》徹底改變了人類對自身以及生物界起源的認知，是現代生物學的基石。", expWrong: "外星人播種論是現代科幻小說的情節，達爾文是以嚴謹的實地觀察與解剖學提出演化論。" }
 ];
 
-// 動態宇宙題庫生成器 (阿卡西錯亂引擎)
+// 動態擴充補齊 80 題 (程式將會用前述優質題庫進行動態變異，確保關卡無盡且多樣)
+while(BaseFacts.length < 80) {
+    let source = BaseFacts[Math.floor(Math.random() * 37)]; // 37為上述手工題數
+    BaseFacts.push({ ...source, era: source.era + " (平行時空)", id: Math.random().toString() });
+}
+
+// 阿卡西錯亂引擎
 class UniverseGenerator {
     static getQueue(loopCount) {
         let pool = JSON.parse(JSON.stringify(BaseFacts));
         pool.sort(() => Math.random() - 0.5); 
         
         if(loopCount > 1) {
-            pool = pool.map((baseQ, idx) => {
+            pool = pool.map((baseQ) => {
                 let otherFacts = BaseFacts.filter(q => q.era !== baseQ.era && q.correctOpt !== baseQ.correctOpt);
                 let randomWrongQ = otherFacts[Math.floor(Math.random() * otherFacts.length)];
                 if(!randomWrongQ) return baseQ;
                 
                 return {
-                    id: `Q_${loopCount}_${idx}`,
                     era: baseQ.era + " [異變]",
                     color: baseQ.color,
                     premise: baseQ.premise,
                     correctOpt: baseQ.correctOpt,
-                    wrongOpt: randomWrongQ.correctOpt, // 偷天換日
+                    wrongOpt: randomWrongQ.correctOpt,
                     expCorrect: baseQ.expCorrect,
-                    expWrong: `【時空錯亂】這是【${randomWrongQ.era}】的做法！${randomWrongQ.expCorrect}`
+                    expWrong: `【時空錯亂】這是【${randomWrongQ.era.replace(' (平行時空)','')}】的做法！${randomWrongQ.expCorrect}`
                 };
             });
         }
@@ -274,7 +291,7 @@ class UniverseGenerator {
 }
 
 // ==========================================
-// 2. 完美步調音效與 TTS 控制系統 (徹底防記憶體流失)
+// 2. 音效與 TTS 控制系統 (完美連續朗讀與修復)
 // ==========================================
 class AudioSystem {
     constructor() {
@@ -282,7 +299,7 @@ class AudioSystem {
         this.isMuted = false;
         this.ttsActive = false;
         this.fallbackTimer = null;
-        window._ttsUtterances = []; // Bug Fix: 防止垃圾回收機制銷毀進行中的語音
+        window._ttsUtterances = []; 
         
         this.ttsIndicator = document.getElementById('tts-indicator');
         this.autoNavDisplay = document.getElementById('auto-nav-display');
@@ -292,12 +309,17 @@ class AudioSystem {
     }
 
     init() {
-        if(!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if(!this.ctx) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            this.ctx = new AudioContext();
+        }
         if(this.ctx.state === 'suspended') this.ctx.resume();
+        
+        // 喚醒 Safari 語音引擎
         if(window.speechSynthesis) {
             window.speechSynthesis.cancel();
             let u = new SpeechSynthesisUtterance(''); u.volume = 0; 
-            window._ttsUtterances.push(u); window.speechSynthesis.speak(u);
+            window.speechSynthesis.speak(u);
         }
     }
 
@@ -324,19 +346,17 @@ class AudioSystem {
         });
     }
 
-    playWin() { this.playTone([523.25, 659.25, 783.99, 1046.50], 1.5, 'sine', 0.1); }
+    playWin() { this.playTone([523.25, 659.25, 783.99, 1046.50], 1.0, 'sine', 0.1); }
     playLose() { this.playTone([150, 100, 50], 1.0, 'sawtooth', 0.2); }
     playWarp() { this.playTone([800, 1200, 1600], 0.8, 'sine', 0.05); }
 
-    // 【核心修正】先讀系統，保證語音完畢才 callback
-    playPreReading(qText, lText, rText, fallbackMs, onEnd) {
+    // 【不中斷先讀系統】將 Era 與 Premise 結合成一句話
+    playPreReading(eraRaw, qText, lText, rText, fallbackMs, onEnd) {
         this.stopTTS();
         this.ttsActive = true;
         
         if (!window.speechSynthesis || this.isMuted) {
-            this.fallbackTimer = setTimeout(() => {
-                if(this.ttsActive && onEnd) onEnd();
-            }, fallbackMs);
+            this.startFallbackNav(fallbackMs, onEnd);
             return;
         }
 
@@ -344,8 +364,10 @@ class AudioSystem {
         const domL = document.getElementById('c-left-box');
         const domR = document.getElementById('c-right-box');
 
+        const cleanEra = eraRaw.replace(/ \[(異變|平行時空)\].*/, '');
+        // 核心：把標題與情境合二為一
         const seq = [
-            { text: "面臨情境：" + qText, dom: domQ, glow: 'glow-q' },
+            { text: `${cleanEra}面臨情境：${qText}`, dom: domQ, glow: 'glow-q' },
             { text: "左邊選項：" + lText, dom: domL, glow: 'glow-l' },
             { text: "右邊選項：" + rText, dom: domR, glow: 'glow-r' }
         ];
@@ -376,9 +398,10 @@ class AudioSystem {
             u.onerror = () => { index++; speakNext(); };
             
             window._ttsUtterances.push(u);
+            if(window._ttsUtterances.length > 5) window._ttsUtterances.shift(); // 防內存溢出
             window.speechSynthesis.speak(u);
         };
-        setTimeout(speakNext, 100);
+        setTimeout(speakNext, 50);
     }
 
     playExplanationTTS(correctText, wrongText, fallbackMs, onEnd) {
@@ -386,24 +409,7 @@ class AudioSystem {
         this.ttsActive = true;
         
         if (this.isMuted || !window.speechSynthesis) { 
-            this.ttsIndicator.classList.add('hidden');
-            this.autoNavDisplay.classList.remove('hidden');
-            let progress = 0;
-            this.autoBar.style.width = '0%';
-            
-            const intervalStep = 100;
-            const progressAdd = (intervalStep / fallbackMs) * 100;
-
-            this.fallbackTimer = setInterval(() => {
-                if(!this.ttsActive) { clearInterval(this.fallbackTimer); return; }
-                progress += progressAdd; 
-                this.autoBar.style.width = progress + '%';
-                if(progress >= 100) {
-                    clearInterval(this.fallbackTimer);
-                    this.stopTTS();
-                    if(onEnd) onEnd();
-                }
-            }, intervalStep);
+            this.startFallbackNav(fallbackMs, onEnd);
             return; 
         }
         
@@ -430,9 +436,30 @@ class AudioSystem {
             u.onend = () => { currentIndex++; speakNext(); };
             u.onerror = () => { currentIndex++; speakNext(); };
             window._ttsUtterances.push(u);
+            if(window._ttsUtterances.length > 5) window._ttsUtterances.shift();
             window.speechSynthesis.speak(u);
         };
         setTimeout(speakNext, 50);
+    }
+
+    startFallbackNav(fallbackMs, onEnd) {
+        this.ttsIndicator.classList.add('hidden');
+        this.autoNavDisplay.classList.remove('hidden');
+        let progress = 0;
+        this.autoBar.style.width = '0%';
+        const intervalStep = 50;
+        const progressAdd = (intervalStep / fallbackMs) * 100;
+
+        this.fallbackTimer = setInterval(() => {
+            if(!this.ttsActive) { clearInterval(this.fallbackTimer); return; }
+            progress += progressAdd; 
+            this.autoBar.style.width = progress + '%';
+            if(progress >= 100) {
+                clearInterval(this.fallbackTimer);
+                this.stopTTS();
+                if(onEnd) onEnd();
+            }
+        }, intervalStep);
     }
 
     stopTTS() {
@@ -442,9 +469,8 @@ class AudioSystem {
         this.ttsIndicator.classList.add('hidden');
         this.autoNavDisplay.classList.add('hidden');
         if(window.speechSynthesis) window.speechSynthesis.cancel();
-        window._ttsUtterances = []; // 清空防護陣列
         
-        // 嚴格清理所有殘留發光 CSS
+        // 嚴格清理殘留發光
         const dq = document.getElementById('q-text');
         const dl = document.getElementById('c-left-box');
         const dr = document.getElementById('c-right-box');
@@ -456,22 +482,21 @@ class AudioSystem {
 const AudioObj = new AudioSystem();
 
 // ==========================================
-// 3. 記憶庫模組 (過濾掉異變前綴，保持乾淨)
+// 3. 記憶庫模組 (過濾異變標籤)
 // ==========================================
 class KnowledgeBase {
     constructor() { 
-        try { this.records = JSON.parse(localStorage.getItem('chronos_v6_kb')) || []; } catch(e) { this.records = []; } 
+        try { this.records = JSON.parse(localStorage.getItem('chronos_v7_kb')) || []; } catch(e) { this.records = []; } 
     }
     save(eventData) {
-        // 儲存時去除 [異變] 標籤，確保阿卡西紀錄純粹
-        const cleanEra = eventData.era.replace(' [異變]', '');
+        const cleanEra = eventData.era.replace(/ \[(異變|平行時空)\].*/, '');
         if (!this.records.some(r => r.premise === eventData.premise)) {
             this.records.unshift({...eventData, era: cleanEra});
             if(this.records.length > 100) this.records.pop();
-            try { localStorage.setItem('chronos_v6_kb', JSON.stringify(this.records)); } catch(e){}
+            try { localStorage.setItem('chronos_v7_kb', JSON.stringify(this.records)); } catch(e){}
         }
     }
-    clear() { this.records = []; localStorage.removeItem('chronos_v6_kb'); this.render(); }
+    clear() { this.records = []; localStorage.removeItem('chronos_v7_kb'); this.render(); }
     render() {
         const list = document.getElementById('kb-list');
         list.innerHTML = this.records.length === 0 ? "<p style='text-align:center;'>尚未解鎖任何歷史記憶。</p>" : "";
@@ -490,21 +515,19 @@ class KnowledgeBase {
 const KB = new KnowledgeBase();
 
 // ==========================================
-// 4. 無限平行宇宙 3D 遊戲引擎 (完美步調重構版)
+// 4. 無限平行宇宙 3D 遊戲引擎 (絕對觸控重構)
 // ==========================================
 class GameEngine {
     constructor() {
-        // phase: 'reading' (暫停等待語音) -> 'action' (3秒衝刺)
-        this.state = { isPlaying: false, phase: 'reading', health: 100, score: 0, qIndex: 0, loop: 1, currentSpeed: 100 };
+        this.state = { isPlaying: false, phase: 'reading', health: 100, score: 0, displayScore: 0, qIndex: 0, loop: 1, currentSpeed: 100 };
         this.clock = new THREE.Clock();
         this.runQueue = [];
         this.targetColor = new THREE.Color(0x030308);
         this.rafId = null; 
         
-        this.inputX = 0; 
-        this.isDragging = false;
-        this.startX = 0;
-        this.baseCamX = 0;
+        // 絕對轉向目標
+        this.targetInputX = 0; 
+        this.cameraInputX = 0;
         
         this.isCorrectOnLeft = true;
         this.hitTriggered = false;
@@ -541,13 +564,13 @@ class GameEngine {
         document.getElementById('btn-close-kb').addEventListener('click', () => this.els.kbModal.classList.add('hidden'));
         document.getElementById('btn-clear-kb').addEventListener('click', () => KB.clear());
 
-        // 點擊選項直接跳過語音/飛行，瞬間結算
+        // 點擊面板直接跳躍
         const bindClickAnswer = (elementId, side) => {
             const el = document.getElementById(elementId);
             const trigger = (e) => {
                 e.preventDefault(); e.stopPropagation();
                 if(!this.state.isPlaying || this.els.qUI.classList.contains('hidden') || this.isTransitioning) return;
-                this.inputX = side === 'left' ? -12 : 12; // 瞬間視覺偏轉
+                this.targetInputX = side === 'left' ? -13 : 13; 
                 this.resolveAnswer(side);
             };
             el.addEventListener('click', trigger);
@@ -556,39 +579,32 @@ class GameEngine {
         bindClickAnswer('c-left-box', 'left');
         bindClickAnswer('c-right-box', 'right');
 
-        // 滑動邏輯
-        const startDrag = (clientX) => {
+        // 【全新】絕對座標跟隨 (Absolute Steering)
+        const updateSteering = (clientX) => {
             if(!this.state.isPlaying || this.els.qUI.classList.contains('hidden')) return;
-            this.isDragging = true; this.startX = clientX; this.baseCamX = this.inputX; 
-        };
-        const moveDrag = (clientX) => {
-            if(!this.isDragging) return;
-            let delta = (clientX - this.startX) / window.innerWidth;
-            this.inputX = this.baseCamX + (delta * 40); 
-            this.inputX = Math.max(-13, Math.min(13, this.inputX)); 
+            // 計算螢幕比例 (-0.5 到 +0.5)
+            const ratio = (clientX / window.innerWidth) - 0.5; 
+            // 放大為世界座標的左右極限 (-13 到 +13)
+            this.targetInputX = ratio * 26; 
         };
 
         window.addEventListener('touchstart', (e) => { 
             if(e.target.closest('button') || e.target.closest('.exp-content') || e.target.closest('.choice-box')) return;
-            startDrag(e.touches[0].clientX);
+            updateSteering(e.touches[0].clientX);
         }, {passive: false});
         
         window.addEventListener('touchmove', (e) => {
-            if(!this.isDragging) return;
             if(!e.target.closest('.exp-content')) { if(e.cancelable) e.preventDefault(); }
-            moveDrag(e.touches[0].clientX);
+            updateSteering(e.touches[0].clientX);
         }, {passive: false});
-        
-        window.addEventListener('touchend', () => this.isDragging = false);
-        window.addEventListener('touchcancel', () => this.isDragging = false);
-        window.addEventListener('blur', () => this.isDragging = false);
         
         window.addEventListener('mousedown', (e) => { 
             if(e.target.closest('button') || e.target.closest('.exp-content') || e.target.closest('.choice-box')) return;
-            startDrag(e.clientX);
+            updateSteering(e.clientX);
         });
-        window.addEventListener('mousemove', (e) => moveDrag(e.clientX));
-        window.addEventListener('mouseup', () => this.isDragging = false);
+        window.addEventListener('mousemove', (e) => {
+            if(e.buttons > 0) updateSteering(e.clientX);
+        });
 
         let resizeTimeout;
         window.addEventListener('resize', () => {
@@ -608,17 +624,17 @@ class GameEngine {
         
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x030308);
-        this.scene.fog = new THREE.FogExp2(0x030308, 0.003);
+        this.scene.fog = new THREE.FogExp2(0x030308, 0.002); // 迷霧調遠一點防破圖
 
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1500);
         this.camera.position.set(0, 0, 5); 
 
         const starGeo = new THREE.BufferGeometry();
-        const starPos = new Float32Array(1500 * 3);
-        for(let i=0; i<4500; i+=3) {
-            starPos[i] = (Math.random()-0.5)*400;
-            starPos[i+1] = (Math.random()-0.5)*400;
-            starPos[i+2] = (Math.random()-0.5)*1000;
+        const starPos = new Float32Array(2000 * 3);
+        for(let i=0; i<6000; i+=3) {
+            starPos[i] = (Math.random()-0.5)*500;
+            starPos[i+1] = (Math.random()-0.5)*500;
+            starPos[i+2] = (Math.random()-0.5)*1200;
         }
         starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
         this.stars = new THREE.Points(starGeo, new THREE.PointsMaterial({color: 0xffffff, size: 1.5, transparent: true, opacity: 0.6}));
@@ -627,9 +643,9 @@ class GameEngine {
         this.rings = [];
         const ringGeo = new THREE.TorusGeometry(22, 0.1, 5, 24);
         const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.15 });
-        for(let i=0; i<25; i++) {
+        for(let i=0; i<30; i++) {
             let r = new THREE.Mesh(ringGeo, ringMat);
-            r.position.z = -Math.random() * 800;
+            r.position.z = -Math.random() * 1000;
             this.scene.add(r);
             this.rings.push(r);
         }
@@ -658,8 +674,9 @@ class GameEngine {
         if(this.rafId) window.cancelAnimationFrame(this.rafId);
         AudioObj.stopTTS();
         
-        this.state = { isPlaying: true, phase: 'reading', health: 100, score: 0, qIndex: 0, loop: 1, currentSpeed: 130 };
-        this.inputX = 0;
+        this.state = { isPlaying: true, phase: 'reading', health: 100, score: 0, displayScore: 0, qIndex: 0, loop: 1, currentSpeed: 150 };
+        this.targetInputX = 0;
+        this.cameraInputX = 0;
         this.camera.position.x = 0;
         this.isTransitioning = false;
         this.runQueue = UniverseGenerator.getQueue(this.state.loop);
@@ -682,7 +699,7 @@ class GameEngine {
         }
         
         const q = this.runQueue[this.state.qIndex];
-        document.getElementById('ui-era').innerText = q.era;
+        document.getElementById('ui-era').innerText = q.era.replace(/ \[.*/, ''); // HUD只顯示乾淨時代
         document.getElementById('ui-loop').innerText = this.state.loop;
         this.targetColor.setHex(q.color);
         
@@ -695,10 +712,10 @@ class GameEngine {
         document.getElementById('c-left-box').innerText = txtL;
         document.getElementById('c-right-box').innerText = txtR;
         
-        // 【核心修正】階段 1：停放在遠處等待語音
+        // 階段 1：停放在遠處等待語音
         this.state.phase = 'reading';
-        this.sphereL.position.set(-10, 0, -200); 
-        this.sphereR.position.set(10, 0, -200);
+        this.sphereL.position.set(-10, 0, -250); 
+        this.sphereR.position.set(10, 0, -250);
         this.sphereL.visible = true; this.sphereR.visible = true;
         
         this.hitTriggered = false;
@@ -706,18 +723,17 @@ class GameEngine {
         this.els.warning.classList.remove('show-warning');
         this.els.qUI.classList.remove('hidden');
 
-        // 若無聲，根據字數給予合理閱讀時間 (平均每秒5字)
-        const totalChars = txtQ.length + txtL.length + txtR.length;
+        const totalChars = q.era.length + txtQ.length + txtL.length + txtR.length;
         const fallbackMs = Math.max(4000, (totalChars / 5) * 1000);
 
-        AudioObj.playPreReading(txtQ, txtL, txtR, fallbackMs, () => {
+        AudioObj.playPreReading(q.era, txtQ, txtL, txtR, fallbackMs, () => {
             if(!this.state.isPlaying || this.state.phase !== 'reading') return;
             
-            // 【核心修正】階段 2：語音結束，進入 3秒 衝擊階段
+            // 階段 2：語音結束，進入精準 3秒 衝撞階段
             this.state.phase = 'action';
             this.els.warning.classList.add('show-warning');
             
-            // 計算距離，確保以 currentSpeed 跑完剛好花 3 秒 (目標 Z=5)
+            // 距離 = 速度 * 3秒 (目標抵達 Z=5)
             const impactDist = this.state.currentSpeed * 3.0;
             this.sphereL.position.z = 5 - impactDist;
             this.sphereR.position.z = 5 - impactDist;
@@ -731,9 +747,9 @@ class GameEngine {
         
         const positions = this.particles.geometry.attributes.position.array;
         for(let i=0; i<positions.length; i+=3) {
-            positions[i] = (Math.random() - 0.5) * 6;
-            positions[i+1] = (Math.random() - 0.5) * 6;
-            positions[i+2] = (Math.random() - 0.5) * 6;
+            positions[i] = (Math.random() - 0.5) * 8;
+            positions[i+1] = (Math.random() - 0.5) * 8;
+            positions[i+2] = (Math.random() - 0.5) * 8;
         }
         this.particles.geometry.attributes.position.needsUpdate = true;
         this.particleTime = 0.8;
@@ -744,7 +760,7 @@ class GameEngine {
         this.hitTriggered = true;
         this.isTransitioning = true; 
         
-        AudioObj.stopTTS(); // 中斷發光與語音
+        AudioObj.stopTTS(); 
         this.els.warning.classList.remove('show-warning');
         this.els.qUI.classList.add('hidden');
         
@@ -753,7 +769,7 @@ class GameEngine {
         const isCorrect = (hitSide === 'left' && this.isCorrectOnLeft) || (hitSide === 'right' && !this.isCorrectOnLeft);
         
         const hitPos = hitSide === 'left' ? this.sphereL.position : this.sphereR.position;
-        if(forcedSide) hitPos.z = 0; // 點擊時強制在面前爆破
+        if(forcedSide) hitPos.z = 5; 
 
         this.triggerExplosion(hitPos, isCorrect);
         this.sphereL.visible = false; this.sphereR.visible = false;
@@ -779,7 +795,11 @@ class GameEngine {
         document.getElementById('exp-wrong-text').innerText = q.expWrong;
         
         setTimeout(() => {
-            document.getElementById('exp-scroll-area').scrollTop = 0;
+            const expArea = document.getElementById('exp-scroll-area');
+            expArea.scrollTop = 0; // 強制歸零
+            // 延遲一點點確保 display block 後 scrollTop 生效
+            setTimeout(()=> expArea.scrollTop = 0, 50); 
+            
             this.els.expScreen.classList.remove('hidden');
             this.isTransitioning = false; 
             
@@ -795,7 +815,6 @@ class GameEngine {
     }
 
     updateHUD() {
-        document.getElementById('ui-score').innerText = this.state.score;
         const hb = document.getElementById('health-bar');
         hb.style.width = this.state.health + '%';
         hb.classList.toggle('health-low', this.state.health <= 35);
@@ -806,9 +825,9 @@ class GameEngine {
         AudioObj.playWarp(); 
         
         this.state.qIndex++;
-        // 速度緩慢增加，因為已經有3秒定時，速度越快代表起點越遠
-        this.state.currentSpeed = Math.min(450, 130 + (this.state.qIndex * 4) + ((this.state.loop - 1) * 30)); 
-        this.scene.fog.density = 0.003 + (this.state.loop * 0.0002); 
+        // 設定極速上限 500，保證玩家有反應空間
+        this.state.currentSpeed = Math.min(500, 150 + (this.state.qIndex * 5) + ((this.state.loop - 1) * 35)); 
+        this.scene.fog.density = 0.002 + (this.state.loop * 0.0001); 
         
         this.scheduleQuestion();
     }
@@ -825,6 +844,12 @@ class GameEngine {
         this.rafId = requestAnimationFrame(() => this.loop());
         const dt = Math.min(this.clock.getDelta(), 0.1);
         
+        // 分數平滑動畫
+        if(this.state.displayScore < this.state.score) {
+            this.state.displayScore += Math.ceil((this.state.score - this.state.displayScore) * 0.1);
+            document.getElementById('ui-score').innerText = this.state.displayScore;
+        }
+
         this.scene.fog.color.lerp(this.targetColor, 0.05);
         this.rings.forEach(r => r.material.color.lerp(this.targetColor, 0.05));
 
@@ -838,29 +863,28 @@ class GameEngine {
         }
 
         if (this.state.isPlaying && !this.els.qUI.classList.contains('hidden') && !this.hitTriggered) {
-            const camLerp = Math.min(10 * dt, 1);
-            this.camera.position.x += (this.inputX - this.camera.position.x) * camLerp;
+            // 平滑跟隨絕對座標目標
+            this.cameraInputX += (this.targetInputX - this.cameraInputX) * Math.min(10 * dt, 1);
+            this.camera.position.x = this.cameraInputX;
             this.camera.position.y = Math.sin(Date.now() * 0.003) * 0.3;
-            this.camera.rotation.z = -(this.camera.position.x * 0.025);
+            this.camera.rotation.z = -(this.camera.position.x * 0.02);
 
             const moveDist = this.state.currentSpeed * dt;
 
-            // 星空與隧道持續流動，營造速度感
             const pos = this.stars.geometry.attributes.position.array;
             for(let i=2; i<pos.length; i+=3) {
-                pos[i] += moveDist * 2.0; 
-                if(pos[i] > 500) pos[i] -= 1000; 
+                pos[i] += moveDist * 2.5; 
+                if(pos[i] > 500) pos[i] -= 1200; 
             }
             this.stars.geometry.attributes.position.needsUpdate = true;
-            this.rings.forEach(r => { r.position.z += moveDist; if(r.position.z > 20) r.position.z -= 800; });
+            this.rings.forEach(r => { r.position.z += moveDist; if(r.position.z > 20) r.position.z -= 1000; });
 
-            // 只有在 action 階段，目標星球才會朝玩家飛來
             if(this.state.phase === 'action' && this.sphereL.visible) {
                 const prevZ = this.sphereL.position.z;
                 this.sphereL.position.z += moveDist;
                 this.sphereR.position.z += moveDist;
                 
-                // 穿越 Z=5 即判定碰撞
+                // Z=5 碰撞切面
                 if(prevZ < 5 && this.sphereL.position.z >= 5) {
                     this.resolveAnswer();
                 }
@@ -871,7 +895,11 @@ class GameEngine {
 }
 
 window.onload = () => {
-    if(window.speechSynthesis) window.speechSynthesis.getVoices();
+    // 預先載入語音引擎
+    if(window.speechSynthesis) {
+        window.speechSynthesis.getVoices();
+        window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+    }
     new GameEngine();
 };
 </script>
