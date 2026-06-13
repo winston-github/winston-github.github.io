@@ -492,6 +492,16 @@
                     if (e.message && (e.message.includes('Load failed') || e.message.includes('Failed to fetch'))) throw new Error(`[網路層阻擋 CORS/Offline] ${url}\n${e.message}`);
                     throw e;
                 }
+            },
+            trashFile: async function(fileId) {
+                try {
+                    const res = await this.fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ trashed: true })
+                    });
+                    return res.ok;
+                } catch(e) { logDebug("Trash File Error", e.message); return false; }
             }
         };
 
@@ -2397,21 +2407,31 @@
                     debugStep = "解析 JSON (智慧相容新舊版)";
                     let parsedCloudData = null;
                     if (decryptedStr.trim().startsWith('{')) {
-                        parsedCloudData = JSON.parse(decryptedStr);
-                        appendLog(`[解析] 使用新版無壓縮格式讀取成功。`);
+                        try {
+                            parsedCloudData = JSON.parse(decryptedStr);
+                            appendLog(`[解析] 使用新版無壓縮格式讀取成功。`);
+                        } catch(e) { throw new Error("Corrupted_Data: 存檔格式解析失敗 (非JSON格式)"); }
                     } else {
                         const decompressed = DataCompressor.decompress(decryptedStr);
-                        if (!decompressed) throw new Error("舊版解壓縮失敗，檔案可能損毀");
-                        parsedCloudData = JSON.parse(decompressed);
-                        appendLog(`[解析] 使用舊版壓縮格式讀取成功。`);
+                        if (!decompressed) throw new Error("Corrupted_Data: 舊版解壓縮失敗，檔案內容已損毀");
+                        try {
+                            parsedCloudData = JSON.parse(decompressed);
+                            appendLog(`[解析] 使用舊版壓縮格式讀取成功。`);
+                        } catch(e) { throw new Error("Corrupted_Data: 存檔格式解析失敗 (非JSON格式)"); }
+                    }
+
+                    if (typeof parsedCloudData !== 'object' || parsedCloudData === null) {
+                        throw new Error("Corrupted_Data: 資料格式異常 (非物件結構)");
+                    }
+
+                    debugStep = "嚴格資料健康度檢查";
+                    if (!parsedCloudData.users || !Array.isArray(parsedCloudData.users) || parsedCloudData.users.length === 0) {
+                        throw new Error("Corrupted_Data: 致命錯誤：資料庫中完全沒有使用者記錄 (Users Array Empty)");
                     }
 
                     debugStep = "合併並寫入記憶體";
                     STATE.data = SyncEngine.mergeCloudWithLocal(parsedCloudData);
-                    this.validateStateData('雲端載入');
                     STATE.cloud.lastSyncTime = new Date(data.files[0].modifiedTime).getTime();
-
-                    debugStep = "補齊遺失的照片";
 
                     debugStep = "補齊遺失的照片";
                     await LocalDB.init(); STATE.images = {};
@@ -2447,15 +2467,36 @@
                         if(!STATE.data.users || STATE.data.users.length === 0) CoreManager.init();
                         return;
                     }
+
                     const errMsg = e.message || "無訊息"; const errStack = e.stack || "無 Stack";
+
+                    // 小心檢查：如果是已經解密成功，但資料徹底損毀的空殼檔案，啟動自動丟棄機制
+                    if (errMsg.includes('Corrupted_Data:')) {
+                        appendLog(`\n⚠️ [嚴格防呆觸發] 發現解密成功，但內容已嚴重損毀的雲端存檔！\n[原因] ${errMsg.replace('Corrupted_Data: ', '')}`);
+                        appendLog(`-> 正在自動將此壞檔 (${STATE.cloud.fileId}) 移至 Google 垃圾桶...`);
+                        try {
+                            await DriveAPI.trashFile(STATE.cloud.fileId);
+                            appendLog(`-> ✅ 已成功移至垃圾桶！`);
+                            showToast("已自動移除損毀的雲端備份，請再試一次", false);
+                        } catch (trashErr) {
+                            appendLog(`-> ❌ 移除失敗，請手動前往雲端硬碟刪除: ${trashErr.message}`);
+                            showToast("無法自動移除，請手動刪除雲端壞檔", true);
+                        }
+                        document.getElementById('debug-console').classList.add('active');
+                        return;
+                    }
+
                     const diag = `\n❌ ==== 載入崩潰報告 ====\n[發生時間] ${new Date().toLocaleString()}\n[故障斷點] ${debugStep}\n[錯誤訊息] ${errMsg}\n[程式追蹤]\n${errStack}\n========================`;
                     appendLog(diag);
                     logDebug("Restore Crash", diag);
                     UIManager.updateSyncUI('error', '載入失敗');
                     showToast("載入失敗，已自動開啟偵錯面板", true);
-                    setTimeout(() => document.getElementById('debug-console').classList.add('active'), 1000);
-                    if(!STATE.data.users || STATE.data.users.length === 0) setTimeout(() => CoreManager.init(), 2000);
+                    setTimeout(() => {
+                        document.getElementById('debug-console').classList.add('active');
+                        document.getElementById('btn-reset-sys').style.display = 'flex';
+                    }, 1000);
                 }
+                
             },
             
             enterReadonlyMode: function() {
@@ -2738,14 +2779,27 @@
                                     parsedCloudData = JSON.parse(decStr);
                                 } else {
                                     const decompressed = DataCompressor.decompress(decStr);
-                                    if (!decompressed) throw new Error("解壓縮失敗");
+                                    if (!decompressed) throw new Error("Corrupted_Data: 解壓縮失敗");
                                     parsedCloudData = JSON.parse(decompressed);
                                 }
+                                
+                                if (!parsedCloudData || !parsedCloudData.users || !Array.isArray(parsedCloudData.users) || parsedCloudData.users.length === 0) {
+                                    throw new Error("Corrupted_Data: Users Array Empty");
+                                }
                             } catch (parseErr) {
-                                parsedCloudData = null; 
+                                if (parseErr.message && parseErr.message.includes("Corrupted_Data")) {
+                                    appendLog(`\n⚠️ [嚴格防呆觸發] 發現雲端較新檔案內容損毀，自動將壞檔移至垃圾桶...`);
+                                    await DriveAPI.trashFile(STATE.cloud.fileId);
+                                    STATE.cloud.fileId = null; // 強制清空，下一步就會全新上傳
+                                    appendLog(`-> ✅ 壞檔已移除，將以本機正常資料覆蓋雲端！`);
+                                    parsedCloudData = null; 
+                                } else {
+                                    parsedCloudData = null; 
+                                }
                             }
                             
                             if (parsedCloudData) {
+                                
                                 STATE.data = SyncEngine.mergeCloudWithLocal(parsedCloudData);
                     STATE.data.users = STATE.data.users || [];
                     STATE.data.cards = STATE.data.cards || [];
