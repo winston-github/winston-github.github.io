@@ -2233,11 +2233,28 @@
         };
 
         const CoreManager = {
+            validateStateData: function(contextStr) {
+                if (!STATE.data || typeof STATE.data !== 'object') STATE.data = {};
+                if (!Array.isArray(STATE.data.users)) STATE.data.users = [];
+                if (!Array.isArray(STATE.data.cards)) STATE.data.cards = [];
+                if (!Array.isArray(STATE.data.bullets)) STATE.data.bullets = [];
+                if (!Array.isArray(STATE.data.logs)) STATE.data.logs = [];
+                if (!Array.isArray(STATE.data.behaviors)) STATE.data.behaviors = [];
+
+                // 嚴格模式：拒絕自動補發假帳號。若發現無使用者或無家長，直接拋出錯誤並強制進入偵錯畫面。
+                if (STATE.data.users.length === 0) {
+                    throw new Error(`[${contextStr}] 致命錯誤：資料庫中完全沒有使用者記錄 (Users Array Empty)。`);
+                }
+                if (!STATE.data.users.some(u => u.role === 'parent')) {
+                    throw new Error(`[${contextStr}] 致命錯誤：找不到「家長」權限帳號，系統將被鎖死，拒絕載入。`);
+                }
+            },
             init: async function() {
                 const localDataStr = localStorage.getItem('points_sys_data');
                 if (localDataStr) {
                     try {
                         STATE.data = JSON.parse(localDataStr);
+                        this.validateStateData('系統初始化');
                         if(STATE.data.theme) ThemeManager.apply(STATE.data.theme);
                         
                         const cloudStr = localStorage.getItem('points_sys_cloud');
@@ -2250,7 +2267,13 @@
                         for (let id of allImgIds) { const b64 = await LocalDB.get(id); if (b64) STATE.images[id] = b64; }
                         
                         this.enterReadonlyMode();
-                    } catch(e) { logDebug("Init Error", e.stack || e.message); }
+                    } catch(e) { 
+                        logDebug("Init Error (系統載入崩潰)", e.stack || e.message); 
+                        showToast("資料庫異常，已強制開啟偵錯面板", true);
+                        document.getElementById('debug-console').classList.add('active');
+                        // 顯示重設按鈕，若真的救不回來可以讓用戶選擇洗掉重來
+                        document.getElementById('btn-reset-sys').style.display = 'flex'; 
+                    }
                 } else {
                     document.getElementById('dynamic-modal').innerHTML = `
                         <div class="modal-content"><div class="modal-header"><div class="modal-title" style="display:flex; align-items:center; gap:8px;"><svg class="svg-icon" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> 歡迎使用${SYS_NAME}</div></div><div class="modal-body"><button class="btn btn-primary" style="width:100%;margin-bottom:15px;padding:15px;" onclick="CoreManager.handleNewFlow()">全新建立</button><button class="btn btn-outline" style="width:100%;padding:15px;" onclick="CoreManager.handleRestoreFlow()">載入進度</button></div></div>`;
@@ -2385,12 +2408,10 @@
 
                     debugStep = "合併並寫入記憶體";
                     STATE.data = SyncEngine.mergeCloudWithLocal(parsedCloudData);
-                    STATE.data.users = STATE.data.users || [];
-                    STATE.data.cards = STATE.data.cards || [];
-                    STATE.data.bullets = STATE.data.bullets || [];
-                    STATE.data.logs = STATE.data.logs || [];
-                    STATE.data.behaviors = STATE.data.behaviors || [];
+                    this.validateStateData('雲端載入');
                     STATE.cloud.lastSyncTime = new Date(data.files[0].modifiedTime).getTime();
+
+                    debugStep = "補齊遺失的照片";
 
                     debugStep = "補齊遺失的照片";
                     await LocalDB.init(); STATE.images = {};
@@ -2438,6 +2459,16 @@
             },
             
             enterReadonlyMode: function() {
+                try {
+                    this.validateStateData('模式切換');
+                } catch(e) {
+                    logDebug("Mode Switch Error", e.message);
+                    showToast("資料異常導致切換失敗，已開啟偵錯面板", true);
+                    document.getElementById('debug-console').classList.add('active');
+                    document.getElementById('btn-reset-sys').style.display = 'flex';
+                    return; // 致命錯誤，中斷後續所有 UI 渲染，畫面將被診斷面板蓋住
+                }
+                
                 STATE.isGodMode = false; STATE.isReadonly = true; STATE.currentUser = null;
                 const children = STATE.data.users.filter(u => u.role === 'child');
                 
