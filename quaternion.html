@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <!-- 針對行動裝置徹底優化：禁止縮放、禁止雙擊放大、全螢幕支援 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>3D 四元數與萬向鎖 - 核心重構跨裝置版</title>
+    <style>
+        :root { 
+            --c-cyan: #00f3ff; --c-red: #ff003c; --c-green: #00ff66; --bg: #050510;
+            --safe-top: env(safe-area-inset-top, 10px);
+            --safe-bottom: env(safe-area-inset-bottom, 10px);
+            --safe-left: env(safe-area-inset-left, 10px);
+            --safe-right: env(safe-area-inset-right, 10px);
+        }
+        
+        * { box-sizing: border-box; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+        
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); font-family: 'Consolas', 'Microsoft JhengHei', sans-serif; color: #fff; overflow: hidden; overscroll-behavior: none; }
+        
+        #canvas-container { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
+        
+        /* 啟動畫面 (處理權限與引導) */
+        #start-screen { position: absolute; inset: 0; background: rgba(5,5,16,0.95); z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 20px; backdrop-filter: blur(15px); }
+        .big-btn { background: var(--c-cyan); color: #000; border: none; padding: 18px 40px; font-size: 18px; font-weight: bold; border-radius: 30px; cursor: pointer; margin-top: 20px; box-shadow: 0 0 25px rgba(0,243,255,0.4); transition: transform 0.2s, box-shadow 0.2s; }
+        .big-btn:active { transform: scale(0.95); box-shadow: 0 0 10px rgba(0,243,255,0.4); }
+
+        /* 響應式 UI 佈局 */
+        #ui-layer { position: absolute; inset: 0; z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: calc(var(--safe-top) + 15px) calc(var(--safe-right) + 15px) calc(var(--safe-bottom) + 15px) calc(var(--safe-left) + 15px); transition: all 0.3s; }
+        
+        .panel { background: rgba(10, 15, 30, 0.75); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 15px; pointer-events: auto; max-height: 100%; overflow-y: auto; }
+        
+        .top-panel, .bottom-panel { width: 100%; max-width: 400px; }
+        .top-panel { align-self: flex-start; }
+        .bottom-panel { align-self: center; margin-top: auto; } /* 手機直屏時靠下置中 */
+
+        /* 萬向鎖警告字 */
+        #warning-text { font-size: clamp(2rem, 8vw, 4rem); font-weight: bold; color: var(--c-red); text-shadow: 0 0 25px var(--c-red); text-align: center; opacity: 0; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; transition: opacity 0.1s; z-index: 0; width: 100%; }
+
+        /* 壓力表 */
+        .stress-bar-container { width: 100%; height: 12px; background: rgba(255,255,255,0.1); border-radius: 6px; margin-top: 10px; overflow: hidden; position: relative; border: 1px solid rgba(255,255,255,0.2); }
+        #stress-bar { width: 0%; height: 100%; background: linear-gradient(90deg, var(--c-cyan), #ffff00, var(--c-red)); transition: width 0.1s ease-out; }
+        #stress-text { font-size: 11px; margin-top: 5px; color: #aaa; text-align: right; }
+
+        /* 控制按鈕 */
+        .row { display: flex; gap: 8px; flex-wrap: wrap; }
+        button.ctrl-btn { flex: 1; min-width: 30%; padding: 10px 5px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 8px; font-weight: bold; cursor: pointer; transition: all 0.2s; font-size: 13px; line-height: 1.4; }
+        button.ctrl-btn.active { background: var(--c-cyan); color: #000; border-color: var(--c-cyan); box-shadow: 0 0 15px rgba(0,243,255,0.4); }
+        button.ctrl-btn.danger { background: rgba(255,0,60,0.15); border-color: var(--c-red); color: #ff99a8; width: 100%; margin-top: 8px; }
+        button.ctrl-btn.danger:active { background: var(--c-red); color: #fff; }
+
+        /* 數據顯示 */
+        .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; font-size: 12px; margin-top: 10px; }
+        .data-item { background: rgba(0,0,0,0.4); padding: 5px 8px; border-radius: 4px; border-left: 2px solid var(--c-cyan); }
+        
+        #quat-edu { display: none; background: rgba(0,243,255,0.1); border: 1px solid var(--c-cyan); border-radius: 8px; padding: 10px; margin-top: 10px; font-size: 12px; }
+        .val-hl { color: var(--c-cyan); font-weight: bold; font-size: 14px; }
+        
+        #drag-hint { position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%); opacity: 0.4; font-size: 18px; pointer-events: none; text-align: center; background: rgba(0,0,0,0.5); padding: 10px 20px; border-radius: 20px; }
+
+        /* 橫屏裝置 (平板/電腦) 自適應佈局 */
+        @media (orientation: landscape) and (min-width: 600px) {
+            #ui-layer { flex-direction: row; align-items: flex-start; }
+            .bottom-panel { align-self: flex-end; margin-top: 0; }
+        }
+    </style>
+    <!-- 使用可靠的 CDN 載入核心 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <!-- 啟動與權限引導 -->
+    <div id="start-screen">
+        <h1 style="color:var(--c-cyan); margin:0 0 10px 0; font-size:24px;">姿態解算器 v3.0<br><span style="font-size:14px; color:#aaa;">底層重構跨裝置版</span></h1>
+        <p style="font-size:14px; line-height:1.6; max-width:80%;">此系統將展示<b>阿波羅登月計畫</b>中最危險的「萬向鎖」現象。<br><br>支援：<b>螢幕觸控</b> 與 <b>真實硬體陀螺儀</b>。</p>
+        <button class="big-btn" onclick="initSystem()">🚀 啟動系統 (允許感測器)</button>
+    </div>
+
+    <!-- 3D 畫布 -->
+    <div id="canvas-container"></div>
+    
+    <!-- 全域警告 -->
+    <div id="warning-text">GIMBAL LOCK<br>系統失控</div>
+    <div id="drag-hint">👆 觸控畫布任意滑動翻轉飛機</div>
+
+    <!-- 互動 UI 疊層 -->
+    <div id="ui-layer">
+        <!-- 狀態面板 -->
+        <div class="panel top-panel">
+            <h2 style="margin:0 0 5px 0; font-size:16px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:5px;">核心解算狀態</h2>
+            <div style="font-size:12px; color:#aaa;">目前演算法：<span id="algo-name" style="color:var(--c-red);font-weight:bold;">歐拉角 (易鎖死)</span></div>
+            
+            <div class="data-grid" id="euler-data">
+                <div class="data-item">Pitch(X): <span id="val-p">0.0°</span></div>
+                <div class="data-item">Yaw(Y): <span id="val-y">0.0°</span></div>
+                <div class="data-item">Roll(Z): <span id="val-r">0.0°</span></div>
+            </div>
+
+            <div style="margin-top: 15px; font-weight:bold; font-size:12px; display:flex; justify-content:space-between;">
+                <span>萬向鎖崩潰壓力計</span>
+                <span id="stress-text">穩定</span>
+            </div>
+            <div class="stress-bar-container">
+                <div id="stress-bar"></div>
+            </div>
+
+            <!-- 四元數教學區 (動態顯示) -->
+            <div id="quat-edu">
+                <strong>💡 單軸串燒理論 (Quaternion)</strong><br>
+                <div style="margin-top:5px; color:#ddd;">飛機正繞著一根黃色虛擬軸轉動：</div>
+                <div class="data-grid" style="grid-template-columns: 1fr;">
+                    <div class="data-item">旋轉量 (W): <span id="q-w" class="val-hl">1.000</span></div>
+                    <div class="data-item" style="border-left-color:#ffff00;">軸(X,Y,Z): [<span id="q-v">0, 0, 0</span>]</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 控制面板 -->
+        <div class="panel bottom-panel">
+            <div style="font-size:11px; color:#aaa; margin-bottom:5px;">[ 控制輸入源 ]</div>
+            <div class="row">
+                <button class="ctrl-btn active" id="btn-in-touch" onclick="setMode('input', 'touch')">👆 觸控</button>
+                <button class="ctrl-btn" id="btn-in-gyro" onclick="setMode('input', 'gyro')">📱 陀螺儀</button>
+                <button class="ctrl-btn" id="btn-in-auto" onclick="setMode('input', 'auto')">🤖 自動</button>
+            </div>
+            
+            <div style="font-size:11px; color:#aaa; margin-bottom:5px; margin-top:12px;">[ 數學運算核心 ]</div>
+            <div class="row">
+                <button class="ctrl-btn active" id="btn-math-euler" onclick="setMode('math', 'euler')">歐拉角<br>(3環)</button>
+                <button class="ctrl-btn" id="btn-math-quat" onclick="setMode('math', 'quat')">四元數<br>(魔法棒)</button>
+            </div>
+            
+            <button class="ctrl-btn danger" onclick="triggerRescue()">🆘 Slerp 姿勢平滑回正救援</button>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * 系統核心與效能優化宣告區
+         * 避免在 render loop 中使用 new 關鍵字，預先配置記憶體
+         */
+        const targetEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+        const targetQuat = new THREE.Quaternion();
+        const currentEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+        const currentQuat = new THREE.Quaternion();
+        const tempQuat = new THREE.Quaternion(); // 計算用暫存
+        const tempVec3 = new THREE.Vector3(); // 軸心計算用暫存
+        const Z_AXIS = new THREE.Vector3(0, 0, 1);
+        
+        let sysState = {
+            input: 'touch', // touch | gyro | auto
+            math: 'euler',  // euler | quat
+            rescuing: false,
+            simTime: 0,
+            lastVibrateTime: 0
+        };
+
+        // 觸控變數
+        let touchData = { isDragging: false, pX: 0, pY: 0 };
+
+        // --- 1. Three.js 場景建構 ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x050510, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+        camera.position.set(-10, 5, 12);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        // 限制像素比例，保護高 DPI 手機不發燙
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        // 燈光與環境
+        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+        const dirLight = new THREE.DirectionalLight(0x00f3ff, 1.5);
+        dirLight.position.set(10, 20, 10);
+        scene.add(dirLight);
+
+        const gridMat = new THREE.LineBasicMaterial({ color: 0x004466 });
+        const gridHelper = new THREE.GridHelper(200, 40);
+        gridHelper.material = gridMat;
+        gridHelper.position.y = -7;
+        scene.add(gridHelper);
+
+        // 建立戰鬥機
+        const jetGroup = new THREE.Group();
+        const matJet = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.3 });
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.8, 5, 16), matJet);
+        body.rotation.x = Math.PI / 2;
+        jetGroup.add(body);
+        const wings = new THREE.Mesh(new THREE.BoxGeometry(7, 0.1, 2), matJet);
+        wings.position.z = 1;
+        jetGroup.add(wings);
+        const tail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.5, 1.2), matJet);
+        tail.position.set(0, 0.8, 2);
+        jetGroup.add(tail);
+        scene.add(jetGroup);
+
+        // --- 2. 視覺化組件：歐拉環與魔法棒 ---
+        const eulerRings = new THREE.Group();
+        const ringY = new THREE.Mesh(new THREE.TorusGeometry(5, 0.05, 8, 64), new THREE.MeshBasicMaterial({ color: 0x00ff66, wireframe: true })); // Y 綠
+        ringY.rotation.x = Math.PI/2;
+        const ringX = new THREE.Mesh(new THREE.TorusGeometry(4.5, 0.05, 8, 64), new THREE.MeshBasicMaterial({ color: 0xff003c, wireframe: true })); // X 紅
+        const ringZ = new THREE.Mesh(new THREE.TorusGeometry(4.0, 0.05, 8, 64), new THREE.MeshBasicMaterial({ color: 0x00f3ff, wireframe: true })); // Z 藍
+        ringZ.rotation.y = Math.PI/2;
+        eulerRings.add(ringY); ringY.add(ringX); ringX.add(ringZ);
+        scene.add(eulerRings);
+
+        const quatWand = new THREE.Group();
+        const axisArrow = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(0,0,0), 6, 0xffff00, 1, 0.5);
+        const disk = new THREE.Mesh(new THREE.RingGeometry(3.5, 3.7, 32), new THREE.MeshBasicMaterial({ color: 0xffff00, side: THREE.DoubleSide, transparent: true, opacity: 0.6 }));
+        quatWand.add(axisArrow); quatWand.add(disk);
+        quatWand.visible = false;
+        scene.add(quatWand);
+
+        // --- 3. 跨裝置響應式處理 (Resize & Orientation) ---
+        function handleResize() {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+        }
+        window.addEventListener('resize', handleResize);
+        window.addEventListener('orientationchange', () => setTimeout(handleResize, 200));
+
+        // --- 4. 系統初始化與事件綁定 ---
+        function initSystem() {
+            document.getElementById('start-screen').style.display = 'none';
+            handleResize(); // 強制更新一次畫布
+            
+            // iOS 13+ 陀螺儀權限請求
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission().then(permissionState => {
+                    if (permissionState === 'granted') {
+                        window.addEventListener('deviceorientation', onGyroMove, false);
+                    } else {
+                        alert("陀螺儀權限已被拒絕，請使用觸控模式。");
+                    }
+                }).catch(console.error);
+            } else {
+                window.addEventListener('deviceorientation', onGyroMove, false); // 非 iOS 裝置
+            }
+        }
+
+        // 模式切換邏輯
+        function setMode(type, val) {
+            sysState[type] = val;
+            sysState.rescuing = false; // 任何切換都會中斷救援
+            
+            if(type === 'input') {
+                document.querySelectorAll('[id^="btn-in-"]').forEach(b => b.classList.remove('active'));
+                document.getElementById('btn-in-' + val).classList.add('active');
+                document.getElementById('drag-hint').style.display = (val === 'touch') ? 'block' : 'none';
+                
+                // 防暴衝：切換輸入源時，將目標姿態重置為當前真實姿態
+                targetEuler.copy(currentEuler);
+                targetQuat.copy(currentQuat);
+            }
+            
+            if(type === 'math') {
+                document.getElementById('btn-math-euler').classList.remove('active');
+                document.getElementById('btn-math-quat').classList.remove('active');
+                document.getElementById('btn-math-' + val).classList.add('active');
+                
+                const isQuat = (val === 'quat');
+                document.getElementById('algo-name').innerText = isQuat ? "四元數 (平滑無死角)" : "歐拉角 (容易鎖死)";
+                document.getElementById('algo-name').style.color = isQuat ? "var(--c-cyan)" : "var(--c-red)";
+                
+                eulerRings.visible = !isQuat;
+                quatWand.visible = isQuat;
+                document.getElementById('quat-edu').style.display = isQuat ? 'block' : 'none';
+                document.getElementById('euler-data').style.display = isQuat ? 'none' : 'grid';
+            }
+        }
+
+        function triggerRescue() {
+            sysState.rescuing = true;
+            sysState.input = 'auto'; // 鎖定輸入
+            document.querySelectorAll('[id^="btn-in-"]').forEach(b => b.classList.remove('active'));
+        }
+
+        // 觸控邏輯 (正規化處理，適配不同螢幕尺寸)
+        container.addEventListener('pointerdown', (e) => { 
+            if(sysState.input !== 'touch' || sysState.rescuing) return;
+            touchData.isDragging = true; 
+            touchData.pX = e.clientX; touchData.pY = e.clientY; 
+            document.getElementById('drag-hint').style.display = 'none';
+        });
+        window.addEventListener('pointerup', () => touchData.isDragging = false);
+        window.addEventListener('pointermove', (e) => {
+            if (!touchData.isDragging || sysState.input !== 'touch' || sysState.rescuing) return;
+            
+            // 螢幕比例正規化：確保在 iPad 和 iPhone 上滑動手感一致
+            let deltaX = (e.clientX - touchData.pX) / window.innerWidth * Math.PI * 1.5;
+            let deltaY = (e.clientY - touchData.pY) / window.innerHeight * Math.PI * 1.5;
+            
+            touchData.pX = e.clientX; touchData.pY = e.clientY;
+
+            targetEuler.y -= deltaX;
+            targetEuler.x -= deltaY;
+            // 數學底層防呆：Euler X(Pitch) 的定義域限制，避免越界翻轉造成 YXZ 邏輯反轉
+            targetEuler.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, targetEuler.x));
+            targetQuat.setFromEuler(targetEuler);
+        });
+
+        // 陀螺儀邏輯 (增加低通濾波概念與防呆)
+        function onGyroMove(e) {
+            if(sysState.input !== 'gyro' || sysState.rescuing || e.beta === null) return;
+            
+            // 標準化映射：手機平放為水平，直立為 Pitch 90 度
+            let rawPitch = THREE.MathUtils.degToRad(e.beta - 90); 
+            let rawRoll = THREE.MathUtils.degToRad(e.gamma);
+            let rawYaw = THREE.MathUtils.degToRad(-e.alpha);
+            
+            targetEuler.set(rawPitch, rawYaw, rawRoll, 'YXZ');
+            targetQuat.setFromEuler(targetEuler);
+        }
+
+        // --- 5. 渲染與物理模擬迴圈 ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            let dt = Math.min(clock.getDelta(), 0.1); // 限制 dt 避免切換分頁暴衝
+            sysState.simTime += dt;
+
+            // A. 自動展示模式資料產生
+            if (sysState.input === 'auto' && !sysState.rescuing) {
+                targetEuler.x = (Math.PI/2) * 0.999 * Math.sin(sysState.simTime * 1.2); // 逼近 90 度
+                targetEuler.y = 0.2 * Math.sin(sysState.simTime * 2.1);
+                targetEuler.z = 0.15 * Math.cos(sysState.simTime * 1.8);
+                targetQuat.setFromEuler(targetEuler);
+            }
+
+            // B. Slerp 救援模式運算
+            if (sysState.rescuing) {
+                targetQuat.identity(); // 目標：完美平飛
+                targetEuler.set(0,0,0);
+                // 四元數最偉大之處：無視當前多混亂，直接找出最短球面路徑回正
+                currentQuat.slerp(targetQuat, dt * 4);
+                currentEuler.setFromQuaternion(currentQuat, 'YXZ');
+                
+                if (currentQuat.angleTo(targetQuat) < 0.005) {
+                    sysState.rescuing = false;
+                    sysState.input = 'touch'; // 救援完畢交還觸控權
+                    document.getElementById('btn-in-touch').classList.add('active');
+                }
+            } 
+            // C. 核心底層數學模擬
+            else {
+                if (sysState.math === 'euler') {
+                    // 【歐拉角缺陷模擬】：精準還原阿波羅 11 號 Gimbal Lock
+                    let pitchDeg = Math.abs(THREE.MathUtils.radToDeg(targetEuler.x));
+                    
+                    // 當 Pitch 極度接近 90 度 (>88度)，Y 軸與 Z 軸實體重疊，產生數學奇異點 (Singularity)
+                    if (pitchDeg > 88) {
+                        // 擾動放大器：微小的感測器雜訊被無限放大
+                        let chaos = (Math.random() - 0.5) * (pitchDeg - 88) * 0.8; 
+                        currentEuler.x = targetEuler.x;
+                        currentEuler.y = targetEuler.y + chaos;
+                        currentEuler.z = targetEuler.z - chaos; // Yaw 和 Roll 互相干擾抵銷
+                        
+                        // 硬體觸覺回饋 (Haptic) - 防呆與降頻 (每 100ms 震一次)
+                        if (navigator.vibrate && performance.now() - sysState.lastVibrateTime > 100) {
+                            try { navigator.vibrate(40); } catch(e){} // 攔截 iOS 報錯
+                            sysState.lastVibrateTime = performance.now();
+                        }
+                    } else {
+                        // 正常平滑跟隨
+                        currentEuler.x = THREE.MathUtils.lerp(currentEuler.x, targetEuler.x, dt * 15);
+                        currentEuler.y = THREE.MathUtils.lerp(currentEuler.y, targetEuler.y, dt * 15);
+                        currentEuler.z = THREE.MathUtils.lerp(currentEuler.z, targetEuler.z, dt * 15);
+                    }
+                    currentQuat.setFromEuler(currentEuler);
+                } else {
+                    // 【四元數完美模擬】：無死角的球面線性插值 (Slerp)
+                    currentQuat.slerp(targetQuat, dt * 15);
+                    currentEuler.setFromQuaternion(currentQuat, 'YXZ');
+                }
+            }
+
+            // D. 套用數學結果至 3D 渲染物
+            jetGroup.quaternion.copy(currentQuat);
+            
+            // 同步歐拉三環 (Y->X->Z 層級)
+            ringY.rotation.y = currentEuler.y;
+            ringX.rotation.x = currentEuler.x;
+            ringZ.rotation.z = currentEuler.z;
+
+            // 同步四元數魔法棒 (嚴謹的 Axis-Angle 反推)
+            if (sysState.math === 'quat') {
+                // 底層除錯：防止 w 因為浮點數精度變成 1.0000000000000002 導致 Math.acos 噴 NaN
+                let wClamp = Math.max(-1, Math.min(1, currentQuat.w));
+                let angle = 2 * Math.acos(wClamp);
+                let s = Math.sqrt(1 - wClamp * wClamp);
+                
+                if (s > 0.0001) {
+                    tempVec3.set(currentQuat.x / s, currentQuat.y / s, currentQuat.z / s);
+                } else {
+                    tempVec3.set(1, 0, 0); // 奇異點防呆：沒有旋轉時隨便指一個軸
+                }
+                
+                axisArrow.setDirection(tempVec3);
+                disk.quaternion.setFromUnitVectors(Z_AXIS, tempVec3);
+                
+                // 更新 UI 數字
+                document.getElementById('q-w').innerText = wClamp.toFixed(3);
+                document.getElementById('q-v').innerText = `${tempVec3.x.toFixed(2)}, ${tempVec3.y.toFixed(2)}, ${tempVec3.z.toFixed(2)}`;
+            }
+
+            // E. 更新 UI 壓力表與視覺特效
+            let stressPitchDeg = Math.abs(THREE.MathUtils.radToDeg(currentEuler.x));
+            let stressPct = Math.max(0, Math.min(100, (stressPitchDeg / 90) * 100));
+            
+            document.getElementById('val-p').innerText = stressPitchDeg.toFixed(1) + '°';
+            document.getElementById('val-y').innerText = THREE.MathUtils.radToDeg(currentEuler.y).toFixed(1) + '°';
+            document.getElementById('val-r').innerText = THREE.MathUtils.radToDeg(currentEuler.z).toFixed(1) + '°';
+            
+            document.getElementById('stress-bar').style.width = stressPct + '%';
+            
+            // 崩潰視覺特效 (僅在歐拉角模式且逼近極點時觸發)
+            const isCritical = (stressPct > 98 && sysState.math === 'euler');
+            const uiWarning = document.getElementById('warning-text');
+            const stressText = document.getElementById('stress-text');
+            
+            if (isCritical) {
+                stressText.innerText = "100% 空間鎖死";
+                stressText.style.color = "var(--c-red)";
+                uiWarning.style.opacity = Math.random() > 0.3 ? 1 : 0.3; // 隨機閃爍
+                gridMat.color.setHex(Math.random() > 0.5 ? 0xff0000 : 0x550000); // 網格異變
+                scene.fog.color.setHex(0x220000);
+            } else {
+                stressText.innerText = stressPct < 50 ? "穩定" : "危險升高";
+                stressText.style.color = "#aaa";
+                uiWarning.style.opacity = 0;
+                gridMat.color.setHex(0x004466);
+                scene.fog.color.setHex(0x050510);
+            }
+
+            // 環境動畫 (地面流動)
+            gridHelper.position.z += 12 * dt;
+            if (gridHelper.position.z > 5) gridHelper.position.z = 0;
+
+            renderer.render(scene, camera);
+        }
+
+        // 啟動主迴圈
+        animate();
+    </script>
+</body>
+</html>
