@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>1hr 動態跑步機課表生成器</title>
+    <style>
+        /* =========================================================
+           視覺與 UI/UX 規範 (Apple Fitness+ Style)
+           ========================================================= */
+        :root {
+            --bg-dark: #000000;
+            --bg-card: #111111;
+            --neon-green: #39FF14;
+            --neon-green-dim: rgba(57, 255, 20, 0.2);
+            --neon-yellow: #FFF000;
+            --gray: #888888;
+            --gray-light: #CCCCCC;
+            --text-main: #FFFFFF;
+            --danger: #FF3B30;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            /* 行動裝置防呆：防止誤觸選取與點擊閃爍 */
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 頂部語音解鎖區域 */
+        .audio-unlock-bar {
+            width: 100%;
+            background-color: #222;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .btn-unlock {
+            background-color: #333;
+            color: var(--gray-light);
+            border: 2px solid var(--gray);
+            border-radius: 12px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            min-height: 60px; /* 觸控防呆 >= 60px */
+            width: 90%;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-unlock.unlocked {
+            border-color: var(--neon-green);
+            color: var(--neon-green);
+            background-color: var(--neon-green-dim);
+        }
+
+        /* 主要數據與儀表板區域 */
+        .dashboard {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-evenly;
+            align-items: center;
+            padding: 10px;
+            position: relative;
+        }
+
+        .progress-container {
+            width: 90%;
+            height: 12px;
+            background-color: #333;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 100%; /* 初始滿值，隨時間遞減 */
+            background-color: var(--neon-green);
+            transform-origin: left;
+            transition: width 0.1s linear;
+        }
+
+        .time-display {
+            font-size: clamp(3.5rem, 10vw, 5rem);
+            font-weight: 900;
+            font-variant-numeric: tabular-nums;
+            color: var(--text-main);
+            line-height: 1;
+        }
+
+        .core-metrics {
+            display: flex;
+            width: 100%;
+            justify-content: space-around;
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        .metric-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .metric-value {
+            font-size: clamp(4rem, 12vw, 6rem);
+            font-weight: 900;
+            color: var(--neon-green);
+            line-height: 1;
+        }
+
+        .metric-value.yellow { color: var(--neon-yellow); }
+        .metric-label {
+            font-size: 1.2rem;
+            color: var(--gray-light);
+            margin-top: 5px;
+        }
+
+        .secondary-metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            width: 100%;
+            gap: 10px;
+            text-align: center;
+            border-top: 1px solid #333;
+            padding-top: 10px;
+        }
+
+        .sec-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .sec-label {
+            font-size: 1rem;
+            color: var(--gray);
+        }
+
+        /* 控制按鈕區域 */
+        .controls {
+            display: flex;
+            justify-content: space-around;
+            padding: 10px;
+            background-color: var(--bg-card);
+        }
+
+        .btn-control {
+            flex: 1;
+            margin: 0 5px;
+            min-height: 60px;
+            border-radius: 30px;
+            border: none;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #000;
+            background-color: var(--gray-light);
+            cursor: pointer;
+        }
+
+        .btn-start { background-color: var(--neon-green); }
+        .btn-pause { background-color: var(--neon-yellow); }
+        .btn-reset { background-color: var(--danger); color: #FFF; }
+
+        /* 設定與課表預覽區域 (可滾動) */
+        .settings-panel {
+            height: 35vh;
+            background-color: #111;
+            overflow-y: auto;
+            padding: 15px;
+            border-top: 2px solid #333;
+        }
+
+        .slider-group {
+            margin-bottom: 20px;
+            background: #222;
+            padding: 15px;
+            border-radius: 12px;
+        }
+
+        .slider-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .target-val {
+            font-size: 2.5rem;
+            font-weight: 900;
+            color: var(--neon-green);
+        }
+
+        input[type=range] {
+            width: 100%;
+            height: 40px; /* 增加觸控範圍 */
+            accent-color: var(--neon-green);
+        }
+
+        .param-drawer {
+            margin-bottom: 20px;
+        }
+
+        .param-drawer summary {
+            font-size: 1.2rem;
+            color: var(--neon-green);
+            padding: 15px 0;
+            outline: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .param-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .param-item {
+            background: #222;
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        .param-item label { display: block; color: var(--gray-light); font-size: 0.9rem; margin-bottom: 5px; }
+        .param-item input {
+            width: 100%;
+            background: #000;
+            color: #FFF;
+            border: 1px solid #444;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 1.2rem;
+            text-align: center;
+        }
+
+        /* 課表清單預覽 */
+        .preview-list { list-style: none; }
+        .preview-list li {
+            padding: 12px;
+            border-bottom: 1px solid #333;
+            font-size: 1rem;
+            color: var(--gray-light);
+            display: flex;
+            justify-content: space-between;
+        }
+        .preview-list li span.min-tag { color: var(--text-main); font-weight: bold; width: 45px;}
+        .preview-list li span.speed-tag { color: var(--neon-green); font-weight: bold; width: 65px;}
+        .preview-list li span.inc-tag { color: var(--neon-yellow); font-weight: bold; width: 50px;}
+        .preview-list li span.note-tag { color: var(--gray); font-size: 0.85rem; }
+
+        /* 隱藏/顯示狀態 */
+        .hidden { display: none !important; }
+        
+        /* 桌面端/iPad 排版微調 */
+        @media (min-width: 768px) {
+            body { max-width: 600px; margin: 0 auto; border: 1px solid #333; }
+            .dashboard { padding: 30px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="audio-unlock-bar">
+        <button id="btnUnlock" class="btn-unlock">🔊 初始化語音解鎖</button>
+    </div>
+
+    <div class="dashboard">
+        <div class="progress-container">
+            <div id="minuteProgress" class="progress-bar"></div>
+        </div>
+        
+        <div id="totalTime" class="time-display">60:00.0</div>
+
+        <div class="core-metrics">
+            <div class="metric-box">
+                <div id="currentSpeed" class="metric-value">0.0</div>
+                <div class="metric-label">當前速度 (kph)</div>
+            </div>
+            <div class="metric-box">
+                <div id="currentIncline" class="metric-value yellow">0.0</div>
+                <div class="metric-label">當前坡度 (%)</div>
+            </div>
+        </div>
+
+        <div class="secondary-metrics">
+            <div>
+                <div id="currentPace" class="sec-value">00'00"</div>
+                <div class="sec-label">即時配速 /km</div>
+            </div>
+            <div>
+                <div id="accumCal" class="sec-value">0</div>
+                <div class="sec-label">累積 kcal</div>
+            </div>
+            <div>
+                <div id="accumDist" class="sec-value">0.00</div>
+                <div class="sec-label">累積 km</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="btnStart" class="btn-control btn-start">開始</button>
+        <button id="btnPause" class="btn-control btn-pause hidden">暫停</button>
+        <button id="btnReset" class="btn-control btn-reset">重設</button>
+    </div>
+
+    <div class="settings-panel">
+        <div class="slider-group">
+            <div class="slider-header">
+                <span style="font-size: 1.2rem; font-weight:bold;">目標里程設定</span>
+                <span id="targetKmVal" class="target-val">10.0 km</span>
+            </div>
+            <input type="range" id="targetKm" min="6.0" max="15.0" step="0.5" value="10.0">
+            <div style="color: var(--gray); font-size: 0.9rem; margin-top: 8px; text-align: center;" id="sliderEstimation">
+                預估總熱量: -- kcal | 全程均速: -- kph | 平均配速: --
+            </div>
+        </div>
+
+        <details class="param-drawer">
+            <summary>⚙️ 進階體質與參數設定 (展開)</summary>
+            <div class="param-grid">
+                <div class="param-item">
+                    <label>體重 (kg)</label>
+                    <input type="number" id="weightParam" value="73" min="50" max="120">
+                </div>
+                <div class="param-item">
+                    <label>最高速度 (kph)</label>
+                    <input type="number" id="maxSpdParam" value="15.0" min="5" max="20" step="0.1">
+                </div>
+                <div class="param-item">
+                    <label>最低速度 (kph)</label>
+                    <input type="number" id="minSpdParam" value="3.0" min="1" max="10" step="0.1">
+                </div>
+                <div class="param-item">
+                    <label>最大坡度 (%)</label>
+                    <input type="number" id="maxIncParam" value="15" min="5" max="20" step="1">
+                </div>
+            </div>
+        </details>
+
+        <h3 style="color: var(--neon-green); margin-bottom: 10px;">60 分鐘動態課表預覽</h3>
+        <ul id="previewList" class="preview-list">
+            </ul>
+    </div>
+
+    <script>
+        /**
+         * 1hr 動態跑步機課表生成器核心邏輯
+         * 融合運動科學公式、精準計時與 iOS 語音防呆機制
+         */
+        class TreadmillApp {
+            constructor() {
+                // DOM 綁定
+                this.dom = {
+                    btnUnlock: document.getElementById('btnUnlock'),
+                    btnStart: document.getElementById('btnStart'),
+                    btnPause: document.getElementById('btnPause'),
+                    btnReset: document.getElementById('btnReset'),
+                    
+                    time: document.getElementById('totalTime'),
+                    minuteProgress: document.getElementById('minuteProgress'),
+                    speed: document.getElementById('currentSpeed'),
+                    incline: document.getElementById('currentIncline'),
+                    pace: document.getElementById('currentPace'),
+                    cal: document.getElementById('accumCal'),
+                    dist: document.getElementById('accumDist'),
+                    
+                    targetKm: document.getElementById('targetKm'),
+                    targetKmVal: document.getElementById('targetKmVal'),
+                    sliderEst: document.getElementById('sliderEstimation'),
+                    
+                    weight: document.getElementById('weightParam'),
+                    maxSpd: document.getElementById('maxSpdParam'),
+                    minSpd: document.getElementById('minSpdParam'),
+                    maxInc: document.getElementById('maxIncParam'),
+                    
+                    previewList: document.getElementById('previewList')
+                };
+
+                // 系統狀態
+                this.state = {
+                    isRunning: false,
+                    audioUnlocked: false,
+                    wakeLock: null,
+                    startTime: 0,
+                    accumulatedTimeMs: 0, // 儲存暫停時已過的時間
+                    matrix: [], // 60分鐘的課表陣列
+                    currentMinuteIndex: -1,
+                    spokenFlags: { preWarning: false, start: false }
+                };
+
+                // 初始化設定
+                this.bindEvents();
+                this.generateMatrix(); // 預先生成一次
+            }
+
+            bindEvents() {
+                // 語音解鎖機制
+                this.dom.btnUnlock.addEventListener('click', () => this.unlockAudio());
+
+                // 參數改變即時重新運算課表
+                const inputs = [this.dom.targetKm, this.dom.weight, this.dom.maxSpd, this.dom.minSpd, this.dom.maxInc];
+                inputs.forEach(input => {
+                    input.addEventListener('input', () => {
+                        if(input === this.dom.targetKm) {
+                            this.dom.targetKmVal.textContent = parseFloat(input.value).toFixed(1) + ' km';
+                        }
+                        this.generateMatrix();
+                    });
+                });
+
+                // 控制按鈕
+                this.dom.btnStart.addEventListener('click', () => this.start());
+                this.dom.btnPause.addEventListener('click', () => this.pause());
+                this.dom.btnReset.addEventListener('click', () => this.reset());
+
+                // 頁面隱藏與顯示的處理 (確保 WakeLock 重新啟用)
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'visible' && this.state.isRunning) {
+                        this.requestWakeLock();
+                    }
+                });
+            }
+
+            /**
+             * 第一階段：行動裝置語音解鎖與防呆
+             */
+            unlockAudio() {
+                if (this.state.audioUnlocked) return;
+                try {
+                    window.speechSynthesis.cancel();
+                    const u = new SpeechSynthesisUtterance('語音已解鎖');
+                    u.rate = 1.0; u.pitch = 1.0; u.volume = 0.01; u.lang = 'zh-TW';
+                    window.speechSynthesis.speak(u);
+                    
+                    this.state.audioUnlocked = true;
+                    this.dom.btnUnlock.textContent = "✅ 語音已解鎖";
+                    this.dom.btnUnlock.classList.add('unlocked');
+                } catch(e) {
+                    console.error("Audio unlock failed:", e);
+                }
+            }
+
+            /**
+             * 核心語音播報函數 (解決 iOS 字數與中斷 Bug)
+             */
+            speak(text) {
+                if (!this.state.audioUnlocked) return;
+                try {
+                    window.speechSynthesis.cancel(); // 清除堆疊防卡死
+                    // 確保字數不超過 40 字防呆
+                    const safeText = text.substring(0, 40);
+                    const u = new SpeechSynthesisUtterance(safeText);
+                    u.rate = 1.0;
+                    u.pitch = 1.0;
+                    u.lang = 'zh-TW';
+                    window.speechSynthesis.speak(u);
+                } catch(e) {
+                    console.error("TTS Error:", e);
+                }
+            }
+
+            /**
+             * 防休眠鎖 (Wake Lock)
+             */
+            async requestWakeLock() {
+                try {
+                    if ('wakeLock' in navigator) {
+                        this.state.wakeLock = await navigator.wakeLock.request('screen');
+                    }
+                } catch (err) {
+                    console.warn(`Wake Lock error: ${err.name}, ${err.message}`);
+                }
+            }
+
+            /**
+             * 第二階段：核心課表矩陣生成器 (60 分鐘動態分段)
+             */
+            generateMatrix() {
+                const T = parseFloat(this.dom.targetKm.value);
+                const W = parseFloat(this.dom.weight.value);
+                const maxS = parseFloat(this.dom.maxSpd.value);
+                const minS = parseFloat(this.dom.minSpd.value);
+                const maxI = parseFloat(this.dom.maxInc.value);
+
+                let matrix = new Array(60);
+                let intensity = (T - 6.0) / 9.0; // 0.0 (6km) ~ 1.0 (15km)
+
+                // 1. 暖身期 (01-05m)
+                for(let i=0; i<5; i++) {
+                    let s = 4.0 + intensity*4.0 + i*0.5;
+                    s = Math.max(minS, Math.min(s, maxS));
+                    matrix[i] = { spd: s, inc: 2, label: "暖身期" };
+                }
+
+                // 2. 適應性陡坡 (06-15m)
+                let p2Spd = 5.0 + intensity*4.5; // 5.0 ~ 9.5
+                p2Spd = Math.max(minS, Math.min(p2Spd, maxS));
+                for(let i=5; i<15; i++) {
+                    matrix[i] = { spd: p2Spd, inc: maxI, label: "適應性陡坡" };
+                }
+
+                // 3. 高強度間歇 (16-45m)
+                let recSpd = 7.0 + intensity*2.6; // ~9.6
+                recSpd = Math.max(minS, Math.min(recSpd, maxS));
+                // 16-17 主動恢復
+                matrix[15] = { spd: recSpd, inc: 1, label: "主動恢復" };
+                matrix[16] = { spd: recSpd, inc: 1, label: "主動恢復" };
+                // 44-45 主動恢復
+                matrix[43] = { spd: recSpd, inc: 1, label: "主動恢復" };
+                matrix[44] = { spd: recSpd, inc: 1, label: "主動恢復" };
+
+                // 18-43 衝刺 (13衝刺, 13慢跑)
+                let sprintSpd = Math.min(13.3, maxS);
+                for(let i=17; i<=42; i++) {
+                    let minStr = i + 1;
+                    if(minStr % 2 === 0) { // 18, 20... 高速
+                        matrix[i] = { spd: sprintSpd, inc: 1, label: "高速衝刺" };
+                    } else { // 19, 21... 慢跑 (暫填0)
+                        matrix[i] = { spd: 0, inc: 1, label: "慢跑恢復" };
+                    }
+                }
+
+                // 4. 力竭陡坡 (46-51m)
+                let p4Spd = 5.2 + intensity*3.8;
+                p4Spd = Math.max(minS, Math.min(p4Spd, maxS));
+                for(let i=45; i<=50; i++) {
+                    matrix[i] = { spd: p4Spd, inc: maxI, label: "力竭陡坡" };
+                }
+
+                // 5. 靜態緩和 (52-59m)
+                for(let i=51; i<=58; i++) {
+                    let s = 8.0 - ((i-51)*0.7);
+                    s = Math.max(minS, Math.min(s, maxS));
+                    matrix[i] = { spd: s, inc: 0, label: "靜態緩和" };
+                }
+
+                // --- 演算法核心：動態調高慢跑恢復期速度 ---
+                let fixedDist = 0;
+                for(let i=0; i<60; i++) {
+                    if(matrix[i] && matrix[i].spd > 0) {
+                        fixedDist += matrix[i].spd / 60;
+                    }
+                }
+                // 假設最後 1 分鐘初始緩衝速度為 3.0
+                fixedDist += (3.0 / 60);
+                
+                let requiredJogDist = T - fixedDist;
+                let requiredJogSpd = (requiredJogDist / 13) * 60;
+                requiredJogSpd = Math.max(minS, Math.min(requiredJogSpd, maxS));
+
+                for(let i=17; i<=42; i++) {
+                    if((i+1) % 2 !== 0) matrix[i].spd = requiredJogSpd;
+                }
+
+                // --- 補足里程修正機制 (第60分鐘極限修正) ---
+                let pre60Dist = 0;
+                for(let i=0; i<59; i++) pre60Dist += matrix[i].spd / 60;
+                
+                // 強制算出第 60 分鐘需要多少時速才能完美符合拉桿目標
+                let min60Spd = (T - pre60Dist) * 60;
+                // 允許突破最高速限制以確保數學精準對齊，因其為生成器邏輯要求
+                if(min60Spd < 0) min60Spd = minS; 
+                matrix[59] = { spd: min60Spd, inc: 0, label: "精準補足里程" };
+
+                // 結算卡路里與距離 (嚴格 ACSM 公式)
+                let cumCal = 0, cumDist = 0;
+                for(let i=0; i<60; i++) {
+                    let speed = matrix[i].spd;
+                    let incDecimal = matrix[i].inc / 100;
+                    let spdMmin = (speed * 1000) / 60;
+                    let vo2 = 0;
+
+                    try {
+                        if(speed < 8.0) {
+                            vo2 = (0.1 * spdMmin) + (1.8 * spdMmin * incDecimal) + 3.5;
+                        } else {
+                            vo2 = (0.2 * spdMmin) + (0.9 * spdMmin * incDecimal) + 3.5;
+                        }
+                    } catch(e) { vo2 = 3.5; }
+
+                    let cal = (vo2 * W * 5) / 1000;
+                    let dist = speed / 60;
+
+                    cumCal += cal;
+                    cumDist += dist;
+
+                    matrix[i].m = i + 1;
+                    matrix[i].cal = cal;
+                    matrix[i].dist = dist;
+                    matrix[i].cumCal = cumCal;
+                    matrix[i].cumDist = cumDist;
+                }
+
+                this.state.matrix = matrix;
+                this.updatePreviewAndEstimates(cumCal, T);
+            }
+
+            /**
+             * 更新 UI 預覽區與預估數據
+             */
+            updatePreviewAndEstimates(totalCal, totalDist) {
+                // 更新拉桿下方預估
+                let avgSpd = totalDist; // 因為 1小時，所以 km = kph
+                let paceMin = Math.floor(60 / avgSpd);
+                let paceSec = Math.floor((60 / avgSpd - paceMin) * 60);
+                this.dom.sliderEst.textContent = 
+                    `預估消耗: ${Math.round(totalCal)} kcal | 全程均速: ${avgSpd.toFixed(1)} kph | 均速配速: ${String(paceMin).padStart(2,'0')}'${String(paceSec).padStart(2,'0')}"`;
+
+                // 渲染 60 分鐘清單
+                this.dom.previewList.innerHTML = '';
+                this.state.matrix.forEach(row => {
+                    let li = document.createElement('li');
+                    li.innerHTML = `
+                        <span class="min-tag">${String(row.m).padStart(2,'0')}m</span>
+                        <span class="speed-tag">${row.spd.toFixed(1)}kph</span>
+                        <span class="inc-tag">${row.inc}%</span>
+                        <span>累積: ${Math.round(row.cumCal)}kcal | ${row.cumDist.toFixed(2)}km</span>
+                        <span class="note-tag">(${row.label})</span>
+                    `;
+                    this.dom.previewList.appendChild(li);
+                });
+            }
+
+            /**
+             * 控制按鈕邏輯
+             */
+            start() {
+                if(!this.state.audioUnlocked) {
+                    alert("請先點擊頂部『初始化語音解鎖』按鈕！");
+                    return;
+                }
+                this.requestWakeLock();
+                this.dom.btnStart.classList.add('hidden');
+                this.dom.btnPause.classList.remove('hidden');
+                
+                this.state.isRunning = true;
+                // 使用 Date.now() 計算差值防休眠失真
+                this.state.startTime = Date.now() - this.state.accumulatedTimeMs;
+                this.tick();
+            }
+
+            pause() {
+                this.state.isRunning = false;
+                this.dom.btnPause.classList.add('hidden');
+                this.dom.btnStart.classList.remove('hidden');
+                if(this.state.wakeLock !== null) {
+                    this.state.wakeLock.release();
+                    this.state.wakeLock = null;
+                }
+            }
+
+            reset() {
+                this.pause();
+                this.state.accumulatedTimeMs = 0;
+                this.state.currentMinuteIndex = -1;
+                this.state.spokenFlags = { preWarning: false, start: false };
+                this.updateDashboard(0);
+                this.dom.time.textContent = "60:00.0";
+                this.dom.minuteProgress.style.width = "100%";
+            }
+
+            /**
+             * 精準計時與 UI 刷新引擎 (requestAnimationFrame)
+             */
+            tick() {
+                if(!this.state.isRunning) return;
+
+                const now = Date.now();
+                this.state.accumulatedTimeMs = now - this.state.startTime;
+
+                const maxTimeMs = 60 * 60 * 1000;
+                if(this.state.accumulatedTimeMs >= maxTimeMs) {
+                    this.state.accumulatedTimeMs = maxTimeMs;
+                    this.updateDashboard(maxTimeMs);
+                    this.speak("恭喜，一小時訓練已全部完成！");
+                    this.pause();
+                    return;
+                }
+
+                this.updateDashboard(this.state.accumulatedTimeMs);
+                
+                // 遞迴呼叫保持刷新
+                requestAnimationFrame(() => this.tick());
+            }
+
+            updateDashboard(elapsedMs) {
+                const totalSec = Math.floor(elapsedMs / 1000);
+                const msFrac = Math.floor((elapsedMs % 1000) / 100);
+                
+                // 剩餘時間顯示 (MM:SS.m)
+                const remainSec = (60 * 60) - totalSec;
+                const m = Math.floor(remainSec / 60);
+                const s = remainSec % 60;
+                this.dom.time.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${msFrac === 10 ? 9 : msFrac}`;
+
+                // 當前分鐘計算 (0 ~ 59)
+                let currentMinIdx = Math.floor(elapsedMs / 60000);
+                if (currentMinIdx > 59) currentMinIdx = 59;
+                const timeWithinMinuteMs = elapsedMs % 60000;
+
+                // 處理分鐘進度條 (遞減)
+                const progressPct = 100 - (timeWithinMinuteMs / 60000) * 100;
+                this.dom.minuteProgress.style.width = `${progressPct}%`;
+
+                // 取出當前課表參數
+                const currentData = this.state.matrix[currentMinIdx];
+                
+                // 若進入新的一分鐘
+                if(currentMinIdx !== this.state.currentMinuteIndex) {
+                    this.state.currentMinuteIndex = currentMinIdx;
+                    this.state.spokenFlags = { preWarning: false, start: false };
+                    
+                    // UI 更新大字看板
+                    this.dom.speed.textContent = currentData.spd.toFixed(1);
+                    this.dom.incline.textContent = currentData.inc.toFixed(1);
+                    
+                    let pMin = Math.floor(60 / currentData.spd);
+                    let pSec = Math.floor((60 / currentData.spd - pMin) * 60);
+                    this.dom.pace.textContent = `${String(pMin).padStart(2,'0')}'${String(pSec).padStart(2,'0')}"`;
+                }
+
+                // UI 更新累積數據 (即時內插計算，使數字滑順跳動)
+                let prevCal = currentMinIdx > 0 ? this.state.matrix[currentMinIdx-1].cumCal : 0;
+                let prevDist = currentMinIdx > 0 ? this.state.matrix[currentMinIdx-1].cumDist : 0;
+                
+                let instantCal = prevCal + (currentData.cal * (timeWithinMinuteMs / 60000));
+                let instantDist = prevDist + (currentData.dist * (timeWithinMinuteMs / 60000));
+                
+                this.dom.cal.textContent = Math.floor(instantCal);
+                this.dom.dist.textContent = instantDist.toFixed(2);
+
+                // --- 語音觸發邏輯 ---
+                // 1. 每分鐘結束前 5 秒預告 (第 55 秒)
+                if(timeWithinMinuteMs >= 55000 && !this.state.spokenFlags.preWarning && currentMinIdx < 59) {
+                    this.state.spokenFlags.preWarning = true;
+                    let nextData = this.state.matrix[currentMinIdx + 1];
+                    this.speak(`注意，5秒後進入第${currentMinIdx + 2}分，速度${nextData.spd.toFixed(1)}，坡度${nextData.inc}%，準備！`);
+                }
+
+                // 2. 剛進入新分鐘的第 0 秒播報 (稍微延遲 500ms 確保語音順暢)
+                if(timeWithinMinuteMs > 500 && timeWithinMinuteMs < 2000 && !this.state.spokenFlags.start) {
+                    this.state.spokenFlags.start = true;
+                    // 第一分鐘不報累積，其餘報
+                    if(currentMinIdx === 0) {
+                        this.speak(`訓練開始！速度${currentData.spd.toFixed(1)}，坡度${currentData.inc}%，加油！`);
+                    } else {
+                        this.speak(`第${currentMinIdx + 1}分！速度${currentData.spd.toFixed(1)}，累積${Math.floor(instantCal)}卡，總里程${instantDist.toFixed(1)}公里。`);
+                    }
+                }
+            }
+        }
+
+        // 啟動應用程式
+        document.addEventListener('DOMContentLoaded', () => {
+            window.app = new TreadmillApp();
+        });
+    </script>
+</body>
+</html>
