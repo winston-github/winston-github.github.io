@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>1hr 動態跑步機課表生成器</title>
+    <title>Dynamic Pro Treadmill Generator (10x Bio-Science Edition)</title>
     <style>
         /* =========================================================
            視覺與 UI/UX 規範 (Apple Fitness+ Style)
@@ -14,362 +14,210 @@
             --neon-green: #39FF14;
             --neon-green-dim: rgba(57, 255, 20, 0.2);
             --neon-yellow: #FFF000;
+            --neon-red: #FF3B30;
+            --neon-blue: #0A84FF;
             --gray: #888888;
             --gray-light: #CCCCCC;
             --text-main: #FFFFFF;
-            --danger: #FF3B30;
+            --active-bg: #2a2a2a;
         }
 
         * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
+            box-sizing: border-box; margin: 0; padding: 0;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            /* 行動裝置防呆：防止誤觸選取與點擊閃爍 */
-            -webkit-user-select: none;
-            user-select: none;
+            -webkit-user-select: none; user-select: none;
             -webkit-tap-highlight-color: transparent;
         }
 
-        body {
-            background-color: var(--bg-dark);
-            color: var(--text-main);
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            overflow: hidden;
-        }
+        body { background-color: var(--bg-dark); color: var(--text-main); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
-        /* 頂部語音解鎖區域 */
-        .audio-unlock-bar {
-            width: 100%;
-            background-color: #222;
-            padding: 10px;
-            text-align: center;
+        /* 頂部語音與語言切換區 */
+        .audio-bar { width: 100%; background-color: #222; padding: 8px; display: flex; justify-content: space-around; align-items: center; }
+        .lang-btn {
+            background-color: #333; color: var(--gray-light); border: 1px solid var(--gray);
+            border-radius: 12px; font-size: 0.95rem; font-weight: bold; height: 50px; flex: 1; margin: 0 4px;
+            cursor: pointer; display: flex; justify-content: center; align-items: center; transition: all 0.3s; fill: var(--gray-light);
         }
+        .lang-btn.active { border-color: var(--neon-green); color: var(--neon-green); background-color: var(--neon-green-dim); fill: var(--neon-green); }
+        .lang-btn svg { width: 20px; height: 20px; margin-right: 6px; }
 
-        .btn-unlock {
-            background-color: #333;
-            color: var(--gray-light);
-            border: 2px solid var(--gray);
-            border-radius: 12px;
-            font-size: 1.5rem;
-            font-weight: bold;
-            min-height: 60px; /* 觸控防呆 >= 60px */
-            width: 90%;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .btn-unlock.unlocked {
-            border-color: var(--neon-green);
-            color: var(--neon-green);
-            background-color: var(--neon-green-dim);
-        }
+        /* 生理監控列 (Bio-Feedback Bar) */
+        .bio-bar { display: flex; justify-content: space-between; background: #1a1a1a; padding: 6px 15px; font-size: 0.85rem; border-bottom: 1px solid #333;}
+        .bio-item { display: flex; align-items: center; font-weight: 600; }
+        .bio-item svg { width: 16px; height: 16px; margin-right: 5px; }
+        .bio-hr { color: var(--neon-red); fill: var(--neon-red); }
+        .bio-lac { color: var(--neon-yellow); fill: var(--neon-yellow); }
+        .bio-fatigue { color: var(--neon-blue); fill: var(--neon-blue); }
 
         /* 主要數據與儀表板區域 */
-        .dashboard {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-evenly;
-            align-items: center;
-            padding: 10px;
-            position: relative;
-        }
+        .dashboard { flex: 1; display: flex; flex-direction: column; justify-content: space-evenly; align-items: center; padding: 5px 10px; position: relative; }
+        .progress-container { width: 95%; height: 8px; background-color: #333; border-radius: 4px; overflow: hidden; margin-bottom: 2px; }
+        .progress-bar { height: 100%; width: 100%; background-color: var(--neon-green); transform-origin: left; transition: width 0.1s linear; }
+        .time-display { font-size: clamp(3rem, 10vw, 4.5rem); font-weight: 900; font-variant-numeric: tabular-nums; color: var(--text-main); line-height: 1; }
 
-        .progress-container {
-            width: 90%;
-            height: 12px;
-            background-color: #333;
-            border-radius: 6px;
-            overflow: hidden;
-            margin-bottom: 10px;
-        }
-
-        .progress-bar {
-            height: 100%;
-            width: 100%; /* 初始滿值，隨時間遞減 */
-            background-color: var(--neon-green);
-            transform-origin: left;
-            transition: width 0.1s linear;
-        }
-
-        .time-display {
-            font-size: clamp(3.5rem, 10vw, 5rem);
-            font-weight: 900;
-            font-variant-numeric: tabular-nums;
-            color: var(--text-main);
-            line-height: 1;
-        }
-
-        .core-metrics {
-            display: flex;
-            width: 100%;
-            justify-content: space-around;
-            text-align: center;
-            margin: 10px 0;
-        }
-
-        .metric-box {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .metric-value {
-            font-size: clamp(4rem, 12vw, 6rem);
-            font-weight: 900;
-            color: var(--neon-green);
-            line-height: 1;
-        }
-
+        .core-metrics { display: flex; width: 100%; justify-content: space-around; text-align: center; margin: 5px 0; }
+        .metric-box { display: flex; flex-direction: column; align-items: center; width: 45%; }
+        .metric-value { font-size: clamp(3.5rem, 14vw, 5.5rem); font-weight: 900; color: var(--neon-green); line-height: 0.9; }
         .metric-value.yellow { color: var(--neon-yellow); }
-        .metric-label {
-            font-size: 1.2rem;
-            color: var(--gray-light);
-            margin-top: 5px;
-        }
+        .metric-label { font-size: 1rem; color: var(--gray-light); margin-top: 5px; font-weight: bold; }
 
-        .secondary-metrics {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            width: 100%;
-            gap: 10px;
-            text-align: center;
-            border-top: 1px solid #333;
-            padding-top: 10px;
-        }
-
-        .sec-value {
-            font-size: 1.8rem;
-            font-weight: 700;
-            color: var(--text-main);
-        }
-
-        .sec-label {
-            font-size: 1rem;
-            color: var(--gray);
-        }
+        .secondary-metrics { display: grid; grid-template-columns: 1fr 1fr 1fr; width: 100%; gap: 5px; text-align: center; border-top: 1px solid #333; padding-top: 8px; }
+        .sec-value { font-size: 1.4rem; font-weight: 700; color: var(--text-main); }
+        .sec-label { font-size: 0.85rem; color: var(--gray); }
 
         /* 控制按鈕區域 */
-        .controls {
-            display: flex;
-            justify-content: space-around;
-            padding: 10px;
-            background-color: var(--bg-card);
-        }
-
+        .controls { display: flex; justify-content: space-around; padding: 8px; background-color: var(--bg-card); }
         .btn-control {
-            flex: 1;
-            margin: 0 5px;
-            min-height: 60px;
-            border-radius: 30px;
-            border: none;
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #000;
-            background-color: var(--gray-light);
-            cursor: pointer;
+            flex: 1; margin: 0 5px; min-height: 55px; border-radius: 28px; border: none;
+            font-size: 1.1rem; font-weight: bold; color: #000; cursor: pointer;
+            display: flex; justify-content: center; align-items: center;
         }
-
+        .btn-control svg { width: 18px; height: 18px; margin-right: 5px; fill: #000; }
         .btn-start { background-color: var(--neon-green); }
         .btn-pause { background-color: var(--neon-yellow); }
         .btn-reset { background-color: var(--danger); color: #FFF; }
+        .btn-reset svg { fill: #FFF; }
 
-        /* 設定與課表預覽區域 (可滾動) */
-        .settings-panel {
-            height: 35vh;
-            background-color: #111;
-            overflow-y: auto;
-            padding: 15px;
-            border-top: 2px solid #333;
-        }
+        /* 設定與卡拉OK課表預覽區域 */
+        .settings-panel { height: 35vh; background-color: #111; overflow-y: hidden; display: flex; flex-direction: column; border-top: 2px solid #333; }
+        .panel-scroll-area { flex: 1; overflow-y: auto; scroll-behavior: smooth; padding: 12px; }
 
-        .slider-group {
-            margin-bottom: 20px;
-            background: #222;
-            padding: 15px;
-            border-radius: 12px;
-        }
+        .config-group { background: #222; padding: 12px; border-radius: 12px; transition: opacity 0.5s, max-height 0.5s; overflow: hidden; margin-bottom: 12px; border: 1px solid #333; }
+        .slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .target-val { font-size: 1.6rem; font-weight: 900; color: var(--neon-green); }
+        input[type=range] { width: 100%; height: 35px; accent-color: var(--neon-green); margin-bottom: 5px; }
 
-        .slider-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
+        .param-drawer summary { font-size: 1rem; color: var(--neon-blue); padding: 8px 0; outline: none; cursor: pointer; font-weight: bold; display: flex; align-items: center; }
+        .param-drawer summary svg { width: 16px; height: 16px; fill: var(--neon-blue); margin-right: 6px; }
+        .param-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 8px; margin-bottom: 10px; }
+        .param-item { background: #000; padding: 8px; border-radius: 6px; border: 1px solid #333; }
+        .param-item label { display: block; color: var(--gray-light); font-size: 0.75rem; margin-bottom: 3px; text-align: center; }
+        .param-item input { width: 100%; background: transparent; color: #FFF; border: none; font-size: 1.1rem; text-align: center; font-weight: bold; outline: none; }
 
-        .target-val {
-            font-size: 2.5rem;
-            font-weight: 900;
-            color: var(--neon-green);
-        }
-
-        input[type=range] {
-            width: 100%;
-            height: 40px; /* 增加觸控範圍 */
-            accent-color: var(--neon-green);
-        }
-
-        .param-drawer {
-            margin-bottom: 20px;
-        }
-
-        .param-drawer summary {
-            font-size: 1.2rem;
-            color: var(--neon-green);
-            padding: 15px 0;
-            outline: none;
-            cursor: pointer;
-            font-weight: bold;
-        }
-
-        .param-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-top: 10px;
-        }
-
-        .param-item {
-            background: #222;
-            padding: 10px;
-            border-radius: 8px;
-        }
-
-        .param-item label { display: block; color: var(--gray-light); font-size: 0.9rem; margin-bottom: 5px; }
-        .param-item input {
-            width: 100%;
-            background: #000;
-            color: #FFF;
-            border: 1px solid #444;
-            padding: 8px;
-            border-radius: 4px;
-            font-size: 1.2rem;
-            text-align: center;
-        }
-
-        /* 課表清單預覽 */
-        .preview-list { list-style: none; }
-        .preview-list li {
-            padding: 12px;
-            border-bottom: 1px solid #333;
-            font-size: 1rem;
-            color: var(--gray-light);
-            display: flex;
-            justify-content: space-between;
-        }
-        .preview-list li span.min-tag { color: var(--text-main); font-weight: bold; width: 45px;}
-        .preview-list li span.speed-tag { color: var(--neon-green); font-weight: bold; width: 65px;}
-        .preview-list li span.inc-tag { color: var(--neon-yellow); font-weight: bold; width: 50px;}
-        .preview-list li span.note-tag { color: var(--gray); font-size: 0.85rem; }
-
-        /* 隱藏/顯示狀態 */
-        .hidden { display: none !important; }
+        /* 卡拉OK風格預覽 */
+        .preview-header { display: flex; align-items: center; color: var(--neon-green); font-size: 1rem; margin-bottom: 8px; font-weight: bold; }
+        .preview-header svg { width: 18px; height: 18px; fill: var(--neon-green); margin-right: 6px;}
         
-        /* 桌面端/iPad 排版微調 */
-        @media (min-width: 768px) {
-            body { max-width: 600px; margin: 0 auto; border: 1px solid #333; }
-            .dashboard { padding: 30px; }
+        .preview-list { list-style: none; padding-bottom: 40px;}
+        .preview-list li {
+            padding: 10px; border-bottom: 1px solid #222; font-size: 0.85rem; color: var(--gray);
+            display: flex; justify-content: space-between; align-items: center;
+            transition: background-color 0.4s ease, transform 0.3s ease, font-size 0.3s ease; border-radius: 6px;
         }
+        .preview-list li.active-row {
+            background-color: var(--active-bg); border-left: 4px solid var(--neon-green);
+            transform: scale(1.02); font-size: 0.95rem; color: #FFF; box-shadow: 0 4px 10px rgba(0,0,0,0.5); font-weight: bold;
+        }
+        .preview-list li span.min-tag { color: var(--text-main); font-weight: 900; width: 40px;}
+        .preview-list li span.speed-tag { color: var(--neon-green); width: 55px;}
+        .preview-list li span.inc-tag { color: var(--neon-yellow); width: 40px;}
+        .preview-list li span.bio-tag { color: var(--neon-blue); font-size: 0.75rem; width: 60px; text-align: right;}
+
+        .hidden { display: none !important; max-height: 0; padding: 0; border: none; opacity: 0; }
+        
+        @media (min-width: 768px) { body { max-width: 600px; margin: 0 auto; border: 1px solid #333; } }
     </style>
 </head>
 <body>
 
-    <div class="audio-unlock-bar">
-        <button id="btnUnlock" class="btn-unlock">🔊 初始化語音解鎖</button>
+    <div class="audio-bar">
+        <button class="lang-btn" data-lang="zh">
+            <svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm6.93 6h-2.95a15.65 15.65 0 0 0-1.38-3.56A8.03 8.03 0 0 1 18.92 8zM12 4.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96zM4.26 14C4.1 13.36 4 12.69 4 12s.1-1.36.26-2h3.38c-.08.66-.14 1.32-.14 2 0 .68.06 1.34.14 2H4.26zm.82 2h2.95c.32 1.25.78 2.45 1.38 3.56A7.987 7.987 0 0 1 5.08 16zm2.95-8H5.08a7.987 7.987 0 0 1 4.33-3.56A15.65 15.65 0 0 0 8.03 8zM12 19.96c-.83-1.2-1.48-2.53-1.91-3.96h3.82c-.43 1.43-1.08 2.76-1.91 3.96zM14.34 14H9.66c-.09-.66-.16-1.32-.16-2 0-.68.07-1.35.16-2h4.68c.09.65.16 1.32.16 2 0 .68-.07 1.34-.16 2zm.25 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95a8.03 8.03 0 0 1-4.33 3.56zM16.36 14c.08-.66.14-1.32.14-2 0-.68-.06-1.34-.14-2h3.38c.16.64.26 1.31.26 2s-.1 1.36-.26 2h-3.38z"/></svg>中文教練
+        </button>
+        <button class="lang-btn" data-lang="en">
+            <svg viewBox="0 0 24 24"><path d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>EN Coach
+        </button>
+        <button class="lang-btn" data-lang="mute">
+            <svg viewBox="0 0 24 24"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>無語音
+        </button>
+    </div>
+
+    <div class="bio-bar">
+        <div class="bio-item bio-hr">
+            <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            HR: <span id="valHR">--</span> bpm
+        </div>
+        <div class="bio-item bio-lac">
+            <svg viewBox="0 0 24 24"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8zm0 16c-3.35 0-6-2.57-6-6.2 0-2.34 1.95-5.44 6-9.14 4.05 3.7 6 6.79 6 9.14 0 3.63-2.65 6.2-6 6.2z"/></svg>
+            Lactate: <span id="valLac">--</span> mM
+        </div>
+        <div class="bio-item bio-fatigue">
+            <svg viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+            Fatigue: <span id="valFatigue">--</span>%
+        </div>
     </div>
 
     <div class="dashboard">
-        <div class="progress-container">
-            <div id="minuteProgress" class="progress-bar"></div>
-        </div>
-        
-        <div id="totalTime" class="time-display">60:00.0</div>
+        <div class="progress-container"><div id="minuteProgress" class="progress-bar"></div></div>
+        <div id="totalTime" class="time-display">00:00.0</div>
 
         <div class="core-metrics">
             <div class="metric-box">
                 <div id="currentSpeed" class="metric-value">0.0</div>
-                <div class="metric-label">當前速度 (kph)</div>
+                <div class="metric-label">速度 (kph)</div>
             </div>
             <div class="metric-box">
                 <div id="currentIncline" class="metric-value yellow">0.0</div>
-                <div class="metric-label">當前坡度 (%)</div>
+                <div class="metric-label">坡度 (%)</div>
             </div>
         </div>
 
         <div class="secondary-metrics">
-            <div>
-                <div id="currentPace" class="sec-value">00'00"</div>
-                <div class="sec-label">即時配速 /km</div>
-            </div>
-            <div>
-                <div id="accumCal" class="sec-value">0</div>
-                <div class="sec-label">累積 kcal</div>
-            </div>
-            <div>
-                <div id="accumDist" class="sec-value">0.00</div>
-                <div class="sec-label">累積 km</div>
-            </div>
+            <div><div id="currentPace" class="sec-value">00'00"</div><div class="sec-label">配速</div></div>
+            <div><div id="accumCal" class="sec-value">0</div><div class="sec-label">kcal</div></div>
+            <div><div id="accumDist" class="sec-value">0.00</div><div class="sec-label">km</div></div>
         </div>
     </div>
 
     <div class="controls">
-        <button id="btnStart" class="btn-control btn-start">開始</button>
-        <button id="btnPause" class="btn-control btn-pause hidden">暫停</button>
-        <button id="btnReset" class="btn-control btn-reset">重設</button>
+        <button id="btnStart" class="btn-control btn-start"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>開始</button>
+        <button id="btnPause" class="btn-control btn-pause hidden"><svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>暫停</button>
+        <button id="btnReset" class="btn-control btn-reset"><svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>重設</button>
     </div>
 
     <div class="settings-panel">
-        <div class="slider-group">
-            <div class="slider-header">
-                <span style="font-size: 1.2rem; font-weight:bold;">目標里程設定</span>
-                <span id="targetKmVal" class="target-val">10.0 km</span>
+        <div class="panel-scroll-area" id="scrollArea">
+            
+            <div class="config-group" id="coreSettingsGroup">
+                <div class="slider-header"><span style="color:var(--text-main); font-weight:bold;">總時間 (分鐘)</span><span id="targetTimeVal" class="target-val">60 min</span></div>
+                <input type="range" id="targetTime" min="10" max="120" step="1" value="60">
+                
+                <div class="slider-header" style="margin-top:15px;"><span style="color:var(--text-main); font-weight:bold;">目標里程 (km)</span><span id="targetKmVal" class="target-val">8.0 km</span></div>
+                <input type="range" id="targetKm" min="3.0" max="13.0" step="0.1" value="8.0">
+                
+                <div style="color: var(--gray); font-size: 0.85rem; margin-top: 8px; text-align: center;" id="sliderEstimation">
+                    -- kcal | 均速: -- kph | 配速: --
+                </div>
             </div>
-            <input type="range" id="targetKm" min="6.0" max="15.0" step="0.5" value="10.0">
-            <div style="color: var(--gray); font-size: 0.9rem; margin-top: 8px; text-align: center;" id="sliderEstimation">
-                預估總熱量: -- kcal | 全程均速: -- kph | 平均配速: --
-            </div>
+
+            <details class="param-drawer">
+                <summary><svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg> 運動科學參數設定</summary>
+                <div class="param-grid">
+                    <div class="param-item"><label>年齡</label><input type="number" id="ageParam" value="30" min="15" max="80"></div>
+                    <div class="param-item"><label>體重 (kg)</label><input type="number" id="weightParam" value="73" min="50" max="120"></div>
+                    <div class="param-item"><label>最高速</label><input type="number" id="maxSpdParam" value="13.0" min="5" max="20" step="0.1"></div>
+                    <div class="param-item"><label>最低速</label><input type="number" id="minSpdParam" value="3.0" min="1" max="10" step="0.1"></div>
+                    <div class="param-item"><label>最高坡</label><input type="number" id="maxIncParam" value="15" min="5" max="20" step="1"></div>
+                    <div class="param-item"><label>最低坡</label><input type="number" id="minIncParam" value="0" min="0" max="10" step="1"></div>
+                </div>
+            </details>
+
+            <div class="preview-header"><svg viewBox="0 0 24 24"><path d="M4 14h4v-4H4v4zm0 5h4v-4H4v4zM4 9h4V5H4v4zm5 5h12v-4H9v4zm0 5h12v-4H9v4zM9 5v4h12V5H9z"/></svg>即時生理與課表矩陣</div>
+            <ul id="previewList" class="preview-list"></ul>
         </div>
-
-        <details class="param-drawer">
-            <summary>⚙️ 進階體質與參數設定 (展開)</summary>
-            <div class="param-grid">
-                <div class="param-item">
-                    <label>體重 (kg)</label>
-                    <input type="number" id="weightParam" value="73" min="50" max="120">
-                </div>
-                <div class="param-item">
-                    <label>最高速度 (kph)</label>
-                    <input type="number" id="maxSpdParam" value="15.0" min="5" max="20" step="0.1">
-                </div>
-                <div class="param-item">
-                    <label>最低速度 (kph)</label>
-                    <input type="number" id="minSpdParam" value="3.0" min="1" max="10" step="0.1">
-                </div>
-                <div class="param-item">
-                    <label>最大坡度 (%)</label>
-                    <input type="number" id="maxIncParam" value="15" min="5" max="20" step="1">
-                </div>
-            </div>
-        </details>
-
-        <h3 style="color: var(--neon-green); margin-bottom: 10px;">60 分鐘動態課表預覽</h3>
-        <ul id="previewList" class="preview-list">
-            </ul>
     </div>
 
     <script>
         /**
-         * 1hr 動態跑步機課表生成器核心邏輯
-         * 融合運動科學公式、精準計時與 iOS 語音防呆機制
+         * 10x 複雜度動態跑步機課表生成器
+         * - 動態時間 (10~120分)
+         * - 虛擬生理引擎 (心率、乳酸、疲勞度)
+         * - 海量超馬教練語音庫 (依據生理狀態觸發)
          */
-        class TreadmillApp {
+        class ProTreadmillApp {
             constructor() {
-                // DOM 綁定
                 this.dom = {
-                    btnUnlock: document.getElementById('btnUnlock'),
+                    langBtns: document.querySelectorAll('.lang-btn'),
                     btnStart: document.getElementById('btnStart'),
                     btnPause: document.getElementById('btnPause'),
                     btnReset: document.getElementById('btnReset'),
@@ -382,278 +230,362 @@
                     cal: document.getElementById('accumCal'),
                     dist: document.getElementById('accumDist'),
                     
+                    valHR: document.getElementById('valHR'),
+                    valLac: document.getElementById('valLac'),
+                    valFatigue: document.getElementById('valFatigue'),
+                    
+                    coreGroup: document.getElementById('coreSettingsGroup'),
+                    targetTime: document.getElementById('targetTime'),
+                    targetTimeVal: document.getElementById('targetTimeVal'),
                     targetKm: document.getElementById('targetKm'),
                     targetKmVal: document.getElementById('targetKmVal'),
                     sliderEst: document.getElementById('sliderEstimation'),
                     
+                    age: document.getElementById('ageParam'),
                     weight: document.getElementById('weightParam'),
                     maxSpd: document.getElementById('maxSpdParam'),
                     minSpd: document.getElementById('minSpdParam'),
                     maxInc: document.getElementById('maxIncParam'),
+                    minInc: document.getElementById('minIncParam'),
                     
                     previewList: document.getElementById('previewList')
                 };
 
-                // 系統狀態
                 this.state = {
-                    isRunning: false,
-                    audioUnlocked: false,
-                    wakeLock: null,
-                    startTime: 0,
-                    accumulatedTimeMs: 0, // 儲存暫停時已過的時間
-                    matrix: [], // 60分鐘的課表陣列
-                    currentMinuteIndex: -1,
-                    spokenFlags: { preWarning: false, start: false }
+                    isRunning: false, language: null, wakeLock: null,
+                    startTime: 0, accumulatedTimeMs: 0, matrix: [], currentMinuteIndex: -1,
+                    flags: { preWarning: false, start: false, midTip: false }
                 };
 
-                // 初始化設定
+                // 海量運動科學與教練心理語音庫
+                this.coachDict = {
+                    warmup: {
+                        zh: ["注意呼吸，兩步一吸兩步一呼，感受氧氣進入深層腹部。","滑液正在分泌，潤滑你的膝蓋關節，保持肩膀下沉放鬆。","我們正在喚醒慢肌纖維，把重心微向前傾，不要駝背。","這階段是為了擴張微血管，讓血液流向四肢，穩住節奏。"],
+                        en: ["Focus on breathing. In for two, out for two. Deep belly breaths.","Synovial fluid is lubricating your joints. Keep shoulders relaxed.","We are waking up slow-twitch fibers. Lean slightly forward.","Capillaries are expanding. Send blood to your limbs. Steady rhythm."]
+                    },
+                    steep: {
+                        zh: ["坡度來了，縮小步幅提高步頻！核心收緊撐住腰椎！","把這裡想像成山徑，大腿後側與臀大肌發力，手用力擺！","抵抗地心引力會大幅消耗肝醣，擁抱大腿的灼熱感！","心率在爬升，這是強化心肺做功的最佳時刻，挺住！"],
+                        en: ["Incline is here! Shorten strides, quicken cadence. Brace your core!","Imagine a mountain trail. Engage hamstrings and glutes. Pump arms!","Fighting gravity burns glycogen fast. Embrace the quad burn!","Heart rate is climbing. This is cardiac output training at its best. Hold it!"]
+                    },
+                    sprint: {
+                        zh: ["無氧衝刺！啟動快肌纖維！步頻拉到180，前腳掌落地！","不要低頭！直視前方！把乳酸堆積的痛苦拋在腦後！","手臂保持90度快速擺動，速度帶動神經徵召，全力輸出！","這就是EPOC運動後過耗氧量的關鍵！把極限推上去！"],
+                        en: ["Anaerobic sprint! Fast-twitch fibers engaged! 180 steps per minute!","Eyes up! Look forward! Push past the lactic acid build-up!","Keep arms at 90 degrees. Fast arms equal fast legs. All out!","This is where we trigger EPOC for afterburn! Push the limit!"]
+                    },
+                    recovery: {
+                        zh: ["主動恢復。深呼吸排出身體廢氣，讓血乳酸開始代謝。","把心率降下來，心平氣和。微血管正在重新運送氧氣。","跑得漂亮！維持輕鬆跑姿，讓粒線體合成 ATP。","放鬆雙手，抖一抖肩膀。副交感神經準備接管，享受微風。"],
+                        en: ["Active recovery. Deep breaths to clear CO2 and metabolize lactate.","Bring the heart rate down. Capillaries are delivering fresh oxygen.","Beautiful work! Keep form relaxed while mitochondria synthesize ATP.","Shake out those arms. Let parasympathetic tone return. Enjoy the pace."]
+                    },
+                    exhaust: {
+                        zh: ["最後的力竭陡坡，進入痛苦洞穴！依靠強大意志力撐過去！","中樞神經正在抵抗疲勞，你的大腦會想放棄，但你的身體還能跑！","不准扶把手！挺直腰桿！把最後的肌醣原全部燃燒殆盡！"],
+                        en: ["The pain cave! Final steep climb. Rely on pure mental toughness!","Central nervous system is fatigued, but your body can still move. Fight it!","Don't touch the rails! Posture up! Burn the very last of your glycogen!"]
+                    },
+                    cooldown: {
+                        zh: ["做得非常好。感謝你這段時間堅持下來的身體，慢慢緩和。","深層吐氣，讓靜脈血液回流心臟，避免血壓驟降。","享受腦內啡與多巴胺的釋放，這是跑者高潮的時刻。"],
+                        en: ["Outstanding work. Thank your body for carrying you through this.","Deep exhales. Facilitate venous return to the heart. Prevent blood pooling.","Enjoy the endorphins and dopamine. Welcome to the runner's high."]
+                    },
+                    highHR: {
+                        zh: ["注意！心率突破無氧閾值！專注吐氣，穩住核心，不要慌！", "心跳極快，維持穩定步頻，如果頭暈請隨時抓住把手安全暫停！"],
+                        en: ["Warning! Heart rate above anaerobic threshold. Focus on exhales, stay calm!", "Heart rate is maxing. Keep cadence steady. Grab rails if you feel dizzy!"]
+                    },
+                    highLactate: {
+                        zh: ["大腿非常酸對吧？乳酸濃度已經飆升，這是變強的必經之路！", "肌肉正在承受酸性環境，咬牙撐過這段，你的耐力正在進化！"],
+                        en: ["Quads are burning, right? Lactate is spiking. This makes you stronger!", "Muscles are highly acidic. Push through this phase to build endurance!"]
+                    }
+                };
+
                 this.bindEvents();
-                this.generateMatrix(); // 預先生成一次
+                this.updateConstraints(); // 初始化時間與里程的聯動
+                this.generateMatrix(); 
             }
 
             bindEvents() {
-                // 語音解鎖機制
-                this.dom.btnUnlock.addEventListener('click', () => this.unlockAudio());
+                this.dom.langBtns.forEach(btn => {
+                    btn.addEventListener('click', (e) => this.setLanguage(e.currentTarget.dataset.lang));
+                });
 
-                // 參數改變即時重新運算課表
-                const inputs = [this.dom.targetKm, this.dom.weight, this.dom.maxSpd, this.dom.minSpd, this.dom.maxInc];
+                // 時間改變 -> 更新里程上下限 -> 重新生成矩陣
+                this.dom.targetTime.addEventListener('input', () => {
+                    this.dom.targetTimeVal.textContent = this.dom.targetTime.value + ' min';
+                    this.updateConstraints();
+                    this.generateMatrix();
+                });
+
+                // 其他參數改變即時重新運算
+                const inputs = [this.dom.targetKm, this.dom.age, this.dom.weight, this.dom.maxSpd, this.dom.minSpd, this.dom.maxInc, this.dom.minInc];
                 inputs.forEach(input => {
                     input.addEventListener('input', () => {
-                        if(input === this.dom.targetKm) {
-                            this.dom.targetKmVal.textContent = parseFloat(input.value).toFixed(1) + ' km';
-                        }
+                        if(input === this.dom.targetKm) this.dom.targetKmVal.textContent = parseFloat(input.value).toFixed(1) + ' km';
+                        this.updateConstraints(); // 確保速限變動影響里程條
                         this.generateMatrix();
                     });
                 });
 
-                // 控制按鈕
                 this.dom.btnStart.addEventListener('click', () => this.start());
                 this.dom.btnPause.addEventListener('click', () => this.pause());
                 this.dom.btnReset.addEventListener('click', () => this.reset());
 
-                // 頁面隱藏與顯示的處理 (確保 WakeLock 重新啟用)
                 document.addEventListener('visibilitychange', () => {
-                    if (document.visibilityState === 'visible' && this.state.isRunning) {
-                        this.requestWakeLock();
-                    }
+                    if (document.visibilityState === 'visible' && this.state.isRunning) this.requestWakeLock();
                 });
             }
 
-            /**
-             * 第一階段：行動裝置語音解鎖與防呆
-             */
-            unlockAudio() {
-                if (this.state.audioUnlocked) return;
+            // 動態更新里程拉桿的合理物理範圍 (防呆核心)
+            updateConstraints() {
+                const T = parseFloat(this.dom.targetTime.value);
+                const maxS = parseFloat(this.dom.maxSpd.value);
+                const minS = parseFloat(this.dom.minSpd.value);
+                
+                // 根據時間與速度上下限，計算出該時間內的極限公里數
+                let physicalMaxKm = (T / 60) * maxS;
+                let physicalMinKm = (T / 60) * minS;
+                
+                // 設定 range 屬性
+                this.dom.targetKm.max = physicalMaxKm.toFixed(1);
+                this.dom.targetKm.min = physicalMinKm.toFixed(1);
+
+                // 若當前值超出範圍，自動修正
+                let currentKm = parseFloat(this.dom.targetKm.value);
+                if (currentKm > physicalMaxKm) {
+                    currentKm = physicalMaxKm;
+                    this.dom.targetKm.value = currentKm.toFixed(1);
+                    this.dom.targetKmVal.textContent = currentKm.toFixed(1) + ' km';
+                }
+                if (currentKm < physicalMinKm) {
+                    currentKm = physicalMinKm;
+                    this.dom.targetKm.value = currentKm.toFixed(1);
+                    this.dom.targetKmVal.textContent = currentKm.toFixed(1) + ' km';
+                }
+            }
+
+            setLanguage(lang) {
+                this.state.language = lang;
+                this.dom.langBtns.forEach(b => b.classList.remove('active'));
+                document.querySelector(`.lang-btn[data-lang="${lang}"]`).classList.add('active');
+
                 try {
                     window.speechSynthesis.cancel();
-                    const u = new SpeechSynthesisUtterance('語音已解鎖');
-                    u.rate = 1.0; u.pitch = 1.0; u.volume = 0.01; u.lang = 'zh-TW';
-                    window.speechSynthesis.speak(u);
-                    
-                    this.state.audioUnlocked = true;
-                    this.dom.btnUnlock.textContent = "✅ 語音已解鎖";
-                    this.dom.btnUnlock.classList.add('unlocked');
-                } catch(e) {
-                    console.error("Audio unlock failed:", e);
-                }
-            }
-
-            /**
-             * 核心語音播報函數 (解決 iOS 字數與中斷 Bug)
-             */
-            speak(text) {
-                if (!this.state.audioUnlocked) return;
-                try {
-                    window.speechSynthesis.cancel(); // 清除堆疊防卡死
-                    // 確保字數不超過 40 字防呆
-                    const safeText = text.substring(0, 40);
-                    const u = new SpeechSynthesisUtterance(safeText);
-                    u.rate = 1.0;
-                    u.pitch = 1.0;
-                    u.lang = 'zh-TW';
-                    window.speechSynthesis.speak(u);
-                } catch(e) {
-                    console.error("TTS Error:", e);
-                }
-            }
-
-            /**
-             * 防休眠鎖 (Wake Lock)
-             */
-            async requestWakeLock() {
-                try {
-                    if ('wakeLock' in navigator) {
-                        this.state.wakeLock = await navigator.wakeLock.request('screen');
+                    if (lang !== 'mute') {
+                        const u = new SpeechSynthesisUtterance(lang === 'zh' ? '語音引擎已連線' : 'Voice engine online');
+                        u.rate = 1.0; u.pitch = 1.0; u.volume = 0.05; 
+                        u.lang = lang === 'zh' ? 'zh-TW' : 'en-US';
+                        window.speechSynthesis.speak(u);
                     }
-                } catch (err) {
-                    console.warn(`Wake Lock error: ${err.name}, ${err.message}`);
-                }
+                } catch(e) {}
+            }
+
+            speak(textZh, textEn) {
+                if (!this.state.language || this.state.language === 'mute') return;
+                try {
+                    window.speechSynthesis.cancel(); 
+                    const isZh = this.state.language === 'zh';
+                    const safeText = isZh ? textZh.substring(0, 50) : textEn.substring(0, 60);
+                    const u = new SpeechSynthesisUtterance(safeText);
+                    u.rate = 1.0; u.pitch = 1.0; u.lang = isZh ? 'zh-TW' : 'en-US';
+                    window.speechSynthesis.speak(u);
+                } catch(e) {}
+            }
+
+            async requestWakeLock() {
+                try { if ('wakeLock' in navigator) this.state.wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
             }
 
             /**
-             * 第二階段：核心課表矩陣生成器 (60 分鐘動態分段)
+             * 10x 複雜度動態課表生成與生理模擬矩陣
              */
             generateMatrix() {
-                const T = parseFloat(this.dom.targetKm.value);
+                const T = parseInt(this.dom.targetTime.value);
+                const D = parseFloat(this.dom.targetKm.value);
                 const W = parseFloat(this.dom.weight.value);
+                const Age = parseInt(this.dom.age.value);
                 const maxS = parseFloat(this.dom.maxSpd.value);
                 const minS = parseFloat(this.dom.minSpd.value);
                 const maxI = parseFloat(this.dom.maxInc.value);
+                const minI = parseFloat(this.dom.minInc.value);
 
-                let matrix = new Array(60);
-                let intensity = (T - 6.0) / 9.0; // 0.0 (6km) ~ 1.0 (15km)
+                let matrix = new Array(T);
+                
+                // 動態比例分配階段長度
+                let wLen = Math.max(1, Math.floor(T * 0.1));
+                let sLen = Math.max(1, Math.floor(T * 0.15));
+                let eLen = Math.max(1, Math.floor(T * 0.1));
+                let cLen = Math.max(2, Math.floor(T * 0.15));
+                let iLen = T - wLen - sLen - eLen - cLen; // 剩下的時間給間歇
+                if (iLen < 0) { // 極端情況防呆 (例如10分鐘)
+                    wLen=1; sLen=2; eLen=1; cLen=2; iLen = T-6;
+                }
 
-                // 1. 暖身期 (01-05m)
-                for(let i=0; i<5; i++) {
-                    let s = 4.0 + intensity*4.0 + i*0.5;
+                // 目標均速
+                let avgSpeed = (D / T) * 60;
+                let intensity = (avgSpeed - minS) / (maxS - minS); // 0.0 ~ 1.0
+                if (isNaN(intensity) || intensity < 0) intensity = 0;
+                if (intensity > 1) intensity = 1;
+
+                let currentIndex = 0;
+
+                // 1. 暖身期 (遞增)
+                for(let i=0; i<wLen; i++) {
+                    let s = minS + (intensity * 2) + (i * 0.3);
                     s = Math.max(minS, Math.min(s, maxS));
-                    matrix[i] = { spd: s, inc: 2, label: "暖身期" };
+                    matrix[currentIndex++] = { spd: s, inc: minI+1, phase: "warmup" };
                 }
 
-                // 2. 適應性陡坡 (06-15m)
-                let p2Spd = 5.0 + intensity*4.5; // 5.0 ~ 9.5
-                p2Spd = Math.max(minS, Math.min(p2Spd, maxS));
-                for(let i=5; i<15; i++) {
-                    matrix[i] = { spd: p2Spd, inc: maxI, label: "適應性陡坡" };
+                // 2. 適應陡坡 (高坡度，速度壓抑)
+                let steepSpd = minS + (intensity * (maxS-minS)*0.6);
+                steepSpd = Math.max(minS, Math.min(steepSpd, maxS));
+                for(let i=0; i<sLen; i++) {
+                    matrix[currentIndex++] = { spd: steepSpd, inc: maxI, phase: "steep" };
                 }
 
-                // 3. 高強度間歇 (16-45m)
-                let recSpd = 7.0 + intensity*2.6; // ~9.6
-                recSpd = Math.max(minS, Math.min(recSpd, maxS));
-                // 16-17 主動恢復
-                matrix[15] = { spd: recSpd, inc: 1, label: "主動恢復" };
-                matrix[16] = { spd: recSpd, inc: 1, label: "主動恢復" };
-                // 44-45 主動恢復
-                matrix[43] = { spd: recSpd, inc: 1, label: "主動恢復" };
-                matrix[44] = { spd: recSpd, inc: 1, label: "主動恢復" };
-
-                // 18-43 衝刺 (13衝刺, 13慢跑)
-                let sprintSpd = Math.min(13.3, maxS);
-                for(let i=17; i<=42; i++) {
-                    let minStr = i + 1;
-                    if(minStr % 2 === 0) { // 18, 20... 高速
-                        matrix[i] = { spd: sprintSpd, inc: 1, label: "高速衝刺" };
-                    } else { // 19, 21... 慢跑 (暫填0)
-                        matrix[i] = { spd: 0, inc: 1, label: "慢跑恢復" };
+                // 3. 高強度間歇 (衝刺與恢復交替)
+                let sprintSpd = minS + (intensity * (maxS-minS)) + 2.0;
+                sprintSpd = Math.max(minS, Math.min(sprintSpd, maxS));
+                let intervalStartIdx = currentIndex;
+                for(let i=0; i<iLen; i++) {
+                    // 第一分鐘和最後兩分鐘為恢復
+                    if (i === 0 || i >= iLen - 2) {
+                        let recSpd = minS + (intensity * (maxS-minS)*0.4);
+                        matrix[currentIndex++] = { spd: recSpd, inc: minI, phase: "recovery" };
+                    } else {
+                        if (i % 2 !== 0) matrix[currentIndex++] = { spd: sprintSpd, inc: minI, phase: "sprint" };
+                        else matrix[currentIndex++] = { spd: 0, inc: minI, phase: "recovery" }; // 暫填0，後續動態修正
                     }
                 }
 
-                // 4. 力竭陡坡 (46-51m)
-                let p4Spd = 5.2 + intensity*3.8;
-                p4Spd = Math.max(minS, Math.min(p4Spd, maxS));
-                for(let i=45; i<=50; i++) {
-                    matrix[i] = { spd: p4Spd, inc: maxI, label: "力竭陡坡" };
+                // 4. 力竭陡坡
+                let exhaustSpd = minS + (intensity * (maxS-minS)*0.5);
+                exhaustSpd = Math.max(minS, Math.min(exhaustSpd, maxS));
+                for(let i=0; i<eLen; i++) {
+                    matrix[currentIndex++] = { spd: exhaustSpd, inc: maxI, phase: "exhaust" };
                 }
 
-                // 5. 靜態緩和 (52-59m)
-                for(let i=51; i<=58; i++) {
-                    let s = 8.0 - ((i-51)*0.7);
+                // 5. 緩和期 (遞減)
+                for(let i=0; i<cLen; i++) {
+                    let s = minS + (cLen-i-1)*0.5;
                     s = Math.max(minS, Math.min(s, maxS));
-                    matrix[i] = { spd: s, inc: 0, label: "靜態緩和" };
+                    matrix[currentIndex++] = { spd: s, inc: minI, phase: "cooldown" };
                 }
 
-                // --- 演算法核心：動態調高慢跑恢復期速度 ---
+                // --- 補足里程數學修正機制 ---
                 let fixedDist = 0;
-                for(let i=0; i<60; i++) {
-                    if(matrix[i] && matrix[i].spd > 0) {
-                        fixedDist += matrix[i].spd / 60;
+                let jogCount = 0;
+                for(let i=0; i<T; i++) {
+                    if (matrix[i].spd > 0 && i !== T-1) fixedDist += matrix[i].spd / 60;
+                    if (matrix[i].spd === 0) jogCount++;
+                }
+                
+                // 動態分配給為0的慢跑恢復期
+                if (jogCount > 0) {
+                    let remainingForJog = (D - fixedDist - (minS/60)); // 預留最後一分鐘給最低速
+                    let jogSpd = (remainingForJog / jogCount) * 60;
+                    jogSpd = Math.max(minS, Math.min(jogSpd, maxS));
+                    for(let i=0; i<T; i++) {
+                        if (matrix[i].spd === 0) matrix[i].spd = jogSpd;
                     }
                 }
-                // 假設最後 1 分鐘初始緩衝速度為 3.0
-                fixedDist += (3.0 / 60);
-                
-                let requiredJogDist = T - fixedDist;
-                let requiredJogSpd = (requiredJogDist / 13) * 60;
-                requiredJogSpd = Math.max(minS, Math.min(requiredJogSpd, maxS));
 
-                for(let i=17; i<=42; i++) {
-                    if((i+1) % 2 !== 0) matrix[i].spd = requiredJogSpd;
-                }
+                // 最後一分鐘強制精準卡死里程
+                let preLastDist = 0;
+                for(let i=0; i<T-1; i++) preLastDist += matrix[i].spd / 60;
+                let lastSpd = (D - preLastDist) * 60;
+                if(lastSpd < 0) lastSpd = minS; 
+                matrix[T-1] = { spd: lastSpd, inc: minI, phase: "cooldown" };
 
-                // --- 補足里程修正機制 (第60分鐘極限修正) ---
-                let pre60Dist = 0;
-                for(let i=0; i<59; i++) pre60Dist += matrix[i].spd / 60;
-                
-                // 強制算出第 60 分鐘需要多少時速才能完美符合拉桿目標
-                let min60Spd = (T - pre60Dist) * 60;
-                // 允許突破最高速限制以確保數學精準對齊，因其為生成器邏輯要求
-                if(min60Spd < 0) min60Spd = minS; 
-                matrix[59] = { spd: min60Spd, inc: 0, label: "精準補足里程" };
-
-                // 結算卡路里與距離 (嚴格 ACSM 公式)
+                // --- 生理引擎模擬 (HR, Lactate, Fatigue) & 卡路里結算 ---
                 let cumCal = 0, cumDist = 0;
-                for(let i=0; i<60; i++) {
+                let maxHR = 220 - Age;
+                let restHR = 60;
+                let HRR = maxHR - restHR;
+                
+                let currentSimHR = 75; // 初始心跳
+                let currentLac = 1.0; // 基礎乳酸
+                let fatigueAcc = 0;
+
+                for(let i=0; i<T; i++) {
                     let speed = matrix[i].spd;
                     let incDecimal = matrix[i].inc / 100;
                     let spdMmin = (speed * 1000) / 60;
                     let vo2 = 0;
 
-                    try {
-                        if(speed < 8.0) {
-                            vo2 = (0.1 * spdMmin) + (1.8 * spdMmin * incDecimal) + 3.5;
-                        } else {
-                            vo2 = (0.2 * spdMmin) + (0.9 * spdMmin * incDecimal) + 3.5;
-                        }
-                    } catch(e) { vo2 = 3.5; }
-
+                    // ACSM 公式
+                    if(speed < 8.0) vo2 = (0.1 * spdMmin) + (1.8 * spdMmin * incDecimal) + 3.5;
+                    else vo2 = (0.2 * spdMmin) + (0.9 * spdMmin * incDecimal) + 3.5;
+                    
                     let cal = (vo2 * W * 5) / 1000;
                     let dist = speed / 60;
+                    cumCal += cal; cumDist += dist;
 
-                    cumCal += cal;
-                    cumDist += dist;
+                    // 生理模擬公式
+                    // 1. 預估最高需氧量 (粗估)
+                    let vo2MaxEst = maxS * 3.5; 
+                    let intensityVO2 = Math.min(vo2 / vo2MaxEst, 1.1); // 允許短暫超越100%
+                    
+                    // 2. 心率推算 (向目標值收斂，加入時間飄移)
+                    let targetHR = restHR + (intensityVO2 * HRR) + (i * 0.15); // 每分鐘微量向上飄移
+                    currentSimHR = currentSimHR + (targetHR - currentSimHR) * 0.6; 
+                    
+                    // 3. 乳酸推算 (無氧閾值約為 85% MaxHR)
+                    let pctMaxHR = currentSimHR / maxHR;
+                    if (pctMaxHR > 0.85) currentLac += (pctMaxHR - 0.8) * 2.0;
+                    else currentLac = Math.max(1.0, currentLac - 0.3); // 恢復
+
+                    // 4. 疲勞指數推算 (時間積分 * 強度)
+                    fatigueAcc += (intensityVO2 * 1.5) * (1 + (currentLac * 0.05));
+                    let fatiguePct = Math.min((fatigueAcc / T) * 100, 99);
 
                     matrix[i].m = i + 1;
-                    matrix[i].cal = cal;
-                    matrix[i].dist = dist;
-                    matrix[i].cumCal = cumCal;
-                    matrix[i].cumDist = cumDist;
+                    matrix[i].cal = cal; matrix[i].dist = dist;
+                    matrix[i].cumCal = cumCal; matrix[i].cumDist = cumDist;
+                    matrix[i].vo2 = vo2;
+                    matrix[i].hr = Math.round(currentSimHR);
+                    matrix[i].lac = currentLac;
+                    matrix[i].fatigue = fatiguePct;
                 }
 
                 this.state.matrix = matrix;
-                this.updatePreviewAndEstimates(cumCal, T);
+                this.updatePreviewAndEstimates(cumCal, D, T);
+                if(this.state.isRunning && this.state.currentMinuteIndex >= 0) this.scrollToCurrentMinute();
             }
 
-            /**
-             * 更新 UI 預覽區與預估數據
-             */
-            updatePreviewAndEstimates(totalCal, totalDist) {
-                // 更新拉桿下方預估
-                let avgSpd = totalDist; // 因為 1小時，所以 km = kph
+            updatePreviewAndEstimates(totalCal, totalDist, totalTime) {
+                let avgSpd = (totalDist / totalTime) * 60; 
                 let paceMin = Math.floor(60 / avgSpd);
                 let paceSec = Math.floor((60 / avgSpd - paceMin) * 60);
                 this.dom.sliderEst.textContent = 
-                    `預估消耗: ${Math.round(totalCal)} kcal | 全程均速: ${avgSpd.toFixed(1)} kph | 均速配速: ${String(paceMin).padStart(2,'0')}'${String(paceSec).padStart(2,'0')}"`;
+                    `${Math.round(totalCal)} kcal | 均速: ${avgSpd.toFixed(1)} kph | 配速: ${String(paceMin).padStart(2,'0')}'${String(paceSec).padStart(2,'0')}"`;
 
-                // 渲染 60 分鐘清單
                 this.dom.previewList.innerHTML = '';
-                this.state.matrix.forEach(row => {
+                this.state.matrix.forEach((row, idx) => {
                     let li = document.createElement('li');
+                    li.id = `min-row-${idx}`;
+                    if (idx === this.state.currentMinuteIndex) li.classList.add('active-row');
+                    
+                    let phaseZh = { warmup:"暖身", steep:"爬坡", sprint:"衝刺", recovery:"恢復", exhaust:"力竭", cooldown:"緩和" }[row.phase];
+                    
                     li.innerHTML = `
                         <span class="min-tag">${String(row.m).padStart(2,'0')}m</span>
                         <span class="speed-tag">${row.spd.toFixed(1)}kph</span>
                         <span class="inc-tag">${row.inc}%</span>
-                        <span>累積: ${Math.round(row.cumCal)}kcal | ${row.cumDist.toFixed(2)}km</span>
-                        <span class="note-tag">(${row.label})</span>
+                        <span style="flex:1; text-align:center;">${phaseZh}</span>
+                        <span class="bio-tag">❤${row.hr} ⚡${row.lac.toFixed(1)}</span>
                     `;
                     this.dom.previewList.appendChild(li);
                 });
             }
 
-            /**
-             * 控制按鈕邏輯
-             */
             start() {
-                if(!this.state.audioUnlocked) {
-                    alert("請先點擊頂部『初始化語音解鎖』按鈕！");
-                    return;
-                }
+                if(!this.state.language) { alert("請先選擇頂部語音（中/英/無）！"); return; }
                 this.requestWakeLock();
                 this.dom.btnStart.classList.add('hidden');
                 this.dom.btnPause.classList.remove('hidden');
+                this.dom.coreGroup.classList.add('hidden'); // 開始後隱藏時間與里程拉桿
                 
                 this.state.isRunning = true;
-                // 使用 Date.now() 計算差值防休眠失真
                 this.state.startTime = Date.now() - this.state.accumulatedTimeMs;
+                
+                // 動態更新總時間顯示
+                let T = this.state.matrix.length;
+                this.dom.time.textContent = `${String(T).padStart(2,'0')}:00.0`;
+
                 this.tick();
             }
 
@@ -661,117 +593,146 @@
                 this.state.isRunning = false;
                 this.dom.btnPause.classList.add('hidden');
                 this.dom.btnStart.classList.remove('hidden');
-                if(this.state.wakeLock !== null) {
-                    this.state.wakeLock.release();
-                    this.state.wakeLock = null;
-                }
+                if(this.state.wakeLock !== null) { this.state.wakeLock.release(); this.state.wakeLock = null; }
             }
 
             reset() {
                 this.pause();
                 this.state.accumulatedTimeMs = 0;
                 this.state.currentMinuteIndex = -1;
-                this.state.spokenFlags = { preWarning: false, start: false };
+                this.state.flags = { preWarning: false, start: false, midTip: false };
+                this.dom.coreGroup.classList.remove('hidden');
+                this.generateMatrix(); // 重置並根據當前拉桿重新生成
                 this.updateDashboard(0);
-                this.dom.time.textContent = "60:00.0";
                 this.dom.minuteProgress.style.width = "100%";
+                this.scrollToCurrentMinute(); 
             }
 
-            /**
-             * 精準計時與 UI 刷新引擎 (requestAnimationFrame)
-             */
             tick() {
                 if(!this.state.isRunning) return;
-
                 const now = Date.now();
                 this.state.accumulatedTimeMs = now - this.state.startTime;
-
-                const maxTimeMs = 60 * 60 * 1000;
-                if(this.state.accumulatedTimeMs >= maxTimeMs) {
-                    this.state.accumulatedTimeMs = maxTimeMs;
-                    this.updateDashboard(maxTimeMs);
-                    this.speak("恭喜，一小時訓練已全部完成！");
+                
+                const T_ms = this.state.matrix.length * 60 * 1000;
+                if(this.state.accumulatedTimeMs >= T_ms) {
+                    this.state.accumulatedTimeMs = T_ms;
+                    this.updateDashboard(T_ms);
+                    this.speak("完美的訓練！生理數據已全部達標！", "Perfect workout! All physiological targets met!");
                     this.pause();
                     return;
                 }
-
                 this.updateDashboard(this.state.accumulatedTimeMs);
-                
-                // 遞迴呼叫保持刷新
                 requestAnimationFrame(() => this.tick());
+            }
+
+            scrollToCurrentMinute() {
+                const listItems = this.dom.previewList.querySelectorAll('li');
+                listItems.forEach(li => li.classList.remove('active-row'));
+                if(this.state.currentMinuteIndex >= 0 && this.state.currentMinuteIndex < this.state.matrix.length) {
+                    const activeRow = document.getElementById(`min-row-${this.state.currentMinuteIndex}`);
+                    if(activeRow) {
+                        activeRow.classList.add('active-row');
+                        activeRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }
             }
 
             updateDashboard(elapsedMs) {
                 const totalSec = Math.floor(elapsedMs / 1000);
                 const msFrac = Math.floor((elapsedMs % 1000) / 100);
+                const totalTargetSec = this.state.matrix.length * 60;
                 
-                // 剩餘時間顯示 (MM:SS.m)
-                const remainSec = (60 * 60) - totalSec;
+                const remainSec = totalTargetSec - totalSec;
                 const m = Math.floor(remainSec / 60);
                 const s = remainSec % 60;
                 this.dom.time.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${msFrac === 10 ? 9 : msFrac}`;
 
-                // 當前分鐘計算 (0 ~ 59)
                 let currentMinIdx = Math.floor(elapsedMs / 60000);
-                if (currentMinIdx > 59) currentMinIdx = 59;
+                if (currentMinIdx >= this.state.matrix.length) currentMinIdx = this.state.matrix.length - 1;
                 const timeWithinMinuteMs = elapsedMs % 60000;
 
-                // 處理分鐘進度條 (遞減)
                 const progressPct = 100 - (timeWithinMinuteMs / 60000) * 100;
                 this.dom.minuteProgress.style.width = `${progressPct}%`;
 
-                // 取出當前課表參數
                 const currentData = this.state.matrix[currentMinIdx];
                 
-                // 若進入新的一分鐘
                 if(currentMinIdx !== this.state.currentMinuteIndex) {
                     this.state.currentMinuteIndex = currentMinIdx;
-                    this.state.spokenFlags = { preWarning: false, start: false };
+                    this.state.flags = { preWarning: false, start: false, midTip: false };
                     
-                    // UI 更新大字看板
                     this.dom.speed.textContent = currentData.spd.toFixed(1);
                     this.dom.incline.textContent = currentData.inc.toFixed(1);
-                    
                     let pMin = Math.floor(60 / currentData.spd);
                     let pSec = Math.floor((60 / currentData.spd - pMin) * 60);
                     this.dom.pace.textContent = `${String(pMin).padStart(2,'0')}'${String(pSec).padStart(2,'0')}"`;
+
+                    this.scrollToCurrentMinute();
                 }
 
-                // UI 更新累積數據 (即時內插計算，使數字滑順跳動)
+                // 生理數據與累積數據內插計算
                 let prevCal = currentMinIdx > 0 ? this.state.matrix[currentMinIdx-1].cumCal : 0;
                 let prevDist = currentMinIdx > 0 ? this.state.matrix[currentMinIdx-1].cumDist : 0;
-                
-                let instantCal = prevCal + (currentData.cal * (timeWithinMinuteMs / 60000));
-                let instantDist = prevDist + (currentData.dist * (timeWithinMinuteMs / 60000));
+                let prevHR = currentMinIdx > 0 ? this.state.matrix[currentMinIdx-1].hr : 75;
+                let prevLac = currentMinIdx > 0 ? this.state.matrix[currentMinIdx-1].lac : 1.0;
+                let prevFatigue = currentMinIdx > 0 ? this.state.matrix[currentMinIdx-1].fatigue : 0;
+
+                let ratio = timeWithinMinuteMs / 60000;
+                let instantCal = prevCal + (currentData.cal * ratio);
+                let instantDist = prevDist + (currentData.dist * ratio);
+                let instantHR = prevHR + ((currentData.hr - prevHR) * ratio);
+                let instantLac = prevLac + ((currentData.lac - prevLac) * ratio);
+                let instantFatigue = prevFatigue + ((currentData.fatigue - prevFatigue) * ratio);
                 
                 this.dom.cal.textContent = Math.floor(instantCal);
                 this.dom.dist.textContent = instantDist.toFixed(2);
+                
+                // 更新生理監控列 UI
+                this.dom.valHR.textContent = Math.round(instantHR);
+                this.dom.valLac.textContent = instantLac.toFixed(1);
+                this.dom.valFatigue.textContent = instantFatigue.toFixed(0);
 
-                // --- 語音觸發邏輯 ---
-                // 1. 每分鐘結束前 5 秒預告 (第 55 秒)
-                if(timeWithinMinuteMs >= 55000 && !this.state.spokenFlags.preWarning && currentMinIdx < 59) {
-                    this.state.spokenFlags.preWarning = true;
-                    let nextData = this.state.matrix[currentMinIdx + 1];
-                    this.speak(`注意，5秒後進入第${currentMinIdx + 2}分，速度${nextData.spd.toFixed(1)}，坡度${nextData.inc}%，準備！`);
+                // --- 10x 複雜度語音動態判定 ---
+                if(timeWithinMinuteMs > 500 && timeWithinMinuteMs < 2000 && !this.state.flags.start) {
+                    this.state.flags.start = true;
+                    if(currentMinIdx === 0) {
+                        this.speak(`訓練開始！總時長${this.state.matrix.length}分鐘。`, `Workout begins! Duration ${this.state.matrix.length} minutes.`);
+                    } else if (currentMinIdx % 10 === 0) {
+                        this.speak(`已完成${currentMinIdx}分鐘，疲勞指數百分之${Math.round(instantFatigue)}。`, `Minute ${currentMinIdx}. Fatigue level ${Math.round(instantFatigue)} percent.`);
+                    }
                 }
 
-                // 2. 剛進入新分鐘的第 0 秒播報 (稍微延遲 500ms 確保語音順暢)
-                if(timeWithinMinuteMs > 500 && timeWithinMinuteMs < 2000 && !this.state.spokenFlags.start) {
-                    this.state.spokenFlags.start = true;
-                    // 第一分鐘不報累積，其餘報
-                    if(currentMinIdx === 0) {
-                        this.speak(`訓練開始！速度${currentData.spd.toFixed(1)}，坡度${currentData.inc}%，加油！`);
+                // 第 30 秒觸發深度運動教練語音
+                if(timeWithinMinuteMs >= 30000 && timeWithinMinuteMs < 31500 && !this.state.flags.midTip) {
+                    this.state.flags.midTip = true;
+                    
+                    // 優先判定生理極限狀態
+                    let isZh = this.state.language === 'zh';
+                    let maxHR = 220 - parseInt(this.dom.age.value);
+                    if (instantHR > maxHR * 0.9) {
+                        let lines = this.coachDict.highHR[isZh ? 'zh' : 'en'];
+                        this.speak(isZh?lines[0]:"", isZh?"":lines[0]);
+                    } else if (instantLac > 4.0 && currentData.phase !== 'recovery') {
+                        let lines = this.coachDict.highLactate[isZh ? 'zh' : 'en'];
+                        this.speak(isZh?lines[0]:"", isZh?"":lines[0]);
                     } else {
-                        this.speak(`第${currentMinIdx + 1}分！速度${currentData.spd.toFixed(1)}，累積${Math.floor(instantCal)}卡，總里程${instantDist.toFixed(1)}公里。`);
+                        // 依據階段隨機抽取提示
+                        let phaseDict = this.coachDict[currentData.phase][isZh ? 'zh' : 'en'];
+                        if(phaseDict) {
+                            let randomTip = phaseDict[Math.floor(Math.random() * phaseDict.length)];
+                            this.speak(isZh?randomTip:"", isZh?"":randomTip);
+                        }
                     }
+                }
+
+                if(timeWithinMinuteMs >= 55000 && !this.state.flags.preWarning && currentMinIdx < this.state.matrix.length - 1) {
+                    this.state.flags.preWarning = true;
+                    let nextData = this.state.matrix[currentMinIdx + 1];
+                    this.speak(`即將切換，速度${nextData.spd.toFixed(1)}，坡度${nextData.inc}。`, `Next stage. Speed ${nextData.spd.toFixed(1)}, incline ${nextData.inc}.`);
                 }
             }
         }
 
-        // 啟動應用程式
-        document.addEventListener('DOMContentLoaded', () => {
-            window.app = new TreadmillApp();
-        });
+        document.addEventListener('DOMContentLoaded', () => { window.app = new ProTreadmillApp(); });
     </script>
 </body>
 </html>
