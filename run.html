@@ -556,11 +556,11 @@ const VoiceDB = {
             "Bicarbonate buffering failing! Hyperventilate to neutralize the acid!"
         ],
         trans: [
-            "準備進入下階段。速度即將來到 {s}，坡度 {i}。穩定核心！",
-            "即將切換課表。下一分鐘坡度 {i}，速度 {s}。深呼吸準備！",
-            "注意了！即將變速。速度 {s}，坡度 {i}。咬緊牙關！",
-            "迎擊下一個挑戰。下一分鐘速度 {s}，坡度 {i}。你可以的！",
-            "預告切換：速度即將調整為 {s}，坡度 {i}。穩住你的節奏！"
+            "Preparing for next phase. Speed at {s}, incline {i}. Core engaged!",
+            "Transition incoming. Next minute incline {i}, speed {s}. Deep breaths!",
+            "Attention! Speed shifting to {s}, incline {i}. Grit your teeth!",
+            "Incoming challenge. Speed {s}, incline {i}. You got this!",
+            "Upcoming change: Speed to {s}, incline {i}. Hold your rhythm!"
         ],
         phases: { warmup: "Warmup", steep: "Steep", sprint: "Sprint", recovery: "Recovery", exhaust: "Exhaust", cooldown: "Cool" }
     }
@@ -608,14 +608,13 @@ class VoiceEngine {
         this.state = state;
         this.synth = window.speechSynthesis;
         this.lastSpeakTime = 0;
-        this.lastWarnTime = 0; // 用於高強度警告的 Throttle (Hysteresis)
+        this.lastWarnTime = 0; 
     }
 
     speak(text, priority = 0) {
         if (!text || this.state.voiceState === 'mute' || !this.synth) return;
         
         const now = Date.now();
-        // Priority 0 = General (Throttle 6s). Priority 2 = Danger (Throttle 120s if same).
         if (priority === 0 && now - this.lastSpeakTime < 6000) return;
         if (priority === 2 && now - this.lastWarnTime < 120000) return;
         
@@ -665,7 +664,6 @@ class VoiceEngine {
         let hrPct = metrics.hr / maxHR;
         let lacPct = metrics.lac / personalMaxLac;
         
-        // Safety Overrides (Priority 2)
         if (hrPct > 0.95 && db.warn_hr) {
             this.speak(PRNG.get('warn_hr', db.warn_hr), 2);
             return;
@@ -679,7 +677,6 @@ class VoiceEngine {
         let key = '';
         let rand = Math.random();
 
-        // 5-Zone Mapping Logic
         if (metrics.phase === 'warmup') {
             if (rand < 0.5 && db.phy_warm) { arr = db.phy_warm; key = 'phy_warm'; }
             else { arr = db.val_low; key = 'val_low'; }
@@ -690,23 +687,23 @@ class VoiceEngine {
             if (rand < 0.5 && db.phy_rec) { arr = db.phy_rec; key = 'phy_rec'; }
             else { arr = db.val_rec; key = 'val_rec'; }
         } else if (metrics.phase === 'sprint' || metrics.phase === 'exhaust') {
-            if (hrPct > 0.90) { // Z5
+            if (hrPct > 0.90) { 
                 if (rand < 0.4 && db.phy_ana) { arr = db.phy_ana; key = 'phy_ana'; }
                 else if (rand < 0.7 && db.psy_over) { arr = db.psy_over; key = 'psy_over'; }
                 else { arr = db.val_high; key = 'val_high'; }
-            } else { // Z3-Z4
+            } else { 
                 if (rand < 0.5 && db.psy_micro) { arr = db.psy_micro; key = 'psy_micro'; }
                 else { arr = db.val_mid; key = 'val_mid'; }
             }
         } else {
-            if (hrPct < 0.70) { // Z1, Z2
+            if (hrPct < 0.70) { 
                 if (rand < 0.3 && db.bio_flat) { arr = db.bio_flat; key = 'bio_flat'; }
                 else if (rand < 0.6 && db.phy_aero) { arr = db.phy_aero; key = 'phy_aero'; }
                 else { arr = db.val_low; key = 'val_low'; }
-            } else if (hrPct <= 0.90) { // Z3, Z4
+            } else if (hrPct <= 0.90) { 
                 if (rand < 0.3 && db.psy_focus) { arr = db.psy_focus; key = 'psy_focus'; }
                 else { arr = db.val_mid; key = 'val_mid'; }
-            } else { // Z5
+            } else { 
                 if (rand < 0.3 && db.psy_over) { arr = db.psy_over; key = 'psy_over'; }
                 else { arr = db.val_high; key = 'val_high'; }
             }
@@ -759,7 +756,6 @@ class ProTreadmillApp {
             isRunning: false, startTime: 0, accumMs: 0, 
             matrix: [], currMinIdx: -1, wakeLock: null, transFired: {}, currentMetrics: null,
             autoSwitchedTab: false, lastTickTime: 0, peakLactate: 0, peakLacMin: -1, personalMaxLac: 12.0,
-            // Single Source of Truth for all metrics. Optional params can be NaN/0 internally if omitted by user.
             metric: { tTime: 60, tKm: 10.0, age: 38, weight: 0, bmr: 0, smm: 0, bf: 0, vo2: 0, maxSpd: 13.0, minSpd: 6.0, maxInc: 12, minInc: 0 }
         };
         
@@ -800,7 +796,6 @@ class ProTreadmillApp {
         try { localStorage.setItem('pro_treadmill_v20_prefs', JSON.stringify(prefs)); } catch(e){}
     }
 
-    // SSOT: Always read visual inputs back into Metric units state
     readInputsToState() {
         let isMet = this.state.unit === 'metric';
         this.state.metric.tTime = parseFloat(this.dom.tTime.value) || 10;
@@ -827,7 +822,6 @@ class ProTreadmillApp {
         
         this.dom.tTime.value = m.tTime; document.getElementById('targetTimeVal').textContent = m.tTime;
         
-        // Range input base values ALWAYS metric for stability. Only visual span changes.
         this.dom.tKm.value = m.tKm.toFixed(2); 
         let dVal = isMet ? m.tKm : m.tKm / 1.60934;
         document.getElementById('targetKmVal').textContent = dVal.toFixed(1);
@@ -858,7 +852,6 @@ class ProTreadmillApp {
             boxBF.classList.remove('neon-border'); boxVO2.classList.remove('neon-border');
         }
 
-        // Target distance read-only if VO2max is provided
         if (m.vo2 > 0) {
             this.dom.tKm.classList.add('read-only-slider');
             this.dom.tKm.disabled = true;
@@ -871,8 +864,8 @@ class ProTreadmillApp {
     toggleUnit() {
         this.state.unit = this.state.unit === 'metric' ? 'imperial' : 'metric';
         this.savePreferences(); 
-        this.renderInputs(); // updates the labels smoothly
-        this.state.currMinIdx = -1; // force dashboard update
+        this.renderInputs(); 
+        this.state.currMinIdx = -1; 
         this.initRender();
         if(this.state.accumMs > 0) this.updateDash(this.state.accumMs); else this.updateDash(0);
         
@@ -966,7 +959,6 @@ class ProTreadmillApp {
         this.dom.voiceSvg.innerHTML = v==='mute'?'<path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>':'<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>';
     }
 
-    // Auto-Clamping limits (Strict Boundaries)
     updateConstraints(fromInput = false) {
         let m = this.state.metric;
 
@@ -978,11 +970,9 @@ class ProTreadmillApp {
 
         this.generateMatrix();
         
-        // After generating, the visual slider bounds should reflect the actual limits.
         let isMet = this.state.unit === 'metric';
         let pMx = (m.tTime/60)*m.maxSpd; let pMn = (m.tTime/60)*m.minSpd; 
         
-        // Always set the DOM range attributes in Metric!
         this.dom.tKm.max = pMx.toFixed(2); 
         this.dom.tKm.min = pMn.toFixed(2);
         
@@ -1003,18 +993,18 @@ class ProTreadmillApp {
 
     getSanitizedParams() {
         let m = {...this.state.metric};
-        m.weight = m.weight || 70; // fallback to 70kg
-        m.bf = m.bf || (m.smm > 0 ? Math.max(5, 100 - (m.smm/m.weight*100) - 20) : 20); // 20% default BF
+        m.weight = m.weight || 70; 
+        m.bf = m.bf || (m.smm > 0 ? Math.max(5, 100 - (m.smm/m.weight*100) - 20) : 20); 
         m.smm = m.smm || (m.weight * (1 - m.bf/100) * 0.45);
-        m.bmr = m.bmr || (370 + 21.6 * (m.weight * (1 - m.bf/100))); // Katch-McArdle
-        m.vo2 = m.vo2 || Math.min(65, Math.max(25, 3.5 + 0.2*(m.maxSpd*16.67) + 0.9*(m.maxSpd*16.67)*0.01)); // Estimate from Max Speed
+        m.bmr = m.bmr || (370 + 21.6 * (m.weight * (1 - m.bf/100))); 
+        m.vo2 = m.vo2 || Math.min(65, Math.max(25, 3.5 + 0.2*(m.maxSpd*16.67) + 0.9*(m.maxSpd*16.67)*0.01)); 
         return m;
     }
 
     generateMatrix() {
         let m = this.getSanitizedParams();
         let T = Math.floor(m.tTime); 
-        let D = m.vo2 > 0 ? 0 : m.tKm; // If VO2 provided, target distance is auto-generated
+        let D = m.vo2 > 0 ? 0 : m.tKm; 
         
         let W = m.weight, A = m.age;
         let mxS = m.maxSpd, mnS = m.minSpd;
@@ -1022,25 +1012,56 @@ class ProTreadmillApp {
         
         let matrix = [];
         
-        // Phase lengths
-        let wL = Math.max(1, Math.floor(T*0.1)); // Warmup
-        let cL = Math.max(2, Math.floor(T*0.15)); // Cooldown
-        let sL = Math.max(1, Math.floor(T*0.15)); // Steep
-        let eL = Math.max(1, Math.floor(T*0.1)); // Exhaust
-        let iL = T - wL - sL - eL - cL; // Intervals
+        let wL = Math.max(1, Math.floor(T*0.1)); 
+        let cL = Math.max(2, Math.floor(T*0.15)); 
+        let sL = Math.max(1, Math.floor(T*0.15)); 
+        let eL = Math.max(1, Math.floor(T*0.1)); 
+        let iL = T - wL - sL - eL - cL; 
         if(iL < 0) { wL=1; sL=1; eL=1; cL=2; iL = Math.max(0, T - 5); }
 
-        let int = mxS===mnS ? 0.5 : 0.6;
-        let spr = mnS+(int*(mxS-mnS))+2.0, rec = mnS+(int*(mxS-mnS)*0.4);
-        let steepS = mnS+(int*(mxS-mnS)*0.6), exhS = mxS;
+        // 有效最高極限天花板 (Effective Max Speed)
+        let effMxS = mxS;
+        if (m.vo2 > 0) {
+            let maxSpdVo2 = ((m.vo2 - 3.5) / 0.2) * 0.06;
+            effMxS = Math.min(mxS, maxSpdVo2);
+        }
+
+        let avgS = (D/T)*60;
+        let int = 0.5;
+        // 如果手動輸入距離，精確計算出適合的基礎比例
+        if (m.vo2 === 0 && effMxS > mnS) {
+            int = Math.max(0, Math.min(1, (avgS - mnS) / (effMxS - mnS)));
+        } else if (m.vo2 > 0) {
+            int = 0.6; // VO2預設為高強度挑戰
+        }
+
+        // 動態振幅 (Amplitude) 確保衝刺波峰完美呈現
+        let amplitude = effMxS - mnS;
+        let spr = effMxS; 
+        let rec = mnS;
+        
+        if (amplitude > 0) {
+            spr = mnS + (int * amplitude) + Math.min(2.0, amplitude * 0.3);
+            if (spr > effMxS) spr = effMxS;
+            
+            rec = mnS + (int * amplitude * 0.4);
+            // 保證有差距，避免被距離微調時壓扁
+            if (spr - rec < 1.0 && amplitude >= 1.0) {
+                rec = spr - 1.0;
+                if (rec < mnS) { rec = mnS; spr = Math.min(effMxS, rec + 1.0); }
+            }
+        }
+        
+        let steepS = mnS + (int * amplitude * 0.6);
+        let exhS = effMxS;
 
         let sStp = mxI, sExh = mxI;
         if(steepS > 10.0) sStp = Math.floor(mxI*0.5); else if(steepS > 8.0) sStp = Math.floor(mxI*0.75);
         if(exhS > 10.0) sExh = Math.floor(mxI*0.5); else if(exhS > 8.0) sExh = Math.floor(mxI*0.75);
         sStp = Math.max(mnI, sStp); sExh = Math.max(mnI, sExh);
 
-        // Phase generation
-        for(let i=0; i<wL; i++) matrix.push({spd: mnS+(int*2)+(i*0.3), inc: mnI+1, phase:'warmup'});
+        let warmEnd = mnS + (int * amplitude * 0.3);
+        for(let i=0; i<wL; i++) matrix.push({spd: mnS + ((warmEnd - mnS) * (i/wL)), inc: mnI+1, phase:'warmup'});
         for(let i=0; i<sL; i++) matrix.push({spd: steepS, inc: sStp, phase:'steep'});
         for(let i=0; i<iL; i++) matrix.push({spd: (i%2!==0&&i!==iL-1)?spr:rec, inc: mnI, phase: (i%2!==0&&i!==iL-1)?'sprint':'recovery'});
         for(let i=0; i<eL; i++) matrix.push({spd: exhS, inc: sExh, phase:'exhaust'});
@@ -1050,39 +1071,35 @@ class ProTreadmillApp {
         for(let i=0; i<T; i++) {
             let row = matrix[i];
             
-            // 1. Warmup / Cooldown hard clamps
-            if (i === 0) row.spd = Math.min(row.spd, Math.max(mnS, Math.min(mnS, 6.0)));
-            if (i === T - 1) row.spd = Math.min(row.spd, Math.max(mnS, Math.min(mnS, 5.0)));
+            // 絕對起訖安全邊界
+            if (i === 0) row.spd = Math.max(mnS, Math.min(row.spd, 6.0));
+            if (i === T - 1) row.spd = Math.max(mnS, Math.min(row.spd, 5.0));
             
-            // 2. VO2max Ceiling
             let maxMMin = (m.vo2 - 3.5) / (0.2 + 0.9 * (row.inc/100));
             let vo2MaxSpd = maxMMin * 0.06;
             
-            // 3. Gravity Penalty (Double-Dipping on >5%)
+            // 體重重力雙重懲罰
             let gravPenalty = 0;
             if (row.inc >= 5 && W > 70) gravPenalty = (W - 70) * 0.03 * row.inc;
-            let finalCap = Math.min(mxS, vo2MaxSpd - gravPenalty);
+            let finalCap = Math.min(effMxS, vo2MaxSpd - gravPenalty);
             
             row.spd = Math.min(row.spd, finalCap);
-            row.spd = Math.max(mnS, row.spd); // Safety override overrides user pref if needed, but minSpd is floor
-            if (row.spd > finalCap) row.spd = finalCap; // Hard cap
+            row.spd = Math.max(mnS, row.spd); 
+            if (row.spd > finalCap) row.spd = Math.max(mnS, finalCap); 
         }
 
-        // Distance Adjustment (if target distance is manually specified)
+        // 精準距離微調 (避免影響起訖與波峰)
         if (this.state.metric.vo2 === 0) {
-            let covD = matrix.reduce((s, r) => s + (r.spd/60), 0); 
+            let covD = matrix.reduce((s, r) => s + (r.spd/60), 0);
             let diff = D - covD;
-            // Distribute diff ONLY to middle minutes (avoid i=0 and i=T-1)
             let midCount = T - 2;
             if (midCount > 0 && Math.abs(diff) > 0.01) {
                 let addPerMin = (diff / midCount) * 60;
                 for(let i=1; i<T-1; i++) {
-                    matrix[i].spd = Math.max(mnS, Math.min(mxS, matrix[i].spd + addPerMin));
+                    matrix[i].spd = Math.max(mnS, Math.min(effMxS, matrix[i].spd + addPerMin));
                 }
-                // Check if still short
                 covD = matrix.reduce((s, r) => s + (r.spd/60), 0);
-                if (D - covD > 0.05) {
-                    // Reduce manual target distance to reality
+                if (Math.abs(D - covD) > 0.05) {
                     this.state.metric.tKm = covD;
                     if (!this.dom.tKm.disabled) {
                         this.dom.tKm.value = covD.toFixed(2);
@@ -1091,26 +1108,22 @@ class ProTreadmillApp {
                 }
             }
         } else {
-            // VO2 driven distance
             let autoDist = matrix.reduce((s, r) => s + (r.spd/60), 0);
             this.state.metric.tKm = autoDist;
             this.dom.tKm.value = autoDist.toFixed(2);
             document.getElementById('targetKmVal').textContent = (this.state.unit === 'metric' ? autoDist : autoDist / 1.60934).toFixed(1);
         }
 
-        // Running Economy (RE) Multiplier
         let bfRatio = m.bf / 100;
         let smmRatio = m.smm / W;
         let RE = 1.0;
-        if (smmRatio > 0.4 && bfRatio < 0.15) RE = 0.95; // Highly efficient
-        if (bfRatio > 0.25) RE = 1.05 + (bfRatio - 0.25) * 0.5; // Dead weight penalty
+        if (smmRatio > 0.4 && bfRatio < 0.15) RE = 0.95; 
+        if (bfRatio > 0.25) RE = 1.05 + (bfRatio - 0.25) * 0.5; 
 
-        // Physiology Processing
         let cC=0, ccD=0, mHR=208-(0.7*A), cHR=75, cLac=1.0, fAcc=0;
-        let zAcc = [0,0,0,0,0,0]; // 1 to 5
+        let zAcc = [0,0,0,0,0,0]; 
         let peakLac = 0; let peakLacMin = -1;
         
-        // Personal Max Lactate Threshold
         let personalMaxLac = 12.0 + (m.vo2 > 0 ? (m.vo2 - 40)*0.1 : 0) + (smmRatio - 0.35)*15 - (A-30)*0.05;
         personalMaxLac = Math.min(18.0, Math.max(6.0, personalMaxLac));
         this.state.personalMaxLac = personalMaxLac;
@@ -1121,11 +1134,9 @@ class ProTreadmillApp {
             
             cC += (vo2_demand*W*5)/1000; ccD += s/60;
             
-            // HR Projection
             let tHR = 60 + ((vo2_demand / m.vo2) * (mHR-60));
             cHR += (tHR - cHR) * 0.4; let pHR = cHR/mHR; 
             
-            // Lactate Projection
             if(pHR < 0.70) { cLac = Math.max(1.0, cLac - 0.5); } 
             else if(pHR < 0.80) { cLac += 0.1; } 
             else if(pHR < 0.90) { cLac += 0.5; }
@@ -1136,7 +1147,6 @@ class ProTreadmillApp {
             
             fAcc += (pHR*1.5)*(1+(cLac*0.05));
             
-            // 5 Zones
             let z = pHR < 0.6 ? 1 : (pHR < 0.7 ? 2 : (pHR < 0.8 ? 3 : (pHR < 0.9 ? 4 : 5)));
             zAcc[z]++;
 
@@ -1161,7 +1171,7 @@ class ProTreadmillApp {
     }
     
     getNutritionRx(mSSOT, cal) {
-        if (!mSSOT.bf || !mSSOT.smm) return null; // Require BF and SMM to unlock advanced
+        if (!mSSOT.bf || !mSSOT.smm) return null; 
         let smmRatio = mSSOT.smm / mSSOT.weight;
         let ageFactor = mSSOT.age > 50 ? 1.1 : (mSSOT.age > 40 ? 1.05 : 1.0);
         let bmrFactor = mSSOT.bmr > 0 ? Math.max(0.7, Math.min(1.5, (mSSOT.bmr / (mSSOT.weight * 24)))) : 1.0;
@@ -1202,7 +1212,6 @@ class ProTreadmillApp {
             nutriHtml = `<div class="nutri-adv"><strong>${d.nutriRx}</strong><br>${strPost}<br>${strDaily}</div>`;
         }
 
-        // Peak Lactate UI Update
         let lacDanger = this.state.peakLactate >= this.state.personalMaxLac;
         let maxLacColor = lacDanger ? "var(--neon-red)" : "var(--text-main)";
         let maxLacAnim = lacDanger ? "lac-danger" : "";
@@ -1233,7 +1242,6 @@ class ProTreadmillApp {
             let pt = VoiceDB[this.state.uiLang].phases[r.phase];
             let sDisp = isMet ? r.spd : r.spd / 1.60934;
             
-            // Peak Lactate Highlighting
             let isPeak = (i === this.state.peakLacMin);
             if (isPeak && lacDanger) li.classList.add('max-lac-row');
             let lacStr = isPeak ? `<strong style="color:var(--neon-red);">MAX</strong> ${r.lac.toFixed(1)}` : `${r.lac.toFixed(1)}`;
@@ -1284,7 +1292,6 @@ class ProTreadmillApp {
         let tStr = `${String(m.elapsedMin).padStart(2,'0')}:${String(m.elapsedSec).padStart(2,'0')}`;
         let avgSpdKm = m.elapsedHours > 0 ? (m.distKm / m.elapsedHours) : 0;
         
-        // Exact actual zone accumulation based on elapsed minutes
         let cIdx = Math.min(m.elapsedMin, this.state.matrix.length - 1);
         let mZ = this.state.matrix[cIdx];
         
@@ -1306,7 +1313,7 @@ class ProTreadmillApp {
         this.dom.askEnd.classList.add('hidden'); this.dom.pause.classList.add('hidden');
         this.dom.start.classList.remove('hidden'); this.dom.records.classList.remove('hidden');
         this.dom.settingsBlock.querySelectorAll('input').forEach(el => el.classList.remove('locked'));
-        this.validateInterlocks(); // Reset readonly states properly
+        this.validateInterlocks(); 
 
         this.dom.lblStart.textContent = i18n[this.state.uiLang].sta; 
         this.updateConstraints(); this.switchTab('settings'); this.updateDash(0); 
@@ -1324,7 +1331,6 @@ class ProTreadmillApp {
         this.state.accumMs = now - this.state.startTime;
         let tMs = this.state.matrix.length * 60000;
         
-        // Wake-up Delta Desync Prevention
         if (deltaMs > 2000) {
             let mI=Math.floor(this.state.accumMs/60000);
             for(let i=0; i<=mI; i++) {
@@ -1377,7 +1383,6 @@ class ProTreadmillApp {
             this.state.transFired[mI].autoTabToMatrix = true;
             let nD = this.state.matrix[mI + 1];
             if (Math.abs(nD.spd - cD.spd) > 0.05 || Math.abs(nD.inc - cD.inc) > 0.05) {
-                // Ensure we don't tab switch if in landscape immersive mode
                 if (window.innerWidth < 768 && window.innerHeight > 500) {
                     this.switchTab('matrix');
                     this.state.autoSwitchedTab = true; 
@@ -1402,7 +1407,6 @@ class ProTreadmillApp {
             }
         }
 
-        // Absolute Integration (Solves Wake-up Math Desync)
         let curC = 0; let curD_km = 0;
         for(let i=0; i<mI; i++) { curC += this.state.matrix[i].cal; curD_km += this.state.matrix[i].dist; }
         
@@ -1484,7 +1488,6 @@ class ProTreadmillApp {
                 let dKm = h.distKm || parseFloat(h.km) || parseFloat(h.dist) || 0; 
                 let sKm = h.avgSpdKm || parseFloat(h.avgSpd) || 0;
                 let dDisp = isMet ? dKm : dKm / 1.60934; let sDisp = isMet ? sKm : sKm / 1.60934;
-                // Backward Migration Adapter (Z1-Z5 fallback)
                 let zInfo = (h.z1 !== undefined) ? `<div style="font-size:0.8rem; color:var(--gray); margin-top:4px;">Z1: ${h.z1||0} | Z2: ${h.z2||0} | Z3: ${h.z3||0} | Z4: ${h.z4||0} | Z5: ${h.z5||0}</div>` : '';
                 html += `<div class="history-item unit-toggle">
                             <div class="history-date">${h.date}</div>
