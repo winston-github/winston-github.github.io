@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Pro Treadmill OS (Olympic V22 - Ultimate Freedom + Pro UI)</title>
+    <title>Pro Treadmill OS (Olympic V23 - Ultimate Run)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #0F0F0F; --bg-panel: #1A1A1A; --bg-bento: #141414;
@@ -12,7 +12,7 @@
             --neon-red: #FF453A; --neon-red-dim: rgba(255, 69, 58, 0.15);
             --neon-blue: #0A84FF; --neon-blue-dim: rgba(10, 132, 255, 0.15);
             --gray: #8E8E93; --gray-light: #D1D1D6; --text-main: #FFFFFF; 
-            --border-color: #222222; --active-bg: #2C2C2E;
+            --border-color: #2A2A2C; --active-bg: #2C2C2E;
             --safe-bottom: env(safe-area-inset-bottom, 15px);
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
@@ -20,9 +20,16 @@
         
         #app-container { width: 100%; max-width: 768px; height: 100%; margin: 0 auto; display: flex; flex-direction: column; position: relative; background-color: var(--bg-dark); overflow: hidden; }
         
-        /* Error Toast System */
-        #sysToast { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); background: rgba(255, 69, 58, 0.95); color: #FFF; padding: 12px 20px; border-radius: 12px; font-weight: bold; z-index: 9999; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.8); transition: top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); width: 90%; max-width: 400px; pointer-events: none; }
-        #sysToast.show { top: env(safe-area-inset-top, 20px); }
+        /* 頂部動態通知列 (Notification Bar) */
+        #topNotification { position: fixed; top: -150px; left: 50%; transform: translateX(-50%); width: 92%; max-width: 450px; background: rgba(20, 20, 20, 0.95); backdrop-filter: blur(10px); border: 1px solid var(--border-color); border-radius: 12px; z-index: 10000; transition: top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.8); display: flex; flex-direction: column; }
+        #topNotification.show { top: env(safe-area-inset-top, 15px); }
+        .notif-content { padding: 16px 36px 16px 16px; font-size: 0.9rem; color: var(--text-main); line-height: 1.5; }
+        .notif-content ul { padding-left: 20px; margin-top: 4px; color: var(--gray-light); font-size: 0.85rem;}
+        .notif-content li { margin-bottom: 2px; }
+        .notif-close { position: absolute; top: 12px; right: 12px; fill: var(--gray); width: 20px; height: 20px; cursor: pointer; transition: fill 0.2s; }
+        .notif-close:active { fill: #FFF; }
+        .notif-bar-bg { width: 100%; height: 3px; background: #333; }
+        .notif-bar-fill { height: 100%; background: var(--neon-blue); width: 100%; transform-origin: left; transition: transform linear; }
 
         /* Top Nav */
         .top-nav { flex-shrink: 0; width: 100%; background-color: rgba(0,0,0,0.85); backdrop-filter: blur(10px); padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); height: 70px; z-index: 100;}
@@ -52,79 +59,91 @@
 
         /* Bento Grid - Setup View */
         #setup-view { padding: 15px; gap: 15px; }
-        .bento-box { background: var(--bg-bento); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; overflow: hidden; }
+        .bento-box { background: var(--bg-bento); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; overflow: hidden; position: relative; }
         
         .slider-group { margin-bottom: 25px; }
         .slider-group:last-child { margin-bottom: 0; }
         .slider-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px; }
         .slider-label { font-size: 1rem; font-weight: 700; color: var(--gray-light); display: flex; align-items: center; gap: 6px;}
-        .target-val { font-size: 2rem; font-weight: 900; color: var(--text-main); font-variant-numeric: tabular-nums; line-height: 1; cursor: pointer;}
+        .target-val { font-size: 2rem; font-weight: 900; color: var(--text-main); font-variant-numeric: tabular-nums; line-height: 1;}
         .target-val span { font-size: 1rem; color: var(--gray); font-weight: 600; margin-left: 2px;}
         input[type=range] { width: 100%; height: 6px; border-radius: 3px; background: var(--bg-panel); outline: none; -webkit-appearance: none; appearance: none; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: var(--text-main); cursor: pointer; border: 2px solid var(--bg-dark); box-shadow: 0 0 10px rgba(255,255,255,0.2); }
 
-        /* Program Section Header */
         .prog-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .prog-header-row .slider-label { margin-bottom: 0; }
-        .btn-hw { background: transparent; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; transition: background 0.2s; outline: none;}
-        .btn-hw:active { background: var(--active-bg); }
-        .btn-hw svg { width: 20px; height: 20px; fill: var(--gray-light); }
-
         .prog-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .prog-btn { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 10px; padding: 14px 10px; text-align: left; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; gap: 4px;}
         .prog-btn .prog-title { font-size: 0.95rem; font-weight: 800; color: var(--text-main); }
         .prog-btn .prog-desc { font-size: 0.7rem; color: var(--gray); font-weight: 600; }
         .prog-btn.selected { border-color: var(--neon-green); background: var(--neon-green-dim); box-shadow: inset 0 0 0 1px var(--neon-green); }
         .prog-btn.selected .prog-title { color: var(--neon-green); }
-        .prog-btn.yellow-alert { border-color: var(--neon-yellow); background: rgba(255, 214, 10, 0.1); }
-        .prog-btn.red-alert { border-color: var(--neon-red); background: rgba(255, 69, 58, 0.1); }
 
-        .chart-bento { padding: 0; background: #080808; }
+        /* Chart Overlays (MAX / AVG) */
+        .chart-bento { padding: 0; background: #080808; display: flex; flex-direction: column; }
         .hud-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 15px 20px; border-bottom: 1px solid var(--border-color); }
         .hud-program-name { font-size: 1.1rem; font-weight: 900; color: var(--text-main); }
         .hud-program-spirit { font-size: 0.75rem; color: var(--gray); font-weight: 600; font-style: italic; margin-top: 4px;}
-        .hud-time { font-size: 1.5rem; font-weight: 900; color: var(--neon-green); font-variant-numeric: tabular-nums; }
+        .hud-time { font-size: 1.5rem; font-weight: 900; color: var(--text-main); font-variant-numeric: tabular-nums; }
         
-        .hud-data-row { display: flex; justify-content: space-around; padding: 10px; background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border-color); }
-        .hud-val { display: flex; align-items: center; gap: 4px; font-size: 0.9rem; font-weight: 800; color: var(--text-main); font-variant-numeric: tabular-nums;}
+        .chart-data-row { display: flex; justify-content: space-around; padding: 8px 5px; background: rgba(0,0,0,0.5); z-index: 10; position: relative;}
+        .chart-data-row.top-row { border-bottom: 1px solid var(--border-color); }
+        .chart-data-row.bottom-row { border-top: 1px solid var(--border-color); }
+        
+        .hud-val-box { display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }
+        .hud-val-lbl { font-size: 0.65rem; color: var(--gray); font-weight: 700; margin-bottom: 2px; text-transform: uppercase;}
+        .hud-val { display: flex; align-items: center; gap: 4px; font-size: 0.95rem; font-weight: 900; color: var(--text-main); font-variant-numeric: tabular-nums;}
         .hud-val svg { width: 14px; height: 14px; }
         .c-spd svg { fill: var(--neon-green); } .c-inc svg { fill: var(--neon-yellow); } .c-hr svg { fill: var(--neon-blue); } .c-lac svg { fill: var(--neon-red); }
-        .canvas-container { position: relative; width: 100%; height: 180px; }
+        .max-badge { position: absolute; top: -5px; right: -15px; font-size: 0.5rem; background: var(--text-main); color: #000; padding: 1px 3px; border-radius: 3px; font-weight: 900; transition: opacity 0.2s; }
+
+        .canvas-container { position: relative; width: 100%; height: 180px; flex-shrink: 0; }
         canvas { width: 100%; height: 100%; display: block; }
-        .crosshair { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.5); pointer-events: none; display: none; }
+        .crosshair { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.8); pointer-events: none; display: none; box-shadow: 0 0 5px #FFF; z-index: 5;}
 
         .txt-yellow { color: var(--neon-yellow) !important; font-weight: 900; }
         .txt-red { color: var(--neon-red) !important; font-weight: 900; }
 
-        /* Zone & Nutrition in Tab 1 */
-        .info-bento { background: var(--bg-bento); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
-        .zone-summary { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; }
-        .z-item { font-size: 0.85rem; color: var(--gray-light); display: flex; gap: 4px; font-weight: 700; }
-        .z-item span:last-child { color: var(--text-main); font-variant-numeric: tabular-nums; }
-        .nutri-adv { color: var(--text-main); font-size: 0.85rem; line-height: 1.6; }
-        .nutri-warn { color: var(--gray); font-size: 0.85rem; font-weight: bold; display: flex; align-items: center; justify-content: center; }
-
         /* Massive Run View */
-        #run-view { padding: 20px 10px; flex-direction: column; justify-content: center; align-items: center; min-height: 100%; }
-        .massive-time { font-size: clamp(4.5rem, 16vw, 6rem); font-weight: 900; font-variant-numeric: tabular-nums; line-height: 1; margin-bottom: 20px; text-shadow: 0 10px 30px rgba(0,0,0,0.8); }
-        .run-core-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 100%; margin-bottom: 30px; }
-        .run-box { background: var(--bg-panel); border-radius: 16px; padding: 20px 10px; display: flex; flex-direction: column; align-items: center; border: 1px solid var(--border-color); }
-        .run-val { font-size: clamp(3.5rem, 12vw, 4.8rem); font-weight: 900; font-variant-numeric: tabular-nums; line-height: 1; }
+        #run-view { padding: 15px; flex-direction: column; justify-content: flex-start; align-items: center; min-height: 100%; gap: 20px;}
+        .massive-time { font-size: clamp(4rem, 15vw, 5.5rem); font-weight: 900; font-variant-numeric: tabular-nums; line-height: 1; text-shadow: 0 10px 30px rgba(0,0,0,0.8); margin-top: 10px;}
+        
+        .run-core-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 100%; }
+        .run-box { background: var(--bg-panel); border-radius: 16px; padding: 20px 10px; display: flex; flex-direction: column; align-items: center; border: 1px solid var(--border-color); position: relative; }
+        .run-val { font-size: clamp(3.2rem, 11vw, 4.5rem); font-weight: 900; font-variant-numeric: tabular-nums; line-height: 1; position: relative; z-index: 2;}
         .run-val.spd { color: var(--neon-green); text-shadow: 0 0 20px var(--neon-green-dim); }
         .run-val.inc { color: var(--neon-yellow); text-shadow: 0 0 20px var(--neon-yellow-dim); }
-        .run-label { font-size: 1rem; color: var(--gray); font-weight: 700; margin-top: 8px; display: flex; align-items: center; gap: 6px;}
-        .run-sec-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; width: 100%; }
-        .run-sec-box { background: var(--bg-bento); border-radius: 12px; padding: 15px 5px; display: flex; flex-direction: column; align-items: center; border: 1px solid var(--border-color); }
-        .r-s-val { font-size: 1.4rem; font-weight: 900; color: var(--text-main); font-variant-numeric: tabular-nums;}
-        .r-s-lbl { font-size: 0.75rem; color: var(--gray); font-weight: 700; margin-top: 4px; text-align: center;}
+        .run-label { font-size: 1rem; color: var(--gray); font-weight: 700; margin-top: 8px; }
         
-        .z-item-run { font-size: 0.85rem; color: var(--gray-light); display: flex; gap: 4px; font-weight: 700;}
-        .z-item-run span:last-child { color: var(--text-main); font-variant-numeric: tabular-nums; }
-        .run-zone-summary { width: 100%; margin-top: 20px; background: var(--bg-bento); border-radius: 12px; padding: 15px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between;}
+        .teaser-val { position: absolute; top: 10px; right: 15px; font-size: 1.2rem; font-weight: 900; z-index: 3; opacity: 0; transition: opacity 0.3s; font-variant-numeric: tabular-nums;}
+        .teaser-val.show { opacity: 1; }
+        .teaser-val.blink { animation: blink 1s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        .run-sec-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; width: 100%; }
+        .run-sec-box { background: var(--bg-bento); border-radius: 12px; padding: 12px 2px; display: flex; flex-direction: column; align-items: center; border: 1px solid var(--border-color); }
+        .r-s-val { font-size: 1.2rem; font-weight: 900; color: var(--text-main); font-variant-numeric: tabular-nums;}
+        .r-s-lbl { font-size: 0.7rem; color: var(--gray); font-weight: 700; margin-top: 4px; text-align: center;}
+
+        /* Zone Dashboard */
+        .zone-dash-container { width: 100%; background: var(--bg-bento); border: 1px solid var(--border-color); border-radius: 16px; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .zd-row { display: flex; align-items: center; gap: 10px; }
+        .zd-lbl { width: 120px; font-size: 0.85rem; font-weight: 800; color: var(--gray-light); flex-shrink: 0;}
+        .zd-bar-bg { flex: 1; height: 12px; background: #222; border-radius: 6px; overflow: hidden; position: relative;}
+        .zd-bar-fill { height: 100%; width: 0%; border-radius: 6px; transition: width 0.5s ease; }
+        .zd-val { width: 50px; text-align: right; font-size: 0.9rem; font-weight: 900; color: var(--text-main); font-variant-numeric: tabular-nums; flex-shrink: 0;}
+        
+        .z1-color { background-color: var(--gray-light); }
+        .z2-color { background-color: var(--neon-blue); }
+        .z3-color { background-color: var(--neon-green); }
+        .z4-color { background-color: var(--neon-yellow); }
+        .z5-color { background-color: var(--neon-red); }
+        .zd-row.active-zone .zd-lbl { color: #FFF; }
+        .zd-row.active-zone .zd-bar-fill { box-shadow: 0 0 10px currentColor; animation: zonePulse 2s infinite; }
+        @keyframes zonePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 
         /* Pace Tab (Matrix List) */
-        .preview-list { list-style: none; padding: 10px; }
-        .preview-list li { padding: 14px 10px; border-bottom: 1px solid #1a1a1a; font-size: 0.9rem; color: var(--gray); display: flex; justify-content: space-between; align-items: center; border-radius: 8px; transition: all 0.3s ease; }
+        .preview-list { list-style: none; padding: 10px; overflow-y: auto; height: 100%; -webkit-overflow-scrolling: touch; }
+        .preview-list li { padding: 14px 10px; border-bottom: 1px solid #1a1a1a; font-size: 0.9rem; color: var(--gray); display: flex; justify-content: space-between; align-items: center; border-radius: 8px; transition: all 0.2s ease; }
         .preview-list li.active-row { background-color: var(--active-bg); border-left: 5px solid var(--neon-green); transform: scale(1.02); color: #FFF; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
         .preview-list li.max-lac-row { background-color: rgba(255, 69, 58, 0.15); color: var(--text-main); }
         .min-tag { font-weight: 900; width: 45px; color: var(--text-main);}
@@ -134,7 +153,7 @@
         .bio-tag { color: var(--neon-blue); width: 95px; text-align: right; display: flex; align-items: center; justify-content: flex-end;}
         .bio-tag svg { width: 12px; height: 12px; fill: var(--neon-blue); margin: 0 3px 0 6px;}
 
-        /* Bottom Controls (Fixed width 4 buttons layout) */
+        /* Bottom Controls */
         .bottom-controls { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.95); backdrop-filter: blur(10px); border-top: 1px solid var(--border-color); padding: 10px 10px calc(10px + var(--safe-bottom)) 10px; display: flex; justify-content: space-between; gap: 10px; z-index: 100;}
         .btn-ctrl { flex: 1; height: 60px; border-radius: 12px; border: none; font-size: 1.1rem; font-weight: 900; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px; transition: transform 0.1s; outline: none; color: #000; overflow: hidden; white-space: nowrap;}
         .btn-ctrl:active { transform: scale(0.96); }
@@ -145,40 +164,36 @@
         .btn-pause { background: var(--neon-yellow); }
         .btn-end { background: var(--neon-red); color: #FFF; }
 
-        /* --- Modals --- */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 999; display: flex; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
-        .modal-box { background: var(--bg-panel); border: 1px solid #333; border-radius: 16px; width: 92%; max-width: 420px; max-height: 90%; display: flex; flex-direction: column; box-shadow: 0 20px 40px rgba(0,0,0,0.8); }
-        .modal-title { color: var(--text-main); font-size: 1.2rem; font-weight: 900; text-align: center; padding: 15px; border-bottom: 1px solid #333; flex-shrink: 0;}
+        /* --- Virtual Modals --- */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 999; display: flex; justify-content: center; align-items: center; backdrop-filter: blur(5px); opacity: 0; pointer-events: none; transition: opacity 0.2s ease;}
+        .modal-overlay.show { opacity: 1; pointer-events: auto; }
+        .modal-box { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 16px; width: 92%; max-width: 420px; max-height: 90%; display: flex; flex-direction: column; box-shadow: 0 20px 40px rgba(0,0,0,0.9); transform: scale(0.95); transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);}
+        .modal-overlay.show .modal-box { transform: scale(1); }
+        .modal-title { color: var(--text-main); font-size: 1.2rem; font-weight: 900; text-align: center; padding: 15px; border-bottom: 1px solid #333; flex-shrink: 0; position: relative;}
         .modal-content-scroll { overflow-y: auto; padding: 15px; flex: 1; -webkit-overflow-scrolling: touch; }
-        .modal-footer { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 15px; border-top: 1px solid #333; flex-shrink: 0;}
+        .modal-footer { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 15px; border-top: 1px solid #333; flex-shrink: 0; background: var(--bg-panel); border-bottom-left-radius: 16px; border-bottom-right-radius: 16px;}
         
-        .btn-modal { padding: 12px; border-radius: 10px; font-size: 1rem; font-weight: 900; border: none; cursor: pointer; transition: transform 0.1s; color: #FFF; text-align: center;}
-        .btn-modal:active { transform: scale(0.96); }
-        .btn-save { background: var(--neon-blue); }
+        .btn-modal { padding: 12px; border-radius: 10px; font-size: 1rem; font-weight: 900; border: none; cursor: pointer; transition: transform 0.1s, opacity 0.2s; color: #FFF; text-align: center;}
+        .btn-modal:active:not(:disabled) { transform: scale(0.96); }
+        .btn-modal:disabled { opacity: 0.3; cursor: not-allowed; }
+        .btn-save { background: var(--neon-blue); color: #000; }
         .btn-cancel { background: #333; }
         .btn-confirm { background: var(--neon-red); }
         .btn-hist { background: var(--bg-bento); border: 1px solid var(--border-color); }
         .btn-remove { background: rgba(255, 69, 58, 0.2); color: var(--neon-red); border: 1px solid var(--neon-red); }
 
-        /* Validation Trap Modal Specifics */
-        .val-msg { text-align: center; font-size: 1rem; font-weight: bold; color: var(--text-main); margin-bottom: 15px; line-height: 1.5; padding: 0 10px; }
-        .val-msg span { color: var(--neon-red); }
-        .btn-trap-yes { background: var(--neon-red); color: #FFF; }
-        .btn-trap-no { background: #333; color: #FFF; }
-
-        /* Profile Input / Dropdown (FIXED OVERFLOW) */
+        /* Profile Inputs */
         .rm-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 15px; position: relative;}
-        .rm-label { font-size: 0.85rem; color: var(--gray-light); font-weight: 700; }
+        .rm-label { font-size: 0.85rem; color: var(--gray-light); font-weight: 700; display: flex; justify-content: space-between;}
         .rm-input-row { display: flex; gap: 10px; align-items: stretch; width: 100%; }
         .rm-input-wrapper { flex: 1; min-width: 0; position: relative; display: flex; align-items: center; background: #000; border: 1px solid var(--border-color); border-radius: 8px; }
         .rm-input-wrapper input { width: 100%; flex: 1; min-width: 0; background: transparent; border: none; color: #FFF; padding: 12px; font-size: 1.1rem; font-weight: bold; outline: none; }
+        .rm-input-wrapper input:disabled { color: var(--gray); }
         .rm-dropdown-btn { width: 40px; height: 100%; display: flex; justify-content: center; align-items: center; background: transparent; border: none; border-left: 1px solid var(--border-color); cursor: pointer; outline: none;}
         .rm-dropdown-btn svg { width: 16px; height: 16px; fill: var(--gray); transition: transform 0.2s; }
-        .rm-dropdown-btn.disabled svg { fill: #333; }
-        .rm-dropdown-btn:not(.disabled):active svg { transform: scale(0.9); }
-        
+        .rm-dropdown-btn:disabled svg { fill: #333; }
         .btn-copy { width: 52px; flex-shrink: 0; background: #000; border: 1px solid var(--border-color); border-radius: 8px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: all 0.2s; outline: none;}
-        .btn-copy:active { transform: scale(0.95); background: var(--active-bg); }
+        .btn-copy:disabled { opacity: 0.3; cursor: not-allowed; }
         .btn-copy svg { width: 22px; height: 22px; fill: var(--gray-light); }
         
         .dropdown-menu { position: absolute; top: calc(100% + 5px); left: 0; right: 62px; background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 8px; z-index: 1000; box-shadow: 0 10px 25px rgba(0,0,0,0.9); max-height: 200px; overflow-y: auto; display: none; flex-direction: column;}
@@ -186,16 +201,28 @@
         .dropdown-item { padding: 14px 15px; color: var(--text-main); border-bottom: 1px solid #222; cursor: pointer; font-size: 0.95rem; font-weight: 700; transition: background 0.2s; }
         .dropdown-item:last-child { border-bottom: none; }
         
-        /* Toggles & Params */
         .rm-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
         .toggle-container { display: flex; background: #000; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); }
         .t-btn { flex: 1; padding: 10px 0; background: transparent; border: none; color: var(--gray); font-size: 0.9rem; font-weight: 800; cursor: pointer; transition: all 0.2s; outline: none;}
         .t-btn.active { background: var(--active-bg); color: var(--text-main); }
+        .t-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
         .param-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #000; padding: 12px; border-radius: 12px; border: 1px solid var(--border-color);}
         .param-item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #222; padding-bottom: 5px; }
-        .param-item label { color: var(--gray); font-size: 0.8rem; font-weight: 600; white-space: nowrap;}
-        .param-item input { width: 50%; min-width: 0; background: transparent; color: var(--text-main); border: none; font-size: 1.1rem; text-align: right; font-weight: 800; outline: none; font-variant-numeric: tabular-nums; }
+        .param-item label { color: var(--gray); font-size: 0.75rem; font-weight: 600; white-space: nowrap;}
+        .param-item input { width: 55%; min-width: 0; background: transparent; color: var(--text-main); border: none; font-size: 1.05rem; text-align: right; font-weight: 800; outline: none; font-variant-numeric: tabular-nums; }
+        .param-item input:disabled { color: var(--gray); }
+
+        /* Auto-Pilot Toggle in Profile */
+        .ap-toggle-row { display: flex; justify-content: space-between; align-items: center; padding: 15px 5px 5px 5px; border-top: 1px solid var(--border-color); margin-top: 10px;}
+        .ap-lbl { font-size: 0.9rem; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 8px;}
+        .ap-desc { font-size: 0.7rem; color: var(--gray); font-weight: normal;}
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: .3s; border-radius: 24px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--neon-blue); }
+        input:checked + .slider:before { transform: translateX(20px); }
         
         .summary-stat { display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding: 12px 0; font-size: 1rem; color: var(--gray-light);}
         .summary-val { color: var(--neon-green); font-weight: bold; font-variant-numeric: tabular-nums;}
@@ -203,19 +230,23 @@
         .history-date { color: var(--neon-blue); font-size: 0.85rem; font-weight: bold; margin-bottom: 6px;}
 
         .hidden { display: none !important; pointer-events: none !important; }
-        .locked { opacity: 0.4; pointer-events: none; filter: grayscale(100%); }
-
-        @keyframes pulse-speed { 0% { background: transparent; color: var(--neon-green); } 50% { background: var(--neon-green); color: #000; font-weight: 900;} 100% { background: transparent; color: var(--neon-green); } }
-        @keyframes pulse-inc { 0% { background: transparent; color: var(--neon-yellow); } 50% { background: var(--neon-yellow); color: #000; font-weight: 900;} 100% { background: transparent; color: var(--neon-yellow); } }
-        .pulse-speed-active { animation: pulse-speed 0.8s infinite; border-radius: 4px;}
-        .pulse-inc-active { animation: pulse-inc 0.8s infinite; border-radius: 4px;}
+        
+        @keyframes pulse-speed { 0%, 100% { background: transparent; color: var(--neon-green); } 50% { background: var(--neon-green); color: #000; font-weight: 900;} }
+        @keyframes pulse-inc { 0%, 100% { background: transparent; color: var(--neon-yellow); } 50% { background: var(--neon-yellow); color: #000; font-weight: 900;} }
+        .pulse-speed-active { animation: pulse-speed 1s infinite; border-radius: 4px;}
+        .pulse-inc-active { animation: pulse-inc 1s infinite; border-radius: 4px;}
     </style>
 </head>
 <body>
-<div id="sysToast">系統異常 [ERR-CODE]</div>
+
+<!-- Dynamic Notification Bar -->
+<div id="topNotification">
+    <svg class="notif-close" id="btnCloseNotif" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+    <div class="notif-content" id="notifContent"></div>
+    <div class="notif-bar-bg"><div class="notif-bar-fill" id="notifBar"></div></div>
+</div>
 
 <div id="app-container">
-    
     <!-- Top Nav -->
     <div class="top-nav">
         <button id="btnUiLang" class="circle-btn active">
@@ -227,8 +258,8 @@
             <div class="top-progress-track"><div id="topProgressBar" class="top-progress-fill"></div></div>
         </div>
         <button id="btnVoice" class="circle-btn active">
-            <svg id="voiceIconSvg" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
-            <span class="btn-text" id="voiceStateText">ZH</span>
+            <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+            <span class="btn-text" id="voiceStateText">ON</span>
         </button>
     </div>
 
@@ -243,26 +274,23 @@
         <!-- Setup View -->
         <div id="setup-view" class="view-section active">
             
-            <div class="bento-box locked-target">
+            <div class="bento-box">
                 <div class="slider-group">
-                    <div class="slider-header"><span class="slider-label" id="lblTotalTime">總時間(分鐘)</span><div class="target-val unit-toggle" id="targetTimeVal">60<span id="uTime">min</span></div></div>
+                    <div class="slider-header"><span class="slider-label" id="lblTotalTime">總時間</span><div class="target-val" id="targetTimeVal">60<span id="uTime">min</span></div></div>
                     <input type="range" id="targetTime" min="10" max="180" step="5" value="60">
                 </div>
                 <div class="slider-group" style="margin-bottom:0;">
                     <div class="slider-header">
-                        <span class="slider-label" id="lblTargetKm">目標里程(km)</span>
-                        <div class="target-val unit-toggle" id="targetKmVal">5.0<span id="uDist">km</span></div>
+                        <span class="slider-label" id="lblTargetKm">目標里程</span>
+                        <div class="target-val" id="targetKmVal">5.0<span id="uDist">km</span></div>
                     </div>
                     <input type="range" id="targetKm" min="0.5" max="50.0" step="0.5" value="5.0">
                 </div>
             </div>
 
-            <div class="bento-box locked-target">
+            <div class="bento-box">
                 <div class="prog-header-row">
-                    <span class="slider-label" id="lblProgSelect" style="color:var(--neon-blue);">跑步機 / Treadmill</span>
-                    <button class="btn-hw" id="btnHwSettings">
-                        <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
-                    </button>
+                    <span class="slider-label" id="lblProgSelect" style="color:var(--neon-blue);"></span>
                 </div>
                 <div class="prog-grid" id="progGrid"></div>
             </div>
@@ -270,38 +298,30 @@
             <div class="bento-box chart-bento">
                 <div class="hud-header">
                     <div>
-                        <div class="hud-program-name" id="hudProgName">--</div>
-                        <div class="hud-program-spirit" id="hudProgSpirit">--</div>
+                        <div class="hud-program-name" id="sProgName">--</div>
+                        <div class="hud-program-spirit" id="sProgSpirit">--</div>
                     </div>
-                    <div class="hud-time" id="hudTime">--:--</div>
+                    <div class="hud-time" id="sHudTime">--:--</div>
                 </div>
-                <div class="hud-data-row unit-toggle" style="cursor:pointer;">
-                    <div class="hud-val c-spd"><svg viewBox="0 0 24 24"><path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/></svg><span id="hudSpd">--</span></div>
-                    <div class="hud-val c-inc"><svg viewBox="0 0 24 24"><path d="M14 6l-3.75 5 2.85 3.8-1.6 1.2C9.81 13.75 7 10 7 10l-6 8h22L14 6z"/></svg><span id="hudInc">--</span></div>
-                    <div class="hud-val c-hr"><svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg><span id="hudHr">--</span></div>
-                    <div class="hud-val c-lac"><svg viewBox="0 0 24 24"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8zm0 16c-3.35 0-6-2.57-6-6.2 0-2.34 1.95-5.44 6-9.14 4.05 3.7 6 6.79 6 9.14 0 3.63-2.65 6.2-6 6.2z"/></svg><span id="hudLac">--</span></div>
+                <!-- Top MAX overlays -->
+                <div class="chart-data-row top-row" id="sMaxRow">
+                    <div class="hud-val-box"><span class="hud-val-lbl" id="lblSMaxSpd">Speed</span><div class="hud-val c-spd"><svg viewBox="0 0 24 24"><path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/></svg><span id="sSpd">--</span></div><span class="max-badge s-badge">MAX</span></div>
+                    <div class="hud-val-box"><span class="hud-val-lbl" id="lblSMaxInc">Incline</span><div class="hud-val c-inc"><svg viewBox="0 0 24 24"><path d="M14 6l-3.75 5 2.85 3.8-1.6 1.2C9.81 13.75 7 10 7 10l-6 8h22L14 6z"/></svg><span id="sInc">--</span></div><span class="max-badge s-badge">MAX</span></div>
+                    <div class="hud-val-box"><span class="hud-val-lbl">HR</span><div class="hud-val c-hr"><svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg><span id="sHr">--</span></div><span class="max-badge s-badge">MAX</span></div>
+                    <div class="hud-val-box"><span class="hud-val-lbl">Lac</span><div class="hud-val c-lac"><svg viewBox="0 0 24 24"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8zm0 16c-3.35 0-6-2.57-6-6.2 0-2.34 1.95-5.44 6-9.14 4.05 3.7 6 6.79 6 9.14 0 3.63-2.65 6.2-6 6.2z"/></svg><span id="sLac">--</span></div><span class="max-badge s-badge">MAX</span></div>
                 </div>
-                <div class="canvas-container" id="chartContainer">
-                    <canvas id="matrixChart"></canvas>
-                    <div class="crosshair" id="chartCrosshair"></div>
+                <!-- Canvas -->
+                <div class="canvas-container" id="sChartWrap">
+                    <canvas id="sChart"></canvas>
+                    <div class="crosshair" id="sCrosshair"></div>
                 </div>
-            </div>
-
-            <div class="info-bento" id="zoneNutriBlock">
-                <!-- Zone / Est Data -->
-                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid #222; padding-bottom: 10px;">
-                    <div style="font-size: 0.9rem; color:var(--gray-light); font-weight:bold;" id="lblEstInfo">Est. / 預估數據</div>
-                    <div style="font-size: 1.1rem; color:var(--text-main); font-weight:900;" id="estCalAvg">-- kcal | -- kph</div>
+                <!-- Bottom AVG overlays -->
+                <div class="chart-data-row bottom-row">
+                    <div class="hud-val-box"><div class="hud-val" style="font-size:0.8rem; color:var(--gray-light);"><span id="sAvgSpd">--</span></div><span class="max-badge" style="background:var(--bg-panel); color:var(--gray-light);">AVG</span></div>
+                    <div class="hud-val-box"><div class="hud-val" style="font-size:0.8rem; color:var(--gray-light);"><span id="sAvgInc">--</span></div><span class="max-badge" style="background:var(--bg-panel); color:var(--gray-light);">AVG</span></div>
+                    <div class="hud-val-box"><div class="hud-val" style="font-size:0.8rem; color:var(--gray-light);"><span id="sAvgHr">--</span></div><span class="max-badge" style="background:var(--bg-panel); color:var(--gray-light);">AVG</span></div>
+                    <div class="hud-val-box"><div class="hud-val" style="font-size:0.8rem; color:var(--gray-light);"><span id="sAvgLac">--</span></div><span class="max-badge" style="background:var(--bg-panel); color:var(--gray-light);">AVG</span></div>
                 </div>
-                <div class="zone-summary">
-                    <div class="z-item z1"><span id="z1Tag">Z1:</span> <span id="eZ1">0</span></div>
-                    <div class="z-item z2"><span id="z2Tag">Z2:</span> <span id="eZ2">0</span></div>
-                    <div class="z-item z3"><span id="z3Tag">Z3:</span> <span id="eZ3">0</span></div>
-                    <div class="z-item z4"><span id="z4Tag">Z4:</span> <span id="eZ4">0</span></div>
-                    <div class="z-item z5"><span id="z5Tag">Z5:</span> <span id="eZ5">0</span></div>
-                </div>
-                <!-- Nutrition -->
-                <div id="nutriBlock" style="border-top: 1px solid #222; padding-top: 10px;"></div>
             </div>
             
         </div>
@@ -309,22 +329,26 @@
         <!-- Run View -->
         <div id="run-view" class="view-section">
             <div id="massiveTime" class="massive-time">00:00</div>
+            
             <div class="run-core-grid">
-                <div class="run-box unit-toggle">
-                    <div class="run-val spd" id="runSpd">0.0</div>
-                    <div class="run-label" id="lblRunSpd">Speed</div>
-                </div>
                 <div class="run-box">
-                    <div class="run-val inc" id="runInc">0</div>
+                    <div class="run-val inc" id="runInc">0.0</div>
+                    <div class="teaser-val" id="teaserInc"></div>
                     <div class="run-label" id="lblRunInc">Incline</div>
                 </div>
+                <div class="run-box">
+                    <div class="run-val spd" id="runSpd">0.0</div>
+                    <div class="teaser-val" id="teaserSpd"></div>
+                    <div class="run-label" id="lblRunSpd">Speed</div>
+                </div>
             </div>
+
             <div class="run-sec-grid">
-                <div class="run-sec-box unit-toggle">
+                <div class="run-sec-box">
                     <div class="r-s-val" id="runDist">0.00</div>
                     <div class="r-s-lbl" id="lblRunDist">km</div>
                 </div>
-                <div class="run-sec-box unit-toggle">
+                <div class="run-sec-box">
                     <div class="r-s-val" id="runPace">00'00"</div>
                     <div class="r-s-lbl" id="lblRunPace">Pace</div>
                 </div>
@@ -337,24 +361,50 @@
                     <div class="r-s-lbl">mM</div>
                 </div>
             </div>
-            <div class="run-zone-summary">
-                <div class="z-item-run"><span>Z1:</span> <span id="valZ1T">0</span></div>
-                <div class="z-item-run"><span>Z2:</span> <span id="valZ2T">0</span></div>
-                <div class="z-item-run"><span>Z3:</span> <span id="valZ3T">0</span></div>
-                <div class="z-item-run"><span>Z4:</span> <span id="valZ4T">0</span></div>
-                <div class="z-item-run"><span>Z5:</span> <span id="valZ5T">0</span></div>
-                <div class="z-item-run" style="color:var(--neon-yellow); margin-left:auto;"><span>Kcal:</span> <span id="runCal">0</span></div>
+
+            <div class="zone-dash-container">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px dashed #333; padding-bottom: 8px;">
+                    <span style="font-size:0.85rem; color:var(--gray); font-weight:800;" id="lblZoneTitle">Zones</span>
+                    <span style="color:var(--neon-yellow); font-weight:900; font-size:1.1rem; font-variant-numeric: tabular-nums;" id="runCal">0 kcal</span>
+                </div>
+                <div class="zd-row z1-row"><div class="zd-lbl" id="z1Tag">Z1 (Recovery)</div><div class="zd-bar-bg"><div class="zd-bar-fill z1-color" id="z1Fill"></div></div><div class="zd-val" id="z1Val">0m</div></div>
+                <div class="zd-row z2-row"><div class="zd-lbl" id="z2Tag">Z2 (Fat Burn)</div><div class="zd-bar-bg"><div class="zd-bar-fill z2-color" id="z2Fill"></div></div><div class="zd-val" id="z2Val">0m</div></div>
+                <div class="zd-row z3-row"><div class="zd-lbl" id="z3Tag">Z3 (Tempo)</div><div class="zd-bar-bg"><div class="zd-bar-fill z3-color" id="z3Fill"></div></div><div class="zd-val" id="z3Val">0m</div></div>
+                <div class="zd-row z4-row"><div class="zd-lbl" id="z4Tag">Z4 (Threshold)</div><div class="zd-bar-bg"><div class="zd-bar-fill z4-color" id="z4Fill"></div></div><div class="zd-val" id="z4Val">0m</div></div>
+                <div class="zd-row z5-row"><div class="zd-lbl" id="z5Tag">Z5 (Anaerobic)</div><div class="zd-bar-bg"><div class="zd-bar-fill z5-color" id="z5Fill"></div></div><div class="zd-val" id="z5Val">0m</div></div>
             </div>
         </div>
     </div>
 
     <!-- Tab 2: Pace Matrix -->
-    <div id="tabContent2" class="tab-content">
+    <div id="tabContent2" class="tab-content" style="display:flex; flex-direction:column; padding-bottom: calc(85px + var(--safe-bottom)); height:100%;">
+        <!-- Run Chart Bento -->
+        <div class="bento-box chart-bento" style="margin:10px; border-radius:12px; flex-shrink:0;">
+            <!-- Top MAX overlays -->
+            <div class="chart-data-row top-row" id="rMaxRow">
+                <div class="hud-val-box"><span class="hud-val-lbl" id="lblRMaxSpd">Speed</span><div class="hud-val c-spd"><svg viewBox="0 0 24 24"><path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/></svg><span id="rSpd">--</span></div><span class="max-badge r-badge">MAX</span></div>
+                <div class="hud-val-box"><span class="hud-val-lbl" id="lblRMaxInc">Incline</span><div class="hud-val c-inc"><svg viewBox="0 0 24 24"><path d="M14 6l-3.75 5 2.85 3.8-1.6 1.2C9.81 13.75 7 10 7 10l-6 8h22L14 6z"/></svg><span id="rInc">--</span></div><span class="max-badge r-badge">MAX</span></div>
+                <div class="hud-val-box"><span class="hud-val-lbl">HR</span><div class="hud-val c-hr"><svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg><span id="rHr">--</span></div><span class="max-badge r-badge">MAX</span></div>
+                <div class="hud-val-box"><span class="hud-val-lbl">Lac</span><div class="hud-val c-lac"><svg viewBox="0 0 24 24"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8zm0 16c-3.35 0-6-2.57-6-6.2 0-2.34 1.95-5.44 6-9.14 4.05 3.7 6 6.79 6 9.14 0 3.63-2.65 6.2-6 6.2z"/></svg><span id="rLac">--</span></div><span class="max-badge r-badge">MAX</span></div>
+            </div>
+            <!-- Canvas -->
+            <div class="canvas-container" id="rChartWrap">
+                <canvas id="rChart"></canvas>
+                <div class="crosshair" id="rCrosshair"></div>
+            </div>
+            <!-- Bottom AVG overlays -->
+            <div class="chart-data-row bottom-row">
+                <div class="hud-val-box"><div class="hud-val" style="font-size:0.8rem; color:var(--gray-light);"><span id="rAvgSpd">--</span></div><span class="max-badge" style="background:var(--bg-panel); color:var(--gray-light);">AVG</span></div>
+                <div class="hud-val-box"><div class="hud-val" style="font-size:0.8rem; color:var(--gray-light);"><span id="rAvgInc">--</span></div><span class="max-badge" style="background:var(--bg-panel); color:var(--gray-light);">AVG</span></div>
+                <div class="hud-val-box"><div class="hud-val" style="font-size:0.8rem; color:var(--gray-light);"><span id="rAvgHr">--</span></div><span class="max-badge" style="background:var(--bg-panel); color:var(--gray-light);">AVG</span></div>
+                <div class="hud-val-box"><div class="hud-val" style="font-size:0.8rem; color:var(--gray-light);"><span id="rAvgLac">--</span></div><span class="max-badge" style="background:var(--bg-panel); color:var(--gray-light);">AVG</span></div>
+            </div>
+        </div>
+        <!-- List -->
         <ul id="previewList" class="preview-list"></ul>
     </div>
 
     <!-- Bottom Controls -->
-    <!-- [已修復] 加回所有隱藏按鈕以防 JS Crash，並確保左右等寬 -->
     <div class="bottom-controls">
         <button id="btnLeft" class="btn-ctrl btn-runner">
             <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
@@ -374,15 +424,16 @@
         </button>
     </div>
 
-    <!-- Runner Profile Modal (Ultimate Freedom) -->
-    <div id="runnerModal" class="modal-overlay hidden">
-        <div class="modal-box">
+    <!-- --- Modals --- -->
+
+    <!-- Runner Profile Modal (Integrated HW & Auto-Pilot) -->
+    <div id="runnerModal" class="modal-overlay">
+        <div class="modal-box" id="rmBox" style="max-height: 95%;">
             <div class="modal-title" id="lblRmTitle">Runner Profile</div>
-            <div class="modal-content-scroll">
+            <div class="modal-content-scroll" style="padding: 15px 15px 0 15px;">
                 
                 <div class="rm-group">
                     <label class="rm-label" id="lblRmName">Name / 名稱</label>
-                    <!-- [已修復] flex & min-width 防止按鈕被推走 -->
                     <div class="rm-input-row">
                         <div class="rm-input-wrapper">
                             <input type="text" id="rmName" maxlength="15" autocomplete="off" autocorrect="off">
@@ -412,25 +463,46 @@
                     </div>
                 </div>
 
-                <div class="rm-group" style="margin-top: 20px;">
-                    <label class="rm-label" style="color:var(--neon-blue);" id="lblRmPhysio">Physiological Limits / 生理參數設定</label>
+                <!-- Physio Limits -->
+                <div class="rm-group" style="margin-top: 15px;">
+                    <label class="rm-label" style="color:var(--neon-blue);" id="lblRmPhysio">Physiological Limits</label>
                     <div class="param-grid">
-                        <div class="param-item"><label id="lblAge">Age</label><input type="number" id="rmAge" min="15" max="80"></div>
-                        <div class="param-item unit-toggle"><label id="lblWgt">Weight</label><input type="number" id="rmWeight" min="40" max="330" placeholder="--"></div>
-                        <div class="param-item"><label id="lblBMR">BMR</label><input type="number" id="rmBMR" min="500" max="5000" placeholder="--"></div>
-                        <div class="param-item unit-toggle"><label id="lblSMM">SMM</label><input type="number" id="rmSMM" min="10" max="150" step="0.1" placeholder="--"></div>
-                        <div class="param-item"><label id="lblBF">BodyFat%</label><input type="number" id="rmBF" min="3" max="65" step="0.1" placeholder="--"></div>
-                        <div class="param-item"><label id="lblVO2">VO₂max</label><input type="number" id="rmVO2" min="20" max="85" step="0.1" placeholder="--"></div>
-                        <div class="param-item unit-toggle"><label id="lblMxS">Max Spd</label><input type="number" id="rmMxS" min="1.0" max="25" step="0.1"></div>
-                        <div class="param-item unit-toggle"><label id="lblMnS">Min Spd</label><input type="number" id="rmMnS" min="0.0" max="20" step="0.1"></div>
-                        <div class="param-item"><label id="lblMxI">Max Inc%</label><input type="number" id="rmMxI" min="0" max="20"></div>
-                        <div class="param-item"><label id="lblMnI">Min Inc%</label><input type="number" id="rmMnI" min="0" max="10"></div>
+                        <div class="param-item"><label id="lblAge">Age</label><input type="number" id="rmAge" class="lockable" min="15" max="80"></div>
+                        <div class="param-item"><label id="lblWgt">Weight (kg)</label><input type="number" id="rmWeight" class="lockable" min="30" max="330" step="0.1" placeholder="--"></div>
+                        <div class="param-item"><label id="lblBMR">BMR</label><input type="number" id="rmBMR" class="lockable" min="500" max="5000" placeholder="--"></div>
+                        <div class="param-item"><label id="lblSMM">SMM (kg)</label><input type="number" id="rmSMM" class="lockable" min="10" max="150" step="0.1" placeholder="--"></div>
+                        <div class="param-item"><label id="lblBF">BodyFat%</label><input type="number" id="rmBF" class="lockable" min="3" max="65" step="0.1" placeholder="--"></div>
+                        <div class="param-item"><label id="lblVO2">VO₂max</label><input type="number" id="rmVO2" class="lockable" min="20" max="85" step="0.1" placeholder="--"></div>
+                        <div class="param-item"><label id="lblMxS">Max Spd (kph)</label><input type="number" id="rmMxS" class="lockable" min="1.0" max="25" step="0.1"></div>
+                        <div class="param-item"><label id="lblMnS">Min Spd (kph)</label><input type="number" id="rmMnS" class="lockable" min="0.0" max="20" step="0.1"></div>
+                        <div class="param-item"><label id="lblMxI">Max Inc%</label><input type="number" id="rmMxI" class="lockable" min="0" max="20"></div>
+                        <div class="param-item"><label id="lblMnI">Min Inc%</label><input type="number" id="rmMnI" class="lockable" min="0" max="10"></div>
+                    </div>
+                </div>
+                
+                <!-- HW Limits -->
+                <div class="rm-group" style="margin-top: 15px; margin-bottom: 5px;">
+                    <label class="rm-label" style="color:var(--neon-yellow);" id="lblHwTitle">Treadmill Hardware Limits</label>
+                    <div class="param-grid" style="border-color: #333;">
+                        <div class="param-item"><label id="lblHwMxS">Max Spd (kph)</label><input type="number" id="hwMxS" class="lockable" min="1.0" max="30" step="0.1"></div>
+                        <div class="param-item"><label id="lblHwMnS">Min Spd (kph)</label><input type="number" id="hwMnS" class="lockable" min="0.0" max="10" step="0.1"></div>
+                        <div class="param-item"><label id="lblHwMxI">Max Inc%</label><input type="number" id="hwMxI" class="lockable" min="0" max="40"></div>
+                        <div class="param-item"><label id="lblHwMnI">Min Inc%</label><input type="number" id="hwMnI" class="lockable" min="-5" max="10"></div>
                     </div>
                 </div>
 
+                <!-- Auto-Pilot Toggle -->
+                <div class="ap-toggle-row">
+                    <div class="ap-lbl">Auto-Pilot <span class="ap-desc" id="lblApDesc">ON</span></div>
+                    <label class="switch">
+                        <input type="checkbox" id="apToggle" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div style="height:15px;"></div> <!-- Spacer -->
             </div>
-            <!-- [已修復] 移除 padding-bottom: 0 解決壓底問題 -->
-            <div class="modal-footer" style="border-top: 1px solid #333;">
+            
+            <div class="modal-footer">
                 <button class="btn-modal btn-save" id="btnRmSave">Save</button>
                 <button class="btn-modal btn-cancel" id="btnRmCancel">Cancel</button>
                 <button class="btn-modal btn-hist" id="btnRmHistory">History</button>
@@ -439,78 +511,34 @@
         </div>
     </div>
 
-    <!-- HW Limits Modal -->
-    <div id="hwModal" class="modal-overlay hidden">
-        <div class="modal-box">
-            <div class="modal-title" style="color:var(--neon-yellow);" id="lblHwTitle">Hardware Limits</div>
-            <div class="rm-group">
-                <label class="rm-label" id="lblHwSpd">Motor Max Speed / 馬達最高速</label>
-                <div class="rm-input-wrapper" style="border: 1px solid #333;">
-                    <input type="number" id="hwMaxSpd" style="font-size:1.2rem;" step="0.1">
-                </div>
-            </div>
-            <div class="rm-group">
-                <label class="rm-label" id="lblHwInc">Motor Max Incline / 馬達最高坡(%)</label>
-                <div class="rm-input-wrapper" style="border: 1px solid #333;">
-                    <input type="number" id="hwMaxInc" style="font-size:1.2rem;" step="1">
-                </div>
-            </div>
+    <!-- Virtual Confirm Modal (End / Remove / Clear) -->
+    <div id="vConfirmModal" class="modal-overlay">
+        <div class="modal-box" id="vcBox">
+            <div class="modal-title" id="vcTitle" style="color:var(--neon-red);">Confirm</div>
+            <p style="color:var(--gray-light); font-size:0.95rem; text-align:center; padding: 20px;" id="vcDesc">Are you sure?</p>
             <div class="modal-footer" style="border:none;">
-                <button class="btn-modal btn-cancel" id="btnHwCancel">Cancel</button>
-                <button class="btn-modal btn-save" id="btnHwSave">Save</button>
+                <button class="btn-modal btn-cancel" id="vcCancel">Cancel</button>
+                <button class="btn-modal btn-confirm" id="vcYes">Yes</button>
             </div>
         </div>
     </div>
 
-    <!-- Validation Trap Modal -->
-    <div id="valModal" class="modal-overlay hidden">
-        <div class="modal-box">
-            <div class="modal-title" id="valTitle" style="color:var(--neon-red);">Warning</div>
-            <div class="val-msg" id="valMsg">Msg</div>
-            <div class="modal-footer" style="border:none;" id="valFooter">
-                <button class="btn-modal btn-trap-no" id="btnValNo">No</button>
-                <button class="btn-modal btn-trap-yes" id="btnValYes">Yes</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Unsaved Profile Modal -->
-    <div id="unsavedModal" class="modal-overlay hidden">
-        <div class="modal-box">
-            <div class="modal-title" style="color:var(--neon-blue);" id="lblUnsavedTitle">Unsaved Changes</div>
-            <p style="text-align:center; color:var(--gray-light); font-size:0.95rem; margin-bottom:15px;" id="lblUnsavedMsg">You have unsaved changes.</p>
-            <div style="display:flex; flex-direction:column; gap:10px;">
-                <button class="btn-modal btn-save" id="btnUnsavedSave">Save & Switch</button>
-                <button class="btn-modal btn-remove" id="btnUnsavedDiscard">Discard & Switch</button>
-                <button class="btn-modal btn-cancel" id="btnUnsavedCancel">Cancel</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Confirm, Summary, History Modals -->
-    <div id="confirmModal" class="modal-overlay hidden">
-        <div class="modal-box">
-            <div class="modal-title" style="color:var(--neon-red);" id="lblConfirmTitle">End Workout?</div>
-            <p style="color:var(--gray-light); font-size:0.95rem; text-align:center; padding: 20px;" id="lblConfirmDesc">Progress will be saved.</p>
-            <div class="modal-footer" style="border:none;">
-                <button class="btn-modal btn-cancel" id="btnCancel">Cancel</button>
-                <button class="btn-modal btn-confirm" id="btnDoEnd">End</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="summaryModal" class="modal-overlay hidden">
-        <div class="modal-box">
+    <!-- Summary Modal -->
+    <div id="summaryModal" class="modal-overlay">
+        <div class="modal-box" id="sumBox" style="width: 95%; max-width: 500px; max-height: 95%;">
             <div class="modal-title" style="color:var(--neon-blue);" id="lblSumTitle">Summary</div>
-            <div class="modal-content-scroll" id="summaryContent"></div>
+            <div class="modal-content-scroll" style="padding: 10px;" id="summaryContent">
+                <!-- Dynamically filled by JS -->
+            </div>
             <div class="modal-footer" style="border:none;">
-                <button class="btn-modal btn-save" style="width:100%; grid-column: span 2;" id="btnSumClose">Done</button>
+                <button class="btn-modal btn-save" style="width:100%; grid-column: span 2;" id="btnSumClose">Close</button>
             </div>
         </div>
     </div>
 
-    <div id="historyModal" class="modal-overlay hidden">
-        <div class="modal-box">
+    <!-- History Modal -->
+    <div id="historyModal" class="modal-overlay">
+        <div class="modal-box" id="histBox">
             <div class="modal-title" style="color:var(--neon-blue);" id="lblHistTitle">History</div>
             <div class="modal-content-scroll" id="historyContent"></div>
             <div class="modal-footer" style="border:none;">
@@ -555,7 +583,7 @@ class PseudoRandom {
 const PRNG = new PseudoRandom();
 
 /** =========================================================================
- *  V20.1 奧運科研級神級語音庫 (絕對無損保留)
+ *  V23 雙語海量無損語音庫 (VoiceDB) & i18n
  *  ========================================================================= */
 const VoiceDB = {
     zh: {
@@ -591,7 +619,7 @@ const VoiceDB = {
             "縮短觸地時間！跑帶是高溫的，啟動伸展收縮循環！","步頻拉高到180，減少髕骨股骨關節高達15%的衝擊壓力。","腳掌落在重心正下方，避免強大的煞車反作用力！","腳步放輕！安靜落地代表緩衝與肌肉剛性完美。","收緊下腹橫肌，骨盆中立，避免腰椎承受壓力！","利用前腳掌與中足過渡，把反作用力轉為向前的純粹動能。","手肘鎖定90度向後擺動！胸椎旋轉神經連結到雙腿。","放鬆小腿肚！主要的推進動力應該來自你的臀大肌與大腿後側動力鍊。","保持腳踝的彈性，充分利用阿基里斯腱的免費回彈力省力。","整體微前傾，讓重力成為前進的推手，而非對抗的阻力。","下巴微收，平視前方，維持頸椎中立與氣管暢通。","絕對不左右搖晃！多餘橫向位移都在浪費寶貴的 ATP。","腳趾不要抓地！放鬆足底筋膜讓它自然伸展緩衝。","膝蓋微彎，絕對不要在落地時鎖死膝關節！",
             "想像腿是一個完美的圓，推蹬、折疊、下踩。","把你的核心當作懸吊系統，過濾掉所有震動。","雙手擺動的軌跡不要超過身體中線，減少旋轉阻力。","腳跟輕輕吻過履帶就好，主要靠前中足支撐。","保持上身挺拔，想像你在水面上飄過一樣輕盈。",
             "雙眼直視前方，維持頸椎的完美弧度，不要壓迫氣管。","每一次著地都是一次精準的物理學計算，保持重心穩定。","啟動你的筋膜網路，讓彈性位能幫您省下寶貴的肌肉力量。","把腳步縮小，用高步頻去切割距離，這樣對膝蓋最友善。","感受前足的扒地感，把反作用力完全轉換為推進向量。",
-            "想像你的腿是一組強大的活塞，直上直下，毫無遲疑。","腳踝關節保持適度的剛性，這是能量回饋的關鍵秘密。","肩膀不准聳起！把多餘的能量全部導向你的下肢。","雙臂的擺動要俐落，帶動骨盆進行微小但致命的推進旋轉。","維持這個完美的軀幹前傾角，讓地心引力帶你飛翔。"
+            "想像你的腿是一組強大的活塞，直上直下，毫無遲疑。","腳踝關節保持適度的剛性，這是能量回饋的關鍵秘密。","肩膀不准聳起！把多餘的能量全部導向你的下肢。","雙臂的擺動要俐落，帶動骨盆進行微小但致命的推進旋轉。","維持這個完美的軀幹前傾角，讓地心引力帶跨越飛翔。"
         ],
         bio_steep: [
             "從腳踝作支點，整體前傾對抗陡坡，改變重心向量！","絕不能坐著跑！髖關節完全伸展，強迫臀大肌發力！","爬坡嚴禁跨大步！縮小步幅，大幅提高步頻！","看前方三公尺，低頭看腳會壓迫頸椎並干擾平衡。","前腳掌著地，腳跟微懸，利用小腿與阿基里斯腱彈簧效應。","大腿後側燃燒？很好，這在強化你薄弱的後側動力鍊！","核心全面繃緊！彎腰駝背會壓迫橫膈膜導致缺氧。","手臂用力向後擺！上半身強勢動能能省下20%的腿力。","抬高膝蓋，增加髖屈肌參與，征服真實的陡峭高山！","絕對不要抓扶手！強迫軀幹核心去平衡重力拉扯！","重心壓在前腳掌，推蹬要感受到地面扎實的反饋。","坡度越陡身體越要穩定，不讓上半身產生無效的扭轉。","小步快頻！像忍者一樣輕巧而快速地向上切入！","不要把力氣浪費在向上跳，所有的力氣都要向前推！",
@@ -776,88 +804,121 @@ const VoiceDB = {
 
 const i18n = {
     zh: {
-        tSet: "設定 / Settings", tMat: "配速 / Pace", spd: "速度(kph)", spdImp: "速度(mph)", inc: "坡度(%)", pac: "配速", pacImp: "配速", 
+        tSet: "設定", tMat: "配速",
         sta: "Start", pau: "Pause", rsm: "Resume", end: "End", rec: "紀錄", 
-        tim: "總時間(分鐘)", km: "目標里程(km)", mi: "目標里程(mi)", 
-        age: "年齡", wgt: "體重", wgtImp: "體重", mxS: "最高速", mnS: "最低速", mxI: "最高坡(%)", mnI: "最低坡(%)", bmr: "基礎代謝", smm: "骨骼肌", bf: "體脂肪(%)", vo2: "VO₂max",
-        sci: "生理參數設定 / Physiological Limits", est: "預估數據", avg: "平均", confirm: "確認結束", cancel: "取消", sum: "訓練總結與營養建議", 
+        tim: "總時間 (min)", km: "目標里程 (km)", mi: "目標里程 (mi)", 
+        age: "Age", wgt: "Weight (kg)", wgtImp: "Weight (lbs)", mxS: "Max Spd (kph)", mxSImp: "Max Spd (mph)", mnS: "Min Spd (kph)", mnSImp: "Min Spd (mph)", mxI: "Max Inc%", mnI: "Min Inc%", bmr: "BMR", smm: "SMM (kg)", smmImp: "SMM (lbs)", bf: "BodyFat%", vo2: "VO₂max",
+        sci: "生理參數設定 / Physiological Limits", hwTitle: "跑步機硬體限制 / Treadmill Hardware Limits", est: "預估數據", confirm: "確認結束", cancel: "取消", sum: "訓練總結與營養建議", 
         hist: "歷史訓練紀錄", close: "完成", clear: "清空", 
-        endAsk: "確認結束訓練？", endDesc: "提早結束將結算當前進度並寫入紀錄。", clearAsk: "確認清空紀錄？", clearDesc: "此操作無法復原。", 
-        nutriMissing: "<svg viewBox=\"0 0 24 24\" width=\"16\" height=\"16\" style=\"display:inline-block; vertical-align:middle; fill:currentColor; margin-right:4px;\"><path d=\"M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z\"/></svg> 填寫「體脂肪」與「骨骼肌」解鎖專屬營養建議", nutriRx: "【 運動營養配方 】", 
+        endAsk: "確認結束訓練？", endDesc: "提早結束將結算當前進度並寫入紀錄。", clearAsk: "確認清空紀錄？", clearDesc: "此操作無法復原。", rmConf: "確定要刪除此跑者及所有紀錄嗎？",
+        nutriHintSmmBf: "💡 提示：至設定補齊體脂與骨骼肌數據，可獲得更精準的營養建議。", nutriHintSmm: "💡 提示：至設定補齊骨骼肌數據，可獲得更精準的營養建議。", nutriHintBf: "💡 提示：至設定補齊體脂數據，可獲得更精準的營養建議。", nutriRx: "【 運動營養配方 】", 
         nutriPost: "跑後30分內補給: 蛋白質 {p}g + 碳水 {c}g (約 {k} kcal)。", nutriDaily: "全日建議蛋白質攝取總量: {p}g 以維持肌肉質量。",
-        z1: "Zone 1 (恢復):", z2: "Zone 2 (燃脂):", z3: "Zone 3 (節奏):", z4: "Zone 4 (閾值):", z5: "Zone 5 (無氧):", mins: " 分",
+        mins: " 分鐘",
         workoutBegins: "訓練開始。總長 {t} 分鐘。", workoutResumed: "訓練繼續。還剩 {m} 分 {s} 秒。", noHistory: "尚無訓練紀錄",
         prog: {
             p1: ["主動恢復", "清除血乳酸，加速靜脈回流。"], p2: ["有氧基礎", "建立微血管網，訓練脂肪氧化。"], p3: ["長距離慢跑", "長時間恆定輸出，提升慢肌耐力。"],
             p4: ["最大燃脂", "鎖定 FatMax 區間，極致化燃脂。"], p5: ["馬拉松配速", "模擬賽事體感，鍛鍊抗疲勞巡航。"], p6: ["乳酸閾值", "逼近 OBLA，提升清除氫離子能力。"],
             p7: ["金字塔漸進", "平滑過渡各區間，全面提升心肺。"], p8: ["兩極化訓練", "80% 極輕鬆，20% 極痛苦。奧運標準。"], p9: ["賽事實戰", "逐步推升至無氧極限，考驗意志力。"], p10: ["VO₂max間歇", "方波衝刺，暴力撕裂心肺天花板。"]
-        },
-        runner: "Runner", runnerTitle: "Runner Profile",
-        rmName: "Name / 名稱", rmSex: "Sex / 性別", rmUnit: "Unit / 單位",
-        save: "Save", remove: "Remove", rmConf: "確定要刪除此跑者及所有紀錄嗎？",
-        hwTitle: "Hardware Limits / 馬達硬體極限", hwSpd: "Motor Max Speed / 馬達最高速", hwInc: "Motor Max Incline / 馬達最高坡(%)",
-        vTitle: "Warning / 極限警告", vDescHw: "設定包含<span>不可能的數值 (超越機台極限)</span>！<br>確定繼續？", vDescPhysio: "設定包含<span>極端數值 (預估乳酸破表)</span>！<br>確定繼續？", vDescYellow: "設定超越常人！確定以此極限設定開始？",
-        vTrapQ: "請問您是否要<span>返回調整</span>回可能值？", vTrapNo: "否 (強制開始)", vTrapYes: "是 (返回修改)", vAnsNo: "否 (取消)", vAnsYes: "是 (下一步)"
+        }
     },
     en: {
-        tSet: "Settings", tMat: "Pace Matrix", spd: "Speed(kph)", spdImp: "Speed(mph)", inc: "Incline(%)", pac: "Pace", pacImp: "Pace", 
+        tSet: "Settings", tMat: "Pace",
         sta: "Start", pau: "Pause", rsm: "Resume", end: "End", rec: "History", 
-        tim: "Total Time(min)", km: "Target(km)", mi: "Target(mi)", 
-        age: "Age", wgt: "Weight", wgtImp: "Weight", mxS: "Max Spd", mnS: "Min Spd", mxI: "Max Inc%", mnI: "Min Inc%", bmr: "BMR", smm: "SMM", bf: "BodyFat%", vo2: "VO₂max",
-        sci: "Physiological Limits", est: "Est. Data", avg: "Avg", confirm: "End", cancel: "Cancel", sum: "Summary & Nutrition", 
+        tim: "Total Time (min)", km: "Target (km)", mi: "Target (mi)", 
+        age: "Age", wgt: "Weight (kg)", wgtImp: "Weight (lbs)", mxS: "Max Spd (kph)", mxSImp: "Max Spd (mph)", mnS: "Min Spd (kph)", mnSImp: "Min Spd (mph)", mxI: "Max Inc%", mnI: "Min Inc%", bmr: "BMR", smm: "SMM (kg)", smmImp: "SMM (lbs)", bf: "BodyFat%", vo2: "VO₂max",
+        sci: "Physiological Limits", hwTitle: "Treadmill Hardware Limits", est: "Est. Data", confirm: "End", cancel: "Cancel", sum: "Summary & Nutrition", 
         hist: "Training History", close: "Close", clear: "Clear", 
-        endAsk: "End Workout?", endDesc: "Progress will be summarized and saved.", clearAsk: "Clear All History?", clearDesc: "This cannot be undone.", 
-        nutriMissing: "<svg viewBox=\"0 0 24 24\" width=\"16\" height=\"16\" style=\"display:inline-block; vertical-align:middle; fill:currentColor; margin-right:4px;\"><path d=\"M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z\"/></svg> Fill both Body Fat & SMM to unlock Nutrition.", nutriRx: "[ Nutrition Suggestion ]", 
+        endAsk: "End Workout?", endDesc: "Progress will be summarized and saved.", clearAsk: "Clear All History?", clearDesc: "This cannot be undone.", rmConf: "Are you sure you want to delete this profile and all its history?",
+        nutriHintSmmBf: "💡 Hint: Fill in BodyFat% and SMM for precise nutrition suggestions.", nutriHintSmm: "💡 Hint: Fill in SMM for precise nutrition suggestions.", nutriHintBf: "💡 Hint: Fill in BodyFat% for precise nutrition suggestions.", nutriRx: "[ Nutrition Suggestion ]", 
         nutriPost: "Post-run (30m): Protein {p}g + Carbs {c}g (~{k} kcal).", nutriDaily: "Daily Recommended Protein: {p}g.",
-        z1: "Z1 (Recovery):", z2: "Z2 (Fat Burn):", z3: "Z3 (Tempo):", z4: "Z4 (Threshold):", z5: "Z5 (Anaerobic):", mins: " m",
+        mins: " min(s)",
         workoutBegins: "Workout begins. {t} minutes.", workoutResumed: "Workout resumed. {m} mins {s} secs remaining.", noHistory: "No history yet",
         prog: {
             p1: ["Active Recovery", "Clear lactate, speed up venous return."], p2: ["Aerobic Base", "Build capillaries, train fat oxidation."], p3: ["LSD Endurance", "Long steady state, boost slow-twitch."],
             p4: ["FatMax Cruise", "Lock in FatMax zone for peak burn."], p5: ["Marathon Pace", "Simulate race feel, fatigue resistance."], p6: ["Lactate Threshold", "Push OBLA, enhance hydrogen clearance."],
             p7: ["Pyramidal Interval", "Smooth transitions, full cardio boost."], p8: ["Polarized 80/20", "80% easy, 20% extreme. Olympic standard."], p9: ["Race Simulation", "Progressive push to anaerobic limit."], p10: ["VO₂max Intervals", "Square waves to tear the cardio ceiling."]
-        },
-        runner: "Runner", runnerTitle: "Runner Profile",
-        rmName: "Name", rmSex: "Sex", rmUnit: "Unit",
-        save: "Save", remove: "Remove", rmConf: "Are you sure you want to delete this profile and all its history?",
-        hwTitle: "Hardware Limits", hwSpd: "Motor Max Speed", hwInc: "Motor Max Incline (%)",
-        vTitle: "Warning", vDescHw: "Settings contain <span>impossible values (Hardware Limit Exceeded)</span>!<br>Continue?", vDescPhysio: "Settings contain <span>extreme values (Lactate Overload)</span>!<br>Continue?", vDescYellow: "Superhuman settings detected! Start with these limits?",
-        vTrapQ: "Do you want to <span>return and adjust</span> to possible values?", vTrapNo: "No (Force Start)", vTrapYes: "Yes (Return)", vAnsNo: "No (Cancel)", vAnsYes: "Yes (Next)"
+        }
     }
 };
-</script>
 
+class NotificationManager {
+    static show(changes, lang) {
+        if (!changes || changes.length === 0) return;
+        const bar = document.getElementById('topNotification');
+        const content = document.getElementById('notifContent');
+        const fill = document.getElementById('notifBar');
+        if (!bar || !content || !fill) return;
 
-<script>
-/** =========================================================================
- *  全域錯誤捕捉系統 (Global Error Catcher)
- *  ========================================================================= */
-function sysToast(msg) {
-    let t = document.getElementById('sysToast');
-    if(!t) return;
-    t.textContent = msg;
-    t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 5000);
+        let title = lang === 'zh' ? '設定已儲存並修正：' : 'Settings Saved & Adjusted:';
+        let html = `<strong>${title}</strong><ul>`;
+        changes.forEach(c => html += `<li>${c}</li>`);
+        html += `</ul>`;
+        content.innerHTML = html;
+
+        let duration = changes.length === 1 ? 2000 : (changes.length <= 3 ? 3000 : (changes.length <= 5 ? 4000 : 5000));
+        
+        bar.classList.add('show');
+        fill.style.transition = 'none';
+        fill.style.transform = 'scaleX(1)';
+        
+        // Trigger reflow
+        void fill.offsetWidth; 
+        
+        fill.style.transition = `transform ${duration}ms linear`;
+        fill.style.transform = 'scaleX(0)';
+
+        clearTimeout(this.timeout);
+        this.timeout = setTimeout(() => { bar.classList.remove('show'); }, duration);
+    }
+
+    static hide() {
+        const bar = document.getElementById('topNotification');
+        if (bar) bar.classList.remove('show');
+        clearTimeout(this.timeout);
+    }
 }
-window.addEventListener('error', function(e) { sysToast(`[ERR-SYS] ${e.message}`); });
-window.addEventListener('unhandledrejection', function(e) { sysToast(`[ERR-PRM] ${e.reason}`); });
+document.getElementById('btnCloseNotif').addEventListener('click', () => NotificationManager.hide());
+
+/** =========================================================================
+ *  虛擬彈窗系統 (Virtual Modal)
+ *  ========================================================================= */
+class VirtualModal {
+    static confirm(title, desc, onConfirm, onCancel = null) {
+        const m = document.getElementById('vConfirmModal');
+        document.getElementById('vcTitle').textContent = title;
+        document.getElementById('vcDesc').textContent = desc;
+        
+        const btnYes = document.getElementById('vcYes');
+        const btnNo = document.getElementById('vcCancel');
+        
+        const clean = () => {
+            m.classList.remove('show');
+            btnYes.replaceWith(btnYes.cloneNode(true));
+            btnNo.replaceWith(btnNo.cloneNode(true));
+            m.removeEventListener('click', overlayClick);
+        };
+        
+        const overlayClick = (e) => { if(e.target === m) { clean(); if(onCancel) onCancel(); } };
+
+        document.getElementById('vcYes').addEventListener('click', () => { clean(); onConfirm(); });
+        document.getElementById('vcCancel').addEventListener('click', () => { clean(); if(onCancel) onCancel(); });
+        m.addEventListener('click', overlayClick);
+        m.classList.add('show');
+    }
+}
 
 /** =========================================================================
  *  資料中心 (Profile Store & Hardware Limits)
  *  ========================================================================= */
 class ProfileStore {
     constructor(name, gender, unit) {
-        this.name = name;
-        this.gender = gender;
-        this.unit = unit;
-        this.tTime = 60; 
-        this.tKm = unit === 'metric' ? 5.0 : 5.0 * 1.60934; 
-        this.age = 35; 
-        this.weight = gender === 'M' ? 70 : 55; 
+        this.name = name; this.gender = gender; this.unit = unit;
+        this.tTime = 60; this.tKm = 5.0; // 底層永遠是公制
+        this.age = 35; this.weight = gender === 'M' ? 70 : 55; 
         this.bmr = 0; this.smm = 0; this.bf = 0; this.vo2 = 0;
-        this.maxSpd = gender === 'M' ? 12.0 : 10.0; 
-        this.minSpd = 0.0;
+        this.maxSpd = gender === 'M' ? 12.0 : 10.0; this.minSpd = 0.0;
         this.maxInc = 5; this.minInc = 0;
-        this.lastProg = 2; 
+        this.lastProg = 2; this.autoPilot = true;
     }
 }
 
@@ -867,72 +928,51 @@ class AppStore {
         this.uiLang = isBrowserZh ? 'zh' : 'en';
         this.voiceOn = true;
         this.activeP = 'Runner';
-        this.hw = { maxSpd: 20.0, maxInc: 15 }; // 絕對硬體極限 (Hardware Limits)
+        this.hw = { maxSpd: 20.0, minSpd: 0.1, maxInc: 15, minInc: 0 };
         this.profiles = { 'Runner': new ProfileStore('Runner', 'M', 'metric') };
         this.load();
     }
-
     load() {
         try {
-            let s = JSON.parse(localStorage.getItem('pro_treadmill_v22_state'));
+            let s = JSON.parse(localStorage.getItem('pro_treadmill_v23_state'));
             if(s) {
-                this.uiLang = s.uiLang || this.uiLang; 
-                this.voiceOn = s.voiceOn !== false;
-                if(s.hw) this.hw = s.hw;
+                this.uiLang = s.uiLang || this.uiLang; this.voiceOn = s.voiceOn !== false;
+                if(s.hw) this.hw = {...this.hw, ...s.hw};
                 if(s.profiles && Object.keys(s.profiles).length > 0) {
                     this.profiles = s.profiles;
                     this.activeP = s.activeP && this.profiles[s.activeP] ? s.activeP : Object.keys(this.profiles)[0];
                 }
             }
-        } catch(e) { console.warn("Load State Failed", e); }
+        } catch(e) {}
     }
-    
     save() {
-        localStorage.setItem('pro_treadmill_v22_state', JSON.stringify({
+        localStorage.setItem('pro_treadmill_v23_state', JSON.stringify({
             uiLang: this.uiLang, voiceOn: this.voiceOn, activeP: this.activeP, profiles: this.profiles, hw: this.hw
         }));
     }
-    
     getActive() { return this.profiles[this.activeP] || new ProfileStore('Runner', 'M', 'metric'); }
-    
     getSanitized() {
         let m = {...this.getActive()};
         let wKG = m.weight || (m.gender === 'M' ? 70 : 55);
-        let sKG = m.smm;
-        let defBF = m.gender === 'M' ? 18 : 26;
+        let sKG = m.smm; let defBF = m.gender === 'M' ? 18 : 26;
         let bf = m.bf || (sKG > 0 ? Math.max(5, 100 - (sKG/wKG*100) - (m.gender==='M'?20:15)) : defBF);
         let smm = sKG || (wKG * (1 - bf/100) * (m.gender==='M'?0.45:0.38));
         let bmr = m.bmr || (10 * wKG + 6.25 * 170 - 5 * m.age + (m.gender === 'M' ? 5 : -161));
         let vo2 = m.vo2 || Math.min(80, Math.max(25, 3.5 + 0.2*(m.maxSpd*16.67) + 0.9*(m.maxSpd*16.67)*0.01)); 
         
-        return { wKG, bf, smm, bmr, vo2, msKPH: m.maxSpd, mnKPH: m.minSpd, tKm: m.tKm, tTime: m.tTime, maxInc: m.maxInc, minInc: m.minInc, age: m.age, gender: m.gender, name: m.name, unit: m.unit };
+        return { wKG, bf, smm, bmr, vo2, msKPH: m.maxSpd, mnKPH: m.minSpd, mxInc: m.maxInc, mnInc: m.minInc, tKm: m.tKm, tTime: m.tTime, age: m.age, gender: m.gender, name: m.name, unit: m.unit, ap: m.autoPilot };
     }
 }
 
 /** =========================================================================
- *  高階語音調度器 (Voice Engine with Priorities)
+ *  語音調度器 (Voice Engine)
  *  ========================================================================= */
 class VoiceEngine {
-    constructor(store) { 
-        this.store = store; 
-        this.synth = window.speechSynthesis; 
-        this.q = []; 
-        this.isSpk = false; 
-        this.lastRedWarn = 0; 
-    }
-    
+    constructor(store) { this.store = store; this.synth = window.speechSynthesis; this.q = []; this.isSpk = false; }
     speak(keyArrName, priority = 0, transArgs = null) {
         if (!this.store.voiceOn || !this.synth) return;
-        const lang = this.store.uiLang; 
-        const db = VoiceDB[lang]; 
+        const lang = this.store.uiLang; const db = VoiceDB[lang]; 
         if (!db) return;
-        
-        const now = Date.now();
-        if (priority === 2) { 
-            if (now - this.lastRedWarn < 120000) return; 
-            this.lastRedWarn = now; 
-            this.q = []; 
-        }
         
         let text = "";
         if (transArgs && db[keyArrName]) {
@@ -950,25 +990,22 @@ class VoiceEngine {
         }
         
         if(!text) return;
+        if(priority === 2) { this.q = []; this.synth.cancel(); } // Watchdog clear
         this.q.push({ text, priority, lang: lang === 'zh' ? 'zh-TW' : 'en-US' });
         this.q.sort((a,b) => b.priority - a.priority);
         this.process();
     }
-
     process() {
         if(this.isSpk || this.q.length === 0) return;
         let job = this.q.shift();
         try {
-            let msg = new SpeechSynthesisUtterance(job.text);
-            msg.lang = job.lang;
-            let timeoutId = setTimeout(() => { this.isSpk = false; this.process(); }, 8000);
+            let msg = new SpeechSynthesisUtterance(job.text); msg.lang = job.lang;
+            let timeoutId = setTimeout(() => { this.isSpk = false; this.synth.cancel(); this.process(); }, 8000); // Watchdog
             msg.onend = () => { clearTimeout(timeoutId); this.isSpk = false; setTimeout(() => this.process(), 200); };
             msg.onerror = () => { clearTimeout(timeoutId); this.isSpk = false; this.process(); };
-            this.isSpk = true; 
-            this.synth.speak(msg);
+            this.isSpk = true; this.synth.speak(msg);
         } catch(e) { this.isSpk = false; }
     }
-    
     clear() { this.q = []; this.synth?.cancel(); this.isSpk = false; }
 }
 
@@ -977,518 +1014,275 @@ class VoiceEngine {
  *  ========================================================================= */
 const getPaceStr = (speedKph, isMet) => {
     if (speedKph <= 0.1) return `--'--"`;
-    let speed = isMet ? speedKph : speedKph / 1.60934;
+    let speed = isMet ? speedKph : speedKph / 1.609344;
     let pace = 60 / speed;
-    let pM = Math.floor(pace);
-    let pS = Math.floor((pace - pM) * 60);
+    let pM = Math.floor(pace); let pS = Math.floor((pace - pM) * 60);
     if (pM >= 100) return `--'--"`;
     return `${String(pM).padStart(2,'0')}'${String(pS).padStart(2,'0')}"`;
 };
 
 class OlympicTreadmill {
     constructor() {
-        this.store = new AppStore();
-        this.ve = new VoiceEngine(this.store);
+        this.store = new AppStore(); this.ve = new VoiceEngine(this.store);
         this.dom = this.cacheDOM();
         this.state = { 
             isRunning: false, matrix: [], curData: null, accumMs: 0, lastTick: 0, 
             pDataCache: {}, inputTimeout: null, autoSwitchedTab: false, currMinIdx: -1,
-            trapExempt: false, trapTargetAction: null, trapStage: 0, pendingSwitchName: null
+            hoverIdxS: -1, hoverIdxR: -1, isSyncingList: false, isSyncingChart: false
         };
         
-        if (this.dom.canvas) this.ctx = this.dom.canvas.getContext('2d', {alpha: false});
+        if (this.dom.sChart) this.ctxS = this.dom.sChart.getContext('2d', {alpha: false});
+        if (this.dom.rChart) this.ctxR = this.dom.rChart.getContext('2d', {alpha: false});
+        
         this.bindEvents();
         this.initUI();
         
-        if (this.dom.canvas && this.dom.canvas.parentElement) {
-            const RO = new ResizeObserver(() => { 
-                if (!this.state.isRunning && this.dom.setupView.classList.contains('active')) this.drawChart(); 
-            });
-            RO.observe(this.dom.canvas.parentElement);
-        }
+        const RO = new ResizeObserver(() => { this.renderCharts(); });
+        if (this.dom.sChart) RO.observe(this.dom.sChart.parentElement);
+        if (this.dom.rChart) RO.observe(this.dom.rChart.parentElement);
     }
 
-    // [核心修復] 手動精確綁定，完全杜絕 undefined is not an object
     cacheDOM() {
+        const d = (id) => document.getElementById(id);
         return {
-            btnUiLang: document.getElementById('btnUiLang'), uiLangText: document.getElementById('uiLangText'),
-            btnVoice: document.getElementById('btnVoice'), voiceStateText: document.getElementById('voiceStateText'),
-            topProgressBar: document.getElementById('topProgressBar'), topProgressText: document.getElementById('topProgressText'),
-            setupView: document.getElementById('setup-view'), runView: document.getElementById('run-view'),
-            targetTime: document.getElementById('targetTime'), targetKm: document.getElementById('targetKm'),
-            targetTimeVal: document.getElementById('targetTimeVal'), targetKmVal: document.getElementById('targetKmVal'),
-            
-            rmAge: document.getElementById('rmAge'), rmWeight: document.getElementById('rmWeight'),
-            rmBMR: document.getElementById('rmBMR'), rmSMM: document.getElementById('rmSMM'),
-            rmBF: document.getElementById('rmBF'), rmVO2: document.getElementById('rmVO2'),
-            rmMxS: document.getElementById('rmMxS'), rmMnS: document.getElementById('rmMnS'),
-            rmMxI: document.getElementById('rmMxI'), rmMnI: document.getElementById('rmMnI'),
-            
-            progGrid: document.getElementById('progGrid'), hudProgName: document.getElementById('hudProgName'),
-            hudProgSpirit: document.getElementById('hudProgSpirit'), hudTime: document.getElementById('hudTime'),
-            hudSpd: document.getElementById('hudSpd'), hudInc: document.getElementById('hudInc'),
-            hudHr: document.getElementById('hudHr'), hudLac: document.getElementById('hudLac'),
-            
-            canvas: document.getElementById('matrixChart'), chartCrosshair: document.getElementById('chartCrosshair'),
-            massiveTime: document.getElementById('massiveTime'), runSpd: document.getElementById('runSpd'),
-            runInc: document.getElementById('runInc'), runDist: document.getElementById('runDist'),
-            runPace: document.getElementById('runPace'), runHr: document.getElementById('runHr'),
-            runLac: document.getElementById('runLac'), runCal: document.getElementById('runCal'),
-            valZ1T: document.getElementById('valZ1T'), valZ2T: document.getElementById('valZ2T'),
-            valZ3T: document.getElementById('valZ3T'), valZ4T: document.getElementById('valZ4T'), valZ5T: document.getElementById('valZ5T'),
-            
-            btnRight: document.getElementById('btnRight'), btnLeft: document.getElementById('btnLeft'),
-            lblBtnRight: document.getElementById('lblBtnRight'), lblBtnLeft: document.getElementById('lblBtnLeft'),
-            btnPause: document.getElementById('btnPause'), btnAskEnd: document.getElementById('btnAskEnd'),
-            lblPause: document.getElementById('lblPause'), lblEnd: document.getElementById('lblEnd'),
-            
-            confirmModal: document.getElementById('confirmModal'), summaryModal: document.getElementById('summaryModal'),
-            historyModal: document.getElementById('historyModal'), summaryContent: document.getElementById('summaryContent'),
-            historyContent: document.getElementById('historyContent'), btnDoEnd: document.getElementById('btnDoEnd'),
-            btnCancel: document.getElementById('btnCancel'), btnSumClose: document.getElementById('btnSumClose'),
-            btnHistClose: document.getElementById('btnHistClose'), btnClearHist: document.getElementById('btnClearHist'),
-            
-            tabSettings: document.getElementById('tabSettings'), tabMatrix: document.getElementById('tabMatrix'),
-            tabContent1: document.getElementById('tabContent1'), tabContent2: document.getElementById('tabContent2'),
-            list: document.getElementById('previewList'), // [已修復] 精確對應
-            
-            runnerModal: document.getElementById('runnerModal'), rmName: document.getElementById('rmName'),
-            btnDuplicate: document.getElementById('btnDuplicate'), btnDropdown: document.getElementById('btnDropdown'),
-            dupDropdown: document.getElementById('dupDropdown'), btnSexM: document.getElementById('btnSexM'),
-            btnSexF: document.getElementById('btnSexF'), btnUnitM: document.getElementById('btnUnitM'),
-            btnUnitI: document.getElementById('btnUnitI'), btnRmSave: document.getElementById('btnRmSave'),
-            btnRmCancel: document.getElementById('btnRmCancel'), btnRmHistory: document.getElementById('btnRmHistory'),
-            btnRmRemove: document.getElementById('btnRmRemove'),
-            
-            zoneNutriBlock: document.getElementById('zoneNutriBlock'), eZ1: document.getElementById('eZ1'),
-            eZ2: document.getElementById('eZ2'), eZ3: document.getElementById('eZ3'), eZ4: document.getElementById('eZ4'),
-            eZ5: document.getElementById('eZ5'), estCalAvg: document.getElementById('estCalAvg'), nutriBlock: document.getElementById('nutriBlock'),
-            
-            btnHwSettings: document.getElementById('btnHwSettings'), hwModal: document.getElementById('hwModal'),
-            hwMaxSpd: document.getElementById('hwMaxSpd'), hwMaxInc: document.getElementById('hwMaxInc'),
-            btnHwCancel: document.getElementById('btnHwCancel'), btnHwSave: document.getElementById('btnHwSave'),
-            
-            valModal: document.getElementById('valModal'), valTitle: document.getElementById('valTitle'),
-            valMsg: document.getElementById('valMsg'), btnValNo: document.getElementById('btnValNo'), btnValYes: document.getElementById('btnValYes'),
-            unsavedModal: document.getElementById('unsavedModal'), btnUnsavedSave: document.getElementById('btnUnsavedSave'),
-            btnUnsavedDiscard: document.getElementById('btnUnsavedDiscard'), btnUnsavedCancel: document.getElementById('btnUnsavedCancel')
+            btnUiLang: d('btnUiLang'), uiLangText: d('uiLangText'), btnVoice: d('btnVoice'), voiceStateText: d('voiceStateText'),
+            topProgressBar: d('topProgressBar'), topProgressText: d('topProgressText'),
+            setupView: d('setup-view'), runView: d('run-view'),
+            targetTime: d('targetTime'), targetKm: d('targetKm'), targetTimeVal: d('targetTimeVal'), targetKmVal: d('targetKmVal'),
+            rmName: d('rmName'), rmAge: d('rmAge'), rmWeight: d('rmWeight'), rmBMR: d('rmBMR'), rmSMM: d('rmSMM'), rmBF: d('rmBF'), rmVO2: d('rmVO2'), rmMxS: d('rmMxS'), rmMnS: d('rmMnS'), rmMxI: d('rmMxI'), rmMnI: d('rmMnI'),
+            hwMxS: d('hwMxS'), hwMnS: d('hwMnS'), hwMxI: d('hwMxI'), hwMnI: d('hwMnI'), apToggle: d('apToggle'), lblApDesc: d('lblApDesc'),
+            progGrid: d('progGrid'), sProgName: d('sProgName'), sProgSpirit: d('sProgSpirit'), sHudTime: d('sHudTime'),
+            sSpd: d('sSpd'), sInc: d('sInc'), sHr: d('sHr'), sLac: d('sLac'), sAvgSpd: d('sAvgSpd'), sAvgInc: d('sAvgInc'), sAvgHr: d('sAvgHr'), sAvgLac: d('sAvgLac'),
+            rSpd: d('rSpd'), rInc: d('rInc'), rHr: d('rHr'), rLac: d('rLac'), rAvgSpd: d('rAvgSpd'), rAvgInc: d('rAvgInc'), rAvgHr: d('rAvgHr'), rAvgLac: d('rAvgLac'),
+            sChart: d('sChart'), sCrosshair: d('sCrosshair'), rChart: d('rChart'), rCrosshair: d('rCrosshair'),
+            massiveTime: d('massiveTime'), runSpd: d('runSpd'), runInc: d('runInc'), runDist: d('runDist'), runPace: d('runPace'), runHr: d('runHr'), runLac: d('runLac'), runCal: d('runCal'),
+            teaserSpd: d('teaserSpd'), teaserInc: d('teaserInc'),
+            btnRight: d('btnRight'), btnLeft: d('btnLeft'), lblBtnRight: d('lblBtnRight'), lblBtnLeft: d('lblBtnLeft'), btnPause: d('btnPause'), btnAskEnd: d('btnAskEnd'),
+            summaryModal: d('summaryModal'), historyModal: d('historyModal'), runnerModal: d('runnerModal'),
+            summaryContent: d('summaryContent'), historyContent: d('historyContent'), btnSumClose: d('btnSumClose'), btnHistClose: d('btnHistClose'), btnClearHist: d('btnClearHist'),
+            tabSettings: d('tabSettings'), tabMatrix: d('tabMatrix'), tabContent1: d('tabContent1'), tabContent2: d('tabContent2'), list: d('previewList'),
+            btnDuplicate: d('btnDuplicate'), btnDropdown: d('btnDropdown'), dupDropdown: d('dupDropdown'), btnSexM: d('btnSexM'), btnSexF: d('btnSexF'), btnUnitM: d('btnUnitM'), btnUnitI: d('btnUnitI'), btnRmSave: d('btnRmSave'), btnRmCancel: d('btnRmCancel'), btnRmHistory: d('btnRmHistory'), btnRmRemove: d('btnRmRemove')
         };
     }
 
     initUI() {
         this.applyI18n();
-        this.syncInputsFromProfile();
-        this.updateHwUI();
         this.evalPrograms();
-        this.selectProgram(this.store.getActive().lastProg, true); // bypass trap for initial load
+        this.selectProgram(this.store.getActive().lastProg);
         this.updateRunnerUI();
     }
 
     applyI18n() {
-        let d = i18n[this.store.uiLang]; 
-        let isMet = this.store.getActive().unit === 'metric';
+        let d = i18n[this.store.uiLang]; let p = this.store.getActive(); let isMet = p.unit === 'metric';
         
         if(this.dom.uiLangText) this.dom.uiLangText.textContent = this.store.uiLang.toUpperCase();
         if(this.dom.voiceStateText) this.dom.voiceStateText.textContent = this.store.voiceOn ? 'ON' : 'OFF';
         if(this.dom.btnVoice) this.dom.btnVoice.className = `circle-btn ${this.store.voiceOn ? 'active' : 'mute'}`;
         
-        if(this.dom.tabSettings) this.dom.tabSettings.textContent = d.tSet;
+        if(!this.state.isRunning) {
+            if(this.dom.tabSettings) this.dom.tabSettings.textContent = d.tSet;
+            if(this.dom.lblBtnLeft) {
+                let n = p.name.split(' ')[0]; this.dom.lblBtnLeft.textContent = n;
+                this.dom.lblBtnLeft.style.fontSize = n.length > 8 ? '0.8rem' : '1.1rem';
+            }
+        } else {
+            if(this.dom.tabSettings) this.dom.tabSettings.textContent = p.name.split(' ')[0];
+        }
         if(this.dom.tabMatrix) this.dom.tabMatrix.textContent = d.tMat;
 
+        // Dynamic Unit Labels
         const lblMap = {
             'lblTotalTime': d.tim, 'lblTargetKm': isMet ? d.km : d.mi, 'uDist': isMet ? "km" : "mi",
-            'lblAge': d.age, 'lblWgt': isMet ? d.wgt : d.wgtImp, 'lblSMM': isMet ? d.smm : d.wgtImp.replace('Weight','SMM'),
+            'lblAge': d.age, 'lblWgt': isMet ? d.wgt : d.wgtImp, 'lblSMM': isMet ? d.smm : d.smmImp,
             'lblMxS': isMet ? d.mxS : d.mxSImp, 'lblMnS': isMet ? d.mnS : d.mnSImp,
-            'lblMxI': d.mxI, 'lblMnI': d.mnI, 'lblBMR': d.bmr, 'lblBF': d.bf, 'lblVO2': d.vo2,
-            'lblRunSpd': isMet ? d.spd : d.spdImp, 'lblRunPace': isMet ? d.pac : d.pacImp, 'lblRunDist': isMet ? 'km' : 'mi',
-            'lblRmName': d.rmName, 'lblRmSex': d.rmSex, 'lblRmUnit': d.rmUnit, 'lblRmPhysio': d.sci, 'lblRmTitle': d.runnerTitle,
-            'lblHwTitle': d.hwTitle, 'lblHwSpd': d.hwSpd, 'lblHwInc': d.hwInc
+            'lblHwMxS': isMet ? d.mxS : d.mxSImp, 'lblHwMnS': isMet ? d.mnS : d.mnSImp,
+            'lblMxI': d.mxI, 'lblMnI': d.mnI, 'lblHwMxI': d.mxI, 'lblHwMnI': d.mnI, 'lblBMR': d.bmr, 'lblBF': d.bf, 'lblVO2': d.vo2,
+            'lblRunSpd': isMet ? 'Speed (kph)' : 'Speed (mph)', 'lblRunPace': 'Pace', 'lblRunDist': isMet ? 'km' : 'mi',
+            'lblRmPhysio': d.sci, 'lblHwTitle': d.hwTitle,
+            'lblSMaxSpd': isMet ? 'Spd(k)' : 'Spd(m)', 'lblRMaxSpd': isMet ? 'Spd(k)' : 'Spd(m)'
         };
-
         Object.keys(lblMap).forEach(id => { let el = document.getElementById(id); if(el) el.textContent = lblMap[id]; });
 
-        if(this.dom.lblBtnRight) this.dom.lblBtnRight.textContent = this.state.accumMs > 0 ? d.rsm : d.sta; 
-        if(this.dom.lblPause) this.dom.lblPause.textContent = d.pau; 
-        if(this.dom.lblEnd) this.dom.lblEnd.textContent = d.end; 
-        
-        if(this.dom.btnDoEnd) this.dom.btnDoEnd.textContent = d.confirm; 
-        if(this.dom.btnCancel) this.dom.btnCancel.textContent = d.cancel;
-        if(document.getElementById('lblConfirmTitle')) document.getElementById('lblConfirmTitle').textContent = d.endAsk; 
-        if(document.getElementById('lblConfirmDesc')) document.getElementById('lblConfirmDesc').textContent = d.endDesc;
-        if(document.getElementById('lblSumTitle')) document.getElementById('lblSumTitle').textContent = d.sum.split('與')[0]; 
-        if(document.getElementById('lblHistTitle')) document.getElementById('lblHistTitle').textContent = d.hist;
-        
-        if(this.dom.btnRmSave) this.dom.btnRmSave.textContent = d.save;
-        if(this.dom.btnRmCancel) this.dom.btnRmCancel.textContent = d.cancel;
-        if(this.dom.btnRmHistory) this.dom.btnRmHistory.textContent = d.hist.split(' ')[0];
-        if(this.dom.btnRmRemove) this.dom.btnRmRemove.textContent = d.remove;
-        
-        if(this.dom.btnSumClose) this.dom.btnSumClose.textContent = d.close;
-        if(this.dom.btnHistClose) this.dom.btnHistClose.textContent = d.close;
-        if(this.dom.btnClearHist) this.dom.btnClearHist.textContent = d.clear;
+        // Update Slider inputs based on Unit
+        if(this.dom.targetKm) {
+            let v = isMet ? p.tKm : p.tKm / 1.609344;
+            this.dom.targetKm.min = isMet ? "0.5" : "0.3"; this.dom.targetKm.max = isMet ? "50.0" : "31.0"; this.dom.targetKm.step = isMet ? "0.5" : "0.1";
+            this.dom.targetKm.value = v; this.dom.targetKmVal.childNodes[0].nodeValue = v.toFixed(1);
+        }
+        if(this.dom.targetTime) {
+            this.dom.targetTime.value = p.tTime; this.dom.targetTimeVal.childNodes[0].nodeValue = p.tTime;
+        }
 
+        if(this.dom.lblBtnRight) this.dom.lblBtnRight.textContent = this.state.accumMs > 0 ? d.rsm : d.sta; 
+        
         // Render Programs
-        if(this.dom.progGrid) {
+        if(this.dom.progGrid && !this.state.isRunning) {
             this.dom.progGrid.innerHTML = '';
             for(let i=1; i<=10; i++) {
-                let btn = document.createElement('div'); 
-                btn.className = 'prog-btn'; 
-                btn.id = `btnProg_${i}`;
+                let btn = document.createElement('div'); btn.className = 'prog-btn'; btn.id = `btnProg_${i}`;
                 btn.innerHTML = `<span class="prog-title">${d.prog[`p${i}`][0]}</span><span class="prog-desc">${d.prog[`p${i}`][1]}</span>`;
-                btn.addEventListener('click', () => { if(this.state.isRunning) return; this.triggerTrap({type: 'prog', pid: i}); });
+                btn.addEventListener('click', () => { if(!this.state.isRunning) this.selectProgram(i); });
                 this.dom.progGrid.appendChild(btn);
             }
+            this.updateProgramButtons();
         }
-        
-        this.updateRunnerUI();
-        if(!this.state.isRunning) { this.evalPrograms(); this.selectProgram(this.store.getActive().lastProg, true); } 
-        else { this.renderRunDash(this.state.matrix.length * 60000 - this.state.accumMs, this.state.matrix.length * 60000, this.state.matrix[Math.floor(this.state.accumMs/60000)], Math.floor(this.state.accumMs/60000)); }
+
+        // Render current state dynamically
+        if(this.state.matrix.length > 0) {
+            this.renderPreview(this.state.pDataCache[this.store.getActive().lastProg]);
+            this.renderCharts();
+            this.updateChartHUD('s'); this.updateChartHUD('r');
+            if(this.state.isRunning) this.renderRunDash(this.state.matrix.length * 60000 - this.state.accumMs, this.state.matrix.length * 60000, this.state.matrix[Math.floor(this.state.accumMs/60000)], Math.floor(this.state.accumMs/60000));
+        }
     }
 
-    formatRunnerName(name) {
-        let n = name.trim();
-        if(n.includes(' ') && !n.includes('(NEW)')) n = n.split(' ')[0]; // 取 First Name
-        return n;
-    }
-
-    updateRunnerUI() { 
-        if(this.dom.lblBtnLeft) {
-            let n = this.formatRunnerName(this.store.activeP);
-            this.dom.lblBtnLeft.textContent = n;
-            this.dom.lblBtnLeft.style.fontSize = n.length > 8 ? '0.8rem' : '1.1rem';
-        }
-        
+    updateRunnerUI() {
         let pCount = Object.keys(this.store.profiles).length;
-        if (this.dom.btnDropdown) {
-            if (pCount <= 1) this.dom.btnDropdown.classList.add('disabled');
-            else this.dom.btnDropdown.classList.remove('disabled');
-        }
+        if (this.dom.btnDropdown) this.dom.btnDropdown.disabled = pCount <= 1;
+        if (this.dom.btnRmRemove) this.dom.btnRmRemove.disabled = pCount <= 1;
     }
 
     switchTab(t) {
-        if(this.dom.tabSettings) this.dom.tabSettings.classList.remove('active'); 
-        if(this.dom.tabMatrix) this.dom.tabMatrix.classList.remove('active');
-        if(this.dom.tabContent1) this.dom.tabContent1.classList.remove('active'); 
-        if(this.dom.tabContent2) this.dom.tabContent2.classList.remove('active');
-        
+        this.dom.tabSettings.classList.remove('active'); this.dom.tabMatrix.classList.remove('active');
+        this.dom.tabContent1.classList.remove('active'); this.dom.tabContent2.classList.remove('active');
         if(t === 'settings') { 
-            if(this.dom.tabSettings) this.dom.tabSettings.classList.add('active'); 
-            if(this.dom.tabContent1) this.dom.tabContent1.classList.add('active'); 
-            setTimeout(()=>this.drawChart(), 50); // Fix for chart disappearing
+            this.dom.tabSettings.classList.add('active'); this.dom.tabContent1.classList.add('active'); 
         } else { 
-            if(this.dom.tabMatrix) this.dom.tabMatrix.classList.add('active'); 
-            if(this.dom.tabContent2) this.dom.tabContent2.classList.add('active'); 
-            this.scrollToRow(); 
+            this.dom.tabMatrix.classList.add('active'); this.dom.tabContent2.classList.add('active'); 
+            this.scrollToRow(this.state.currMinIdx);
         }
+        setTimeout(() => this.renderCharts(), 50);
+    }
+
+    toggleProfileLock(isLocked) {
+        document.querySelectorAll('.lockable').forEach(el => el.disabled = isLocked);
+        this.dom.btnDropdown.disabled = isLocked || Object.keys(this.store.profiles).length <= 1;
+        this.dom.btnDuplicate.disabled = isLocked;
+        this.dom.btnRmRemove.disabled = isLocked || Object.keys(this.store.profiles).length <= 1;
+        this.dom.btnSexM.disabled = isLocked; this.dom.btnSexF.disabled = isLocked;
     }
 
     openRunnerModal() {
-        if(this.state.isRunning) return;
         let p = this.store.getActive();
-        if(this.dom.rmName) this.dom.rmName.value = p.name;
+        this.dom.rmName.value = p.name;
         this.loadProfileToForm(p);
-        if(this.dom.runnerModal) this.dom.runnerModal.classList.remove('hidden');
+        this.toggleProfileLock(this.state.isRunning);
+        this.dom.runnerModal.classList.add('show');
     }
 
     loadProfileToForm(p) {
         let isMet = p.unit === 'metric';
-        if(this.dom.btnSexM) this.dom.btnSexM.className = `t-btn ${p.gender === 'M' ? 'active' : ''}`;
-        if(this.dom.btnSexF) this.dom.btnSexF.className = `t-btn ${p.gender === 'F' ? 'active' : ''}`;
-        if(this.dom.btnUnitM) this.dom.btnUnitM.className = `t-btn ${isMet ? 'active' : ''}`;
-        if(this.dom.btnUnitI) this.dom.btnUnitI.className = `t-btn ${!isMet ? 'active' : ''}`;
+        this.dom.btnSexM.className = `t-btn ${p.gender === 'M' ? 'active' : ''}`; this.dom.btnSexF.className = `t-btn ${p.gender === 'F' ? 'active' : ''}`;
+        this.dom.btnUnitM.className = `t-btn ${isMet ? 'active' : ''}`; this.dom.btnUnitI.className = `t-btn ${!isMet ? 'active' : ''}`;
+        this.dom.apToggle.checked = p.autoPilot !== false; this.dom.lblApDesc.textContent = p.autoPilot !== false ? 'ON' : 'OFF';
 
-        if(this.dom.rmAge) this.dom.rmAge.value = p.age;
-        if(this.dom.rmWeight) this.dom.rmWeight.value = p.weight > 0 ? Math.round(isMet ? p.weight : p.weight * 2.20462) : "";
-        if(this.dom.rmBMR) this.dom.rmBMR.value = p.bmr > 0 ? Math.round(p.bmr) : "";
-        if(this.dom.rmSMM) this.dom.rmSMM.value = p.smm > 0 ? (isMet ? p.smm.toFixed(1) : (p.smm * 2.20462).toFixed(1)) : "";
-        if(this.dom.rmBF) this.dom.rmBF.value = p.bf > 0 ? p.bf.toFixed(1) : "";
-        if(this.dom.rmVO2) this.dom.rmVO2.value = p.vo2 > 0 ? p.vo2.toFixed(1) : "";
-        if(this.dom.rmMxS) this.dom.rmMxS.value = (isMet ? p.maxSpd : p.maxSpd / 1.60934).toFixed(1);
-        if(this.dom.rmMnS) this.dom.rmMnS.value = (isMet ? p.minSpd : p.minSpd / 1.60934).toFixed(1);
-        if(this.dom.rmMxI) this.dom.rmMxI.value = p.maxInc;
-        if(this.dom.rmMnI) this.dom.rmMnI.value = p.minInc;
-    }
+        const setVal = (el, val, precision = 1) => { if(el) el.value = val > 0 || val < 0 || val===0 ? Number(val).toFixed(precision).replace(/\.0+$/,'') : ""; };
+        
+        setVal(this.dom.rmAge, p.age, 0);
+        setVal(this.dom.rmWeight, isMet ? p.weight : p.weight * 2.20462, 1);
+        setVal(this.dom.rmBMR, p.bmr, 0);
+        setVal(this.dom.rmSMM, p.smm > 0 ? (isMet ? p.smm : p.smm * 2.20462) : 0, 1);
+        setVal(this.dom.rmBF, p.bf, 1); setVal(this.dom.rmVO2, p.vo2, 1);
+        
+        setVal(this.dom.rmMxS, isMet ? p.maxSpd : p.maxSpd / 1.609344, 1);
+        setVal(this.dom.rmMnS, isMet ? p.minSpd : p.minSpd / 1.609344, 1);
+        setVal(this.dom.rmMxI, p.maxInc, 1); setVal(this.dom.rmMnI, p.minInc, 1);
 
-    isProfileDirty() {
-        let p = this.store.getActive();
-        let isMet = this.dom.btnUnitM.classList.contains('active');
-        if(p.name !== this.dom.rmName.value.trim()) return true;
-        if(p.gender !== (this.dom.btnSexM.classList.contains('active') ? 'M' : 'F')) return true;
-        if((p.unit === 'metric') !== isMet) return true;
-        if(p.age !== (parseInt(this.dom.rmAge.value) || 35)) return true;
-        let vW = parseFloat(this.dom.rmWeight.value) || 0; let w = vW > 0 ? (isMet ? vW : vW/2.20462) : 0;
-        if(Math.abs(p.weight - w) > 0.5) return true;
-        let mxS = parseFloat(this.dom.rmMxS.value) || (isMet?12:7.5); let s = isMet ? mxS : mxS * 1.60934;
-        if(Math.abs(p.maxSpd - s) > 0.1) return true;
-        return false;
+        // HW Limits
+        setVal(this.dom.hwMxS, isMet ? this.store.hw.maxSpd : this.store.hw.maxSpd / 1.609344, 1);
+        setVal(this.dom.hwMnS, isMet ? this.store.hw.minSpd : this.store.hw.minSpd / 1.609344, 1);
+        setVal(this.dom.hwMxI, this.store.hw.maxInc, 1); setVal(this.dom.hwMnI, this.store.hw.minInc, 1);
     }
 
     saveRunnerProfile(stayOpen = false) {
         let newName = this.dom.rmName.value.trim();
         if(!newName) return false;
         
-        if(newName !== this.store.activeP && this.store.profiles[newName]) {
-            if(!newName.includes('(NEW)')) {
-                sysToast(this.store.uiLang === 'zh' ? '名稱已存在，請選擇不同名稱！' : 'Name exists, choose another!');
-                this.dom.rmName.focus(); return false;
-            }
-        }
-
         let isMet = this.dom.btnUnitM.classList.contains('active');
+        let changes = []; let d = i18n[this.store.uiLang];
+        
         let p = {
             name: newName, gender: this.dom.btnSexM.classList.contains('active') ? 'M' : 'F',
             unit: isMet ? 'metric' : 'imperial', tTime: this.store.getActive().tTime, tKm: this.store.getActive().tKm,
-            age: parseInt(this.dom.rmAge.value) || 35, maxInc: parseInt(this.dom.rmMxI.value) || 5, minInc: parseInt(this.dom.rmMnI.value) || 0,
-            lastProg: this.store.getActive().lastProg
+            age: parseInt(this.dom.rmAge.value) || 35, lastProg: this.store.getActive().lastProg,
+            autoPilot: this.dom.apToggle.checked
         };
         
-        let vW = parseFloat(this.dom.rmWeight.value) || 0; p.weight = vW > 0 ? (isMet ? vW : vW/2.20462) : 0;
-        p.bmr = parseFloat(this.dom.rmBMR.value) || 0;
-        let vS = parseFloat(this.dom.rmSMM.value) || 0; p.smm = vS > 0 ? (isMet ? vS : vS/2.20462) : 0;
-        p.bf = parseFloat(this.dom.rmBF.value) || 0; p.vo2 = parseFloat(this.dom.rmVO2.value) || 0;
-        
-        let mxS = parseFloat(this.dom.rmMxS.value) || (isMet?12:7.5); let mnS = parseFloat(this.dom.rmMnS.value) || 0;
-        mxS = Math.max(mnS, mxS); p.maxSpd = isMet ? mxS : mxS * 1.60934; p.minSpd = isMet ? mnS : mnS * 1.60934;
+        if(!this.state.isRunning) {
+            let vW = parseFloat(this.dom.rmWeight.value) || 0; p.weight = vW > 0 ? (isMet ? vW : vW/2.20462) : 0;
+            p.bmr = parseFloat(this.dom.rmBMR.value) || 0;
+            let vS = parseFloat(this.dom.rmSMM.value) || 0; p.smm = vS > 0 ? (isMet ? vS : vS/2.20462) : 0;
+            p.bf = parseFloat(this.dom.rmBF.value) || 0; p.vo2 = parseFloat(this.dom.rmVO2.value) || 0;
+            
+            // HW Limits
+            let hwMxS = parseFloat(this.dom.hwMxS.value) || (isMet?20:12.5); hwMxS = isMet ? hwMxS : hwMxS * 1.609344;
+            let hwMnS = parseFloat(this.dom.hwMnS.value) || 0.1; hwMnS = isMet ? hwMnS : hwMnS * 1.609344;
+            let hwMxI = parseFloat(this.dom.hwMxI.value) || 15; let hwMnI = parseFloat(this.dom.hwMnI.value) || 0;
+            this.store.hw = { maxSpd: hwMxS, minSpd: hwMnS, maxInc: hwMxI, minInc: hwMnI };
 
-        if (newName !== this.store.activeP && !this.store.activeP.includes('(NEW)')) {
+            // Personal Limits (with silent override checks)
+            let pMxS = parseFloat(this.dom.rmMxS.value) || (isMet?12:7.5); pMxS = isMet ? pMxS : pMxS * 1.609344;
+            let pMnS = parseFloat(this.dom.rmMnS.value) || 0; pMnS = isMet ? pMnS : pMnS * 1.609344;
+            let pMxI = parseFloat(this.dom.rmMxI.value) || 5; let pMnI = parseFloat(this.dom.rmMnI.value) || 0;
+            
+            let uS = isMet ? 'kph' : 'mph';
+            if (pMxS > hwMxS) { pMxS = hwMxS; changes.push(`Max Speed downscaled to ${isMet?hwMxS:(hwMxS/1.609344).toFixed(1)} ${uS}`); }
+            if (pMnS < hwMnS) { pMnS = hwMnS; changes.push(`Min Speed upscaled to ${isMet?hwMnS:(hwMnS/1.609344).toFixed(1)} ${uS}`); }
+            if (pMxI > hwMxI) { pMxI = hwMxI; changes.push(`Max Incline downscaled to ${hwMxI}%`); }
+            if (pMnI < hwMnI) { pMnI = hwMnI; changes.push(`Min Incline upscaled to ${hwMnI}%`); }
+            
+            p.maxSpd = Math.max(pMnS, pMxS); p.minSpd = pMnS; p.maxInc = Math.max(pMnI, pMxI); p.minInc = pMnI;
+        } else {
+            // Keep old limits if running
+            let oP = this.store.getActive();
+            ['weight','bmr','smm','bf','vo2','maxSpd','minSpd','maxInc','minInc'].forEach(k => p[k] = oP[k]);
+        }
+
+        if (newName !== this.store.activeP) {
             delete this.store.profiles[this.store.activeP];
             let oldHist = localStorage.getItem(`history_${this.store.activeP}`);
             if(oldHist) { localStorage.setItem(`history_${newName}`, oldHist); localStorage.removeItem(`history_${this.store.activeP}`); }
         }
         
-        this.store.profiles[newName] = p;
-        this.store.activeP = newName; 
-        this.store.save();
+        this.store.profiles[newName] = p; this.store.activeP = newName; this.store.save();
         this.applyI18n(); 
         
-        if(!stayOpen) this.dom.runnerModal.classList.add('hidden');
+        if(!stayOpen) this.dom.runnerModal.classList.remove('show');
+        if(changes.length > 0) NotificationManager.show(changes, this.store.uiLang);
+        
+        if(!this.state.isRunning) { this.evalPrograms(); this.selectProgram(p.lastProg); }
         return true;
     }
 
     duplicateProfile() {
         this.saveRunnerProfile(true); 
-        let baseName = this.store.activeP.replace(/\s*\(NEW\)( \d+)?$/, '');
-        let newName = baseName + " (NEW)";
-        let counter = 2;
-        while(this.store.profiles[newName]) {
-            newName = baseName + ` (NEW) ${counter}`;
-            counter++;
-        }
+        let baseName = this.store.activeP.replace(/\s*\(\d+\)$/, '');
+        let newName = baseName + " (2)"; let counter = 3;
+        while(this.store.profiles[newName]) { newName = baseName + ` (${counter})`; counter++; }
         
         let p = JSON.parse(JSON.stringify(this.store.profiles[this.store.activeP]));
-        p.name = newName;
-        this.store.profiles[newName] = p;
-        this.store.activeP = newName;
-        this.store.save();
-        
-        this.loadProfileToForm(p);
-        this.dom.rmName.value = newName;
-        this.updateRunnerUI();
-        // 修正邏輯：僅載入畫面不自動下拉
-        sysToast(this.store.uiLang === 'zh' ? '已成功複製並切換。' : 'Profile duplicated and active.');
-    }
-
-    toggleDropdown() {
-        if(this.dom.btnDropdown.classList.contains('disabled')) return;
-        if(!this.dom.dupDropdown.classList.contains('show')) {
-            this.dom.dupDropdown.innerHTML = '';
-            let others = Object.keys(this.store.profiles).filter(k => k !== this.store.activeP);
-            others.forEach(k => {
-                let dItem = document.createElement('div'); dItem.className = 'dropdown-item'; dItem.textContent = k;
-                dItem.addEventListener('click', (e) => { e.stopPropagation(); this.handleProfileSwitch(k); });
-                this.dom.dupDropdown.appendChild(dItem);
-            });
-            this.dom.dupDropdown.classList.add('show');
-        } else {
-            this.dom.dupDropdown.classList.remove('show');
-        }
-    }
-
-    handleProfileSwitch(targetName) {
-        this.dom.dupDropdown.classList.remove('show');
-        this.state.pendingSwitchName = targetName;
-        if(this.isProfileDirty()) {
-            this.dom.unsavedModal.classList.remove('hidden');
-        } else {
-            this.executeProfileSwitch();
-        }
-    }
-
-    executeProfileSwitch() {
-        if(!this.state.pendingSwitchName) return;
-        this.store.activeP = this.state.pendingSwitchName;
-        this.store.save();
-        this.loadProfileToForm(this.store.getActive());
-        this.dom.rmName.value = this.store.activeP;
-        this.updateRunnerUI();
-        this.applyI18n();
-    }
-
-    syncInputsFromProfile() {
-        let p = this.store.getActive(); let isMet = p.unit === 'metric';
-        if(this.dom.targetKm) { this.dom.targetKm.min = isMet ? "0.5" : "0.3"; this.dom.targetKm.max = isMet ? "50.0" : "31.0"; this.dom.targetKm.step = isMet ? "0.5" : "0.1"; }
-        if(this.dom.targetTime) this.dom.targetTime.value = p.tTime; 
-        if(this.dom.targetTimeVal) this.dom.targetTimeVal.childNodes[0].nodeValue = p.tTime;
-        if(this.dom.targetKm) this.dom.targetKm.value = isMet ? p.tKm : p.tKm / 1.60934; 
-        if(this.dom.targetKmVal) this.dom.targetKmVal.childNodes[0].nodeValue = parseFloat(this.dom.targetKm.value).toFixed(1);
-    }
-
-    readCoreSliders() {
-        let p = this.store.getActive(); let isMet = p.unit === 'metric';
-        if(this.dom.targetTime) p.tTime = parseFloat(this.dom.targetTime.value) || 60;
-        if(this.dom.targetKm) { let vKm = parseFloat(this.dom.targetKm.value) || 5; p.tKm = isMet ? vKm : vKm * 1.60934; }
-        this.store.save();
-        this.state.trapExempt = false; 
-    }
-
-    updateHwUI() {
-        let isMet = this.store.getActive().unit === 'metric';
-        let hwSpd = isMet ? this.store.hw.maxSpd : this.store.hw.maxSpd / 1.60934;
-        if(this.dom.hwMaxSpd) this.dom.hwMaxSpd.value = hwSpd.toFixed(1);
-        if(this.dom.hwMaxInc) this.dom.hwMaxInc.value = this.store.hw.maxInc;
-        let lbl = document.getElementById('lblHwSpd');
-        if(lbl) lbl.textContent = i18n[this.store.uiLang].hwSpd + ` (${isMet?'kph':'mph'})`;
-    }
-
-    saveHwLimits() {
-        let isMet = this.store.getActive().unit === 'metric';
-        let spd = parseFloat(this.dom.hwMaxSpd.value) || 20.0;
-        let inc = parseInt(this.dom.hwMaxInc.value) || 15;
-        this.store.hw.maxSpd = isMet ? spd : spd * 1.60934;
-        this.store.hw.maxInc = inc;
-        this.store.save();
-        if(this.dom.hwModal) this.dom.hwModal.classList.add('hidden');
-        this.state.trapExempt = false;
-        this.evalPrograms();
-        this.selectProgram(this.store.getActive().lastProg, true);
-    }
-
-    bindEvents() {
-        if(this.dom.btnUiLang) this.dom.btnUiLang.addEventListener('click', () => { this.store.uiLang = this.store.uiLang==='zh'?'en':'zh'; this.store.save(); this.applyI18n(); });
-        if(this.dom.btnVoice) this.dom.btnVoice.addEventListener('click', () => { this.store.voiceOn = !this.store.voiceOn; this.store.save(); this.applyI18n(); if(this.store.voiceOn) this.ve.speak('val_low',1); else this.ve.clear(); });
-        if(this.dom.tabSettings) this.dom.tabSettings.addEventListener('click', () => this.switchTab('settings')); 
-        if(this.dom.tabMatrix) this.dom.tabMatrix.addEventListener('click', () => this.switchTab('matrix'));
-
-        document.body.addEventListener('click', e => {
-            let u = e.target.closest('.unit-toggle');
-            if(u && !this.state.isRunning && e.target.tagName!=='INPUT' && e.target.tagName!=='BUTTON' && e.target.tagName!=='SELECT') {
-                this.readCoreSliders(); 
-                this.store.getActive().unit = this.store.getActive().unit === 'metric' ? 'imperial' : 'metric'; 
-                this.store.save(); this.applyI18n(); 
-            }
-        });
-
-        [this.dom.targetTime, this.dom.targetKm].forEach(el => {
-            if(el) {
-                el.addEventListener('input', () => {
-                    if(this.state.isRunning) return;
-                    if(el===this.dom.targetTime && this.dom.targetTimeVal) this.dom.targetTimeVal.childNodes[0].nodeValue = el.value;
-                    if(el===this.dom.targetKm && this.dom.targetKmVal) this.dom.targetKmVal.childNodes[0].nodeValue = parseFloat(el.value).toFixed(1);
-                    clearTimeout(this.state.inputTimeout);
-                    this.state.inputTimeout = setTimeout(() => { this.readCoreSliders(); this.evalPrograms(); this.selectProgram(this.store.getActive().lastProg, true); }, 300);
-                });
-            }
-        });
-
-        // Profile Modals
-        if(this.dom.btnLeft) this.dom.btnLeft.addEventListener('click', () => this.openRunnerModal());
-        if(this.dom.btnRmCancel) this.dom.btnRmCancel.addEventListener('click', () => this.dom.runnerModal.classList.add('hidden'));
-        if(this.dom.btnRmSave) this.dom.btnRmSave.addEventListener('click', () => this.saveRunnerProfile());
-        if(this.dom.btnRmRemove) this.dom.btnRmRemove.addEventListener('click', () => {
-            if(Object.keys(this.store.profiles).length <= 1) { sysToast(this.store.uiLang === 'zh' ? '必須至少保留一位跑者！' : 'At least one profile must remain!'); return; }
-            if(confirm(i18n[this.store.uiLang].rmConf)) {
-                delete this.store.profiles[this.store.activeP]; localStorage.removeItem(`history_${this.store.activeP}`);
-                this.store.activeP = Object.keys(this.store.profiles)[0]; this.store.save();
-                this.dom.runnerModal.classList.add('hidden'); this.applyI18n();
-            }
-        });
-        if(this.dom.btnRmHistory) this.dom.btnRmHistory.addEventListener('click', () => { this.dom.runnerModal.classList.add('hidden'); this.showHistory(); });
-        
-        if(this.dom.btnDuplicate) this.dom.btnDuplicate.addEventListener('click', () => this.duplicateProfile());
-        if(this.dom.btnDropdown) this.dom.btnDropdown.addEventListener('click', (e) => { e.stopPropagation(); this.toggleDropdown(); });
-        document.addEventListener('click', (e) => { if(this.dom.dupDropdown && !e.target.closest('.dropdown-menu') && !e.target.closest('#btnDropdown')) this.dom.dupDropdown.classList.remove('show'); });
-
-        if(this.dom.btnUnsavedSave) this.dom.btnUnsavedSave.addEventListener('click', () => { if(this.saveRunnerProfile(true)) this.executeProfileSwitch(); this.dom.unsavedModal.classList.add('hidden'); });
-        if(this.dom.btnUnsavedDiscard) this.dom.btnUnsavedDiscard.addEventListener('click', () => { this.executeProfileSwitch(); this.dom.unsavedModal.classList.add('hidden'); });
-        if(this.dom.btnUnsavedCancel) this.dom.btnUnsavedCancel.addEventListener('click', () => this.dom.unsavedModal.classList.add('hidden'));
-
-        // Toggle Buttons
-        ['btnSexM','btnSexF', 'btnUnitM','btnUnitI'].forEach(id => {
-            let el = document.getElementById(id);
-            if(el) el.addEventListener('click', (e) => {
-                if(id.includes('Sex')) { document.getElementById('btnSexM').classList.remove('active'); document.getElementById('btnSexF').classList.remove('active'); }
-                if(id.includes('Unit')) { document.getElementById('btnUnitM').classList.remove('active'); document.getElementById('btnUnitI').classList.remove('active'); }
-                e.target.classList.add('active');
-            });
-        });
-
-        // Hardware Modal
-        if(this.dom.btnHwSettings) this.dom.btnHwSettings.addEventListener('click', () => { this.updateHwUI(); this.dom.hwModal.classList.remove('hidden'); });
-        if(this.dom.btnHwCancel) this.dom.btnHwCancel.addEventListener('click', () => this.dom.hwModal.classList.add('hidden'));
-        if(this.dom.btnHwSave) this.dom.btnHwSave.addEventListener('click', () => this.saveHwLimits());
-
-        // Trap Modal Actions
-        if(this.dom.btnValNo) this.dom.btnValNo.addEventListener('click', () => this.handleTrapAnswer(false));
-        if(this.dom.btnValYes) this.dom.btnValYes.addEventListener('click', () => this.handleTrapAnswer(true));
-
-        // Crosshair
-        const moveCross = e => {
-            if(this.state.isRunning || !this.state.matrix.length || !this.dom.canvas) return;
-            let r = this.dom.canvas.parentElement.getBoundingClientRect();
-            let clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            let x = clientX - r.left; x = Math.max(0, Math.min(x, r.width));
-            let T = this.state.matrix.length; let idx = Math.min(T - 1, Math.floor((x / r.width) * T));
-            if(this.dom.chartCrosshair) { this.dom.chartCrosshair.style.display = 'block'; this.dom.chartCrosshair.style.left = `${(idx/T)*100}%`; }
-            this.updateHUD(idx);
-        };
-        
-        if (this.dom.canvas) {
-            let cWrap = this.dom.canvas.parentElement;
-            cWrap.addEventListener('mousemove', moveCross); cWrap.addEventListener('touchmove', moveCross, {passive:true});
-            cWrap.addEventListener('mouseleave', () => { if(this.dom.chartCrosshair) this.dom.chartCrosshair.style.display='none'; this.updateHUD(this.state.matrix.length-1); });
-            cWrap.addEventListener('touchend', () => { if(this.dom.chartCrosshair) this.dom.chartCrosshair.style.display='none'; this.updateHUD(this.state.matrix.length-1); });
-        }
-
-        // Run Controls
-        if(this.dom.btnRight) this.dom.btnRight.addEventListener('click', () => this.triggerTrap({type: 'start'})); 
-        if(this.dom.btnPause) this.dom.btnPause.addEventListener('click', () => this.pause());
-        if(this.dom.btnAskEnd) this.dom.btnAskEnd.addEventListener('click', () => { this.pause(); if(this.dom.confirmModal) this.dom.confirmModal.classList.remove('hidden'); });
-        
-        if(this.dom.btnCancel) this.dom.btnCancel.addEventListener('click', () => this.dom.confirmModal.classList.add('hidden'));
-        if(this.dom.btnDoEnd) this.dom.btnDoEnd.addEventListener('click', () => { this.dom.confirmModal.classList.add('hidden'); this.endWorkout(); });
-        if(this.dom.btnSumClose) this.dom.btnSumClose.addEventListener('click', () => { this.dom.summaryModal.classList.add('hidden'); this.resetToInit(); });
-        if(this.dom.btnHistClose) this.dom.btnHistClose.addEventListener('click', () => this.dom.historyModal.classList.add('hidden'));
-        if(this.dom.btnClearHist) this.dom.btnClearHist.addEventListener('click', () => { if(confirm(i18n[this.store.uiLang].clearAsk)) { localStorage.removeItem(`history_${this.store.activeP}`); this.showHistory(); }});
-
-        document.addEventListener('visibilitychange', () => { if(document.visibilityState==='visible' && this.state.isRunning) this.reqWL(); });
-        window.addEventListener('beforeunload', (e) => { if (this.state.isRunning) { e.preventDefault(); e.returnValue = ''; } });
+        p.name = newName; this.store.profiles[newName] = p; this.store.activeP = newName; this.store.save();
+        this.loadProfileToForm(p); this.dom.rmName.value = newName; this.updateRunnerUI(); this.applyI18n();
     }
 
     /** =========================================================================
-     *  神級演算法 & 平滑降頻 & 極限驗證
+     *  神級演算法 & 邊界防護 (Warmup/Cooldown)
      *  ========================================================================= */
     evalPrograms() {
         let p = this.store.getSanitized();
-        for(let i = 1; i <= 10; i++) {
-            this.state.pDataCache[i] = this.genMatrix(i, p);
-        }
+        for(let i = 1; i <= 10; i++) { this.state.pDataCache[i] = this.genMatrix(i, p); }
         this.updateProgramButtons();
     }
 
     genMatrix(pid, p) {
         let T = Math.max(10, Math.floor(p.tTime)); let D = p.tKm; 
         let hwS = this.store.hw.maxSpd; let hwI = this.store.hw.maxInc;
-        let safeMnS = Math.max(1.0, p.mnKPH);
-        let allowedMxS = Math.min(hwS, p.msKPH); 
-        let allowedMxI = Math.min(hwI, p.maxInc);
+        let safeMnS = Math.max(0.1, p.mnKPH); 
+        let allowedMxS = Math.min(hwS, p.msKPH); let allowedMxI = Math.min(hwI, p.mxInc);
         
         let m = []; let bP = []; let iP = [];
-        
-        // 降頻邏輯 (Blocks) - max 20 speed changes/hr, 10 inc changes/hr
-        let bLenS = Math.max(1, Math.ceil(T / 20)); 
-        let bLenI = Math.max(1, Math.ceil(T / 10));
+        let bLenS = Math.max(1, Math.ceil(T / 20)); let bLenI = Math.max(1, Math.ceil(T / 10));
 
-        // Generate base curve multipliers
         for(let i=0; i<T; i++) {
             let r=1; let ir=0;
             if(pid===4) { r=0.5; ir=0.5; }
@@ -1497,208 +1291,149 @@ class OlympicTreadmill {
             else if(pid===8) { r = i%5===0?1:0; }
             else if(pid===9) { r = i/(T-1); }
             else if(pid===10) { r = Math.floor(i/2)%2===0?1:0; }
-            
-            // Peak Lactate Forced to Last 10%
-            if (pid >= 4 && pid <= 10 && i >= T * 0.9) { r = 1.0; ir = Math.max(ir, 0.8); }
-
+            if (pid >= 4 && i >= T * 0.9) { r = 1.0; ir = Math.max(ir, 0.8); }
             bP.push(r); iP.push(ir);
         }
 
-        // Apply Smoothing Blocks
         for(let i=0; i<T; i++) {
-            let bIdxS = Math.floor(i / bLenS) * bLenS; let smoothR = bP[bIdxS];
-            let bIdxI = Math.floor(i / bLenI) * bLenI; let smoothIR = iP[bIdxI];
-            m.push({ spd: safeMnS + (allowedMxS - safeMnS)*smoothR, inc: p.minInc + (allowedMxI - p.minInc)*smoothIR });
+            let smoothR = bP[Math.floor(i / bLenS) * bLenS]; let smoothIR = iP[Math.floor(i / bLenI) * bLenI];
+            m.push({ spd: safeMnS + (allowedMxS - safeMnS)*smoothR, inc: p.mnInc + (allowedMxI - p.mnInc)*smoothIR });
         }
 
-        // Proportional Compression to hit Distance (but cap at Hardware Limits)
         let cD = m.reduce((s,x) => s + x.spd/60, 0); let diff = D - cD;
         if (Math.abs(diff) > 0.05 && pid !== 1 && pid !== 2) {
             let workArea = bP.reduce((s,v) => s+v, 0) || T; let addP = (diff / workArea) * 60;
-            for(let i=0; i<T; i++) {
-                m[i].spd += addP * bP[Math.floor(i / bLenS) * bLenS];
+            for(let i=0; i<T; i++) m[i].spd += addP * bP[Math.floor(i / bLenS) * bLenS];
+        }
+
+        // Safety Overrides: Warmup & Cooldown (The Ultimate Fallback)
+        let W = Math.max(2, Math.floor(T * 0.05));
+        let C = Math.max(2, Math.floor(T * 0.05));
+        let baseWalk = 4.0; // 絕對安全冷卻速度
+        
+        for(let i=0; i<T; i++) {
+            if (i < W) { // Warmup
+                let prog = i / W;
+                m[i].spd = safeMnS + (m[W].spd - safeMnS) * prog;
+                m[i].inc = Math.min(m[i].inc, 2.0);
             }
-        }
-
-        // Final Bounds & Phase assignment
-        for(let i=0; i<T; i++) {
-            m[i].spd = Math.max(safeMnS, Math.min(hwS, m[i].spd)); // Absolute Cap Hardware
+            if (i >= T - C && i < T - 1) { // Cooldown (before last minute)
+                let prog = (i - (T - C)) / (C - 1);
+                m[i].spd = m[T-C].spd - (m[T-C].spd - safeMnS) * prog;
+                m[i].inc = m[T-C].inc - (m[T-C].inc - p.mnInc) * prog;
+            }
+            if (i === T - 1) { // THE VERY LAST MINUTE OVERRIDE
+                m[i].spd = baseWalk; m[i].inc = 0.0;
+            }
+            // Strict Bounds
+            m[i].spd = Math.max(0.1, Math.min(hwS, m[i].spd));
             m[i].inc = Math.max(0, Math.min(hwI, m[i].inc));
+            
             let r = (m[i].spd - safeMnS)/(hwS - safeMnS || 1);
-            m[i].phase = i < T*0.1 ? 'warmup' : i >= T*0.9 ? 'exhaust' : r > 0.8 ? 'sprint' : m[i].inc > p.minInc + 2 ? 'steep' : 'recovery';
-            if(i >= T*0.95 && r < 0.5) m[i].phase = 'cooldown';
+            m[i].phase = i < W ? 'warmup' : i >= T-C ? 'cooldown' : r > 0.8 ? 'sprint' : m[i].inc > p.mnInc + 2 ? 'steep' : 'recovery';
         }
 
-        // Physiology Simulation
-        let RE = 1.0; if(p.gender === 'F') RE = 1.05; 
-        if(p.smm / p.wKG > (p.gender==='M' ? 0.4 : 0.35)) RE -= 0.05; 
-        
+        // Physio Sim
+        let RE = p.gender === 'F' ? 1.05 : 1.0; if(p.smm / p.wKG > (p.gender==='M' ? 0.4 : 0.35)) RE -= 0.05; 
         let mHR = 208 - 0.7 * p.age; let cHR = 75; let cLac = 1.0;
-        let pMaxLac = p.gender === 'M' ? 18.0 : 16.0; 
-        pMaxLac += (p.vo2>0 ? (p.vo2-40)*0.1 : 0); 
+        let pMaxLac = (p.gender === 'M' ? 18.0 : 16.0) + (p.vo2>0 ? (p.vo2-40)*0.1 : 0); 
         
-        let peakLac = 0; let cC=0, ccD=0, fAcc=0; let zAcc = [0,0,0,0,0,0];
+        let cC=0, ccD=0, zAcc = [0,0,0,0,0,0];
+        let maxS=0, maxI=0, maxH=0, maxL=0;
         
         for(let i=0; i<T; i++) {
-            let speed_m_min = m[i].spd * 16.6667; let inc_dec = m[i].inc / 100;
-            let vo2D = m[i].spd <= 7.0 ? (3.5 + (0.1 * speed_m_min) + (1.8 * speed_m_min * inc_dec)) : (3.5 + (0.2 * speed_m_min) + (0.9 * speed_m_min * inc_dec));
-            vo2D *= RE;
+            let sm = m[i].spd * 16.6667; let id = m[i].inc / 100;
+            let vo2D = (m[i].spd <= 7.0 ? (3.5 + 0.1*sm + 1.8*sm*id) : (3.5 + 0.2*sm + 0.9*sm*id)) * RE;
             
             cC += (vo2D*p.wKG*5)/1000; ccD += m[i].spd/60;
-            
-            let tHR = 60 + (vo2D / (p.vo2 || 40)) * (mHR - 60); tHR = Math.min(tHR, mHR);
-            cHR += (tHR - cHR) * (m[i].phase === 'sprint' || m[i].phase === 'exhaust' ? 0.6 : 0.3); 
-            let pHR = cHR / mHR; 
+            let tHR = Math.min(mHR, 60 + (vo2D / (p.vo2 || 40)) * (mHR - 60));
+            cHR += (tHR - cHR) * (m[i].phase === 'sprint' ? 0.6 : 0.3); let pHR = cHR / mHR; 
             
             if(pHR < 0.75) cLac += (1.0 - cLac) * 0.2; 
             else if(pHR < 0.85) cLac += (2.5 - cLac) * 0.1; 
             else cLac += Math.exp(10 * (pHR - 0.85)) - 1; 
             
-            if(cLac > peakLac) peakLac = cLac;
-            fAcc += (pHR*1.5)*(1+(cLac*0.05));
             let z = pHR < 0.6 ? 1 : (pHR < 0.7 ? 2 : (pHR < 0.8 ? 3 : (pHR < 0.9 ? 4 : 5))); zAcc[z]++;
             
-            m[i] = {...m[i], m:i+1, cal:(vo2D*p.wKG*5)/1000, dist:m[i].spd/60, hr:Math.round(cHR), lac:cLac, fat:Math.min((fAcc/T)*100,99), z, cC, ccD, z1Acc:zAcc[1], z2Acc:zAcc[2], z3Acc:zAcc[3], z4Acc:zAcc[4], z5Acc:zAcc[5]};
+            maxS = Math.max(maxS, m[i].spd); maxI = Math.max(maxI, m[i].inc);
+            maxH = Math.max(maxH, cHR); maxL = Math.max(maxL, cLac);
+            
+            m[i] = {...m[i], m:i+1, cal:(vo2D*p.wKG*5)/1000, dist:m[i].spd/60, hr:Math.round(cHR), lac:cLac, z};
         }
 
-        // Limits Logic
-        let hwReqSpd = (D/T)*60 > hwS; 
-        let hwReqInc = p.maxInc > hwI;
-        let isHwRed = hwReqSpd || hwReqInc;
-        let isPhysRed = peakLac > pMaxLac + 4.0; // Impossible human
-        let isPhysYellow = peakLac > pMaxLac; // Superhuman
+        let avgS = (ccD / T) * 60; let avgI = m.reduce((s,x)=>s+x.inc,0)/T;
+        let avgH = m.reduce((s,x)=>s+x.hr,0)/T; let avgL = m.reduce((s,x)=>s+x.lac,0)/T;
 
-        return { matrix: m, peakLac, pMaxLac, isHwRed, isPhysRed, isPhysYellow };
+        return { matrix: m, pMaxLac, maxS, maxI, maxH, maxL, avgS, avgI, avgH, avgL, cC };
     }
 
     updateProgramButtons() {
         for(let i=1; i<=10; i++) {
             let btn = document.getElementById(`btnProg_${i}`);
-            let d = this.state.pDataCache[i];
-            if(btn && d) {
+            if(btn) {
                 btn.className = 'prog-btn';
                 if(this.store.getActive().lastProg === i) btn.classList.add('selected');
-                if(d.isHwRed || d.isPhysRed) btn.classList.add('red-alert');
-                else if(d.isPhysYellow) btn.classList.add('yellow-alert');
             }
         }
     }
 
-    // Double Trap System
-    triggerTrap(action) {
-        if(this.state.isRunning) return;
-        let pid = action.type === 'prog' ? action.pid : this.store.getActive().lastProg;
-        let d = this.state.pDataCache[pid];
-        
-        if (this.state.trapExempt || (!d.isHwRed && !d.isPhysRed && !d.isPhysYellow)) {
-            this.executeAction(action);
-            return;
-        }
-
-        this.state.trapTargetAction = action;
-        this.state.trapStage = 1;
-
-        if (d.isHwRed) {
-            this.dom.valTitle.textContent = i18n[this.store.uiLang].vTitle;
-            this.dom.valMsg.innerHTML = i18n[this.store.uiLang].vDescHw;
-        } else if (d.isPhysRed) {
-            this.dom.valTitle.textContent = i18n[this.store.uiLang].vTitle;
-            this.dom.valMsg.innerHTML = i18n[this.store.uiLang].vDescPhysio;
-        } else {
-            this.dom.valTitle.textContent = i18n[this.store.uiLang].vTitle;
-            this.dom.valMsg.innerHTML = i18n[this.store.uiLang].vDescYellow;
-        }
-
-        this.dom.btnValNo.textContent = i18n[this.store.uiLang].vAnsNo;
-        this.dom.btnValYes.textContent = i18n[this.store.uiLang].vAnsYes;
-        this.dom.valModal.classList.remove('hidden');
-    }
-
-    handleTrapAnswer(isYes) {
-        let pid = this.state.trapTargetAction.type === 'prog' ? this.state.trapTargetAction.pid : this.store.getActive().lastProg;
-        let d = this.state.pDataCache[pid];
-
-        if (this.state.trapStage === 1) {
-            if (!isYes) {
-                this.dom.valModal.classList.add('hidden'); // Canceled
-            } else {
-                if (d.isHwRed || d.isPhysRed) {
-                    this.state.trapStage = 2; // Trigger double trap
-                    this.dom.valMsg.innerHTML = i18n[this.store.uiLang].vTrapQ;
-                    this.dom.btnValNo.textContent = i18n[this.store.uiLang].vTrapNo;
-                    this.dom.btnValYes.textContent = i18n[this.store.uiLang].vTrapYes;
-                } else {
-                    // Yellow is permitted instantly
-                    this.state.trapExempt = true;
-                    this.dom.valModal.classList.add('hidden');
-                    this.executeAction(this.state.trapTargetAction);
-                }
-            }
-        } else if (this.state.trapStage === 2) {
-            this.dom.valModal.classList.add('hidden');
-            if (isYes) {
-                // Trap worked! User pressed YES expecting to go forward, but we redirect them
-                // Do nothing, they return to the main settings UI safely
-            } else {
-                // Force Start (Explicit NO to the return suggestion)
-                this.state.trapExempt = true;
-                this.executeAction(this.state.trapTargetAction);
-            }
-        }
-    }
-
-    executeAction(action) {
-        if (action.type === 'prog') {
-            this.selectProgram(action.pid, false);
-        } else if (action.type === 'start') {
-            this.start();
-        }
-    }
-
-    selectProgram(pid, bypassRender = false) {
+    selectProgram(pid) {
         this.store.getActive().lastProg = pid; this.store.save();
         this.updateProgramButtons();
-        
-        let dData = this.state.pDataCache[pid];
-        if(!dData) return;
+        let d = this.state.pDataCache[pid]; if(!d) return;
         
         let i = i18n[this.store.uiLang];
-        if(this.dom.hudProgName) this.dom.hudProgName.textContent = i.prog[`p${pid}`][0];
-        if(this.dom.hudProgSpirit) this.dom.hudProgSpirit.textContent = i.prog[`p${pid}`][1];
-        if(this.dom.hudTime) this.dom.hudTime.textContent = `${this.dom.targetTime ? this.dom.targetTime.value : 60}:00`;
+        this.dom.sProgName.textContent = i.prog[`p${pid}`][0]; this.dom.sProgSpirit.textContent = i.prog[`p${pid}`][1];
+        this.dom.sHudTime.textContent = `${this.dom.targetTime ? this.dom.targetTime.value : 60}:00`;
         
-        this.state.matrix = dData.matrix;
-        
-        if(!bypassRender) {
-            this.drawChart(); 
-            if(dData.matrix.length) this.updateHUD(dData.matrix.length-1);
-        }
-        this.renderPreview(dData);
+        this.state.matrix = d.matrix;
+        this.renderPreview(d); this.renderCharts(); this.updateChartHUD('s'); this.updateChartHUD('r');
     }
 
-    drawChart() {
-        let m = this.state.matrix; let c = this.dom.canvas; 
-        if(!c || !m || !m.length || c.parentElement.clientWidth === 0) return;
-        let ctx = this.ctx;
-        
+    /** =========================================================================
+     *  動態圖表與絲滑連動 (Charts & Synchronized Scrolling)
+     *  ========================================================================= */
+    renderCharts() {
+        this.drawSingleChart('s', this.dom.sChart, this.ctxS);
+        this.drawSingleChart('r', this.dom.rChart, this.ctxR);
+    }
+
+    drawSingleChart(prefix, c, ctx) {
+        let m = this.state.matrix; 
+        if(!c || !ctx || !m || !m.length || c.parentElement.clientWidth === 0) return;
         let dpr = window.devicePixelRatio || 1;
         c.width = c.parentElement.clientWidth * dpr; c.height = c.parentElement.clientHeight * dpr; ctx.scale(dpr, dpr);
         let W = c.width / dpr; let H = c.height / dpr; ctx.clearRect(0,0,W,H);
         let T = m.length; if(T < 2) return;
 
         let mxS = Math.max(10, this.store.hw.maxSpd * (this.store.getActive().unit==='metric'?1.1:1.1*1.609));
-        let mxHr = 208 - 0.7 * this.store.getActive().age; 
         
         let getX = i => (i / (T - 1)) * W; let getY = (v, max, min=0) => H - ((v - min) / (max - min)) * H;
-
-        ctx.fillStyle = 'rgba(255, 69, 58, 0.1)';
-        for(let i=0; i<T-1; i++) { if(m[i].hr > mxHr * 0.9) ctx.fillRect(getX(i), 0, getX(i+1) - getX(i), H); }
+        
+        // Darken incomplete parts (only matters for Summary, but we can do it via a completedIdx logic)
+        let completedIdx = this.state.isRunning ? Math.floor(this.state.accumMs / 60000) : (prefix === 's' ? T : T);
+        if (document.getElementById('summaryModal').classList.contains('show')) {
+            completedIdx = this.state.curData ? Math.floor(this.state.curData.ms / 60000) : T;
+        }
 
         let draw = (fn, col, w, fill=false) => {
             ctx.beginPath(); ctx.moveTo(getX(0), fn(m[0]));
             for(let i=1; i<T; i++) ctx.lineTo(getX(i), fn(m[i]));
-            if(fill) { ctx.lineTo(W, H); ctx.lineTo(0, H); let g = ctx.createLinearGradient(0,0,0,H); g.addColorStop(0, col.replace('1)','0.3)')); g.addColorStop(1, 'transparent'); ctx.fillStyle = g; ctx.fill(); } 
-            else { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.stroke(); }
+            
+            if(fill) { 
+                ctx.lineTo(W, H); ctx.lineTo(0, H); 
+                let g = ctx.createLinearGradient(0,0,0,H); 
+                g.addColorStop(0, col.replace('1)','0.3)')); g.addColorStop(1, 'transparent'); 
+                ctx.fillStyle = g; ctx.fill(); 
+            } else { 
+                ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.stroke(); 
+            }
+            
+            // Darken mask for summary
+            if (completedIdx < T && document.getElementById('summaryModal').classList.contains('show')) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(getX(completedIdx), 0, W - getX(completedIdx), H);
+            }
         }
         
         draw(r => getY(r.hr, 220, 60), 'rgba(10, 132, 255, 0.6)', 2, true);
@@ -1707,131 +1442,252 @@ class OlympicTreadmill {
         draw(r => getY(r.spd, mxS, 0), 'rgba(57, 255, 20, 1)', 3);
     }
 
-    updateHUD(i) {
-        if(!this.state.matrix[i]) return; let m = this.state.matrix[i]; let isMet = this.store.getActive().unit === 'metric';
-        if(this.dom.hudSpd) this.dom.hudSpd.textContent = (isMet ? m.spd : m.spd/1.60934).toFixed(1);
-        if(this.dom.hudInc) this.dom.hudInc.textContent = m.inc.toFixed(1);
-        if(this.dom.hudHr) this.dom.hudHr.textContent = m.hr;
-        if(this.dom.hudLac) {
-            this.dom.hudLac.textContent = m.lac.toFixed(1);
-            let pData = this.state.pDataCache[this.store.getActive().lastProg];
-            let maxL = pData ? pData.pMaxLac : 16;
-            this.dom.hudLac.style.color = m.lac >= maxL ? 'var(--neon-red)' : 'var(--text-main)';
+    updateChartHUD(prefix, hoverIdx = -1) {
+        let m = this.state.matrix; if(!m || m.length === 0) return;
+        let p = this.state.pDataCache[this.store.getActive().lastProg];
+        let isMet = this.store.getActive().unit === 'metric';
+        
+        const setV = (id, val, prec = 1) => { let el = document.getElementById(prefix + id); if(el) el.textContent = val.toFixed(prec); };
+        const bdg = document.querySelectorAll(`.${prefix}-badge`);
+        
+        let cM = Math.floor(this.state.accumMs / 60000);
+        
+        if (hoverIdx === -1) {
+            // Show MAX
+            bdg.forEach(b => b.style.opacity = '1');
+            let mS = p.maxS, mI = p.maxI, mH = p.maxH, mL = p.maxL;
+            
+            // If Summary, show actual max
+            if (document.getElementById('summaryModal').classList.contains('show') && this.state.curData) {
+                let actual = m.slice(0, cM + 1);
+                mS = Math.max(...actual.map(x=>x.spd)); mI = Math.max(...actual.map(x=>x.inc));
+                mH = Math.max(...actual.map(x=>x.hr)); mL = Math.max(...actual.map(x=>x.lac));
+            }
+
+            setV('Spd', isMet ? mS : mS/1.609344); setV('Inc', mI);
+            setV('Hr', mH, 0); setV('Lac', mL);
+        } else {
+            // Show Hovered
+            bdg.forEach(b => b.style.opacity = '0');
+            let r = m[hoverIdx];
+            setV('Spd', isMet ? r.spd : r.spd/1.609344); setV('Inc', r.inc);
+            setV('Hr', r.hr, 0); setV('Lac', r.lac);
         }
+
+        // Bottom AVG
+        let aS = p.avgS, aI = p.avgI, aH = p.avgH, aL = p.avgL;
+        if (this.state.isRunning || document.getElementById('summaryModal').classList.contains('show')) {
+            let actual = m.slice(0, Math.max(1, cM + 1));
+            let t = actual.length;
+            aS = actual.reduce((s,x)=>s+x.spd,0)/t; aI = actual.reduce((s,x)=>s+x.inc,0)/t;
+            aH = actual.reduce((s,x)=>s+x.hr,0)/t; aL = actual.reduce((s,x)=>s+x.lac,0)/t;
+        }
+        setV('AvgSpd', isMet ? aS : aS/1.609344); setV('AvgInc', aI);
+        setV('AvgHr', aH, 0); setV('AvgLac', aL);
     }
 
-    getNutritionRx(mSSOT, cal) {
-        if (!mSSOT.bf || !mSSOT.smm) return null; 
-        let smmRatio = mSSOT.smm / mSSOT.wKG;
-        let ageFactor = mSSOT.age > 50 ? 1.1 : (mSSOT.age > 40 ? 1.05 : 1.0);
-        let bmrFactor = mSSOT.bmr > 0 ? Math.max(0.7, Math.min(1.5, (mSSOT.bmr / (mSSOT.wKG * 24)))) : 1.0;
+    scrollToRow(idx, smooth=true) {
+        if(!this.dom.list || idx < 0 || idx >= this.state.matrix.length) return;
+        this.dom.list.querySelectorAll('li').forEach(l => l.classList.remove('active-row'));
+        let a = document.getElementById(`min-row-${idx}`);
+        if(a) { a.classList.add('active-row'); a.scrollIntoView({behavior: smooth ? 'smooth' : 'auto', block:'center'}); }
+    }
+
+    bindChartEvents(prefix, cWrap) {
+        const moveCross = e => {
+            if(!this.state.matrix.length) return;
+            let r = cWrap.getBoundingClientRect();
+            let x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left; x = Math.max(0, Math.min(x, r.width));
+            let T = this.state.matrix.length; let idx = Math.min(T - 1, Math.floor((x / r.width) * T));
+            
+            let cross = document.getElementById(`${prefix}Crosshair`);
+            if(cross) { cross.style.display = 'block'; cross.style.left = `${(idx/T)*100}%`; }
+            this.updateChartHUD(prefix, idx);
+            
+            if (prefix === 'r' && !this.state.isSyncingList) {
+                this.state.isSyncingChart = true;
+                this.scrollToRow(idx, false);
+                clearTimeout(this.state.syncTimerC);
+                this.state.syncTimerC = setTimeout(() => this.state.isSyncingChart = false, 50);
+            }
+        };
+        const resetCross = () => {
+            let cross = document.getElementById(`${prefix}Crosshair`);
+            if(cross) cross.style.display='none';
+            this.updateChartHUD(prefix, -1);
+        };
+        cWrap.addEventListener('mousemove', moveCross); cWrap.addEventListener('touchmove', moveCross, {passive:true});
+        cWrap.addEventListener('mouseleave', resetCross); cWrap.addEventListener('touchend', resetCross);
+    }
+
+    bindEvents() {
+        if(this.dom.btnUiLang) this.dom.btnUiLang.addEventListener('click', () => { this.store.uiLang = this.store.uiLang==='zh'?'en':'zh'; this.store.save(); this.applyI18n(); });
+        if(this.dom.btnVoice) this.dom.btnVoice.addEventListener('click', () => { 
+            this.store.voiceOn = !this.store.voiceOn; this.store.save(); this.applyI18n(); 
+            if(this.store.voiceOn && !this.state.isRunning) this.ve.speak(this.store.uiLang === 'zh' ? '語音已開啟' : 'Voice On', 2); else this.ve.clear(); 
+        });
         
-        let proFactor = Math.max(1.2, Math.min(2.2, (1.2 + Math.max(0, smmRatio - 0.3) * 4) * ageFactor * bmrFactor));
-        let dailyPro = Math.round(mSSOT.wKG * proFactor + (cal / 100));
-        let basePostPro = mSSOT.wKG * 0.3 * ageFactor;
-        let effortBonus = (cal / 200) * 4; 
-        let postPro = Math.round(Math.min(65, Math.max(20, basePostPro + effortBonus)));
-        let carbRatio = cal > 800 ? 4 : (cal > 400 ? 3 : 2.5);
-        let postCarb = Math.round(postPro * carbRatio);
-        return { dailyPro, postPro, postCarb, postKcal: (postPro * 4) + (postCarb * 4) };
+        if(this.dom.tabSettings) this.dom.tabSettings.addEventListener('click', () => this.switchTab('settings')); 
+        if(this.dom.tabMatrix) this.dom.tabMatrix.addEventListener('click', () => this.switchTab('matrix'));
+        
+        let tab1Timer = null;
+        if(this.dom.tabSettings) {
+            this.dom.tabSettings.addEventListener('touchstart', () => { if(this.state.isRunning) tab1Timer = setTimeout(()=>this.openRunnerModal(), 800); }, {passive:true});
+            this.dom.tabSettings.addEventListener('touchend', () => clearTimeout(tab1Timer));
+            this.dom.tabSettings.addEventListener('dblclick', () => { if(this.state.isRunning) this.openRunnerModal(); });
+        }
+
+        // Metric/Imperial Inputs Conversion Logic inside Runner Modal
+        ['btnUnitM', 'btnUnitI'].forEach(id => {
+            let el = document.getElementById(id);
+            if(el) el.addEventListener('click', (e) => {
+                if(e.target.classList.contains('active')) return;
+                document.getElementById('btnUnitM').classList.remove('active'); document.getElementById('btnUnitI').classList.remove('active');
+                e.target.classList.add('active');
+                // Immediate recalculate fields
+                let isMet = id === 'btnUnitM'; let factor = isMet ? 1/2.20462 : 2.20462; let sFactor = isMet ? 1.609344 : 1/1.609344;
+                const conv = (eid, f) => { let el = document.getElementById(eid); if(el && el.value) el.value = (parseFloat(el.value) * f).toFixed(1).replace(/\.0+$/,''); };
+                conv('rmWeight', factor); conv('rmSMM', factor);
+                conv('rmMxS', sFactor); conv('rmMnS', sFactor); conv('hwMxS', sFactor); conv('hwMnS', sFactor);
+                // Also update labels dynamically
+                this.applyI18n();
+            });
+        });
+
+        // Toggle Buttons
+        ['btnSexM','btnSexF'].forEach(id => {
+            let el = document.getElementById(id);
+            if(el) el.addEventListener('click', (e) => { document.getElementById('btnSexM').classList.remove('active'); document.getElementById('btnSexF').classList.remove('active'); e.target.classList.add('active'); });
+        });
+        if (this.dom.apToggle) this.dom.apToggle.addEventListener('change', (e) => { this.dom.lblApDesc.textContent = e.target.checked ? 'ON' : 'OFF'; });
+
+        [this.dom.targetTime, this.dom.targetKm].forEach(el => {
+            if(el) el.addEventListener('input', () => {
+                if(this.state.isRunning) return;
+                if(el===this.dom.targetTime) this.dom.targetTimeVal.childNodes[0].nodeValue = el.value;
+                if(el===this.dom.targetKm) this.dom.targetKmVal.childNodes[0].nodeValue = parseFloat(el.value).toFixed(1);
+                clearTimeout(this.state.inputTimeout);
+                this.state.inputTimeout = setTimeout(() => { 
+                    let p = this.store.getActive(); let isMet = p.unit === 'metric';
+                    p.tTime = parseFloat(this.dom.targetTime.value); p.tKm = isMet ? parseFloat(this.dom.targetKm.value) : parseFloat(this.dom.targetKm.value)*1.609344;
+                    this.store.save(); this.evalPrograms(); this.selectProgram(p.lastProg);
+                }, 300);
+            });
+        });
+
+        if(this.dom.btnLeft) this.dom.btnLeft.addEventListener('click', () => this.openRunnerModal());
+        if(this.dom.btnRmCancel) this.dom.btnRmCancel.addEventListener('click', () => this.dom.runnerModal.classList.remove('show'));
+        if(this.dom.btnRmSave) this.dom.btnRmSave.addEventListener('click', () => this.saveRunnerProfile());
+        if(this.dom.btnRmRemove) this.dom.btnRmRemove.addEventListener('click', () => {
+            VirtualModal.confirm('Delete Profile?', i18n[this.store.uiLang].rmConf, () => {
+                delete this.store.profiles[this.store.activeP]; localStorage.removeItem(`history_${this.store.activeP}`);
+                this.store.activeP = Object.keys(this.store.profiles)[0]; this.store.save();
+                this.dom.runnerModal.classList.remove('show'); this.applyI18n();
+            });
+        });
+        if(this.dom.btnRmHistory) this.dom.btnRmHistory.addEventListener('click', () => { this.dom.runnerModal.classList.remove('show'); this.showHistory(); });
+        if(this.dom.btnDuplicate) this.dom.btnDuplicate.addEventListener('click', () => this.duplicateProfile());
+        if(this.dom.btnDropdown) this.dom.btnDropdown.addEventListener('click', (e) => { e.stopPropagation(); this.dom.dupDropdown.classList.toggle('show'); });
+        
+        document.addEventListener('click', (e) => { 
+            if(this.dom.dupDropdown && !e.target.closest('.dropdown-menu') && !e.target.closest('#btnDropdown')) this.dom.dupDropdown.classList.remove('show');
+            if(this.dom.apToggle && (e.target.closest('#tabContent2') || e.target.closest('#previewList'))) {
+                // User interacted with tab 2 during running
+                if (this.state.autoSwitchedTab) this.state.autoSwitchedTab = false; // Cancel auto-switch back
+            }
+        });
+
+        if (this.dom.sChart) this.bindChartEvents('s', this.dom.sChart.parentElement);
+        if (this.dom.rChart) this.bindChartEvents('r', this.dom.rChart.parentElement);
+        
+        if (this.dom.list) {
+            this.dom.list.addEventListener('scroll', () => {
+                if(!this.state.isRunning || this.state.isSyncingChart) return;
+                this.state.isSyncingList = true;
+                let lis = this.dom.list.querySelectorAll('li');
+                let centerLine = this.dom.list.getBoundingClientRect().top + this.dom.list.clientHeight / 2;
+                let minIdx = -1; let minDiff = Infinity;
+                lis.forEach((li, idx) => {
+                    let rect = li.getBoundingClientRect();
+                    let diff = Math.abs(rect.top + rect.height / 2 - centerLine);
+                    if(diff < minDiff) { minDiff = diff; minIdx = idx; }
+                });
+                if(minIdx >= 0) {
+                    let cross = document.getElementById(`rCrosshair`);
+                    if(cross) { cross.style.display = 'block'; cross.style.left = `${(minIdx/this.state.matrix.length)*100}%`; }
+                    this.updateChartHUD('r', minIdx);
+                }
+                clearTimeout(this.state.syncTimerL);
+                this.state.syncTimerL = setTimeout(() => { this.state.isSyncingList = false; if(document.getElementById('rCrosshair')) document.getElementById('rCrosshair').style.display='none'; this.updateChartHUD('r',-1); }, 100);
+            }, {passive: true});
+        }
+
+        // Run Controls
+        if(this.dom.btnRight) this.dom.btnRight.addEventListener('click', () => this.start()); 
+        if(this.dom.btnPause) this.dom.btnPause.addEventListener('click', () => this.pause());
+        if(this.dom.btnAskEnd) this.dom.btnAskEnd.addEventListener('click', () => { 
+            this.pause(); 
+            VirtualModal.confirm(i18n[this.store.uiLang].endAsk, i18n[this.store.uiLang].endDesc, () => this.endWorkout(), () => this.start());
+        });
+        
+        if(this.dom.btnSumClose) this.dom.btnSumClose.addEventListener('click', () => { this.dom.summaryModal.classList.remove('show'); this.resetToInit(); });
+        if(this.dom.btnHistClose) this.dom.btnHistClose.addEventListener('click', () => this.dom.historyModal.classList.remove('show'));
+        if(this.dom.btnClearHist) this.dom.btnClearHist.addEventListener('click', () => { 
+            VirtualModal.confirm(i18n[this.store.uiLang].clearAsk, i18n[this.store.uiLang].clearDesc, () => { localStorage.removeItem(`history_${this.store.activeP}`); this.showHistory(); });
+        });
+
+        document.addEventListener('visibilitychange', () => { if(document.visibilityState==='visible' && this.state.isRunning) this.reqWL(); });
+        window.addEventListener('beforeunload', (e) => { if (this.state.isRunning) { e.preventDefault(); e.returnValue = ''; } });
     }
 
     renderPreview(pData) {
         if(!this.state.matrix || this.state.matrix.length === 0) return;
-        const d = i18n[this.store.uiLang]; let isMet = this.store.getActive().unit === 'metric';
-        let T=this.state.matrix.length, lD=this.state.matrix[T-1];
-        let avgSpdKm = lD.ccD/T*60; let avgSpdDisp = isMet ? avgSpdKm : avgSpdKm / 1.60934;
-        let safeCal = isNaN(lD.cC) ? "--" : Math.round(lD.cC); let safeAvg = isNaN(avgSpdDisp) ? "--" : avgSpdDisp.toFixed(1);
-        let uSpd = isMet ? "kph" : "mph"; 
-        
-        if(this.dom.estCalAvg) this.dom.estCalAvg.textContent = `${safeCal} kcal | ${safeAvg} ${uSpd}`;
-        if(this.dom.eZ1) {
-            this.dom.eZ1.textContent = `${lD.z1Acc}${d.mins}`; this.dom.eZ2.textContent = `${lD.z2Acc}${d.mins}`;
-            this.dom.eZ3.textContent = `${lD.z3Acc}${d.mins}`; this.dom.eZ4.textContent = `${lD.z4Acc}${d.mins}`;
-            this.dom.eZ5.textContent = `${lD.z5Acc}${d.mins}`;
-        }
-
-        let rx = this.getNutritionRx(this.store.getSanitized(), isNaN(lD.cC) ? 0 : lD.cC);
-        if(this.dom.nutriBlock) {
-            this.dom.nutriBlock.innerHTML = rx ? `<div class="nutri-adv"><strong>${d.nutriRx}</strong><br>${d.nutriPost.replace('{p}', rx.postPro).replace('{c}', rx.postCarb).replace('{k}', rx.postKcal)}<br>${d.nutriDaily.replace('{p}', rx.dailyPro)}</div>` : `<div class="nutri-warn">${d.nutriMissing}</div>`;
-        }
-
+        let isMet = this.store.getActive().unit === 'metric'; let uSpd = isMet ? "kph" : "mph"; 
         if(this.dom.list) {
             this.dom.list.innerHTML = '';
-            let maxLac = pData.pMaxLac;
             this.state.matrix.forEach((r, i) => {
                 let li = document.createElement('li'); li.id = `min-row-${i}`; 
                 let pt = VoiceDB[this.store.uiLang].phases[r.phase] || r.phase;
-                let sDisp = isMet ? r.spd : r.spd / 1.60934;
-                
-                let rowLacColor = r.lac >= maxLac ? "var(--neon-red)" : (r.lac >= maxLac*0.85 ? "var(--neon-yellow)" : "var(--text-main)");
-                if (r.lac >= maxLac) li.classList.add('max-lac-row');
-                
-                li.innerHTML = `<span class="min-tag">${String(r.m).padStart(2,'0')}m</span><span class="speed-tag">${sDisp.toFixed(1)}${uSpd}</span><span class="inc-tag">${r.inc}%</span><span class="phase-tag">${pt}</span><span class="bio-tag"><svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>${r.hr} <svg viewBox="0 0 24 24"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8zm0 16c-3.35 0-6-2.57-6-6.2 0-2.34 1.95-5.44 6-9.14 4.05 3.7 6 6.79 6 9.14 0 3.63-2.65 6.2-6 6.2z"/></svg><span style="color:${rowLacColor}; font-weight:bold;">${r.lac.toFixed(1)}</span></span>`;
+                let sDisp = isMet ? r.spd : r.spd / 1.609344;
+                li.innerHTML = `<span class="min-tag">${String(r.m).padStart(2,'0')}m</span><span class="speed-tag">${sDisp.toFixed(1)}${uSpd}</span><span class="inc-tag">${r.inc.toFixed(1)}%</span><span class="phase-tag">${pt}</span><span class="bio-tag"><svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>${r.hr}</span>`;
                 this.dom.list.appendChild(li);
             });
-        }
-    }
-
-    scrollToRow() {
-        if(!this.dom.list) return;
-        this.dom.list.querySelectorAll('li').forEach(l => {
-            l.classList.remove('active-row');
-            let sTag = l.querySelector('.speed-tag'); let iTag = l.querySelector('.inc-tag');
-            if(sTag) sTag.classList.remove('pulse-speed-active'); if(iTag) iTag.classList.remove('pulse-inc-active');
-        });
-        if(this.state.currMinIdx >= 0 && this.state.currMinIdx < this.state.matrix.length) {
-            let a = document.getElementById(`min-row-${this.state.currMinIdx}`);
-            if(a) { a.classList.add('active-row'); a.scrollIntoView({behavior:'smooth', block:'center'}); }
         }
     }
 
     async reqWL() { try { if('wakeLock' in navigator) this.state.wakeLock = await navigator.wakeLock.request('screen'); } catch(e){} }
 
     start() {
-        this.reqWL(); this.readCoreSliders();
+        this.reqWL(); NotificationManager.hide();
         document.body.classList.add('is-running');
-        if(this.dom.setupView) this.dom.setupView.classList.remove('active');
-        if(this.dom.runView) this.dom.runView.classList.add('active');
+        this.dom.setupView.classList.remove('active'); this.dom.runView.classList.add('active');
         this.switchTab('settings'); 
 
-        if(this.dom.btnLeft) this.dom.btnLeft.classList.add('hidden');
-        if(this.dom.btnRight) this.dom.btnRight.classList.add('hidden');
-        if(this.dom.btnPause) this.dom.btnPause.classList.remove('hidden');
-        if(this.dom.btnAskEnd) this.dom.btnAskEnd.classList.remove('hidden');
+        this.dom.btnLeft.classList.add('hidden'); this.dom.btnRight.classList.add('hidden');
+        this.dom.btnPause.classList.remove('hidden'); this.dom.btnAskEnd.classList.remove('hidden');
         
-        document.querySelectorAll('.locked-target input').forEach(el => el.classList.add('locked'));
+        this.state.isRunning = true; this.state.lastTick = Date.now();
+        this.applyI18n(); // Changes Tab 1 name to First Name
         
-        this.state.isRunning = true; 
-        this.state.startTime = Date.now() - this.state.accumMs;
-        this.state.lastTick = Date.now();
-        
-        let d = i18n[this.store.uiLang];
-        if (this.state.accumMs > 0) {
-            let tMs = this.state.matrix.length * 60000;
-            let remMs = tMs - this.state.accumMs;
-            this.ve.speak('workoutResumed', 1, {m: Math.floor(remMs / 60000), s: Math.floor((remMs % 60000) / 1000)});
-        } else {
+        if (this.state.accumMs === 0) {
             this.state.curData = { ms:0, dist:0, cal:0, z: [0,0,0,0,0], trans:{} };
             this.ve.speak('workoutBegins', 1, { t: this.state.matrix.length });
         }
-        
         window.scrollTo({ top: 0, behavior: 'instant' });
         this.tick();
     }
     
     pause() { 
         this.state.isRunning = false; document.body.classList.remove('is-running'); 
-        if(this.dom.btnPause) this.dom.btnPause.classList.add('hidden'); 
-        if(this.dom.btnRight) this.dom.btnRight.classList.remove('hidden'); 
-        if(this.dom.lblBtnRight) this.dom.lblBtnRight.textContent = i18n[this.store.uiLang].rsm; 
+        this.dom.btnPause.classList.add('hidden'); this.dom.btnRight.classList.remove('hidden'); 
+        this.dom.lblBtnRight.textContent = i18n[this.store.uiLang].rsm; 
         if(this.state.wakeLock){this.state.wakeLock.release();this.state.wakeLock=null;} 
         this.ve.clear(); 
     }
     
     endWorkout() {
         this.pause(); let d = this.state.curData;
-        if(!d || d.dist === 0) { this.resetToInit(); return; }
+        if(!d || d.ms < 10000) { this.resetToInit(); return; } // Prevent NaN and empty data
         
         let tM = Math.floor(d.ms / 60000); let tS = Math.floor((d.ms % 60000) / 1000);
         let tStr = `${String(tM).padStart(2,'0')}:${String(tS).padStart(2,'0')}`;
@@ -1843,23 +1699,19 @@ class OlympicTreadmill {
             if(h.length > 30) h.pop(); localStorage.setItem(`history_${this.store.activeP}`, JSON.stringify(h));
         } catch(e){}
         
-        this.showSummary(tStr, d.dist, d.cal, aS, d.z); this.resetToInit();
+        this.showSummary(tStr, d.dist, d.cal, aS, d.z); 
     }
 
     resetToInit() {
         this.pause(); this.state.accumMs = 0; this.state.curData = null; this.state.currMinIdx = -1; this.state.autoSwitchedTab = false;
         document.body.classList.remove('is-running');
-        if(this.dom.setupView) this.dom.setupView.classList.add('active');
-        if(this.dom.runView) this.dom.runView.classList.remove('active');
+        this.dom.setupView.classList.add('active'); this.dom.runView.classList.remove('active');
         
-        if(this.dom.btnAskEnd) this.dom.btnAskEnd.classList.add('hidden'); 
-        if(this.dom.btnPause) this.dom.btnPause.classList.add('hidden');
-        if(this.dom.btnLeft) this.dom.btnLeft.classList.remove('hidden'); 
-        if(this.dom.btnRight) this.dom.btnRight.classList.remove('hidden'); 
-        document.querySelectorAll('.locked-target input').forEach(el => el.classList.remove('locked'));
-
-        if(this.dom.lblBtnRight) this.dom.lblBtnRight.textContent = i18n[this.store.uiLang].sta; 
-        this.switchTab('settings'); 
+        this.dom.btnAskEnd.classList.add('hidden'); this.dom.btnPause.classList.add('hidden');
+        this.dom.btnLeft.classList.remove('hidden'); this.dom.btnRight.classList.remove('hidden'); 
+        this.dom.lblBtnRight.textContent = i18n[this.store.uiLang].sta; 
+        
+        this.applyI18n(); this.switchTab('settings'); 
         if(this.dom.topProgressBar) this.dom.topProgressBar.style.width="0%"; 
         if(this.dom.topProgressText) this.dom.topProgressText.textContent="0%"; 
     }
@@ -1867,7 +1719,6 @@ class OlympicTreadmill {
     tick() {
         if(!this.state.isRunning) return;
         const now = Date.now(); let delta = now - this.state.lastTick; this.state.lastTick = now;
-        
         let m = this.state.matrix; let totMs = m.length * 60000;
         if(this.state.accumMs >= totMs) { this.endWorkout(); return; }
 
@@ -1889,23 +1740,46 @@ class OlympicTreadmill {
 
         if(!skipMute) {
             if(!d.trans[cM]) d.trans[cM] = { t: false, p: false, tab: false };
+            let p = this.store.getActive(); let isMet = p.unit === 'metric';
             
+            // Auto-Pilot Logic
             if(cS > 44000 && cM < m.length - 1 && !d.trans[cM].tab) {
                 d.trans[cM].tab = true;
-                let n = m[cM + 1];
-                if(n.phase !== curM.phase || Math.abs(n.spd - curM.spd) > 0.2 || Math.abs(n.inc - curM.inc) >= 1.0) {
+                if(p.autoPilot) {
                     this.switchTab('matrix'); this.state.autoSwitchedTab = true;
                 }
             }
-            if(cS > 2000 && cS < 10000 && this.state.autoSwitchedTab) {
+            if(p.autoPilot && cS > 1000 && cS < 10000 && this.state.autoSwitchedTab) {
                 this.switchTab('settings'); this.state.autoSwitchedTab = false;
+            }
+            
+            // Teaser UI (when Auto-Pilot is OFF)
+            if(!p.autoPilot && cM < m.length - 1) {
+                let n = m[cM + 1]; let diffS = n.spd - curM.spd; let diffI = n.inc - curM.inc;
+                let showTeaser = (id, show, blink, text, color) => {
+                    let el = this.dom[id];
+                    if(!show) { el.classList.remove('show', 'blink'); return; }
+                    el.textContent = text; el.style.color = color;
+                    el.classList.add('show'); if(blink) el.classList.add('blink'); else el.classList.remove('blink');
+                };
+                
+                if (cS >= 45000 && cS < 55000) {
+                    showTeaser('teaserSpd', Math.abs(diffS)>0.1, false, diffS>0?`+${(isMet?diffS:diffS/1.609).toFixed(1)}`:`${(isMet?diffS:diffS/1.609).toFixed(1)}`, diffS>0?'var(--neon-green)':'var(--neon-red)');
+                    showTeaser('teaserInc', Math.abs(diffI)>=1.0, false, diffI>0?`+${diffI.toFixed(1)}`:`${diffI.toFixed(1)}`, diffI>0?'var(--neon-yellow)':'var(--neon-red)');
+                } else if (cS >= 55000) {
+                    showTeaser('teaserSpd', Math.abs(diffS)>0.1, true, (isMet?n.spd:n.spd/1.609).toFixed(1), 'var(--neon-green)');
+                    showTeaser('teaserInc', Math.abs(diffI)>=1.0, true, n.inc.toFixed(1), 'var(--neon-yellow)');
+                } else {
+                    showTeaser('teaserSpd', false); showTeaser('teaserInc', false);
+                }
+            } else {
+                this.dom.teaserSpd.classList.remove('show'); this.dom.teaserInc.classList.remove('show');
             }
             
             if(cS > 45000 && cM < m.length - 1 && !d.trans[cM].t) {
                 d.trans[cM].t = true; let n = m[cM + 1];
                 if(n.phase !== curM.phase || Math.abs(n.spd - curM.spd) > 0.2 || Math.abs(n.inc - curM.inc) >= 1.0) {
-                    let isMet = this.store.getActive().unit === 'metric';
-                    this.ve.speak('trans', 1, { s: isMet ? n.spd : n.spd / 1.60934, i: n.inc });
+                    this.ve.speak('trans', 1, { s: isMet ? n.spd : n.spd / 1.609344, i: n.inc });
                     let nLi = document.getElementById(`min-row-${cM + 1}`);
                     if (nLi) {
                         if (Math.abs(n.spd - curM.spd) > 0.1) nLi.querySelector('.speed-tag').classList.add('pulse-speed-active');
@@ -1915,9 +1789,7 @@ class OlympicTreadmill {
             }
             
             if(cS > 20000 && !d.trans[cM].p) {
-                d.trans[cM].p = true; 
-                let pData = this.state.pDataCache[this.store.getActive().lastProg];
-                let maxLac = pData ? pData.pMaxLac : 16;
+                d.trans[cM].p = true; let pData = this.state.pDataCache[p.lastProg]; let maxLac = pData ? pData.pMaxLac : 16;
                 if(pHR > 0.95) this.ve.speak('warn_hr', 2);
                 else if(curM.lac > maxLac * 0.9) this.ve.speak('warn_lac', 2);
                 else if(curM.phase === 'sprint' || curM.phase === 'exhaust') this.ve.speak(pHR > 0.9 ? 'val_high' : 'phy_ana', 0);
@@ -1934,75 +1806,141 @@ class OlympicTreadmill {
     renderRunDash(rMs, totMs, curM, cM) {
         if (!this.state.isRunning) return;
         let isMet = this.store.getActive().unit === 'metric'; let rS = Math.floor(rMs / 1000);
-        let dLoc = i18n[this.store.uiLang];
-        
-        if(this.dom.massiveTime) FastDOM.text(this.dom.massiveTime, `${String(Math.floor(rS/60)).padStart(2,'0')}:${String(rS%60).padStart(2,'0')}.${Math.floor((rMs%1000)/100)}`);
-        
         let pct = ((totMs - rMs) / totMs) * 100; if(pct > 100) pct = 100;
-        if(this.dom.topProgressText) FastDOM.text(this.dom.topProgressText, pct.toFixed(1) + '%'); 
-        if(this.dom.topProgressBar) FastDOM.width(this.dom.topProgressBar, pct.toFixed(1) + '%');
+        
+        FastDOM.text(this.dom.massiveTime, `${String(Math.floor(rS/60)).padStart(2,'0')}:${String(rS%60).padStart(2,'0')}.${Math.floor((rMs%1000)/100)}`);
+        FastDOM.text(this.dom.topProgressText, pct.toFixed(1) + '%'); FastDOM.width(this.dom.topProgressBar, pct.toFixed(1) + '%');
         
         if(cM !== this.state.currMinIdx) {
             this.state.currMinIdx = cM;
-            this.scrollToRow();
+            this.scrollToRow(cM);
+            this.updateChartHUD('r'); // Update rolling AVG
+        }
+        
+        // Runtime Crosshair Smooth Sync
+        if (this.dom.tabContent2.classList.contains('active') && !this.state.isSyncingList && this.dom.rCrosshair) {
+            this.dom.rCrosshair.style.display = 'block';
+            this.dom.rCrosshair.style.left = `${(this.state.accumMs / totMs) * 100}%`;
         }
 
         let d = this.state.curData;
-        if(this.dom.runDist) FastDOM.text(this.dom.runDist, (isMet ? d.dist : d.dist/1.60934).toFixed(2));
-        if(this.dom.runCal) FastDOM.text(this.dom.runCal, Math.floor(d.cal));
-        if(this.dom.runSpd) FastDOM.text(this.dom.runSpd, (isMet ? curM.spd : curM.spd/1.60934).toFixed(1));
-        if(this.dom.runInc) FastDOM.text(this.dom.runInc, curM.inc.toFixed(1));
-        if(this.dom.runHr) FastDOM.text(this.dom.runHr, curM.hr); 
+        FastDOM.text(this.dom.runDist, (isMet ? d.dist : d.dist/1.609344).toFixed(2));
+        FastDOM.text(this.dom.runCal, `${Math.floor(d.cal)} kcal`);
+        FastDOM.text(this.dom.runSpd, (isMet ? curM.spd : curM.spd/1.609344).toFixed(1));
+        FastDOM.text(this.dom.runInc, curM.inc.toFixed(1));
+        FastDOM.text(this.dom.runHr, curM.hr); FastDOM.text(this.dom.runLac, curM.lac.toFixed(1));
+        FastDOM.text(this.dom.runPace, getPaceStr(curM.spd, isMet));
         
-        if(this.dom.runLac) {
-            FastDOM.text(this.dom.runLac, curM.lac.toFixed(1));
-            let pData = this.state.pDataCache[this.store.getActive().lastProg];
-            let maxLac = pData ? pData.pMaxLac : 16;
-            if (curM.lac >= maxLac) this.dom.runLac.className = 'r-s-val txt-red';
-            else if (curM.lac >= maxLac * 0.85) this.dom.runLac.className = 'r-s-val txt-yellow';
-            else this.dom.runLac.className = 'r-s-val';
+        let pData = this.state.pDataCache[this.store.getActive().lastProg];
+        let maxLac = pData ? pData.pMaxLac : 16;
+        if (curM.lac >= maxLac) this.dom.runLac.className = 'r-s-val txt-red'; else if (curM.lac >= maxLac * 0.85) this.dom.runLac.className = 'r-s-val txt-yellow'; else this.dom.runLac.className = 'r-s-val';
+        
+        // Update Zone Dash
+        const updateZ = (id, val, total) => {
+            let m = Math.round(val); document.getElementById(id+'Val').textContent = `${m}m`;
+            let w = total>0 ? (val/total)*100 : 0; document.getElementById(id+'Fill').style.width = `${w}%`;
+        };
+        let tM = cM + 1; // current minutes
+        updateZ('z1', d.z[0], tM); updateZ('z2', d.z[1], tM); updateZ('z3', d.z[2], tM); updateZ('z4', d.z[3], tM); updateZ('z5', d.z[4], tM);
+        
+        // Active Zone Pulse
+        document.querySelectorAll('.zd-row').forEach(el => el.classList.remove('active-zone'));
+        document.querySelector(`.z${curM.z}-row`).classList.add('active-zone');
+    }
+
+    getNutritionRx(p, cal) {
+        let isDefault = (!p.bf || !p.smm);
+        let smmRatio = p.smm / p.wKG; let ageFactor = p.age > 50 ? 1.1 : (p.age > 40 ? 1.05 : 1.0);
+        let bmrFactor = p.bmr > 0 ? Math.max(0.7, Math.min(1.5, (p.bmr / (p.wKG * 24)))) : 1.0;
+        
+        let proFactor = Math.max(1.2, Math.min(2.2, (1.2 + Math.max(0, smmRatio - 0.3) * 4) * ageFactor * bmrFactor));
+        let dailyPro = Math.round(p.wKG * proFactor + (cal / 100));
+        let basePostPro = p.wKG * 0.3 * ageFactor; let effortBonus = (cal / 200) * 4; 
+        let postPro = Math.round(Math.min(65, Math.max(20, basePostPro + effortBonus)));
+        let carbRatio = cal > 800 ? 4 : (cal > 400 ? 3 : 2.5); let postCarb = Math.round(postPro * carbRatio);
+        
+        let hint = "";
+        if (isDefault) {
+            let i = i18n[this.store.uiLang];
+            if (!p.bf && !p.smm) hint = i.nutriHintSmmBf; else if (!p.smm) hint = i.nutriHintSmm; else hint = i.nutriHintBf;
         }
         
-        if(this.dom.runPace) FastDOM.text(this.dom.runPace, getPaceStr(curM.spd, isMet));
-        
-        ['valZ1T','valZ2T','valZ3T','valZ4T','valZ5T'].forEach((id, i) => { if(this.dom[id]) FastDOM.text(this.dom[id], `${Math.round(d.z[i])}${dLoc.mins}`); });
+        return { dailyPro, postPro, postCarb, postKcal: (postPro * 4) + (postCarb * 4), hint };
     }
 
     showSummary(tStr, dKm, cal, avgS, z) {
-        let isMet = this.store.getActive().unit === 'metric'; let d = i18n[this.store.uiLang]; let rx = this.getNutritionRx(this.store.getSanitized(), cal);
-        let nutriHtml = rx ? `<div class="nutri-adv" style="margin-top:15px; border-top: 1px dashed #333; padding-top:10px;"><strong style="color:var(--neon-yellow);">${d.nutriRx}</strong><br><span style="color:var(--gray-light); font-size:0.95rem;">${d.nutriPost.replace('{p}', rx.postPro).replace('{c}', rx.postCarb).replace('{k}', rx.postKcal)}<br>${d.nutriDaily.replace('{p}', rx.dailyPro)}</span></div>` : `<div class="nutri-warn">${d.nutriMissing}</div>`;
+        let isMet = this.store.getActive().unit === 'metric'; let d = i18n[this.store.uiLang]; 
+        let rx = this.getNutritionRx(this.store.getSanitized(), cal);
         
+        let nutriHtml = `<div style="margin-top:15px; border-top: 1px dashed #333; padding-top:10px;"><strong style="color:var(--neon-yellow);">${d.nutriRx}</strong><br><span style="color:var(--gray-light); font-size:0.95rem;">${d.nutriPost.replace('{p}', rx.postPro).replace('{c}', rx.postCarb).replace('{k}', rx.postKcal)}<br>${d.nutriDaily.replace('{p}', rx.dailyPro)}</span></div>`;
+        if (rx.hint) nutriHtml += `<div style="margin-top:6px; font-size:0.75rem; color:var(--gray);">${rx.hint}</div>`;
+
+        // Inject the sChart DOM structure into Summary to render the actual run
+        let chartHtml = `
+            <div class="chart-bento" style="margin-top:15px; border-radius:12px; overflow:hidden;">
+                <!-- MAX Row -->
+                <div class="chart-data-row top-row" style="background:#111;">
+                    <div class="hud-val-box"><span class="hud-val-lbl">${isMet?'Spd(k)':'Spd(m)'}</span><div class="hud-val c-spd"><span id="sumMaxSpd">--</span></div><span class="max-badge">MAX</span></div>
+                    <div class="hud-val-box"><span class="hud-val-lbl">Incline</span><div class="hud-val c-inc"><span id="sumMaxInc">--</span></div><span class="max-badge">MAX</span></div>
+                    <div class="hud-val-box"><span class="hud-val-lbl">HR</span><div class="hud-val c-hr"><span id="sumMaxHr">--</span></div><span class="max-badge">MAX</span></div>
+                    <div class="hud-val-box"><span class="hud-val-lbl">Lac</span><div class="hud-val c-lac"><span id="sumMaxLac">--</span></div><span class="max-badge">MAX</span></div>
+                </div>
+                <!-- Canvas -->
+                <div class="canvas-container" style="height:140px;">
+                    <canvas id="sumChart"></canvas>
+                    <div class="crosshair" id="sumCrosshair"></div>
+                </div>
+                <!-- AVG Row -->
+                <div class="chart-data-row bottom-row" style="background:#111;">
+                    <div class="hud-val-box"><div class="hud-val" style="font-size:0.8rem; color:var(--gray-light);"><span id="sumAvgSpd">--</span></div><span class="max-badge" style="background:var(--bg-panel); color:var(--gray-light);">AVG</span></div>
+                    <div class="hud-val-box"><div class="hud-val" style="font-size:0.8rem; color:var(--gray-light);"><span id="sumAvgInc">--</span></div><span class="max-badge" style="background:var(--bg-panel); color:var(--gray-light);">AVG</span></div>
+                    <div class="hud-val-box"><div class="hud-val" style="font-size:0.8rem; color:var(--gray-light);"><span id="sumAvgHr">--</span></div><span class="max-badge" style="background:var(--bg-panel); color:var(--gray-light);">AVG</span></div>
+                    <div class="hud-val-box"><div class="hud-val" style="font-size:0.8rem; color:var(--gray-light);"><span id="sumAvgLac">--</span></div><span class="max-badge" style="background:var(--bg-panel); color:var(--gray-light);">AVG</span></div>
+                </div>
+            </div>`;
+
         if(this.dom.summaryContent) {
             this.dom.summaryContent.innerHTML = `
                 <div class="summary-stat"><span>${d.tim}</span><span class="summary-val">${tStr}</span></div>
-                <div class="summary-stat"><span>${(isMet?d.km:d.mi).split('(')[0]}</span><span class="summary-val">${(isMet?dKm:dKm/1.60934).toFixed(2)} ${isMet?'km':'mi'}</span></div>
+                <div class="summary-stat"><span>${(isMet?d.km:d.mi).split('(')[0]}</span><span class="summary-val">${(isMet?dKm:dKm/1.609344).toFixed(2)} ${isMet?'km':'mi'}</span></div>
                 <div class="summary-stat"><span>Kcal</span><span class="summary-val">${Math.round(cal)}</span></div>
-                <div class="summary-stat"><span>${d.avg}</span><span class="summary-val">${(isMet?avgS:avgS/1.60934).toFixed(1)} ${isMet?'kph':'mph'}</span></div>
-                <div class="zone-summary" style="margin-top:15px; border-top:0;">
-                    <div class="z-item z1"><span>${d.z1.split(' ')[0]}</span> <span>${Math.round(z[0])}${d.mins}</span></div>
-                    <div class="z-item z2"><span>${d.z2.split(' ')[0]}</span> <span>${Math.round(z[1])}${d.mins}</span></div>
-                    <div class="z-item z3"><span>${d.z3.split(' ')[0]}</span> <span>${Math.round(z[2])}${d.mins}</span></div>
-                    <div class="z-item z4"><span>${d.z4.split(' ')[0]}</span> <span>${Math.round(z[3])}${d.mins}</span></div>
-                    <div class="z-item z5"><span>${d.z5.split(' ')[0]}</span> <span>${Math.round(z[4])}${d.mins}</span></div>
+                <div class="summary-stat"><span>Pace</span><span class="summary-val">${getPaceStr(avgS, isMet)}/km</span></div>
+                
+                <div style="margin-top:15px; display:flex; flex-direction:column; gap:8px;">
+                    <div class="zd-row"><div class="zd-lbl" style="color:var(--text-main);">Zone 1 (Recovery)</div><div class="zd-bar-bg"><div class="zd-bar-fill z1-color" style="width:${Math.max(2, (z[0]/60)*100)}%"></div></div><div class="zd-val">${Math.round(z[0])}m</div></div>
+                    <div class="zd-row"><div class="zd-lbl" style="color:var(--neon-blue);">Zone 2 (Fat Burn)</div><div class="zd-bar-bg"><div class="zd-bar-fill z2-color" style="width:${Math.max(2, (z[1]/60)*100)}%"></div></div><div class="zd-val">${Math.round(z[1])}m</div></div>
+                    <div class="zd-row"><div class="zd-lbl" style="color:var(--neon-green);">Zone 3 (Tempo)</div><div class="zd-bar-bg"><div class="zd-bar-fill z3-color" style="width:${Math.max(2, (z[2]/60)*100)}%"></div></div><div class="zd-val">${Math.round(z[2])}m</div></div>
+                    <div class="zd-row"><div class="zd-lbl" style="color:var(--neon-yellow);">Zone 4 (Threshold)</div><div class="zd-bar-bg"><div class="zd-bar-fill z4-color" style="width:${Math.max(2, (z[3]/60)*100)}%"></div></div><div class="zd-val">${Math.round(z[3])}m</div></div>
+                    <div class="zd-row"><div class="zd-lbl" style="color:var(--neon-red);">Zone 5 (Anaerobic)</div><div class="zd-bar-bg"><div class="zd-bar-fill z5-color" style="width:${Math.max(2, (z[4]/60)*100)}%"></div></div><div class="zd-val">${Math.round(z[4])}m</div></div>
                 </div>
+                ${chartHtml}
                 ${nutriHtml}
             `;
         }
-        if(this.dom.summaryModal) this.dom.summaryModal.classList.remove('hidden');
-        let finishVoice = this.store.uiLang === 'zh' ? `訓練結束，距離 ${(isMet?dKm:dKm/1.60934).toFixed(1)} ${isMet?'公里':'英里'}。` : `Workout finished. Distance ${(isMet?dKm:dKm/1.60934).toFixed(1)} ${isMet?'kilometers':'miles'}.`;
-        this.ve.clear(); let msg = new SpeechSynthesisUtterance(finishVoice); msg.lang = this.store.uiLang === 'zh' ? 'zh-TW' : 'en-US';
-        if (this.store.voiceOn) window.speechSynthesis.speak(msg);
+        
+        this.dom.summaryModal.classList.add('show');
+        
+        // Render Summary Chart
+        setTimeout(() => {
+            let sumC = document.getElementById('sumChart');
+            if (sumC) {
+                this.drawSingleChart('sum', sumC, sumC.getContext('2d', {alpha: false}));
+                this.bindChartEvents('sum', sumC.parentElement); // Yes, interactive!
+                this.updateChartHUD('sum', -1);
+            }
+        }, 100);
+
+        let finishVoice = this.store.uiLang === 'zh' ? `訓練結束，距離 ${(isMet?dKm:dKm/1.609344).toFixed(1)} ${isMet?'公里':'英里'}。` : `Workout finished. Distance ${(isMet?dKm:dKm/1.609344).toFixed(1)} ${isMet?'kilometers':'miles'}.`;
+        this.ve.speak(finishVoice, 2);
     }
 
     showHistory() {
-        let hist = [];
-        try { hist = JSON.parse(localStorage.getItem(`history_${this.store.activeP}`) || '[]'); } catch(e){}
+        let hist = []; try { hist = JSON.parse(localStorage.getItem(`history_${this.store.activeP}`) || '[]'); } catch(e){}
         let html = ''; let isMet = this.store.getActive().unit === 'metric';
-        if(hist.length === 0) {
-            html = `<p style="color:var(--gray); margin-top:20px; text-align:center;">${i18n[this.store.uiLang].noHistory}</p>`;
-        } else {
+        if(hist.length === 0) { html = `<p style="color:var(--gray); margin-top:20px; text-align:center;">${i18n[this.store.uiLang].noHistory}</p>`; } 
+        else {
             hist.forEach(h => {
-                let dDisp = isMet ? h.distKm : h.distKm / 1.60934; let sDisp = isMet ? h.avgSpdKm : h.avgSpdKm / 1.60934;
+                let dDisp = isMet ? h.distKm : h.distKm / 1.609344; let sDisp = isMet ? h.avgSpdKm : h.avgSpdKm / 1.609344;
                 let zInfo = (h.z && h.z.length===5) ? `<div style="font-size:0.8rem; color:var(--gray); margin-top:4px;">Z1: ${Math.round(h.z[0])} | Z2: ${Math.round(h.z[1])} | Z3: ${Math.round(h.z[2])} | Z4: ${Math.round(h.z[3])} | Z5: ${Math.round(h.z[4])}</div>` : '';
                 html += `<div class="history-item">
                             <div class="history-date">${h.date}</div>
@@ -2015,12 +1953,11 @@ class OlympicTreadmill {
             });
         }
         if(this.dom.historyContent) this.dom.historyContent.innerHTML = html; 
-        if(this.dom.historyModal) this.dom.historyModal.classList.remove('hidden');
+        this.dom.historyModal.classList.add('show');
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => { 
-    try { window.app = new OlympicTreadmill(); } 
-    catch (e) { sysToast(`OS Boot Failure: ${e.message}`); console.error(e); }
-});
+document.addEventListener('DOMContentLoaded', () => { window.app = new OlympicTreadmill(); });
 </script>
+</body>
+</html>
