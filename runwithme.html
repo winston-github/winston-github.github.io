@@ -3,222 +3,216 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <!-- 禁止原生干擾 -->
+    <!-- 阻擋 Safari 預設的電話號碼辨識與連點放大 -->
     <meta name="format-detection" content="telephone=no">
-    <title>Pro Treadmill OS (Olympic V27 - Refactored)</title>
+    <title>Pro Treadmill OS (Olympic V28 - Ultimate)</title>
     <style>
         :root { 
-            /* OLED 防拖影背景與統一層級 */
-            --bg-dark: #0A0A0A; --bg-card: #141415; --bg-overlay: rgba(0,0,0,0.85);
-            /* 微調霓虹色降低視覺疲勞 */
-            --neon-green: #32E512; --neon-yellow: #FFD60A; --neon-red: #FF3B30; --neon-blue: #0A84FF;
-            --z1: #8E8E93; --z2: #0A84FF; --z3: #FFD60A; --z4: #FF9F0A; --z5: #FF3B30;
+            /* OLED 友善背景與統一 Z-index 管理 */
+            --bg-dark: #0A0A0A; --bg-card: #151515; --bg-overlay: rgba(0,0,0,0.85);
+            /* 調和霓虹色，降低刺眼感 */
+            --neon-green: #32D74B; --neon-yellow: #FFD60A; --neon-red: #FF453A; --neon-blue: #0A84FF;
+            --z1: #8E8E93; --z2: #0A84FF; --z3: #FFD60A; --z4: #FF9F0A; --z5: #FF453A;
             --gray: #8E8E93; --gray-light: #D1D1D6; --text-main: #FFFFFF; 
             --border-color: #2C2C2E; 
             --safe-bottom: env(safe-area-inset-bottom, 20px);
             --safe-top: env(safe-area-inset-top, 20px);
-            /* 統一 Z-index 管理 */
-            --z-toast: 10000; --z-modal: 9999; --z-dropdown: 9000; --z-controls: 1000; --z-header: 500;
+            --z-toast: 10000; --z-modal: 9000; --z-header: 500; --z-footer: 100;
         }
 
-        /* 基礎設定與字體最佳化 */
+        /* 全域重置與等寬數字 */
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; font-variant-numeric: tabular-nums; }
+        
+        /* App Shell 佈局：動態高度防鍵盤，嚴格的 Flex Column */
         body { 
             background-color: var(--bg-dark); color: var(--text-main); 
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", Roboto, Helvetica, sans-serif; 
-            /* 解決鍵盤彈出高度與防連鎖滾動 */
-            height: calc(var(--vh, 1vh) * 100); overflow: hidden; overscroll-behavior: none;
+            height: calc(var(--vh, 1vh) * 100); 
+            display: flex; flex-direction: column; overflow: hidden; overscroll-behavior: none;
             -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
         }
 
         input { -webkit-user-select: auto; user-select: auto; font-variant-numeric: tabular-nums; }
         input:focus { outline: 1px solid var(--neon-blue); box-shadow: 0 0 8px rgba(10, 132, 255, 0.4); }
 
-        #app-container { width: 100%; max-width: 768px; height: 100%; margin: 0 auto; display: flex; flex-direction: column; position: relative; background-color: var(--bg-dark); overflow: hidden; padding-top: var(--safe-top); }
+        #app-shell { width: 100%; max-width: 768px; margin: 0 auto; display: flex; flex-direction: column; height: 100%; position: relative; padding-top: var(--safe-top); }
 
-        /* Toast 通知列 (改為底部浮現，不擋頭部) */
-        #topNotification { position: fixed; bottom: -150px; left: 50%; transform: translateX(-50%); width: 92%; max-width: 450px; background: rgba(28, 28, 30, 0.95); backdrop-filter: blur(15px); border-radius: 16px; z-index: var(--z-toast); transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.9); display: flex; flex-direction: column; border: 1px solid #333;}
-        #topNotification.show { bottom: calc(100px + var(--safe-bottom)); }
-        .notif-content { padding: 18px 40px 18px 18px; font-size: 0.95rem; color: var(--text-main); line-height: 1.5; font-weight: 600;}
-        .notif-content ul { padding-left: 20px; margin-top: 6px; color: var(--gray-light); font-size: 0.85rem; font-weight: 500;}
-        /* 擴大關閉按鈕觸控區 */
-        .notif-close-hitbox { position: absolute; top: 0; right: 0; padding: 16px; cursor: pointer; z-index: 2; }
-        .notif-close { fill: var(--gray); width: 22px; height: 22px; transition: fill 0.2s; }
-        .notif-close-hitbox:active .notif-close { fill: #FFF; }
-        .notif-bar-bg { width: 100%; height: 4px; background: #222; }
-        .notif-bar-fill { height: 100%; background: var(--neon-blue); width: 100%; transform-origin: left; transition: transform linear; }
-
-        /* 標籤導航 */
-        .tabs-header { flex-shrink: 0; display: flex; background: var(--bg-dark); height: 50px; position: relative; z-index: var(--z-header);}
-        .tab-btn { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; font-weight: 700; color: var(--gray); background: transparent; border: none; cursor: pointer; transition: color 0.3s; outline: none; position: relative; touch-action: manipulation;}
+        /* --- Header (Tab 導航) --- */
+        #header { flex: 0 0 50px; display: flex; background: var(--bg-dark); position: relative; z-index: var(--z-header); }
+        .tab-btn { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; font-weight: 700; color: var(--gray); background: transparent; border: none; cursor: pointer; transition: color 0.2s; touch-action: manipulation; outline: none; }
         .tab-btn.active { color: var(--text-main); }
         .tab-indicator { position: absolute; bottom: 0; height: 3px; background: var(--neon-green); width: 50%; transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1); border-radius: 3px 3px 0 0;}
 
-        /* 滑動視圖容器 (解決切換突兀感) */
-        .views-slider { display: flex; width: 200vw; flex: 1; transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1); will-change: transform; }
+        /* --- Content (自動延展，獨立捲動) --- */
+        #content-wrapper { flex: 1 1 auto; overflow: hidden; position: relative; }
+        .views-slider { display: flex; width: 200vw; height: 100%; transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1); will-change: transform; }
         .tab-content { width: 100vw; max-width: 768px; flex-shrink: 0; display: flex; flex-direction: column; height: 100%; overflow: hidden; position: relative; }
-        
-        .view-section { flex: 1; display: none; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; animation: fadeIn 0.3s ease-out; }
-        .view-section.active { display: flex; }
+        .view-section { flex: 1; display: none; flex-direction: column; height: 100%; overflow-y: auto; scrollbar-width: none; padding: 15px; gap: 15px; }
+        .view-section.active { display: flex; animation: fadeIn 0.2s ease-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-        /* Setup View */
-        #setup-view { padding: 10px 15px; gap: 10px; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; padding-bottom: calc(100px + var(--safe-bottom)); }
-        .setup-top-half { flex: none; display: flex; flex-direction: column; gap: 12px; }
-        .setup-bottom-half { flex: 1; min-height: 250px; display: flex; flex-direction: column; background: var(--bg-card); border-radius: 12px; padding: 10px; border: 1px solid var(--border-color); }
-        
-        /* 撥盤修復 */
-        .dial-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 8px; }
-        .dial-group { display: flex; flex-direction: column; align-items: center; }
-        .dial-label { font-size: 0.75rem; font-weight: 600; color: var(--gray-light); margin-bottom: 6px; text-align: center; white-space: nowrap; letter-spacing: 0.5px; text-transform: uppercase;}
-        .dial-window { height: 90px; width: 100%; position: relative; overflow: hidden; border-radius: 10px; background: linear-gradient(180deg, #050505 0%, #151515 50%, #050505 100%); border: 1px solid var(--border-color); }
-        .dial-window::before { content:''; position:absolute; top: 0; left: 0; right: 0; height: 30px; background: linear-gradient(180deg, rgba(10,10,10,0.95), transparent); z-index: 2; pointer-events: none; }
-        .dial-window::after { content:''; position:absolute; bottom: 0; left: 0; right: 0; height: 30px; background: linear-gradient(0deg, rgba(10,10,10,0.95), transparent); z-index: 2; pointer-events: none; }
-        .dial-selection-bar { position: absolute; top: 50%; left: 5%; right: 5%; transform: translateY(-50%); height: 30px; border-top: 1px solid rgba(255,255,255,0.1); border-bottom: 1px solid rgba(255,255,255,0.1); z-index: 1; pointer-events: none; }
+        /* === 視圖 1: 設定與儀表板 === */
+        /* 撥盤 2x3 佈局 (解決擁擠) */
+        .setup-top-half { flex: none; display: flex; flex-direction: column; gap: 15px; }
+        .dial-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 15px; }
+        .dial-group { display: flex; flex-direction: column; align-items: center; background: var(--bg-card); border-radius: 12px; padding: 8px 4px; border: 1px solid var(--border-color); }
+        .dial-label { font-size: 0.8rem; font-weight: 600; color: var(--gray-light); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .dial-window { height: 90px; width: 100%; position: relative; overflow: hidden; }
+        .dial-window::before { content:''; position:absolute; top: 0; left: 0; right: 0; height: 30px; background: linear-gradient(180deg, var(--bg-card), transparent); z-index: 2; pointer-events: none; }
+        .dial-window::after { content:''; position:absolute; bottom: 0; left: 0; right: 0; height: 30px; background: linear-gradient(0deg, var(--bg-card), transparent); z-index: 2; pointer-events: none; }
+        .dial-selection-bar { position: absolute; top: 50%; left: 10%; right: 10%; transform: translateY(-50%); height: 30px; border-top: 1px solid rgba(255,255,255,0.1); border-bottom: 1px solid rgba(255,255,255,0.1); z-index: 1; pointer-events: none; }
         .dial-scroll { height: 100%; overflow-y: scroll; scroll-snap-type: y mandatory; scrollbar-width: none; -ms-overflow-style: none; }
         .dial-scroll::-webkit-scrollbar { display: none; }
         .dial-spacer { height: 30px; scroll-snap-align: center; }
-        .dial-item { height: 30px; display: flex; justify-content: center; align-items: center; font-size: 1.1rem; font-weight: 700; color: var(--gray); scroll-snap-align: center; transition: color 0.1s; }
-        .dial-item.active { font-size: 1.3rem; font-weight: 900; color: var(--text-main); text-shadow: 0 0 8px rgba(255,255,255,0.3); }
+        .dial-item { height: 30px; display: flex; justify-content: center; align-items: center; font-size: 1.15rem; font-weight: 600; color: var(--gray); scroll-snap-align: center; transition: color 0.1s; }
+        .dial-item.active { font-size: 1.4rem; font-weight: 900; color: var(--text-main); text-shadow: 0 0 10px rgba(255,255,255,0.2); }
 
-        /* 課表卡片暗示與放大 */
-        .prog-carousel-wrap { width: 100%; padding: 4px 0; margin-top: 5px; position: relative; }
-        .prog-carousel-wrap::after { content: ''; position: absolute; top: 0; right: 0; width: 25px; height: 100%; background: linear-gradient(to left, var(--bg-dark), transparent); pointer-events: none; }
-        .prog-carousel { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding: 0 25px 10px 4px; }
+        /* 課表卡片暗示 */
+        .prog-carousel-wrap { width: 100%; position: relative; }
+        .prog-carousel-wrap::after { content: ''; position: absolute; top: 0; right: 0; width: 30px; height: 100%; background: linear-gradient(to left, var(--bg-dark), transparent); pointer-events: none; }
+        .prog-carousel { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding: 0 30px 5px 0; }
         .prog-carousel::-webkit-scrollbar { display: none; }
-        .prog-card { scroll-snap-align: start; flex: 0 0 145px; height: 75px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; justify-content: center; transition: all 0.2s; cursor: pointer; }
+        .prog-card { scroll-snap-align: start; flex: 0 0 150px; height: 75px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; justify-content: center; transition: all 0.2s; cursor: pointer; }
         .prog-card .p-title { font-size: 0.95rem; font-weight: 800; color: var(--text-main); margin-bottom: 4px; }
-        .prog-card .p-desc { font-size: 0.7rem; color: var(--gray); font-weight: 500; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .prog-card.selected { border-color: var(--neon-green); background: rgba(50, 229, 18, 0.1); transform: scale(1.02); }
+        .prog-card .p-desc { font-size: 0.75rem; color: var(--gray); font-weight: 500; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .prog-card.selected { border-color: var(--neon-green); background: rgba(50, 215, 75, 0.1); transform: scale(1.02); }
         .prog-card.selected .p-title { color: var(--neon-green); }
 
-        /* HUD 重構 */
-        .hud-3row { width: 100%; display: flex; flex-direction: column; margin-bottom: 5px; position: relative; }
-        .hud-header { display: grid; grid-template-columns: 45px repeat(4, 1fr); align-items: center; text-align: right; padding: 4px 0; font-weight: 700; font-size: 0.75rem; color: var(--gray); border-bottom: 1px solid #333; margin-bottom: 2px; }
-        .hud-r { display: grid; grid-template-columns: 45px repeat(4, 1fr); align-items: center; text-align: right; padding: 4px 0; }
-        .hud-r .lbl { text-align: left; font-weight: 800; font-size: 0.75rem; letter-spacing: 0.5px; }
-        .hud-r span { font-weight: 800; font-size: 0.9rem; }
-        .r-avg { color: var(--gray); border-bottom: 1px dashed #222; }
-        .r-max { color: var(--text-main); padding-top: 6px; }
+        /* HUD 重構 (嚴格 Grid 對齊) */
+        .chart-card { flex: 1; min-height: 250px; display: flex; flex-direction: column; background: var(--bg-card); border-radius: 12px; padding: 12px; border: 1px solid var(--border-color); }
+        .hud-grid { width: 100%; display: flex; flex-direction: column; margin-bottom: 8px; position: relative; }
+        .hud-row { display: grid; grid-template-columns: 45px repeat(4, 1fr); align-items: center; text-align: right; padding: 5px 0; }
+        .hud-row.header { font-weight: 700; font-size: 0.75rem; color: var(--gray); border-bottom: 1px solid #333; margin-bottom: 2px; }
+        .hud-row .lbl { text-align: left; font-weight: 800; font-size: 0.75rem; color: inherit; letter-spacing: 0.5px; }
+        .hud-row span { font-weight: 900; font-size: 0.95rem; }
+        .hud-avg { color: var(--gray); border-bottom: 1px dashed #222; }
+        .hud-max { color: var(--text-main); padding-top: 6px; }
         
-        .r-hov { display: none; color: #FFF; padding-top: 6px; border-top: 1px dashed #222; margin-top: 4px; pointer-events: none;}
-        .r-hov.show { display: grid; }
+        /* 徹底解決 Hover 閃爍：保留空間，只切換 visibility */
+        .hud-hov { visibility: hidden; opacity: 0; color: #FFF; padding-top: 6px; border-top: 1px dashed #222; margin-top: 4px; transition: opacity 0.15s ease; }
+        .hud-hov.show { visibility: visible; opacity: 1; }
         
         .val-spd { color: var(--neon-green); } .val-inc { color: var(--neon-yellow); } .val-hr { color: var(--neon-blue); } .val-lac { color: var(--neon-red); }
-        .val-warn { color: var(--neon-red) !important; animation: pulse 1s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
 
         .canvas-container { position: relative; width: 100%; flex: 1; min-height: 10px; }
         canvas { width: 100%; height: 100%; display: block; }
-        .crosshair { position: absolute; top: 0; bottom: 0; width: 1px; background: transparent; border-left: 1px dashed rgba(255,255,255,0.5); pointer-events: none; display: none; z-index: 5;}
-        .crosshair::after { content:''; position:absolute; bottom: 0; left: -4px; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-bottom: 6px solid #FFF; }
-
-        /* Run View 重構黃金三角 */
-        #run-view { padding: 15px 20px; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; padding-bottom: calc(100px + var(--safe-bottom)); }
-        .run-top-content { flex: none; display: flex; flex-direction: column; gap: 15px; margin-bottom: 15px; }
+        /* 游標 Tooltip 偏移，防手指遮擋 */
+        .crosshair { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.2); pointer-events: none; display: none; z-index: 5;}
         
-        .massive-time { font-size: 4.5rem; font-weight: 900; line-height: 1; text-align: center; letter-spacing: -2px; }
+        /* Run View 黃金三角 */
+        .massive-time { font-size: 4.5rem; font-weight: 900; line-height: 1; text-align: center; letter-spacing: -2px; padding: 10px 0; }
+        .run-primary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; flex: none; }
+        .run-val-box { display: flex; flex-direction: column; align-items: center; background: var(--bg-card); padding: 20px 0; border-radius: 16px; border: 1px solid var(--border-color); }
+        .run-big-val { font-size: 3.8rem; font-weight: 900; line-height: 1; letter-spacing: -1px; }
+        .run-lbl { font-size: 0.85rem; color: var(--gray); font-weight: 700; margin-top: 10px; text-transform: uppercase; letter-spacing: 1px; }
         
-        .run-primary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        .run-val-box { display: flex; flex-direction: column; align-items: center; background: var(--bg-card); padding: 15px 0; border-radius: 16px; border: 1px solid var(--border-color); }
-        .run-big-val { font-size: 3.5rem; font-weight: 900; line-height: 1; letter-spacing: -1px; }
-        .run-big-val.spd { color: var(--neon-green); } .run-big-val.inc { color: var(--neon-yellow); }
-        .run-lbl { font-size: 0.9rem; color: var(--gray); font-weight: 600; margin-top: 8px; text-transform: uppercase; }
-        
-        .run-sec-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 10px; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); }
+        .run-sec-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 15px 10px; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); flex: none; }
         .r-s-box { display: flex; flex-direction: column; align-items: center; }
         .r-s-val { font-size: 1.4rem; font-weight: 900; color: var(--text-main); }
-        .r-s-lbl { font-size: 0.8rem; color: var(--gray); font-weight: 600; margin-top: 4px; text-transform: uppercase; }
+        .r-s-lbl { font-size: 0.75rem; color: var(--gray); font-weight: 700; margin-top: 6px; text-transform: uppercase; }
         
-        /* 橫向堆疊 Zone Bar */
-        .zone-dash { background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); padding: 12px 15px; }
-        .zd-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        /* 水平 Zone Bar */
+        .zone-dash { background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); padding: 15px; flex: none; }
+        .zd-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .zd-title { color: var(--gray-light); font-weight: 700; font-size: 0.9rem; }
-        .zd-cal { color: var(--neon-yellow); font-weight: 900; font-size: 1.1rem; }
-        .stacked-zone-bar { width: 100%; height: 12px; display: flex; border-radius: 6px; overflow: hidden; background: #222; }
-        .sz-segment { height: 100%; transition: flex-basis 0.5s ease; }
+        .zd-cal { color: var(--neon-yellow); font-weight: 900; font-size: 1.2rem; }
+        .stacked-zone-bar { width: 100%; height: 14px; display: flex; border-radius: 7px; overflow: hidden; background: #222; }
+        .sz-segment { height: 100%; transition: flex-basis 0.3s ease; }
         .bg-z1 { background-color: var(--z1); } .bg-z2 { background-color: var(--z2); } .bg-z3 { background-color: var(--z3); } .bg-z4 { background-color: var(--z4); } .bg-z5 { background-color: var(--z5); }
-        .zone-legend { display: flex; justify-content: space-between; margin-top: 8px; font-size: 0.75rem; font-weight: 700; color: var(--gray); }
-        
-        .run-chart-fixed { flex: 1; min-height: 250px; display: flex; flex-direction: column; background: var(--bg-card); border-radius: 12px; padding: 10px; border: 1px solid var(--border-color);}
+        .zone-legend { display: flex; justify-content: space-between; margin-top: 8px; font-size: 0.8rem; font-weight: 700; color: var(--gray); }
 
-        /* Tab 2 Pace List */
-        #tabContent2 { padding-bottom: calc(100px + var(--safe-bottom)); }
-        .list-header { display: flex; justify-content: space-between; padding: 12px 20px; color: var(--gray-light); font-size: 0.85rem; font-weight: 700; border-bottom: 1px solid #333; position: sticky; top: 0; background: rgba(10,10,10,0.85); backdrop-filter: blur(10px); z-index: 10;}
-        .preview-list { list-style: none; padding: 0 10px 20px 10px; flex: 1; overflow-y: auto; scrollbar-width: none;}
-        .preview-list li { padding: 16px 15px; border-radius: 8px; margin-bottom: 4px; font-size: 1rem; color: var(--gray); display: flex; justify-content: space-between; align-items: center; transition: background 0.2s; }
-        .preview-list li.active-row { background: rgba(50, 229, 18, 0.15); color: #FFF; font-weight: 800; border-left: 4px solid var(--neon-green); }
-        .list-col-time { width: 60px; font-weight: 900; color: var(--text-main);}
+        /* === 視圖 2: Pace List === */
+        #tabContent2 { overflow-y: auto; scrollbar-width: none; }
+        .list-header { display: flex; justify-content: space-between; padding: 12px 20px; color: var(--gray-light); font-size: 0.8rem; font-weight: 700; border-bottom: 1px solid #333; position: sticky; top: 0; background: rgba(10,10,10,0.85); backdrop-filter: blur(10px); z-index: 10;}
+        .preview-list { list-style: none; padding: 10px; }
+        .preview-list li { padding: 16px 15px; border-radius: 8px; margin-bottom: 4px; font-size: 1.05rem; color: var(--gray); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .preview-list li.active-row { background: rgba(50, 215, 75, 0.15); color: #FFF; font-weight: 800; border-left: 4px solid var(--neon-green); border-bottom: none; transform: scale(1.01); }
+        .list-col-time { width: 65px; font-weight: 900; color: var(--text-main);}
         .list-col-spd { width: 80px; text-align: center; color: var(--neon-green); }
         .list-col-inc { width: 60px; text-align: center; color: var(--neon-yellow); }
-        .list-col-phase { flex: 1; text-align: center; font-size: 0.9rem;}
-        .list-col-hr { width: 60px; text-align: right; color: var(--neon-red); font-weight: 800;}
+        .list-col-phase { flex: 1; text-align: center; font-size: 0.95rem;}
+        .list-col-hr { width: 65px; text-align: right; color: var(--neon-red); font-weight: 800;}
 
-        /* Bottom Controls 改為 Flex 佈局防跳動 */
-        .bottom-controls { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, var(--bg-dark) 60%, transparent); padding: 20px 20px calc(15px + var(--safe-bottom)) 20px; display: flex; justify-content: space-between; gap: 15px; z-index: var(--z-controls);}
-        .btn-ctrl { flex: 1; height: 64px; border-radius: 32px; border: none; font-size: 1.2rem; font-weight: 900; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px; transition: transform 0.1s, opacity 0.2s; outline: none; color: #000; touch-action: manipulation; }
-        .btn-ctrl:active { transform: scale(0.96); opacity: 0.8; }
+        /* --- Footer (底部控制列) --- */
+        #footer { flex: 0 0 auto; background: rgba(20,20,21,0.85); backdrop-filter: blur(20px); border-top: 1px solid var(--border-color); padding: 15px 20px calc(15px + var(--safe-bottom)) 20px; z-index: var(--z-footer); }
+        .bottom-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        
+        .btn-ctrl { height: 64px; border-radius: 32px; border: none; font-size: 1.25rem; font-weight: 900; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 10px; transition: transform 0.1s, opacity 0.2s, background 0.3s; outline: none; color: #000; touch-action: manipulation; white-space: nowrap; }
+        .btn-ctrl:active { transform: scale(0.95); opacity: 0.8; }
         .btn-ctrl svg { width: 24px; height: 24px; fill: currentColor; flex-shrink: 0;}
         
-        .btn-runner { background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); }
+        .btn-runner { background: var(--bg-dark); color: var(--text-main); border: 1px solid #444; }
         .btn-start { background: var(--neon-green); }
         .btn-pause { background: var(--neon-yellow); }
-        .btn-end { background: transparent; color: var(--neon-red); border: 2px solid var(--neon-red); }
+        .btn-end { background: transparent; color: var(--neon-red); border: 2px solid var(--neon-red); position: relative; overflow: hidden;}
+        
+        /* 長按動畫準備 */
+        .btn-end::after { content: ''; position: absolute; top: 0; left: 0; height: 100%; width: 0%; background: rgba(255, 69, 58, 0.2); transition: width 0s; }
+        .btn-end.holding::after { width: 100%; transition: width 1.5s linear; }
 
-        /* --- Modals 重構 --- */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-overlay); z-index: var(--z-modal); display: flex; justify-content: center; align-items: center; backdrop-filter: blur(8px); opacity: 0; pointer-events: none; transition: opacity 0.2s ease;}
+        /* 絕對隱藏 (解決 Safari Flex Gap Bug) */
+        .btn-hide { display: none !important; }
+
+        /* --- Modals --- */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-overlay); z-index: var(--z-modal); display: flex; justify-content: center; align-items: center; backdrop-filter: blur(5px); opacity: 0; pointer-events: none; transition: opacity 0.2s ease;}
         .modal-overlay.show { opacity: 1; pointer-events: auto; }
         .modal-box { background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 20px; width: 92%; max-width: 440px; max-height: 90%; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,0.9); transform: scale(0.95); transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);}
         .modal-overlay.show .modal-box { transform: scale(1); }
-        .modal-title { color: var(--text-main); font-size: 1.2rem; font-weight: 800; text-align: center; padding: 20px; border-bottom: 1px solid #222; flex-shrink: 0;}
         
-        /* 確保滾動到底部時能避開鍵盤 */
-        .modal-content-scroll { overflow-y: auto; padding: 20px; padding-bottom: 30vh; flex: 1; overscroll-behavior: contain; }
-        .modal-footer { display: flex; justify-content: space-between; padding: 15px 20px; border-top: 1px solid #222; flex-shrink: 0; background: var(--bg-card); border-radius: 0 0 20px 20px;}
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 20px; border-bottom: 1px solid #222; }
+        .modal-title { color: var(--text-main); font-size: 1.15rem; font-weight: 800; }
+        .btn-close-modal { background: transparent; border: none; fill: var(--gray-light); width: 28px; height: 28px; padding: 4px; margin: -4px; cursor: pointer; }
         
-        .btn-modal { padding: 14px 24px; border-radius: 14px; font-size: 1.05rem; font-weight: 800; border: none; cursor: pointer; transition: transform 0.1s, opacity 0.2s; color: #FFF; touch-action: manipulation;}
-        .btn-modal:active:not(:disabled) { transform: scale(0.96); opacity: 0.8; }
-        .btn-modal:disabled { opacity: 0.3; cursor: not-allowed; }
-        .btn-save { background: var(--neon-blue); color: #FFF; min-width: 120px;}
-        .btn-ghost { background: transparent; color: var(--gray); border: 1px solid #333; }
-        .btn-ghost-danger { background: transparent; color: var(--neon-red); }
+        /* 解決鍵盤遮擋：給予充裕的 padding-bottom */
+        .modal-content-scroll { overflow-y: auto; padding: 20px; padding-bottom: 50vh; flex: 1; overscroll-behavior: contain; scrollbar-width: none; }
+        .modal-footer { display: flex; justify-content: space-between; padding: 15px 20px; border-top: 1px solid #222; background: var(--bg-card); border-radius: 0 0 20px 20px; flex-shrink: 0;}
         
-        /* 手風琴與表單 */
+        .btn-modal { flex: 1; padding: 16px; border-radius: 14px; font-size: 1.1rem; font-weight: 800; border: none; cursor: pointer; transition: transform 0.1s, opacity 0.2s; touch-action: manipulation; display: flex; justify-content: center; align-items: center; margin: 0 5px;}
+        .btn-modal:active { transform: scale(0.95); opacity: 0.8; }
+        .btn-save { background: var(--neon-blue); color: #FFF; }
+        .btn-ghost { background: transparent; color: var(--gray-light); border: 1px solid #444; }
+        .btn-ghost-danger { background: transparent; color: var(--neon-red); border: 1px solid rgba(255,69,58,0.3); }
+
+        /* 手風琴表單 */
         .rm-group { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
-        .rm-label { font-size: 0.9rem; color: var(--neon-blue); font-weight: 700; border-bottom: 1px solid #222; padding-bottom: 8px; display: flex; justify-content: space-between; text-transform: uppercase;}
+        .rm-label { font-size: 0.85rem; color: var(--gray-light); font-weight: 700; border-bottom: 1px solid #222; padding-bottom: 8px; display: flex; justify-content: space-between; align-items: center; text-transform: uppercase; letter-spacing: 0.5px;}
         
-        .accordion-header { cursor: pointer; color: var(--gray-light); display: flex; align-items: center; justify-content: space-between; }
-        .accordion-header::after { content: '▼'; font-size: 0.7rem; transition: transform 0.3s; }
-        .accordion-header.open::after { transform: rotate(180deg); }
-        .accordion-content { display: none; padding-top: 10px; animation: fadeIn 0.3s; }
+        .accordion-header { cursor: pointer; color: var(--text-main); transition: color 0.2s; }
+        .accordion-header:active { color: var(--neon-blue); }
+        .accordion-header svg { width: 16px; height: 16px; fill: currentColor; transition: transform 0.3s; }
+        .accordion-header.open svg { transform: rotate(180deg); }
+        .accordion-content { display: none; padding-top: 5px; animation: fadeIn 0.3s; }
         .accordion-content.show { display: block; }
 
-        .rm-input-row { display: flex; gap: 10px; align-items: stretch; width: 100%; position: relative; }
-        .rm-input-wrapper { flex: 1; display: flex; align-items: center; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color);}
-        .rm-input-wrapper input { width: 100%; background: transparent; border: none; color: #FFF; padding: 14px; font-size: 1.15rem; font-weight: bold; outline: none; }
-        
-        .param-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px;}
-        .param-item { display: flex; flex-direction: column; background: var(--bg-card); padding: 10px 14px; border-radius: 12px; border: 1px solid var(--border-color);}
-        .param-item label { color: var(--gray); font-size: 0.75rem; font-weight: 600; margin-bottom: 6px;}
-        .param-item input { width: 100%; background: transparent; color: var(--text-main); border: none; font-size: 1.25rem; font-weight: 900; outline: none; }
-        .param-item input:disabled { color: var(--gray); }
+        .input-wrapper { background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); padding: 12px 15px; display: flex; align-items: center; position: relative;}
+        .input-wrapper input { flex: 1; background: transparent; border: none; color: #FFF; font-size: 1.2rem; font-weight: 800; outline: none; width: 100%; }
+        .input-unit { font-size: 0.85rem; font-weight: 700; color: var(--gray); margin-left: 10px; pointer-events: none;}
 
-        /* Segmented Control (Pill UI) */
-        .segmented-control { display: flex; background: var(--bg-card); border-radius: 10px; padding: 4px; border: 1px solid var(--border-color); position: relative; }
+        .param-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px;}
+        .param-item { background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); padding: 10px 15px; display: flex; flex-direction: column; position: relative;}
+        .param-item label { color: var(--gray); font-size: 0.75rem; font-weight: 600; margin-bottom: 4px; text-transform: uppercase;}
+        .param-item input { background: transparent; border: none; color: #FFF; font-size: 1.3rem; font-weight: 900; outline: none; width: 100%; }
+        .param-item .unit { position: absolute; right: 12px; bottom: 12px; font-size: 0.75rem; font-weight: 700; color: #555; pointer-events: none;}
+
+        /* Pill Segmented Control */
+        .segmented-control { display: flex; background: #000; border-radius: 10px; padding: 4px; border: 1px solid #333; position: relative; }
         .seg-btn { flex: 1; padding: 10px 0; background: transparent; border: none; color: var(--gray); font-size: 0.9rem; font-weight: 700; cursor: pointer; z-index: 2; outline: none; transition: color 0.3s;}
         .seg-btn.active { color: #FFF; }
-        .seg-indicator { position: absolute; top: 4px; bottom: 4px; background: #333; border-radius: 8px; z-index: 1; transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), width 0.3s; }
+        .seg-indicator { position: absolute; top: 4px; bottom: 4px; background: #333; border-radius: 8px; z-index: 1; transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1); }
 
-        .history-item { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 15px; margin-bottom: 12px;}
-        .history-date { color: var(--neon-blue); font-size: 0.9rem; font-weight: bold; margin-bottom: 8px;}
-        
-        /* 動態隱藏按鈕防跳動 */
-        .btn-hide { width: 0 !important; padding: 0 !important; margin: 0 !important; opacity: 0; pointer-events: none; overflow: hidden; border: none !important; }
+        /* Toast 頂層通知 (移至頂層) */
+        #topNotification { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px; background: rgba(28, 28, 30, 0.95); backdrop-filter: blur(15px); border-radius: 16px; z-index: var(--z-toast); transition: top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.8); border: 1px solid #333;}
+        #topNotification.show { top: env(safe-area-inset-top, 15px); }
+        .notif-content { padding: 15px 40px 15px 15px; font-size: 0.9rem; color: #FFF; line-height: 1.4; font-weight: 600;}
+        .notif-close-hitbox { position: absolute; top: 0; right: 0; padding: 15px; cursor: pointer; z-index: 2; }
+        .notif-close { fill: var(--gray); width: 20px; height: 20px; transition: fill 0.2s; }
+        .notif-close-hitbox:active .notif-close { fill: #FFF; }
+        .notif-bar-bg { width: 100%; height: 3px; background: #222; }
+        .notif-bar-fill { height: 100%; background: var(--neon-blue); width: 100%; transform-origin: left; transition: transform linear; }
     </style>
 </head>
 <body>
 
-<!-- Toast 通知 -->
 <div id="topNotification">
     <div class="notif-close-hitbox" data-action="close-notif">
         <svg class="notif-close" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
@@ -227,209 +221,217 @@
     <div class="notif-bar-bg"><div class="notif-bar-fill" id="notifBar"></div></div>
 </div>
 
-<div id="app-container">
-    <div class="tabs-header">
+<div id="app-shell">
+    
+    <!-- 頂部 Tab 導航 -->
+    <header id="header">
         <button class="tab-btn active" data-action="tab-settings" id="tabSettings">設定</button>
         <button class="tab-btn" data-action="tab-matrix" id="tabMatrix">配速</button>
         <div class="tab-indicator" id="tabIndicator"></div>
-    </div>
+    </header>
 
-    <!-- 容器，使用 translateX 滑動 -->
-    <div class="views-slider" id="viewsSlider">
-        
-        <!-- Tab 1: 設定與儀表板 -->
-        <div class="tab-content" id="tabContent1">
+    <!-- 中間滾動內容區 -->
+    <main id="content-wrapper">
+        <div class="views-slider" id="viewsSlider">
             
-            <!-- Setup View -->
-            <div id="setup-view" class="view-section active">
-                <div class="setup-top-half">
-                    <div class="dial-grid">
-                        <!-- Spacer 確保 Snap 精準 -->
-                        <div class="dial-group"><div class="dial-label" id="lblTotalTime">總時間 (MIN)</div><div class="dial-window" id="dw-time"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-time"><div class="dial-spacer"></div><!-- JS注入 --><div class="dial-spacer"></div></div></div></div>
-                        <div class="dial-group"><div class="dial-label" id="lblSetMxS">最高速 (KPH)</div><div class="dial-window" id="dw-mxs"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-mxs"><div class="dial-spacer"></div><!-- JS注入 --><div class="dial-spacer"></div></div></div></div>
-                        <div class="dial-group"><div class="dial-label" id="lblSetMxI">最高坡 (%)</div><div class="dial-window" id="dw-mxi"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-mxi"><div class="dial-spacer"></div><!-- JS注入 --><div class="dial-spacer"></div></div></div></div>
-                        <div class="dial-group"><div class="dial-label" id="lblTargetKm">目標里程 (KM)</div><div class="dial-window" id="dw-dist"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-dist"><div class="dial-spacer"></div><!-- JS注入 --><div class="dial-spacer"></div></div></div></div>
-                        <div class="dial-group"><div class="dial-label" id="lblSetMnS">最低速 (KPH)</div><div class="dial-window" id="dw-mns"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-mns"><div class="dial-spacer"></div><!-- JS注入 --><div class="dial-spacer"></div></div></div></div>
-                        <div class="dial-group"><div class="dial-label" id="lblSetMnI">最低坡 (%)</div><div class="dial-window" id="dw-mni"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-mni"><div class="dial-spacer"></div><!-- JS注入 --><div class="dial-spacer"></div></div></div></div>
+            <!-- 視圖 1: 設定與儀表板 -->
+            <div class="tab-content" id="tabContent1">
+                
+                <!-- 狀態 A: 初始設定畫面 -->
+                <div id="setup-view" class="view-section active">
+                    <div class="setup-top-half">
+                        <div class="dial-grid">
+                            <div class="dial-group"><div class="dial-label" id="lblTotalTime">總時間 (MIN)</div><div class="dial-window" id="dw-time"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-time"></div></div></div>
+                            <div class="dial-group"><div class="dial-label" id="lblSetMxS">最高速 (KPH)</div><div class="dial-window" id="dw-mxs"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-mxs"></div></div></div>
+                            <div class="dial-group"><div class="dial-label" id="lblSetMxI">最高坡 (%)</div><div class="dial-window" id="dw-mxi"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-mxi"></div></div></div>
+                            <div class="dial-group"><div class="dial-label" id="lblTargetKm">目標里程 (KM)</div><div class="dial-window" id="dw-dist"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-dist"></div></div></div>
+                            <div class="dial-group"><div class="dial-label" id="lblSetMnS">最低速 (KPH)</div><div class="dial-window" id="dw-mns"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-mns"></div></div></div>
+                            <div class="dial-group"><div class="dial-label" id="lblSetMnI">最低坡 (%)</div><div class="dial-window" id="dw-mni"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-mni"></div></div></div>
+                        </div>
+                        <div class="prog-carousel-wrap"><div class="prog-carousel" id="progGrid"></div></div>
                     </div>
-                    <div class="prog-carousel-wrap"><div class="prog-carousel" id="progGrid"></div></div>
+
+                    <div class="chart-card">
+                        <div class="hud-grid">
+                            <div class="hud-row header"><span></span><span>SPD</span><span>INC</span><span>HR</span><span>LAC</span></div>
+                            <div class="hud-row hud-avg"><span class="lbl" id="lblAvg">AVG</span><span class="val-spd" data-bind="sAvgSpd">--</span><span class="val-inc" data-bind="sAvgInc">--</span><span class="val-hr" data-bind="sAvgHr">--</span><span class="val-lac" data-bind="sAvgLac">--</span></div>
+                            <div class="hud-row hud-max"><span class="lbl" id="lblMax">MAX</span><span class="val-spd" data-bind="sMaxSpd">--</span><span class="val-inc" data-bind="sMaxInc">--</span><span class="val-hr" data-bind="sMaxHr">--</span><span class="val-lac" data-bind="sMaxLac">--</span></div>
+                            <div class="hud-row hud-hov" id="sHovRow"><span class="lbl" data-bind="sHovMin">--m</span><span class="val-spd" data-bind="sHovSpd">--</span><span class="val-inc" data-bind="sHovInc">--</span><span class="val-hr" data-bind="sHovHr">--</span><span class="val-lac" data-bind="sHovLac">--</span></div>
+                        </div>
+                        <div class="canvas-container" id="sChartWrap">
+                            <canvas id="sChart"></canvas>
+                            <div class="crosshair" id="sCrosshair"></div>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="setup-bottom-half">
-                    <div class="hud-3row">
-                        <div class="hud-header"><span></span><span>SPD</span><span>INC</span><span>HR</span><span>LAC</span></div>
-                        <div class="hud-r r-avg"><span class="lbl" id="lblAvg">AVG</span><span class="val-spd" id="sAvgSpd">--</span><span class="val-inc" id="sAvgInc">--</span><span class="val-hr" id="sAvgHr">--</span><span class="val-lac" id="sAvgLac">--</span></div>
-                        <div class="hud-r r-max"><span class="lbl" id="lblMax">MAX</span><span class="val-spd" id="sMaxSpd">--</span><span class="val-inc" id="sMaxInc">--</span><span class="val-hr" id="sMaxHr">--</span><span class="val-lac" id="sMaxLac">--</span></div>
-                        <div class="hud-r r-hov" id="sHovRow"><span class="lbl" id="sHovMin">--m</span><span class="val-spd" id="sHovSpd">--</span><span class="val-inc" id="sHovInc">--</span><span class="val-hr" id="sHovHr">--</span><span class="val-lac" id="sHovLac">--</span></div>
-                    </div>
-                    <div class="canvas-container" id="sChartWrap">
-                        <canvas id="sChart"></canvas>
-                        <div class="crosshair" id="sCrosshair"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Run View (黃金三角佈局) -->
-            <div id="run-view" class="view-section">
-                <div class="run-top-content">
-                    <div id="massiveTime" class="massive-time">00:00</div>
+                <!-- 狀態 B: 跑步儀表板 -->
+                <div id="run-view" class="view-section">
+                    <div class="massive-time" data-bind="massiveTime">00:00</div>
                     
                     <div class="run-primary-grid">
-                        <div class="run-val-box"><div class="run-big-val spd" id="runSpd">0.0</div><div class="run-lbl" id="lblRunSpd">SPEED</div></div>
-                        <div class="run-val-box"><div class="run-big-val inc" id="runInc">0.0</div><div class="run-lbl" id="lblRunInc">INCLINE</div></div>
+                        <div class="run-val-box"><div class="run-big-val spd" data-bind="runSpd">0.0</div><div class="run-lbl" id="lblRunSpd">SPEED</div></div>
+                        <div class="run-val-box"><div class="run-big-val inc" data-bind="runInc">0.0</div><div class="run-lbl" id="lblRunInc">INCLINE</div></div>
                     </div>
                     
                     <div class="run-sec-grid">
-                        <div class="r-s-box"><div class="r-s-val" id="runDist">0.00</div><div class="r-s-lbl" id="lblRunDist">DIST</div></div>
-                        <div class="r-s-box"><div class="r-s-val" id="runPace">00'00"</div><div class="r-s-lbl" id="lblRunPace">PACE</div></div>
-                        <div class="r-s-box"><div class="r-s-val val-hr" id="runHr">0</div><div class="r-s-lbl" id="lblRunHr">HR</div></div>
-                        <div class="r-s-box"><div class="r-s-val" id="runLac">0.0</div><div class="r-s-lbl" id="lblRunLac">LAC</div></div>
+                        <div class="r-s-box"><div class="r-s-val" data-bind="runDist">0.00</div><div class="r-s-lbl" id="lblRunDist">DIST</div></div>
+                        <div class="r-s-box"><div class="r-s-val" data-bind="runPace">--:--</div><div class="r-s-lbl" id="lblRunPace">PACE</div></div>
+                        <div class="r-s-box"><div class="r-s-val val-hr" data-bind="runHr">0</div><div class="r-s-lbl" id="lblRunHr">HR</div></div>
+                        <div class="r-s-box"><div class="r-s-val val-lac" data-bind="runLac">0.0</div><div class="r-s-lbl" id="lblRunLac">LAC</div></div>
                     </div>
                     
-                    <!-- 橫向區間條 (省空間) -->
                     <div class="zone-dash">
-                        <div class="zd-header"><span class="zd-title" id="lblZoneTitle">ZONE 分佈</span><span class="zd-cal" id="runCal">0.0 kcal</span></div>
+                        <div class="zd-header"><span class="zd-title" id="lblZoneTitle">ZONE 分佈</span><span class="zd-cal" data-bind="runCal">0.0 kcal</span></div>
                         <div class="stacked-zone-bar">
-                            <div class="sz-segment bg-z1" id="sz1" style="flex-basis: 0%;"></div>
-                            <div class="sz-segment bg-z2" id="sz2" style="flex-basis: 0%;"></div>
-                            <div class="sz-segment bg-z3" id="sz3" style="flex-basis: 0%;"></div>
-                            <div class="sz-segment bg-z4" id="sz4" style="flex-basis: 0%;"></div>
-                            <div class="sz-segment bg-z5" id="sz5" style="flex-basis: 0%;"></div>
+                            <div class="sz-segment bg-z1" data-bind="sz1" style="flex-basis: 0%;"></div>
+                            <div class="sz-segment bg-z2" data-bind="sz2" style="flex-basis: 0%;"></div>
+                            <div class="sz-segment bg-z3" data-bind="sz3" style="flex-basis: 0%;"></div>
+                            <div class="sz-segment bg-z4" data-bind="sz4" style="flex-basis: 0%;"></div>
+                            <div class="sz-segment bg-z5" data-bind="sz5" style="flex-basis: 0%;"></div>
                         </div>
-                        <div class="zone-legend">
-                            <span class="txt-z1">Z1</span><span class="txt-z2">Z2</span><span class="txt-z3">Z3</span><span class="txt-z4">Z4</span><span class="txt-z5">Z5</span>
+                        <div class="zone-legend"><span class="txt-z1">Z1</span><span class="txt-z2">Z2</span><span class="txt-z3">Z3</span><span class="txt-z4">Z4</span><span class="txt-z5">Z5</span></div>
+                    </div>
+                    
+                    <div class="chart-card" id="rChartWrap">
+                        <div class="hud-grid">
+                            <div class="hud-row header"><span></span><span>SPD</span><span>INC</span><span>HR</span><span>LAC</span></div>
+                            <div class="hud-row hud-avg"><span class="lbl" id="lblRAvg">AVG</span><span class="val-spd" data-bind="rAvgSpd">--</span><span class="val-inc" data-bind="rAvgInc">--</span><span class="val-hr" data-bind="rAvgHr">--</span><span class="val-lac" data-bind="rAvgLac">--</span></div>
+                            <div class="hud-row hud-max"><span class="lbl" id="lblRMax">MAX</span><span class="val-spd" data-bind="rMaxSpd">--</span><span class="val-inc" data-bind="rMaxInc">--</span><span class="val-hr" data-bind="rMaxHr">--</span><span class="val-lac" data-bind="rMaxLac">--</span></div>
+                            <div class="hud-row hud-hov" id="rHovRow"><span class="lbl" data-bind="rHovMin">--m</span><span class="val-spd" data-bind="rHovSpd">--</span><span class="val-inc" data-bind="rHovInc">--</span><span class="val-hr" data-bind="rHovHr">--</span><span class="val-lac" data-bind="rHovLac">--</span></div>
+                        </div>
+                        <div class="canvas-container">
+                            <canvas id="rChart"></canvas>
+                            <div class="crosshair" id="rCrosshair"></div>
                         </div>
                     </div>
                 </div>
-                
-                <div class="run-chart-fixed" id="rChartWrap">
-                    <div class="hud-3row" style="margin-top:0;">
-                        <div class="hud-header"><span></span><span>SPD</span><span>INC</span><span>HR</span><span>LAC</span></div>
-                        <div class="hud-r r-avg"><span class="lbl" id="lblRAvg">AVG</span><span class="val-spd" id="rAvgSpd">--</span><span class="val-inc" id="rAvgInc">--</span><span class="val-hr" id="rAvgHr">--</span><span class="val-lac" id="rAvgLac">--</span></div>
-                        <div class="hud-r r-max"><span class="lbl" id="lblRMax">MAX</span><span class="val-spd" id="rMaxSpd">--</span><span class="val-inc" id="rMaxInc">--</span><span class="val-hr" id="rMaxHr">--</span><span class="val-lac" id="rMaxLac">--</span></div>
-                        <div class="hud-r r-hov" id="rHovRow"><span class="lbl" id="rHovMin">--m</span><span class="val-spd" id="rHovSpd">--</span><span class="val-inc" id="rHovInc">--</span><span class="val-hr" id="rHovHr">--</span><span class="val-lac" id="rHovLac">--</span></div>
-                    </div>
-                    <div class="canvas-container">
-                        <canvas id="rChart"></canvas>
-                        <div class="crosshair" id="rCrosshair"></div>
-                    </div>
+            </div>
+
+            <!-- 視圖 2: Pace List -->
+            <div class="tab-content" id="tabContent2">
+                <div class="list-header">
+                    <span class="list-col-time">TIME</span><span class="list-col-spd">SPD</span><span class="list-col-inc">INC</span><span class="list-col-phase">PHASE</span><span class="list-col-hr">HR</span>
                 </div>
+                <ul id="previewList" class="preview-list"></ul>
             </div>
+            
         </div>
+    </main>
 
-        <!-- Tab 2: Pace List -->
-        <div class="tab-content" id="tabContent2">
-            <div class="list-header">
-                <span class="list-col-time">TIME</span>
-                <span class="list-col-spd">SPD</span>
-                <span class="list-col-inc">INC</span>
-                <span class="list-col-phase">PHASE</span>
-                <span class="list-col-hr">HR</span>
-            </div>
-            <ul id="previewList" class="preview-list"></ul>
+    <!-- 底部控制列 -->
+    <footer id="footer">
+        <div class="bottom-controls">
+            <!-- 準備階段按鈕 -->
+            <button id="btnLeft" class="btn-ctrl btn-runner" data-action="open-runner">
+                <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                <span id="lblBtnLeft">Runner</span>
+            </button>
+            <button id="btnRight" class="btn-ctrl btn-start" data-action="start">
+                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                <span id="lblBtnRight">開始</span>
+            </button>
+            
+            <!-- 跑步階段按鈕 (預設隱藏) -->
+            <button id="btnAskEnd" class="btn-ctrl btn-end btn-hide" data-action="ask-end">
+                <svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
+                <span id="lblEnd">長按結束</span>
+            </button>
+            <button id="btnPause" class="btn-ctrl btn-pause btn-hide" data-action="pause">
+                <svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                <span id="lblPause">暫停</span>
+            </button>
         </div>
-        
-    </div> <!-- /views-slider -->
+    </footer>
 
-    <!-- Bottom Controls -->
-    <div class="bottom-controls">
-        <button id="btnLeft" class="btn-ctrl btn-runner" data-action="open-runner">
-            <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-            <span id="lblBtnLeft">Runner</span>
-        </button>
-        <button id="btnAskEnd" class="btn-ctrl btn-end btn-hide" data-action="ask-end">
-            <svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
-            <span id="lblEnd">結束</span>
-        </button>
-        <button id="btnRight" class="btn-ctrl btn-start" data-action="start">
-            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-            <span id="lblBtnRight">開始</span>
-        </button>
-        <button id="btnPause" class="btn-ctrl btn-pause btn-hide" data-action="pause">
-            <svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-            <span id="lblPause">暫停</span>
-        </button>
-    </div>
-
-    <!-- Runner Modal (結合手風琴與防鍵盤遮擋) -->
+    <!-- Runner Modal (修復紅框恐懼與鍵盤遮擋) -->
     <div id="runnerModal" class="modal-overlay" data-action="overlay-close">
         <div class="modal-box" id="rmBox" data-no-close>
-            <div class="modal-title" id="lblRmTitle">跑者檔案設定</div>
+            <div class="modal-header">
+                <div class="modal-title" id="lblRmTitle">跑者檔案設定</div>
+                <button class="btn-close-modal" data-action="close-runner"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+            </div>
+            
             <div class="modal-content-scroll">
                 <div class="rm-group">
-                    <label class="rm-label" id="lblRmName">跑者名稱</label>
-                    <div class="rm-input-row">
-                        <div class="rm-input-wrapper">
-                            <input type="text" id="rmName" maxlength="10" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-                        </div>
+                    <label class="rm-label" id="lblRmName">名稱</label>
+                    <div class="input-wrapper">
+                        <input type="text" id="rmName" maxlength="10" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
                     </div>
                 </div>
                 
                 <div class="rm-group">
-                    <label class="rm-label" id="lblRmPhysio">生理參數</label>
+                    <label class="rm-label" id="lblRmPhysio">基本生理</label>
                     <div class="param-grid">
-                        <div class="param-item"><label id="lblAge">年齡</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmAge" class="lockable"></div>
-                        <div class="param-item"><label id="lblWgt">體重 (kg)</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmWeight" class="lockable"></div>
+                        <div class="param-item"><label id="lblAge">年齡</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmAge" class="lockable"><span class="unit">歲</span></div>
+                        <div class="param-item"><label id="lblWgt">體重</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmWeight" class="lockable"><span class="unit" id="unitWgt">kg</span></div>
                     </div>
                 </div>
 
                 <!-- 手風琴：進階設定 -->
                 <div class="rm-group">
-                    <div class="rm-label accordion-header" data-action="toggle-accordion" data-target="advSettings">進階設定</div>
+                    <div class="rm-label accordion-header" data-action="toggle-accordion" data-target="advSettings">
+                        <span id="lblAdvTitle">進階生理與極限 ⚙️</span>
+                        <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
+                    </div>
                     <div class="accordion-content" id="advSettings">
-                        <div class="param-grid" style="margin-bottom: 12px;">
-                            <div class="param-item"><label id="lblBMR">基礎代謝 (kcal)</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmBMR" class="lockable"></div>
-                            <div class="param-item"><label id="lblSMM">骨骼肌 (kg)</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmSMM" class="lockable"></div>
-                            <div class="param-item"><label id="lblBF">體脂肪 (%)</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmBF" class="lockable"></div>
-                            <div class="param-item"><label id="lblVO2">VO₂max</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmVO2" class="lockable"></div>
+                        <div class="param-grid" style="margin-bottom: 15px;">
+                            <div class="param-item"><label id="lblBMR">基礎代謝</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmBMR" class="lockable"><span class="unit">kcal</span></div>
+                            <div class="param-item"><label id="lblSMM">骨骼肌</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmSMM" class="lockable"><span class="unit" id="unitSmm">kg</span></div>
+                            <div class="param-item"><label id="lblBF">體脂肪</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmBF" class="lockable"><span class="unit">%</span></div>
+                            <div class="param-item"><label id="lblVO2">VO₂max</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmVO2" class="lockable"><span class="unit">ml/kg/min</span></div>
                         </div>
-                        <label class="rm-label" id="lblRmLimits">個人極限</label>
-                        <div class="param-grid" style="margin-bottom: 12px;">
-                            <div class="param-item"><label id="lblPMxS">最高速</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmMxS" class="lockable"></div>
-                            <div class="param-item"><label id="lblPMnS">最低速</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmMnS" class="lockable"></div>
-                            <div class="param-item"><label id="lblPMxI">最高坡</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmMxI" class="lockable"></div>
-                            <div class="param-item"><label id="lblPMnI">最低坡</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmMnI" class="lockable"></div>
-                        </div>
-                        <label class="rm-label" id="lblRmPref">偏好設定</label>
-                        <div class="param-grid">
-                            <!-- Segmented Controls -->
-                            <div class="segmented-control" id="segLang">
-                                <div class="seg-indicator" style="width: 50%; transform: translateX(0);"></div>
-                                <button class="seg-btn active" data-val="zh">中文</button><button class="seg-btn" data-val="en">EN</button>
-                            </div>
-                            <div class="segmented-control" id="segVoice">
-                                <div class="seg-indicator" style="width: 50%; transform: translateX(0);"></div>
-                                <button class="seg-btn active" data-val="on">Voice ON</button><button class="seg-btn" data-val="off">OFF</button>
-                            </div>
-                            <div class="segmented-control" id="segUnit">
-                                <div class="seg-indicator" style="width: 50%; transform: translateX(0);"></div>
-                                <button class="seg-btn active" data-val="metric">Metric</button><button class="seg-btn" data-val="imperial">Imp</button>
-                            </div>
-                            <div class="segmented-control" id="segSex">
-                                <div class="seg-indicator" style="width: 50%; transform: translateX(0);"></div>
-                                <button class="seg-btn active" data-val="M">M</button><button class="seg-btn" data-val="F">F</button>
-                            </div>
+                        <div class="param-grid" style="margin-bottom: 15px;">
+                            <div class="param-item"><label id="lblPMxS">最高速</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmMxS" class="lockable"><span class="unit" id="unitMxS">kph</span></div>
+                            <div class="param-item"><label id="lblPMnS">最低速</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmMnS" class="lockable"><span class="unit" id="unitMnS">kph</span></div>
+                            <div class="param-item"><label id="lblPMxI">最高坡</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmMxI" class="lockable"><span class="unit">%</span></div>
+                            <div class="param-item"><label id="lblPMnI">最低坡</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmMnI" class="lockable"><span class="unit">%</span></div>
                         </div>
                     </div>
                 </div>
                 
-                <!-- 手風琴：硬體極限 (警告色) -->
+                <!-- 手風琴：硬體極限 (拔除紅框，改深色背景) -->
                 <div class="rm-group">
-                    <div class="rm-label accordion-header" style="color:var(--neon-red);" data-action="toggle-accordion" data-target="hwSettings">硬體限制 (機器規格)</div>
+                    <div class="rm-label accordion-header" data-action="toggle-accordion" data-target="hwSettings">
+                        <span id="lblHwTitle">硬體限制 (跑步機極限) 🔒</span>
+                        <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
+                    </div>
                     <div class="accordion-content" id="hwSettings">
-                        <div class="param-grid" style="border: 1px solid var(--neon-red); padding: 10px; border-radius: 12px; background: rgba(255,59,48,0.05);">
-                            <div class="param-item"><label>最高速</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="hwMxS" class="lockable"></div>
-                            <div class="param-item"><label>最低速</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="hwMnS" class="lockable"></div>
-                            <div class="param-item"><label>最高坡</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="hwMxI" class="lockable"></div>
-                            <div class="param-item"><label>最低坡</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="hwMnI" class="lockable"></div>
+                        <div class="param-grid" style="background: #111; padding: 12px; border-radius: 12px; border: 1px solid #333;">
+                            <div class="param-item" style="background: #000;"><label>機器最高速</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="hwMxS" class="lockable"></div>
+                            <div class="param-item" style="background: #000;"><label>機器最低速</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="hwMnS" class="lockable"></div>
+                            <div class="param-item" style="background: #000;"><label>機器最高坡</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="hwMxI" class="lockable"></div>
+                            <div class="param-item" style="background: #000;"><label>機器最低坡</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="hwMnI" class="lockable"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="rm-group">
+                    <label class="rm-label" id="lblRmPref">偏好設定</label>
+                    <div class="param-grid">
+                        <div class="segmented-control" id="segLang">
+                            <div class="seg-indicator" style="width: 50%; transform: translateX(0);"></div>
+                            <button class="seg-btn active" data-val="zh">中文</button><button class="seg-btn" data-val="en">EN</button>
+                        </div>
+                        <div class="segmented-control" id="segVoice">
+                            <div class="seg-indicator" style="width: 50%; transform: translateX(0);"></div>
+                            <button class="seg-btn active" data-val="on">Voice ON</button><button class="seg-btn" data-val="off">OFF</button>
+                        </div>
+                        <div class="segmented-control" id="segUnit">
+                            <div class="seg-indicator" style="width: 50%; transform: translateX(0);"></div>
+                            <button class="seg-btn active" data-val="metric">Metric</button><button class="seg-btn" data-val="imperial">Imp</button>
+                        </div>
+                        <div class="segmented-control" id="segSex">
+                            <div class="seg-indicator" style="width: 50%; transform: translateX(0);"></div>
+                            <button class="seg-btn active" data-val="M">M</button><button class="seg-btn" data-val="F">F</button>
                         </div>
                     </div>
                 </div>
             </div>
             
             <div class="modal-footer">
-                <button class="btn-modal btn-ghost" data-action="close-runner">取消</button>
-                <button class="btn-modal btn-save" data-action="save-runner">儲存</button>
+                <button class="btn-modal btn-ghost" data-action="close-runner" id="btnRmCancel">取消</button>
+                <button class="btn-modal btn-save" data-action="save-runner" id="btnRmSave">儲存</button>
             </div>
         </div>
     </div>
@@ -437,9 +439,11 @@
     <!-- Confirm Modal -->
     <div id="vConfirmModal" class="modal-overlay">
         <div class="modal-box" id="vcBox" style="max-width: 320px;">
-            <div class="modal-title" id="vcTitle" style="color:var(--neon-red);">確認</div>
-            <p style="color:var(--gray-light); font-size:1.05rem; font-weight:600; text-align:center; padding: 25px 20px;" id="vcDesc"></p>
-            <div class="modal-footer" style="padding: 10px;">
+            <div class="modal-header" style="justify-content: center; border: none;">
+                <div class="modal-title" id="vcTitle" style="color:var(--neon-red); font-size: 1.3rem;">確認</div>
+            </div>
+            <p style="color:var(--gray-light); font-size:1.05rem; font-weight:600; text-align:center; padding: 10px 20px 25px 20px;" id="vcDesc"></p>
+            <div class="modal-footer" style="padding: 15px;">
                 <button class="btn-modal btn-ghost" style="flex:1;" id="vcCancel">取消</button>
                 <button class="btn-modal btn-ghost-danger" style="flex:1;" id="vcYes">確定</button>
             </div>
@@ -447,36 +451,33 @@
     </div>
 </div>
 
-<!-- Part 1 結束。請等待 Part 2 (Core Engines) 與 Part 3 (Controller) -->
-
 <script>
 /**
  * ==========================================
- * PART 2: CORE DATA & ENGINES (無 DOM 依賴)
+ * PART 2: CORE STATE ENGINE & BUSINESS LOGIC
  * ==========================================
  */
 
-// 1. 工具函式 (Tools)
+// --- 工具箱 ---
 const Utils = {
     fmtTime: (ms, showMs = false) => {
         let totS = Math.floor(ms / 1000); let h = Math.floor(totS / 3600); let m = Math.floor((totS % 3600) / 60); let s = totS % 60;
         let str = h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-        // 解決 Bug #53：超過一小時動態處理
         if (showMs && h === 0) { let frac = Math.floor((ms % 1000) / 100); str += `.${frac}`; }
         return str;
     },
     getPaceStr: (speedKph, isMet) => {
-        if (speedKph <= 0.1) return `--:-- /km`; 
+        if (speedKph <= 0.1) return `--:-- /${isMet?'km':'mi'}`; 
         let speed = isMet ? speedKph : speedKph / 1.609344;
         let pace = 60 / speed; let pM = Math.floor(pace); let pS = Math.floor((pace - pM) * 60);
-        if (pM >= 100) return `--:-- /km`; return `${String(pM).padStart(2,'0')}:${String(pS).padStart(2,'0')} /${isMet?'km':'mi'}`; // 解決 Bug #54
+        if (pM >= 100) return `--:-- /${isMet?'km':'mi'}`; 
+        return `${String(pM).padStart(2,'0')}:${String(pS).padStart(2,'0')} /${isMet?'km':'mi'}`;
     },
-    // PRNG：確保每次產生的隨機語句在同一次跑步中有穩定性
     PRNG: { seed: 12345, get(lang, key, arr) { this.seed = (this.seed * 9301 + 49297) % 233280; return arr[Math.floor((this.seed / 233280) * arr.length)]; } },
     clamp: (val, min, max) => Math.max(min, Math.min(max, val))
 };
 
-// 2. 完整保留的海量語音庫與 i18n
+// --- 海量語音庫與 I18n ---
 const VoiceDB = {
     zh: {
         val_low: ["呼吸節奏完美，心率維持在有氧底端。","步伐毫無拖泥帶水，保持這份輕盈。","自覺費力程度RPE小於4，這是絕佳的巡航。","血乳酸穩定在安靜值，你的有氧系統運作極其高效。","聽這安靜的落地聲，代表煞車效應趨近於零。","肌肉處於最舒服的張力狀態，好好享受。","現在的心跳只是在幫細胞做微型按摩。","游刃有餘！把專注力放在橫膈膜的深度收縮上。","這配速對你的心血管就像是潤滑油，非常健康。","感覺不到疲勞？這代表你的基礎體能已經大幅進化。","放鬆你的肩膀和下巴，這階段不該有任何壓力。","跑姿經濟性極高，你現在就像一台自動駕駛的機器。","微血管網正在全開，源源不絕地接收氧氣。","維持這個輸出功率，不要急，耐心是超馬選手的武器。","你的呼吸頻率與步頻結合得天衣無縫。","這個狀態下的神經傳導異常清晰，做得好。","肌肉的牽張反射正在完美運作。","把每一次吐氣拉長，你的心跳會更省力。","你現在的動態平衡感堪稱教科書級別。","這就是累積訓練量最好的舒適區間。","感覺不到重量，這就是力學與重力對抗的完美平衡。","每一滴汗水都在為你的細胞降溫。","輕鬆寫意，現在的你就是一部高效能內燃機。","保持微笑，告訴大腦這一切都很輕鬆。","感受腳底板輕觸履帶的瞬間，非常流暢。","完美掌控重心，步態輕盈無聲，簡直是藝術。","呼吸深度極佳，正在將氧氣送達微血管末端。","動作連貫順暢，這是頂尖運動員的熱身水準。","你現在像水一樣流動，身體毫無多餘的機械阻力。","保持微笑，副交感神經正在幫你過濾所有的緊張感。","游刃有餘的姿態，你的有氧基底正因為這份從容而生長。","感受核心的穩定，你的骨盆就像是平穩的避震器。","這種低功率輸出，正在教導大腦如何極致地節省能量。","每一滴汗都代表粒線體的甦醒，繼續維持。","太棒了，你現在的跑步經濟性幾乎達到了滿分。","你的本體感覺神經元正在完美計算空間座標。","安靜的呼吸聲，這是大師級跑者的專屬印記。","步伐轉換如同鐘擺般精準，這是物理學的最優解。","慢肌纖維正在微笑，它們非常享受這份穩定的負荷。","沒有任何代償性發力，你的生物力學模型完美無瑕。","感受風擦過臉頰，把這個節奏烙印在小腦裡。","現在的心搏出量非常經濟，心臟正處於極佳的訓練狀態。","這份從容感，是無數滴汗水累積出來的強大。","不要被多餘的想法干擾，享受這具完美機器的運轉。","你的足底筋膜正在進行最柔和的能量回收。","動作力學毫無破綻，就像是在無重力艙內巡航。","完美的脂肪燃燒區間，你正在將體脂轉化為純淨動能。","血紅素的攜氧效率極高，這就是科學訓練的成果。","聆聽心臟平穩的節拍，這是一首屬於耐力的交響樂。","現在的感覺就像是可以永遠跑下去，鎖定這個狀態！"],
@@ -485,17 +486,16 @@ const VoiceDB = {
         val_rec: ["漂亮！撐過來了！副交感神經開始接管身體。","挺過高壓，你絕對值得為這份驚人的毅力感到驕傲。","痛苦結束了，享受突破極限後的巨大成就感！","無懈可擊！剛才那段衝刺表現得完美無瑕。","放慢腳步，體會從地獄回到人間的呼吸感。","活下來了！這是強者的自我證明，沒人能拿走你的努力。","給自己一個微笑，你戰勝了心裡想放棄的懦夫。","最難熬的已過去，現在是榮耀的恢復時刻。","心跳從狂飆慢慢穩定，你的恢復力真的極強。","這就是競技體育的精神，你扛下來了！","大口吞嚥氧氣，你贏得了這份平靜。","不要停下，享受這份從痛苦中抽離的釋放。","感覺細胞正在重新充滿能量的美妙過程。","剛才的你，簡直像一頭無法阻擋的猛獸。","把氧氣還給細胞，你的身體正在瘋狂修復。","這就是你流汗換來的多巴胺，盡情享受吧。","收下這份驕傲，剛才的你展現了絕對的硬漢本色。","讓肺臟貪婪地吸取氧氣，你完全配得上這份喘息。","不可思議的毅力！細胞正在為你的強大而歡呼。","肌肉的發炎反應已經開始被白血球接管，完美的訓練刺激。","放鬆下巴，讓成就感隨著多巴胺流遍全身。","你剛才的表現，是科學與意志力完美結合的結晶。","這就是強者的心跳聲，平穩、強悍、不可戰勝。","走動一下，讓小腿幫浦把堆積的廢物徹底排空。","皮質醇濃度開始下降，睪固酮與生長激素即越大量分泌。","這是最強烈的多巴胺衝擊，恭喜你跨越了地獄。","感受肌肉裡那份沉重的滿足感，那是進步的重量。","你做到了無數人做不到的事，享受這份勝利者的孤獨。","深呼吸，把你剛剛展現的韌性刻進你的 DNA 裡。","這就是跑者高潮的精髓，痛苦與狂喜的完美交織。","氧氣正在瘋狂償還剛剛欠下的氧債，修復機制全開。","用緩慢的步伐去丈量你剛才跨越的極限，做得太棒了。","汗水終於不再冰冷，你重新奪回了身體的控制權。","閉上眼睛感受一下，那股直衝腦門的無敵感。","你剛才的極速簡直撕裂了空間，現在好好休息吧。","這是一場完美的戰役，你沒有對軟弱低頭，你贏了。","讓脈搏慢慢回歸平靜，你現在比一小時前更強大了。"],
         bio_flat: ["縮短觸地時間！跑帶是高溫的，啟動伸展收縮循環！","步頻拉高到180，減少髕骨股骨關節高達15%的衝擊壓力。","腳掌落在重心正下方，避免強大的煞車反作用力！","腳步放輕！安靜落地代表緩衝與肌肉剛性完美。","收緊下腹橫肌，骨盆中立，避免腰椎承受壓力！","利用前腳掌與中足過渡，把反作用力轉為向前的純粹動能。","手肘鎖定90度向後擺動！胸椎旋轉神經連結到雙腿。","放鬆小腿肚！主要的推進動力應該來自你的臀大肌與大腿後側動力鍊。","保持腳踝的彈性，充分利用阿基里斯腱的免費回彈力省力。","整體微前傾，讓重力成為前進的推手，而非對抗的阻力。","下巴微收，平視前方，維持頸椎中立與氣管暢通。","絕對不左右搖晃！多餘橫向位移都在浪費寶貴的 ATP。","腳趾不要抓地！放鬆足底筋膜讓它自然伸展緩衝。","膝蓋微彎，絕對不要在落地時鎖死膝關節！","想像腿是一個完美的圓，推蹬、折疊、下踩。","把你的核心當作懸吊系統，過濾掉所有震動。","雙手擺動的軌跡不要超過身體中線，減少旋轉阻力。","腳跟輕輕吻過履帶就好，主要靠前中足支撐。","保持上身挺拔，想像你在水面上飄過一樣輕盈。","雙眼直視前方，維持頸椎的完美弧度，不要壓迫氣管。","每一次著地都是一次精準的物理學計算，保持重心穩定。","啟動你的筋膜網路，讓彈性位能幫您省下寶貴的肌肉力量。","把腳步縮小，用高步頻去切割距離，這樣對膝蓋最友善。","感受前足的扒地感，把反作用力完全轉換為推進向量。","想像你的腿是一組強大的活塞，直上直下，毫無遲疑。","腳踝關節保持適度的剛性，這是能量回饋的關鍵秘密。","肩膀不准聳起！把多餘的能量全部導向你的下肢。","雙臂的擺動要俐落，帶動骨盆進行微小但致命的推進旋轉。","維持這個完美的軀幹前傾角，讓地心引力帶跨越飛翔。"],
         bio_steep: ["從腳踝作支點，整體前傾對抗陡坡，改變重心向量！","絕不能坐著跑！髖關節完全伸展，強迫臀大肌發力！","爬坡嚴禁跨大步！縮小步幅，大幅提高步頻！","看前方三公尺，低頭看腳會壓迫頸椎並干擾平衡。","前腳掌著地，腳跟微懸，利用小腿與阿基里斯腱彈簧效應。","大腿後側燃燒？很好，這在強化你薄弱的後側動力鍊！","核心全面繃緊！彎腰駝背會壓迫橫膈膜導致缺氧。","手臂用力向後擺！上半身強勢動能能省下20%的腿力。","抬高膝蓋，增加髖屈肌參與，征服真實的陡峭高山！","絕對不要抓扶手！強迫軀幹核心去平衡重力拉扯！","重心壓在前腳掌，推蹬要感受到地面扎實的反饋。","坡度越陡身體越要穩定，不讓上半身產生無效的扭轉。","小步快頻！像忍者一樣輕巧而快速地向上切入！","不要把力氣浪費在向上跳，所有的力氣都要向前推！","想像屁股後面有一根彈簧，把你整個人往坡頂射出去！","每一次踩踏都要有侵略性，把坡度吃下去！","雙手擺動的幅度加大，用肩膀的力量帶動你的大腿！","克服重力的秘訣就是高步頻，讓腳底像裝了馬達一樣！","這是對抗地心引力的純粹戰爭，把重力當成鍛鍊的工具。","提高你的膝蓋抬升角度，強迫髂腰肌參與這場爬坡盛宴。","小腿後側酸痛是必然的，這是在鍛造你阿基里斯腱的韌性。","用強烈的手臂擺動去抵銷重力矩，上半身絕不能鬆懈。","緊咬住這個坡度，每一次推蹬都在強化你的心臟容積。","把坡度想像成階梯，不要滑行，而是每一步都穩穩踩上台階。","背部肌群全面啟動！用豎脊肌鎖死你的抗重力結構。","大口把空氣吸進腹部，對抗上坡造成的胸腔壓迫感。","每一次髖部的推展都要做到極致，這是啟動臀大肌的唯一解。","把自己當成一頭攀岩的雪豹，充滿侵略性地吞噬這個陡坡。"],
-        bio_gen: ["肩膀下沉，遠離耳朵！你不需要用上斜方肌來跑步。","打開胸腔！駝背會減少20%肺活量，挺起胸膛！","雙手不緊握，想像手裡握著蝴蝶，過度握拳引發神經緊繃。","放鬆眉心跟下巴！跑步不用臉部肌肉，能量留給下肢。","脊椎一節節往上延伸，想像頭頂有線把你往上拉。","兩步一吸兩步一呼，建立穩定韻律，換氣效率極大化。","鼻子深吸，嘴巴用力吐，肺泡底部廢氣徹底排空。","掃描全身一次，把不必要的代償性緊繃感全部釋放。","維持上半身安靜，核心是超級避震器與這樣動力傳導樞紐。","腳尖朝向正前方，避免外八內八造成的扭轉應力。","把你的骨盆想像成一個裝滿水的碗，不要讓水灑出來。","手掌放鬆，大拇指輕觸食指，消除上肢所有的阻力。","把呼吸的重點放在『吐氣』，用力吐空才能吸進更多新鮮氧氣。","聽自己的腳步聲，越不對稱代表你正在用代償姿勢跑步。","保持眼球放鬆，注視前方一個定點，減少大腦的資訊處理量。","把面部肌肉徹底放鬆，任何猙獰的表情都在浪費氧氣。","頸椎保持中立，這是所有神經傳導的超級高速公路。","收束你的肋骨，不要讓核心的力量從腹部發散出去。","雙手像鐘擺一樣規律，這是幫助大腦穩定節奏的最佳提示。","保持冷靜的頭腦，不要讓身體的不適感影響了姿勢的正確性。","想像頭頂有一股氣流將你往上托，卸除下肢的沉重感。","將骨盆微幅前傾，找到那個不用費力就能自然前進的甜蜜點。","讓手指的輕觸來建立神經的安定感，拒絕任何握拳的衝動。","放空你的視線，用周邊視覺去感知空間，大幅節省腦力消耗。","核心不是死硬的木板，而是充滿彈性的避震彈簧，運用它。"],
+        bio_gen: ["肩膀下沉，遠離耳朵！你不需要用上斜方肌來跑步。","打開胸腔！駝背會減少20%肺活量，挺起胸膛！","雙手不緊握，想像手裡握著蝴蝶，過度握拳引發神經緊繃。","放鬆眉心跟下巴！跑步不用臉部肌肉，能量留給下肢。","脊椎一節節往上延伸，想像頭頂有線把你往上拉。","兩步一吸兩步一呼，建立穩定韻律，換氣效率極大化。","鼻子深吸，嘴巴用力吐，肺泡底部廢氣徹底排空。","掃描全身一次，把不必要的代償性緊繃感全部釋放。","維持上半身安靜，核心是超級避震器與動力傳導樞紐。","腳尖朝向正前方，避免外八內八造成的扭轉應力。","把你的骨盆想像成一個裝滿水的碗，不要讓水灑出來。","手掌放鬆，大拇指輕觸食指，消除上肢所有的阻力。","把呼吸的重點放在『吐氣』，用力吐空才能吸進更多新鮮氧氣。","聽自己的腳步聲，越不對稱代表你正在用代償姿勢跑步。","保持眼球放鬆，注視前方一個定點，減少大腦的資訊處理量。","把面部肌肉徹底放鬆，任何猙獰的表情都在浪費氧氣。","頸椎保持中立，這是所有神經傳導的超級高速公路。","收束你的肋骨，不要讓核心的力量從腹部發散出去。","雙手像鐘擺一樣規律，這是幫助大腦穩定節奏的最佳提示。","保持冷靜的頭腦，不要讓身體的不適感影響了姿勢的正確性。","想像頭頂有一股氣流將你往上托，卸除下肢的沉重感。","將骨盆微幅前傾，找到那個不用費力就能自然前進的甜蜜點。","讓手指的輕觸來建立神經的安定感，拒絕任何握拳的衝動。","放空你的視線，用周邊視覺去感知空間，大幅節省腦力消耗。","核心不是死硬的木板，而是充滿彈性的避震彈簧，運用它。"],
         phy_warm: ["關節分泌滑液，微血管床擴張，安全潤滑開來。","低強度安全喚醒慢肌纖維，提高肌肉溫度預防撕裂傷。","血液正從內臟轉移到四肢，交感神經溫和啟動。","深呼吸，氧氣送進腹部，穩定副交感神經防心率過早飆升。","提升血漿容積，促使體溫調節中樞提前運作。","高爾基腱器官正適應肌肉張力，神經連結逐漸熱絡。","增加肌肉黏彈性，讓接下來每一步更流暢安全。","肌凝蛋白正在預熱，橫橋循環準備啟動。","打開微血管的閘門，讓帶氧血液暢通無阻。","滑囊膜正在釋放潤滑液，你的關節活動度正在最大化。","肌肉裡的肌質網正在預先釋放鈣離子，為收縮做準備。","這是喚醒中樞神經的最優頻率，讓大腦準備迎接高壓。","血液正在緩慢重新分配，從消化系統轉移到運動皮層。","深層核心肌群正在啟動，為即將到來的衝擊力做好防護機制。","結締組織正在吸收熱能，你的筋膜網路即將全面展開。","神經突觸正在進行熱機放電，運動單元的徵召越來越順暢。","心臟正在溫和地調整搏出量，讓每一次跳動都精準到位。"],
         phy_aero: ["肝臟與肌肉進行 Beta 氧化，將脂肪轉為游離脂肪酸燃料。","慢肌纖維合成粒線體並增加微血管，打造耐力銀行。","心室舒張末期容積增加，每跳打出比平常多30%的血液。","有氧酶活性倍增，同速度下將消耗更少的肝醣。","波耳效應啟動，血紅素加速釋放氧氣給飢渴細胞。","訓練肌肉的抗疲勞度，次最大耗氧量巡航對馬拉松至關重要。","呼吸交換率顯示你正依賴脂肪代謝，最純粹的有氧底層。","肺泡氣體交換效率達巔峰，心肺系統運轉極度完美。","AMPK路徑正在被大量活化，全面提升你的耐力基因。","這正是增加慢縮肌內肌紅蛋白濃度的完美狀態。","你的心臟正在經歷離心性肥大，左心室的容積正在擴張。","這種配速能大幅促進毛細血管新生，讓每一條肌纖維都充滿氧氣。","脂肪分解酶正在全速運轉，把你身上的脂肪轉化為純粹的推力。","你的肌肉細胞正在增加脂肪酸結合蛋白的數量，燃脂效率飆升！","這是提升有氧代謝酶濃度的黃金區間，保持這份穩定。","有氧系統正在將乳酸當作燃料重新回收，效率極高。","你現在就像是一台混合動力車，完美平衡了糖與脂肪的燃燒。","持續這份壓力，你的微血管床正在像樹枝一樣瘋狂生長。","細胞內的粒線體工廠正在瘋狂擴建，這是你未來的體能基石。","葡萄糖與游離脂肪酸在細胞內完美共舞，輸出極度穩定。","感受這份純粹的有氧做功，你的心肌正在變得更加強韌有力。"],
         phy_ana: ["乳酸是燃料不是敵人！肝臟正透過柯氏循環把它轉回葡萄糖！","跨越臨界點，強迫身體適應強酸環境下的收縮！","快縮肌全面啟動！榨乾肌肉裡所有的儲備肌醣原！","交感神經放電，兒茶酚胺大量分泌，逼出最大攝氧極限！","氫離子濃度飆升，這股酸痛是刺激肌肉生長變強的最強信號！","無氧系統超載運轉，乳酸閾值大幅右移，極速將突破天際！","高壓引發微小肌肉損傷，今晚深度睡眠將把它們修復更粗壯！","肺部通氣量達極限，呼吸肌群承受巨大壓力，挺住考驗！","神經肌肉接合處正瘋狂釋放乙醯膽鹼，撐住這高頻率！","你的極速快肌正在燃燒殆盡，這是爆發力的絕對關鍵！","血液中的重碳酸鹽正在拼命緩衝酸鹼值，用呼吸來幫助它！","無氧醣解正在產生大量的丙酮酸，這是你突破瓶頸的代價！","感受肌纖維的強力收縮，這是在召喚你最深處的運動單元！","你的無氧做功能力正在以指數級別上升，忍受這短暫的地獄！","神經元的放電頻率已經到達巔峰，這是真正的爆發力訓練。","無氧代謝正在摧毀舊的肌肉結構，為更強大的纖維騰出空間。","乳酸脫氫酶正在滿載運作，這份痛苦將化為你明天的極速。","榨乾所有的肝醣儲備，逼迫身體在恢復期引發超量補償！","這種缺氧的灼燒感，正是刺激生長激素大量爆發的唯一途徑！","你的無氧動力正在刷新歷史紀錄，把這些乳酸全部吃下去！","這是在對抗細胞內的劇烈酸鹼失衡，你的緩衝能力正在進化！"],
         phy_rec: ["深呼吸啟動迷走神經，提高副交感張力，運動後耗氧效應持續大量燃脂。","小腿肌肉幫浦加速靜脈回流，迅速排除堆積的代謝廢物。","剛產生的乳酸正被心臟與慢肌纖維氧化，當作超級燃料回收。","走動讓血液循環，防靜脈血液滯留，心率安全且平滑地降下。","腦內啡與多巴胺在突觸間瘋狂釋放，無與倫比的跑者高潮！","體溫中樞慢慢關閉排汗，肌肉發炎正被身體修復機制接管。","動態恢復比完全靜止更能減輕明天的延遲性肌肉痠痛。","這就是償還氧債的階段，大口把氧氣還給耗竭的細胞。","讓交感神經慢慢退出，你的身體正在記錄剛才高強度的神經印記。","白血球正在前往受損的微小肌纖維，開始進行最強的修復工程。","巨噬細胞正在清理肌肉微細損傷的碎片，恢復機制全開。","神經遞質正在重新平衡，享受這份歷經劫難後的極致平靜。","運動後過量耗氧正在發生，你即使停下也還在燃燒卡路里。","血管舒張效應帶來了大量的養分，受損的肌肉正在貪婪吸收。","乳酸鹽正在被快速轉運出細胞，你的血液酸鹼值正在回歸完美中性。","感受心搏徐緩的美妙，你的心臟在證明它的強大恢復力。"],
         psy_focus: ["採用解離策略！不專注痛苦，專注吐氣，數著『一、二、吐盡』。","想像是一台無情機械，沒有痛覺沒有感情，只有規律步頻。","閉眼三秒，切斷視覺輸入，只聽呼吸聲找回身體主導權。","不想終點還有多遠，專注在此時此刻，這一步踩穩再踩下一步。","意識抽離燃燒的大腿，你是身體的冷酷駕駛員，指令一下就得動。","注意力集中手臂擺動，用上半身強行帶動已經疲勞的下半身。","想像跑在沒有盡頭的光滑軌道上，輕輕滑過毫無摩擦。","把意識放在心臟的跳動上，感受它強大不屈的推進力。","把你的大腦想成第三人稱視角，俯視著這具正在奔跑的軀殼。","痛覺只是神經的電流訊號，你可以選擇拒絕讀取它。","將意識鎖定在鼻腔吸入冷空氣的觸感，摒除一切雜念。","把痛苦具象化為一道煙霧，隨著每一次用力吐氣把它排出體外。","你是這場訓練的旁觀者，冷靜地監控著機體的每一項數據運作。","縮小你的視野，只看眼前履帶的轉動，其餘的世界與你無關。","化身為絕對理性的觀察者，感受肌肉的收縮，但不帶入情緒。","將所有的意志力灌注在核心，讓那裡成為不可撼動的能量源。","切斷對未來時間的恐懼，你現在唯一擁有的就是這一秒鐘。","想像身體被一層冷靜的藍光包圍，隔離掉所有的高溫與不適。"],
-        psy_micro: ["不想還有多少分鐘！撐過眼前十秒，十秒鐘你絕對做得到！","痛苦路程切成五等份，現在只征服眼前這一小段，踩下去！","只要不按停止鍵你就是贏家！配速掉一點也沒關係，繼續動！","跟我倒數五秒，五四三二一，你看，又成功撐過地獄時刻！","把大目標丟進垃圾桶，唯一目標只有眼前的下一個十步！","別看時間！那會摧毀意志，看著前方，專注吸進的每一口氣！","只要撐過這一個坡！過坡我們再說，咬緊牙關把它吃下來！","告訴自己再撐三步就好，然後再騙自己三步，就這樣熬過去！","只要你還在履帶上，每一秒你都在擊敗過去的自己！","不要去想明天會多痠痛，我只要你把這一分鐘跑完！","撐過這一次的呼吸循環，只要一次！然後我們再來下一次！","把專注力縮小到這三步之內，不要讓未來壓垮現在的你。","再跑十公尺就好，對，就是這種自我欺騙帶你突破極限！","時間是虛無的，唯有你腳下踩出的這一步是絕對真實的。","忘掉里程！忘掉配速！你現在的任務就是不讓這台機器停下！","把剩下的時間切成五秒一局的微型遊戲，贏下眼前的這一局！","現在看手錶只會剝奪你的勇氣，看著前方，你是無畏的挑戰者！","每一次落地都在累積勝利的籌碼，不要在最後關頭掀牌認輸！"],
+        psy_micro: ["不想還有多少分鐘！撐過眼前十秒，十秒鐘你絕對做得到！","痛苦路程切成五等份，現在只征服眼前這一小段，踩下去！","只要不按停止鍵你針對是贏家！配速掉一點也沒關係，繼續動！","跟我倒數五秒，五四三二一，你看，又成功撐過地獄時刻！","把大目標丟進垃圾桶，唯一目標只有眼前的下一個十步！","別看時間！那會摧毀意志，看著前方，專注吸進的每一口氣！","只要撐過這一個坡！過坡我們再說，咬緊牙關把它吃下來！","告訴自己再撐三步就好，然後再騙自己三步，就這樣熬過去！","只要你還在履帶上，每一秒你都在擊敗過去的自己！","不要去想明天會多痠痛，我只要你把這一分鐘跑完！","撐過這一次的呼吸循環，只要一次！然後我們再來下一次！","把專注力縮小到這三步之內，不要讓未來壓垮現在的你。","再跑十公尺就好，對，就是這種自我欺騙帶你突破極限！","時間是虛無的，唯有你腳下踩出的這一步是絕對真實的。","忘掉里程！忘掉配速！你現在的任務就是不讓這台機器停下！","把剩下的時間切成五秒一局的微型遊戲，贏下眼前的這一局！","現在看手錶只會剝奪你的勇氣，看著前方，你是無畏的挑戰者！","每一次落地都在累積勝利的籌碼，不要在最後關頭掀牌認輸！"],
         psy_over: ["中央統治者理論證明，大腦說不行，肌肉其實還有30%儲備電力！","痛苦是防止受傷的保護謊言，告訴大腦『我很安全，我做主』，跑！","擁抱不適感！頂尖奧運選手的蛻變，全發生在想放棄的瞬間！","意志力絕對比跑步機馬達堅強。打破大腦限制器，釋放野性！","這就是重塑自我的高溫火爐，不經過鍛打怎麼可能成為鋼鐵？","感覺像快死了？但你不會死！跨越恐懼邊界將迎來新生！","記住為什麼站在這裡！把質疑聲音踩在腳下，用實力輾壓過去！","當痛苦離開身體的時候，就是軟弱離開身體的時候！","你的極限遠比你大腦設定的底線還要遙遠，去觸碰它！","真正的突破，永遠發生在你覺得自己絕對辦不到的那一秒！","人類的基因是在大草原上獵殺獵物演化來的，喚醒你的原始本能！","痛苦是一道門，推開它，背後就是你夢寐以求的強大自我。","別讓潛意識裡的舒適圈綁架你，暴力地撕碎大腦的警告！","這是對靈魂強度的最高測試，向整個世界證明你的硬度！","大腦會說謊，但數據不會！你的身體完全有能力繼續，給我衝！","在放棄的懸崖邊緣跳舞吧！跨越這道界線，你將再也不平庸！","不要對妥協讓步！今天在這裡低頭，明天就會在人生中低頭！","你是掌控這具軀殼的暴君，命令你的肌肉繼續收縮，絕對服從！"],
         warn_hr: ["警告！心率突破紅線！強迫拉長吐氣！若胸悶請立刻降速！", "心跳接近極限！心臟負荷極高，專注深吐氣，安全第一！", "醫學警告！心室射血分數接近極限，加深呼吸增加回心血量！","心肺負載過高！如果伴隨頭暈，立刻抓緊扶手降低速度！"],
         warn_lac: ["氫離子大量堆積，絕不憋氣！氧氣是你現在唯一的解藥！", "乳酸濃度瘋狂飆升！肌肉正在哀嚎，用深層的腹式呼吸去代謝它！", "血液緩衝正在失效！大口吸氣，用呼吸鹼中毒機制中和肌肉酸性！","肌肉已經處於強酸狀態，忍耐這種灼燒感，這是變強的必經之路！"],
-        // 解決 Bug #72: 加入全形逗號強制 TTS 斷句
         trans: ["準備進入下階段，速度即將來到 {s}，坡度 {i}，穩定核心！","即將切換課表，下一分鐘坡度 {i}，速度 {s}，深呼吸準備！","注意了！即將變速，速度 {s}，坡度 {i}，咬緊牙關！","迎擊下一個挑戰，下一分鐘速度 {s}，坡度 {i}，你可以的！","預告切換，速度即將調整為 {s}，坡度 {i}，穩住你的節奏！"],
         phases: { warmup: "暖身", steep: "爬坡", sprint: "衝刺", recovery: "恢復", exhaust: "力竭", cooldown: "緩和" }
     },
@@ -517,62 +517,11 @@ const VoiceDB = {
         warn_hr: ["Alert! HR over 95%! Force 3-second exhales! Grab rails if dizzy!", "Red zone HR! Massive cardiac load. Focus on deep oxygenation immediately!", "Medical alert! Ventricular ejection fraction near max. Breathe deep!"],
         warn_lac: ["Acid flooding muscles! Normal reaction. DO NOT hold your breath. O2 is the cure!", "Lactate spiking hard! Breathe deep to buffer the acid and metabolize the burn!", "Bicarbonate buffering failing! Hyperventilate to neutralize the acid!"],
         trans: ["Preparing for next phase, speed at {s}, incline {i}, core engaged!","Transition incoming, next minute incline {i}, speed {s}, deep breaths!","Attention! Speed shifting to {s}, incline {i}, grit your teeth!","Incoming challenge, speed {s}, incline {i}, you got this!","Upcoming change, speed to {s}, incline {i}, hold your rhythm!"],
-        phases: { warmup: "Warmup", steep: "Steep", sprint: "Sprint", recovery: "Recovery", exhaust: "Exhaust", cooldown: "Cool" },
-        // 解決 Bug #74: Phase Context
-        phases_ctx: { warmup: "a warmup phase", steep: "a steep climb", sprint: "a sprint phase", recovery: "a recovery block", exhaust: "an exhaustion phase", cooldown: "the cooldown" }
+        phases: { warmup: "Warmup", steep: "Steep", sprint: "Sprint", recovery: "Recovery", exhaust: "Exhaust", cooldown: "Cool" }
     }
 };
 
-const i18n = {
-    zh: {
-        tSet: "設定", tMat: "配速",
-        sta: "開始", pau: "暫停", rsm: "繼續", end: "結束", rec: "紀錄", 
-        tim: "總時間 (MIN)", km: "目標里程 (KM)", mi: "目標里程 (MI)", 
-        age: "年齡", wgt: "體重 (kg)", wgtImp: "體重 (lbs)", bmr: "基礎代謝 (kcal)", smm: "骨骼肌 (kg)", smmImp: "骨骼肌 (lbs)", bf: "體脂肪 (%)", vo2: "VO₂max",
-        mxS: "最高速 (KPH)", mxSImp: "最高速 (MPH)", mnS: "最低速 (KPH)", mnSImp: "最低速 (MPH)", mxI: "最高坡 (%)", mnI: "最低坡 (%)",
-        sci: "生理參數", hwTitle: "硬體限制 (機器規格)", rmPref: "偏好設定", rmName: "跑者名稱", rmTitle: "跑者檔案設定",
-        btnSave: "儲存", btnCancel: "取消", btnClose: "關閉", btnClear: "清空", btnYes: "確定",
-        avg: "AVG", max: "MAX", sum: "訓練總結", hist: "歷史紀錄",
-        endAskS: "確認", endDescS: "本次訓練少於 10 秒，將不會寫入歷史紀錄。",
-        endAskL: "太棒了，隨時可以休息", endDescL: "將為您儲存目前的跑步紀錄與數據。", // 解決 Bug #99
-        clearAsk: "確認清空紀錄？", clearDesc: "此操作無法復原，請謹慎操作。", rmConf: "確定要刪除此跑者及所有紀錄嗎？",
-        notifTitle: "設定已儲存並自動修正：",
-        downS: "最高速下修為 {v}", upS: "最低速上修為 {v}", downI: "最高坡下修為 {v}%", upI: "最低坡上修為 {v}%",
-        nutriHintSmmBf: "💡 提示：至設定補齊體脂與骨骼肌數據，可獲得更精準的營養建議。", nutriHintSmm: "💡 提示：至設定補齊骨骼肌數據，可獲得更精準的營養建議。", nutriHintBf: "💡 提示：至設定補齊體脂數據，可獲得更精準的營養建議。", nutriRx: "【 運動營養配方 】", 
-        nutriPost: "跑後30分內補給: <strong>蛋白質 {p}g</strong> + <strong>碳水 {c}g</strong> (~{k} kcal)", nutriDaily: "全日建議蛋白質攝取總量: <strong>{p}g</strong>", // 解決 Bug #88
-        workoutBegins: "訓練開始，總長 {t} 分鐘。", workoutResumed: "訓練繼續，還剩 {m} 分 {s} 秒。", noHistory: "尚無訓練紀錄", voiceOn: "語音輔助已開啟", // 解決 Bug #71
-        prog: {
-            p1: ["主動恢復", "清除血乳酸，加速靜脈回流。"], p2: ["有氧基礎", "建立微血管網，訓練脂肪氧化。"], p3: ["長距離慢跑", "長時間恆定輸出，提升慢肌耐力。"],
-            p4: ["最大燃脂", "鎖定 FatMax 區間，極致化燃脂。"], p5: ["馬拉松配速", "模擬賽事體感，鍛鍊抗疲勞巡航。"], p6: ["乳酸閾值", "逼近 OBLA，提升清除氫離子能力。"],
-            p7: ["金字塔漸進", "平滑過渡各區間，全面提升心肺。"], p8: ["兩極化訓練", "80% 極輕鬆，20% 極痛苦。奧運標準。"], p9: ["賽事實戰", "逐步推升至無氧極限，考驗意志力。"], p10: ["VO₂max間歇", "方波衝刺，暴力撕裂心肺天花板。"]
-        }
-    },
-    en: {
-        tSet: "Settings", tMat: "Pace",
-        sta: "START", pau: "PAUSE", rsm: "RESUME", end: "END", rec: "HISTORY", 
-        tim: "TIME (MIN)", km: "DIST (KM)", mi: "DIST (MI)", 
-        age: "Age", wgt: "Weight (kg)", wgtImp: "Weight (lbs)", bmr: "BMR (kcal)", smm: "SMM (kg)", smmImp: "SMM (lbs)", bf: "BodyFat (%)", vo2: "VO₂max",
-        mxS: "MAX SPD (KPH)", mxSImp: "MAX SPD (MPH)", mnS: "MIN SPD (KPH)", mnSImp: "MIN SPD (MPH)", mxI: "MAX INC (%)", mnI: "MIN INC (%)",
-        sci: "Physiology", hwTitle: "Hardware Limits", rmPref: "Preferences", rmName: "Runner Name", rmTitle: "Runner Profile",
-        btnSave: "Save", btnCancel: "Cancel", btnClose: "Close", btnClear: "Clear", btnYes: "Yes",
-        avg: "AVG", max: "MAX", sum: "Summary", hist: "History",
-        endAskS: "Confirm", endDescS: "Run is under 10 seconds and will not be saved.",
-        endAskL: "Great job, rest anytime", endDescL: "Your progress and data will be saved.",
-        clearAsk: "Clear All History?", clearDesc: "This cannot be undone.", rmConf: "Are you sure you want to delete this profile and all its history?",
-        notifTitle: "Settings Saved & Adjusted:",
-        downS: "Max Spd scaled to {v}", upS: "Min Spd scaled to {v}", downI: "Max Inc scaled to {v}%", upI: "Min Inc scaled to {v}%",
-        nutriHintSmmBf: "💡 Hint: Fill in BodyFat% and SMM for precise nutrition suggestions.", nutriHintSmm: "💡 Hint: Fill in SMM for precise nutrition suggestions.", nutriHintBf: "💡 Hint: Fill in BodyFat% for precise nutrition suggestions.", nutriRx: "[ Nutrition Suggestion ]", 
-        nutriPost: "Post-run (30m): <strong>Protein {p}g</strong> + <strong>Carbs {c}g</strong> (~{k} kcal)", nutriDaily: "Daily Recommended Protein: <strong>{p}g</strong>",
-        workoutBegins: "Workout begins, {t} minutes.", workoutResumed: "Workout resumed, {m} mins {s} secs remaining.", noHistory: "No history yet", voiceOn: "Voice Assistant Enabled",
-        prog: {
-            p1: ["Active Recovery", "Clear lactate, speed up venous return."], p2: ["Aerobic Base", "Build capillaries, train fat oxidation."], p3: ["LSD Endurance", "Long steady state, boost slow-twitch."],
-            p4: ["FatMax Cruise", "Lock in FatMax zone for peak burn."], p5: ["Marathon Pace", "Simulate race feel, fatigue resistance."], p6: ["Lactate Threshold", "Push OBLA, enhance hydrogen clearance."],
-            p7: ["Pyramidal Interval", "Smooth transitions, full cardio boost."], p8: ["Polarized 80/20", "80% easy, 20% extreme. Olympic standard."], p9: ["Race Simulation", "Progressive push to anaerobic limit."], p10: ["VO₂max Intervals", "Square waves to tear the cardio ceiling."]
-        }
-    }
-};
-
-// 3. 響應式狀態庫 (ReactiveState) - 解決 Bug #1 狀態失步
+// --- 響應式狀態庫 (Proxy 單向資料流) ---
 class ReactiveState {
     constructor(initialState) {
         this.listeners = new Map();
@@ -580,12 +529,7 @@ class ReactiveState {
             set: (target, key, value) => {
                 if (target[key] !== value) {
                     target[key] = value;
-                    if (this.listeners.has(key)) {
-                        this.listeners.get(key).forEach(cb => cb(value, target));
-                    }
-                    if (this.listeners.has('*')) {
-                        this.listeners.get('*').forEach(cb => cb(key, value, target));
-                    }
+                    if (this.listeners.has(key)) this.listeners.get(key).forEach(cb => cb(value, target));
                 }
                 return true;
             }
@@ -595,73 +539,41 @@ class ReactiveState {
         if (!this.listeners.has(key)) this.listeners.set(key, new Set());
         this.listeners.get(key).add(callback);
     }
-    // 批次更新，避免頻繁觸發
-    batch(updates) {
-        Object.entries(updates).forEach(([key, val]) => { this.state[key] = val; });
-    }
+    batch(updates) { Object.entries(updates).forEach(([key, val]) => { this.state[key] = val; }); }
 }
 
-// 全域唯一資料源 (Single Source of Truth)
 const AppState = new ReactiveState({
-    activeP: 'Runner',
-    profiles: {},
-    hw: { maxSpd: 20.0, minSpd: 0.1, maxInc: 15.0, minInc: 0.0 },
-    
-    // 運行狀態
-    runStatus: 'STOPPED', // STOPPED, RUNNING, PAUSED
-    accumMs: 0,
-    curData: null,
-    matrix: [],
-    
-    // UI 狀態
-    hoverIdx: -1, 
-    activeTab: 'settings', // settings, matrix
+    activeP: 'Runner', profiles: {}, hw: { maxSpd: 20.0, minSpd: 0.1, maxInc: 15.0, minInc: 0.0 },
+    runStatus: 'STOPPED', accumMs: 0, curData: null, matrix: [], activeTab: 'settings'
 });
 
-// 4. 生理引擎 (PhysioEngine) - 解決 Bug #81, #84, #82
+// --- 生理與矩陣引擎 ---
 class PhysioEngine {
-    static getSanitizedProfile(raw) {
+    static sanitize(raw) {
         let m = { ...raw }; 
-        let wKG = Math.max(30, m.weight || (m.gender === 'M' ? 70 : 55)); // 防負數
+        let wKG = Math.max(30, m.weight || (m.gender === 'M' ? 70 : 55)); 
         let sKG = Math.max(0, m.smm || 0); 
         let defBF = m.gender === 'M' ? 18 : 26;
         let bf = Math.max(3, m.bf || (sKG > 0 ? Math.max(5, 100 - (sKG/wKG*100) - (m.gender==='M'?20:15)) : defBF));
         let smm = sKG || (wKG * (1 - bf/100) * (m.gender==='M'?0.45:0.38));
-        
-        // 自動精準計算 BMR
         let bmr = Math.max(500, m.bmr || (10 * wKG + 6.25 * 170 - 5 * (m.age||35) + (m.gender === 'M' ? 5 : -161)));
         
         let ms = Math.max(1.0, m.maxSpd || 12.0);
         let vo2 = Math.max(20, m.vo2 || Math.min(80, Math.max(25, 3.5 + 0.2*(ms*16.67) + 0.9*(ms*16.67)*0.01))); 
         
-        return { wKG, bf, smm, bmr, vo2, msKPH: ms, mnKPH: Math.max(0, m.minSpd||1.0), mxInc: Math.max(0, m.maxInc||5.0), mnInc: Math.max(0, m.minInc||0.0), tKm: Math.max(0.1, m.tKm||5.0), tTime: Math.max(10, m.tTime||60), age: Math.max(15, m.age||35), gender: m.gender, name: m.name, unit: m.unit, lang: m.uiLang, voiceOn: m.voiceOn, lastProg: m.lastProg || 2 };
+        return { wKG, bf, smm, bmr, vo2, maxSpd: ms, minSpd: Math.max(0, m.minSpd||1.0), mxInc: Math.max(0, m.maxInc||5.0), mnInc: Math.max(0, m.minInc||0.0), tKm: Math.max(0.1, m.tKm||5.0), tTime: Math.max(10, m.tTime||60), age: Math.max(15, m.age||35), gender: m.gender, name: m.name, unit: m.unit, lang: m.lang, voiceOn: m.voiceOn, lastProg: m.lastProg || 2 };
     }
 
-    static getNutritionRx(p, cal) {
-        let isDefault = (!p.bf || !p.smm);
-        let smmRatio = p.smm / p.wKG; let ageFactor = p.age > 50 ? 1.1 : (p.age > 40 ? 1.05 : 1.0);
-        let bmrFactor = p.bmr > 0 ? Math.max(0.7, Math.min(1.5, (p.bmr / (p.wKG * 24)))) : 1.0;
-        
-        let proFactor = Math.max(1.2, Math.min(2.2, (1.2 + Math.max(0, smmRatio - 0.3) * 4) * ageFactor * bmrFactor));
-        let dailyPro = Math.round(p.wKG * proFactor + (cal / 100));
-        let basePostPro = p.wKG * 0.3 * ageFactor; let effortBonus = (cal / 200) * 4; 
-        let postPro = Math.round(Math.min(65, Math.max(20, basePostPro + effortBonus)));
-        let carbRatio = cal > 800 ? 4 : (cal > 400 ? 3 : 2.5); let postCarb = Math.round(postPro * carbRatio);
-        
-        return { dailyPro, postPro, postCarb, postKcal: (postPro * 4) + (postCarb * 4), isDefault };
-    }
-
-    static generateMatrix(p, pid, hw) {
+    static buildMatrix(p, pid, hw) {
         let T = Math.floor(p.tTime); let D = p.tKm; 
         let hwS = hw.maxSpd || 20.0; let hwI = hw.maxInc || 15.0;
-        let safeMnS = Math.max(hw.minSpd, p.mnKPH); 
-        let allowedMxS = Math.min(hwS, p.msKPH); let allowedMxI = Math.min(hwI, p.mxInc);
+        let safeMnS = Math.max(hw.minSpd, p.minSpd); 
+        let allowedMxS = Math.min(hwS, p.maxSpd); let allowedMxI = Math.min(hwI, p.mxInc);
         let safeMnI = Math.max(hw.minInc, p.mnInc);
         
         let m = []; let bP = []; let iP = [];
         let bLenS = Math.max(1, Math.ceil(T / 20)); let bLenI = Math.max(1, Math.ceil(T / 10));
 
-        // 產生基礎波型
         for(let i=0; i<T; i++) {
             let r=1; let ir=0;
             if(pid===4) { r=0.5; ir=0.5; }
@@ -679,30 +591,23 @@ class PhysioEngine {
             m.push({ spd: safeMnS + (allowedMxS - safeMnS)*smoothR, inc: safeMnI + (allowedMxI - safeMnI)*smoothIR });
         }
 
-        // 修正 Bug #84: 防止目標里程過大導致速度無限上綱
+        // 防呆：如果要求速度超過機器極限，自動加長運動時間
         let cD = m.reduce((s,x) => s + x.spd/60, 0); let diff = D - cD;
-        let autoExtended = false;
+        let extended = false;
         
         if (Math.abs(diff) > 0.05 && pid !== 1 && pid !== 2) {
             let workArea = bP.reduce((s,v) => s+v, 0) || T; let addP = (diff / workArea) * 60;
             for(let i=0; i<T; i++) m[i].spd += addP * bP[Math.floor(i / bLenS) * bLenS];
-            
-            // 檢查是否突破天際
             let maxSpdReq = Math.max(...m.map(x=>x.spd));
             if (maxSpdReq > hwS) {
-                // 自動延長時間
                 let scale = maxSpdReq / hwS;
-                T = Math.ceil(T * scale);
-                autoExtended = true;
-                return this.generateMatrix({ ...p, tTime: T }, pid, hw); // 遞迴重算
+                return this.buildMatrix({ ...p, tTime: Math.ceil(T * scale) }, pid, hw);
             }
         }
 
         let W = Math.max(2, Math.floor(T * 0.05)); let C = Math.max(2, Math.floor(T * 0.05)); let baseWalk = 4.0; 
-        
         let mHR = 208 - 0.7 * p.age; let cHR = 75; let cLac = 1.0;
-        let pMaxLac = (p.gender === 'M' ? 18.0 : 16.0) + (p.vo2>0 ? (p.vo2-40)*0.1 : 0); 
-        let cC=0, ccD=0; let RE = p.gender === 'F' ? 1.05 : 1.0; if(p.smm / p.wKG > (p.gender==='M' ? 0.4 : 0.35)) RE -= 0.05; 
+        let RE = p.gender === 'F' ? 1.05 : 1.0; if(p.smm / p.wKG > (p.gender==='M' ? 0.4 : 0.35)) RE -= 0.05; 
         
         for(let i=0; i<T; i++) {
             if (i < W) { let prog = i / W; m[i].spd = safeMnS + (m[W].spd - safeMnS) * prog; m[i].inc = Math.min(m[i].inc, 2.0); }
@@ -715,7 +620,6 @@ class PhysioEngine {
 
             let sm = m[i].spd * 16.6667; let id = m[i].inc / 100;
             let vo2D = (m[i].spd <= 7.0 ? (3.5 + 0.1*sm + 1.8*sm*id) : (3.5 + 0.2*sm + 0.9*sm*id)) * RE;
-            cC += (vo2D*p.wKG*5)/1000; ccD += m[i].spd/60;
             
             let tHR = Math.min(mHR, 60 + (vo2D / p.vo2) * (mHR - 60));
             cHR += (tHR - cHR) * (m[i].phase === 'sprint' ? 0.6 : 0.3); let pHR = cHR / mHR; 
@@ -725,564 +629,327 @@ class PhysioEngine {
             
             m[i] = {...m[i], m:i+1, cal:(vo2D*p.wKG*5)/1000, dist:m[i].spd/60, hr:Math.round(cHR), lac:cLac, z};
         }
-        
-        return { matrix: m, pMaxLac, autoExtended, extTime: T };
+        return { matrix: m, extended, extTime: T };
     }
 }
 
-// 5. 語音引擎狀態機 (FSM VoiceEngine) - 解決 Bug #39, #72, #73, #75
+// --- 語音防呆引擎 (FSM) ---
 class VoiceEngine {
     constructor() {
-        this.synth = window.speechSynthesis;
-        this.queue = [];
-        this.state = 'IDLE'; // IDLE, SPEAKING, COOLDOWN, LOCKED
-        this.currPriority = 0;
-        this.isUnlocked = false;
-        this.cooldownTimer = null;
-        
-        // 綁定事件修復死鎖
-        if(this.synth) {
-            this.synth.onvoiceschanged = () => { if(this.state === 'LOCKED') this.state = 'IDLE'; };
-        }
+        this.synth = window.speechSynthesis; this.q = []; this.state = 'IDLE'; this.currPri = 0; this.timer = null; this.unlocked = false;
+        if(this.synth) this.synth.onvoiceschanged = () => { if(this.state === 'LOCKED') this.state = 'IDLE'; };
     }
-
-    unlock() {
-        // 解決 Bug #75 Safari 必須在使用者點擊時播放空語音
-        if (this.isUnlocked || !this.synth) return;
-        let u = new SpeechSynthesisUtterance(''); u.volume = 0; 
-        this.synth.speak(u); this.isUnlocked = true;
-    }
-
-    speak(keyArrName, priority = 0, transArgs = null) {
+    unlock() { if(!this.unlocked && this.synth) { let u = new SpeechSynthesisUtterance(''); u.volume = 0; this.synth.speak(u); this.unlocked = true; } }
+    speak(key, pri = 0, args = null) {
         if (!this.synth || AppState.state.runStatus === 'PAUSED') return;
-        let pName = AppState.state.activeP;
-        let rawP = AppState.state.profiles[pName]; if(!rawP || !rawP.voiceOn) return;
-        let lang = rawP.uiLang || 'en';
-        let db = VoiceDB[lang]; if (!db) return;
-
-        let text = "";
-        if (transArgs && db[keyArrName]) { 
-            // 解決 Bug #73: 嚴格控制小數點
-            let sStr = Number(transArgs.s).toFixed(1);
-            let iStr = Number(transArgs.i).toFixed(1);
-            text = Utils.PRNG.get(lang, keyArrName, db[keyArrName]).replace('{s}', sStr).replace('{i}', iStr);
-        } 
-        else if (db[keyArrName]) { 
-            text = Array.isArray(db[keyArrName]) ? Utils.PRNG.get(lang, keyArrName, db[keyArrName]) : db[keyArrName]; 
-        } 
-        else if (i18n[lang] && typeof i18n[lang][keyArrName] === 'string') { 
-            text = i18n[lang][keyArrName];
-            if (transArgs) { 
-                if(transArgs.t !== undefined) text = text.replace('{t}', transArgs.t); 
-                if(transArgs.m !== undefined) text = text.replace('{m}', transArgs.m).replace('{s}', transArgs.s); 
-            }
-        }
+        let p = AppState.state.profiles[AppState.state.activeP]; if(!p || !p.voiceOn) return;
+        let lang = p.lang || 'en'; let db = VoiceDB[lang]; if (!db) return;
+        let txt = "";
         
-        if(!text) return;
+        if (args && db[key]) { txt = Utils.PRNG.get(lang, key, db[key]).replace('{s}', Number(args.s).toFixed(1)).replace('{i}', Number(args.i).toFixed(1)); } 
+        else if (db[key]) { txt = Array.isArray(db[key]) ? Utils.PRNG.get(lang, key, db[key]) : db[key]; } 
 
-        // 解決 Bug #39: 語音防護機制 (Debounce & Exclusivity)
-        if (priority > this.currPriority) {
-            this.synth.cancel(); // 高優先級（警告）直接插隊並打斷
-            this.queue = [];
-            clearTimeout(this.cooldownTimer);
-            this.state = 'IDLE';
-        } else if (this.state === 'COOLDOWN' || priority < this.currPriority) {
-            return; // 處於冷卻中，拒絕低優先級廢話
-        }
+        if(!txt) return;
+        if (pri > this.currPri) { this.synth.cancel(); this.q = []; clearTimeout(this.timer); this.state = 'IDLE'; } 
+        else if (this.state === 'COOLDOWN' || pri < this.currPri) return;
 
-        this.queue.push({ text, priority, lang: lang === 'zh' ? 'zh-TW' : 'en-US' });
-        this.queue.sort((a,b) => b.priority - a.priority);
-        this._process();
+        this.q.push({ txt, pri, lang: lang === 'zh' ? 'zh-TW' : 'en-US' }); this.q.sort((a,b) => b.pri - a.pri); this._process();
     }
-
     _process() {
-        if (this.state === 'SPEAKING' || this.state === 'COOLDOWN' || this.queue.length === 0) return;
-        
-        let job = this.queue.shift();
-        this.state = 'SPEAKING';
-        this.currPriority = job.priority;
-
+        if (this.state !== 'IDLE' || this.q.length === 0) return;
+        let job = this.q.shift(); this.state = 'SPEAKING'; this.currPri = job.pri;
         try {
-            let msg = new SpeechSynthesisUtterance(job.text);
-            msg.lang = job.lang;
-            msg.rate = 1.0;
-            
-            // 死鎖防護定時器
-            let timeoutId = setTimeout(() => { 
-                this.state = 'LOCKED'; this.synth.cancel(); this._finishJob(); 
-            }, 8000); 
-
-            msg.onend = () => { clearTimeout(timeoutId); this._finishJob(); };
-            msg.onerror = () => { clearTimeout(timeoutId); this._finishJob(); };
-            
+            let msg = new SpeechSynthesisUtterance(job.txt); msg.lang = job.lang; msg.rate = 1.0;
+            let tid = setTimeout(() => { this.state = 'LOCKED'; this.synth.cancel(); this._finish(); }, 8000); 
+            msg.onend = () => { clearTimeout(tid); this._finish(); };
+            msg.onerror = () => { clearTimeout(tid); this._finish(); };
             this.synth.speak(msg);
-        } catch(e) {
-            this._finishJob();
-        }
+        } catch(e) { this._finish(); }
     }
-
-    _finishJob() {
-        this.currPriority = 0;
-        this.state = 'COOLDOWN';
-        // 冷卻 15 秒，避免語音轟炸
-        this.cooldownTimer = setTimeout(() => {
-            this.state = 'IDLE';
-            this._process();
-        }, 15000);
+    _finish() {
+        this.currPri = 0; this.state = 'COOLDOWN';
+        this.timer = setTimeout(() => { this.state = 'IDLE'; this._process(); }, 15000);
     }
-
-    clear() {
-        this.queue = [];
-        this.currPriority = 0;
-        if (this.synth) this.synth.cancel();
-        clearTimeout(this.cooldownTimer);
-        this.state = 'IDLE';
-    }
+    clear() { this.q = []; this.currPri = 0; if (this.synth) this.synth.cancel(); clearTimeout(this.timer); this.state = 'IDLE'; }
 }
-
-// 實例化語音引擎
 const VoiceApp = new VoiceEngine();
-
 
 /**
  * ==========================================
- * PART 3: UI CONTROLLERS & APP LIFECYCLE
+ * PART 3: UI CONTROLLERS & RENDER ENGINE
  * ==========================================
  */
 
-// 1. 安全儲存模組 (解決 Bug #46, #78)
+// --- 1. UI 綁定引擎 (單向資料流) ---
+class UIBinder {
+    constructor() { this.els = new Map(); document.querySelectorAll('[data-bind]').forEach(el => { let key = el.dataset.bind; if(!this.els.has(key)) this.els.set(key, []); this.els.get(key).push(el); }); }
+    update(key, val) { if(this.els.has(key)) this.els.get(key).forEach(el => { if(el.textContent !== String(val)) el.textContent = val; }); }
+    updateBatch(obj) { Object.entries(obj).forEach(([k,v]) => this.update(k, v)); }
+}
+const Binder = new UIBinder();
+
+// --- 2. 安全儲存與通知 ---
 const StorageHelper = {
-    get: (key, def) => { try { return JSON.parse(localStorage.getItem(key)) || def; } catch(e) { return def; } },
-    set: (key, val) => {
-        try { localStorage.setItem(key, JSON.stringify(val)); } 
-        catch(e) { console.warn("Storage quota exceeded. Pruning history...");
-            if(key.startsWith('history_')) { let h = StorageHelper.get(key, []); if(h.length > 5) { h = h.slice(0, 5); localStorage.setItem(key, JSON.stringify(h)); } }
-        }
-    },
-    remove: (key) => localStorage.removeItem(key)
+    get: (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch(e) { return d; } },
+    set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) { console.warn("Storage Full"); } },
+    remove: k => localStorage.removeItem(k)
 };
 
-// 2. Toast 通知管理器 (解決 Bug #6, #95)
 const NotificationManager = {
-    timeout: null,
-    show: (changes, titleText = "通知") => {
-        if (!changes || changes.length === 0) return;
-        const bar = document.getElementById('topNotification'), content = document.getElementById('notifContent'), fill = document.getElementById('notifBar');
-        if (!bar || !content || !fill) return;
-        let html = `<strong>${titleText}</strong><ul>`; changes.forEach(c => html += `<li>${c}</li>`); html += `</ul>`;
-        content.innerHTML = html;
-        let duration = changes.length <= 2 ? 3000 : 5000;
-        bar.classList.add('show'); fill.style.transition = 'none'; fill.style.transform = 'scaleX(1)';
-        void fill.offsetWidth; fill.style.transition = `transform ${duration}ms linear`; fill.style.transform = 'scaleX(0)';
-        clearTimeout(NotificationManager.timeout); 
-        NotificationManager.timeout = setTimeout(() => NotificationManager.hide(), duration);
+    timer: null,
+    show: (msgs, title = "通知") => {
+        if(!msgs || !msgs.length) return;
+        let html = `<strong>${title}</strong><ul>`; msgs.forEach(m => html+=`<li>${m}</li>`); html+='</ul>';
+        document.getElementById('notifContent').innerHTML = html;
+        document.getElementById('topNotification').classList.add('show');
+        document.getElementById('notifBar').style.transition = 'none'; document.getElementById('notifBar').style.transform = 'scaleX(1)';
+        void document.getElementById('notifBar').offsetWidth; 
+        document.getElementById('notifBar').style.transition = `transform ${msgs.length<=2?3000:5000}ms linear`; document.getElementById('notifBar').style.transform = 'scaleX(0)';
+        clearTimeout(NotificationManager.timer); NotificationManager.timer = setTimeout(() => NotificationManager.hide(), msgs.length<=2?3000:5000);
     },
-    hide: () => { 
-        const bar = document.getElementById('topNotification'); 
-        if (bar) bar.classList.remove('show'); 
-        clearTimeout(NotificationManager.timeout); 
-    }
+    hide: () => { document.getElementById('topNotification').classList.remove('show'); clearTimeout(NotificationManager.timer); }
 };
 
-// 3. 確認對話框 (解決 Bug #56)
-const VirtualModal = {
-    confirm: (title, desc, onConfirm, onCancel = null) => {
-        const m = document.getElementById('vConfirmModal');
-        document.getElementById('vcTitle').textContent = title; document.getElementById('vcDesc').textContent = desc;
-        const btnYes = document.getElementById('vcYes'), btnNo = document.getElementById('vcCancel');
-        const clean = () => { m.classList.remove('show'); btnYes.replaceWith(btnYes.cloneNode(true)); btnNo.replaceWith(btnNo.cloneNode(true)); };
-        document.getElementById('vcYes').addEventListener('click', () => { clean(); onConfirm(); });
-        document.getElementById('vcCancel').addEventListener('click', () => { clean(); if(onCancel) onCancel(); });
-        m.classList.add('show');
-    }
-};
-
-// 4. 撥盤控制器 (解決 Bug #10, #12, #13)
+// --- 3. 撥盤元件 (防抖優化) ---
 class SwipeDial {
     constructor(id, isFloat, onChange) {
-        this.scrollEl = document.getElementById(id); this.isFloat = isFloat; this.onChange = onChange;
-        this.timer = null; this.items = [];
+        this.scrollEl = document.getElementById(id); this.isFloat = isFloat; this.onChange = onChange; this.items = []; this.timer = null;
         this.scrollEl.addEventListener('scroll', () => this.handleScroll(), {passive: true});
     }
     build(min, max, step) {
         this.scrollEl.innerHTML = '<div class="dial-spacer"></div>'; this.items = [];
-        for(let v = min; v <= max + 0.0001; v += step) {
+        for(let v=min; v<=max+0.0001; v+=step) {
             let d = document.createElement('div'); d.className = 'dial-item';
-            let valStr = this.isFloat ? Number(v).toFixed(1) : Math.round(v).toString();
-            d.dataset.val = valStr; d.textContent = valStr;
+            let vs = this.isFloat ? Number(v).toFixed(1) : Math.round(v).toString(); d.dataset.val = vs; d.textContent = vs;
             this.scrollEl.appendChild(d); this.items.push(d);
         }
         this.scrollEl.insertAdjacentHTML('beforeend', '<div class="dial-spacer"></div>');
     }
     setValue(val) {
-        if(this.items.length === 0) return;
-        let vStr = this.isFloat ? Number(val).toFixed(1) : Math.round(val).toString();
-        let target = this.items.find(i => i.dataset.val === vStr) || this.items[0];
-        // 考量 spacer，精準置中
+        if(this.items.length===0) return;
+        let vs = this.isFloat ? Number(val).toFixed(1) : Math.round(val).toString();
+        let target = this.items.find(i => i.dataset.val === vs) || this.items[0];
         let top = target.offsetTop - this.scrollEl.offsetTop - (this.scrollEl.clientHeight/2) + (target.clientHeight/2);
-        this.scrollEl.scrollTo({top: top, behavior: 'instant'}); this.updateActive(target);
+        this.scrollEl.scrollTo({top, behavior: 'instant'}); this.items.forEach(i => i.classList.remove('active')); target.classList.add('active');
     }
     handleScroll() {
         clearTimeout(this.timer);
-        this.timer = setTimeout(() => { // 降低防抖時間至 30ms 提升手感
-            if(this.items.length === 0) return;
-            let center = this.scrollEl.scrollTop + this.scrollEl.clientHeight / 2;
-            let closest = this.items.reduce((prev, curr) => Math.abs((curr.offsetTop - this.scrollEl.offsetTop + curr.clientHeight/2) - center) < Math.abs((prev.offsetTop - this.scrollEl.offsetTop + prev.clientHeight/2) - center) ? curr : prev);
-            this.updateActive(closest); this.onChange(parseFloat(closest.dataset.val));
-        }, 30); 
+        this.timer = setTimeout(() => {
+            if(this.items.length===0) return; let center = this.scrollEl.scrollTop + this.scrollEl.clientHeight/2;
+            let closest = this.items.reduce((p, c) => Math.abs((c.offsetTop - this.scrollEl.offsetTop + c.clientHeight/2) - center) < Math.abs((p.offsetTop - this.scrollEl.offsetTop + p.clientHeight/2) - center) ? c : p);
+            this.items.forEach(i => i.classList.remove('active')); closest.classList.add('active');
+            this.onChange(parseFloat(closest.dataset.val));
+        }, 50);
     }
-    updateActive(el) { this.items.forEach(i => i.classList.remove('active')); el.classList.add('active'); }
 }
 
-// 5. 圖表管理器 (解決 Bug #28, #59, #64, #65, #70)
+// --- 4. Canvas 防抖與渲染器 (徹底解決破版) ---
 class ChartManager {
     constructor() {
         this.ctxS = document.getElementById('sChart').getContext('2d', {alpha: false});
         this.ctxR = document.getElementById('rChart').getContext('2d', {alpha: false});
-        this.resizeTimer = null;
+        this.rTimer = null;
         
-        // ResizeObserver 防抖 (Bug #64)
-        const RO = new ResizeObserver(() => {
-            clearTimeout(this.resizeTimer);
-            this.resizeTimer = setTimeout(() => this.drawAll(), 100);
-        });
-        RO.observe(document.getElementById('sChartWrap'));
-        RO.observe(document.getElementById('rChartWrap'));
-
-        this.bindEvents('s', document.getElementById('sChartWrap'));
-        this.bindEvents('r', document.getElementById('rChartWrap'));
+        // 監聽父層大小改變，100ms 後才重繪，解決 Resize Storm
+        const RO = new ResizeObserver(() => { clearTimeout(this.rTimer); this.rTimer = setTimeout(() => this.drawAll(), 100); });
+        RO.observe(document.getElementById('sChartWrap')); RO.observe(document.getElementById('rChartWrap'));
+        
+        this.bindEvents('s', document.getElementById('sChartWrap')); this.bindEvents('r', document.getElementById('rChartWrap'));
     }
-
-    drawAll() {
-        this.draw('s', document.getElementById('sChart'), this.ctxS);
-        this.draw('r', document.getElementById('rChart'), this.ctxR);
-    }
-
+    drawAll() { this.draw('s', document.getElementById('sChart'), this.ctxS); this.draw('r', document.getElementById('rChart'), this.ctxR); }
     draw(prefix, c, ctx) {
-        let m = AppState.state.matrix; if(!c || !ctx || !m || !m.length || c.parentElement.clientWidth === 0) return;
-        let dpr = window.devicePixelRatio || 1;
-        c.width = c.parentElement.clientWidth * dpr; c.height = c.parentElement.clientHeight * dpr; ctx.scale(dpr, dpr);
-        let W = c.width / dpr; let H = c.height / dpr; ctx.clearRect(0,0,W,H);
+        let m = AppState.state.matrix; if(!m.length || c.parentElement.clientWidth === 0) return;
+        let dpr = window.devicePixelRatio || 1; c.width = c.parentElement.clientWidth * dpr; c.height = c.parentElement.clientHeight * dpr; ctx.scale(dpr, dpr);
+        let W = c.width/dpr; let H = c.height/dpr; ctx.clearRect(0,0,W,H);
         
-        let p = AppState.state.profiles[AppState.state.activeP] || {};
-        let isMet = p.unit !== 'imperial';
+        let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
         let mxS = Math.max(10, AppState.state.hw.maxSpd * (isMet?1.1:1.1*1.609));
         
-        // Bug #65: 畫背景參考線
-        ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
-        [0.25, 0.5, 0.75].forEach(r => { ctx.beginPath(); ctx.moveTo(0, H*r); ctx.lineTo(W, H*r); ctx.stroke(); });
-        ctx.setLineDash([]);
+        // 畫參考線
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+        [0.25, 0.5, 0.75].forEach(r => { ctx.beginPath(); ctx.moveTo(0, H*r); ctx.lineTo(W, H*r); ctx.stroke(); }); ctx.setLineDash([]);
 
-        let getX = i => (i / (m.length - 1)) * W; let getY = (v, max, min=0) => H - ((v - min) / (max - min)) * H;
-        let totMs = m.length * 60000; let completedRatio = (AppState.state.runStatus !== 'STOPPED' && prefix === 'r') ? AppState.state.accumMs / totMs : 1.0;
+        let getX = i => (i/(m.length-1))*W; let getY = (v, max, min=0) => H - ((v-min)/(max-min))*H;
+        let totMs = m.length * 60000; let cr = (AppState.state.runStatus !== 'STOPPED' && prefix === 'r') ? AppState.state.accumMs/totMs : 1.0;
 
         let drawLine = (fn, col, w, fill=false) => {
-            ctx.beginPath(); ctx.moveTo(getX(0), fn(m[0]));
-            for(let i=1; i<m.length; i++) ctx.lineTo(getX(i), fn(m[i]));
+            ctx.beginPath(); ctx.moveTo(getX(0), fn(m[0])); for(let i=1; i<m.length; i++) ctx.lineTo(getX(i), fn(m[i]));
             if(fill) { ctx.lineTo(W, H+10); ctx.lineTo(0, H+10); let g = ctx.createLinearGradient(0,0,0,H); g.addColorStop(0, col.replace('1)','0.4)')); g.addColorStop(0.9, 'transparent'); ctx.fillStyle = g; ctx.fill(); } 
             else { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.stroke(); }
         }
-        
-        drawLine(r => getY(r.hr, 220, 60), 'rgba(10, 132, 255, 0.6)', 2, true);
-        drawLine(r => getY(r.lac, 18, 0), 'rgba(255, 59, 48, 0.8)', 2);
-        drawLine(r => getY(r.inc, 15, 0), 'rgba(255, 214, 10, 0.8)', 2);
-        drawLine(r => getY(r.spd, mxS, 0), 'rgba(50, 229, 18, 1)', 3);
-
-        // 未完成區域變暗
-        if (completedRatio < 1.0) { ctx.fillStyle = 'rgba(10, 10, 10, 0.75)'; ctx.fillRect(W * completedRatio, 0, W * (1 - completedRatio), H); }
+        drawLine(r => getY(r.hr, 220, 60), 'rgba(10, 132, 255, 0.6)', 2, true); drawLine(r => getY(r.lac, 18, 0), 'rgba(255, 69, 58, 0.8)', 2);
+        drawLine(r => getY(r.inc, 15, 0), 'rgba(255, 214, 10, 0.8)', 2); drawLine(r => getY(r.spd, mxS, 0), 'rgba(50, 215, 75, 1)', 3);
+        if (cr < 1.0) { ctx.fillStyle = 'rgba(10, 10, 10, 0.8)'; ctx.fillRect(W*cr, 0, W*(1-cr), H); }
     }
-
-    bindEvents(prefix, wrap) {
-        const getFloatIdx = (e) => {
-            let r = wrap.getBoundingClientRect(); let x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left; x = Utils.clamp(x, 0, r.width);
-            return (x / r.width) * (AppState.state.matrix.length - 1);
-        };
+    bindEvents(px, wrap) {
         const move = e => {
-            if(!AppState.state.matrix.length) return; let fIdx = getFloatIdx(e); 
-            let cross = document.getElementById(`${prefix}Crosshair`);
-            if(cross) { cross.style.display = 'block'; cross.style.transition = 'none'; cross.style.left = `${(fIdx/(AppState.state.matrix.length-1))*100}%`; }
+            if(!AppState.state.matrix.length) return;
+            let r = wrap.getBoundingClientRect(); let x = Utils.clamp((e.touches ? e.touches[0].clientX : e.clientX) - r.left, 0, r.width);
+            let fIdx = (x / r.width) * (AppState.state.matrix.length - 1);
+            let ch = document.getElementById(`${px}Crosshair`); if(ch) { ch.style.display = 'block'; ch.style.left = `${(fIdx/(AppState.state.matrix.length-1))*100}%`; }
             
-            // Bug #28: 切斷 List 強制滾動，只更新 HUD
-            let cIdx = Math.min(Math.ceil(fIdx), AppState.state.matrix.length - 1); // Bug #70
-            let f = Math.floor(fIdx); let frac = fIdx - f;
-            let m = AppState.state.matrix;
-            let iSpd = m[f].spd * (1-frac) + m[cIdx].spd * frac; let iInc = m[f].inc * (1-frac) + m[cIdx].inc * frac;
+            let cIdx = Math.min(Math.ceil(fIdx), AppState.state.matrix.length - 1); let f = Math.floor(fIdx); let frac = fIdx - f; let m = AppState.state.matrix;
+            let iSpd = m[f].spd*(1-frac) + m[cIdx].spd*frac; let iInc = m[f].inc*(1-frac) + m[cIdx].inc*frac;
             
-            let hoverRow = document.getElementById(prefix + 'HovRow');
-            if(hoverRow) { hoverRow.classList.add('show'); 
-                document.getElementById(prefix+'HovMin').textContent = Utils.fmtTime(fIdx * 60000);
-                document.getElementById(prefix+'HovSpd').textContent = iSpd.toFixed(1);
-                document.getElementById(prefix+'HovInc').textContent = iInc.toFixed(1);
+            let row = document.getElementById(px+'HovRow');
+            if(row) { 
+                row.classList.add('show'); 
+                let isMet = AppState.state.profiles[AppState.state.activeP].unit !== 'imperial';
+                Binder.updateBatch({ [`${px}HovMin`]: Utils.fmtTime(fIdx * 60000), [`${px}HovSpd`]: (isMet?iSpd:iSpd/1.609).toFixed(1), [`${px}HovInc`]: iInc.toFixed(1), [`${px}HovHr`]: Math.round(m[f].hr*(1-frac) + m[cIdx].hr*frac), [`${px}HovLac`]: (m[f].lac*(1-frac) + m[cIdx].lac*frac).toFixed(1) });
             }
         };
-        const leave = () => { // Bug #59: 徹底隱藏
-            let cross = document.getElementById(`${prefix}Crosshair`); if(cross) cross.style.display='none';
-            let hoverRow = document.getElementById(prefix + 'HovRow'); if(hoverRow) hoverRow.classList.remove('show');
-        };
+        const leave = () => { let ch=document.getElementById(`${px}Crosshair`); if(ch) ch.style.display='none'; let row=document.getElementById(`${px}HovRow`); if(row) row.classList.remove('show'); };
         wrap.addEventListener('mousemove', move); wrap.addEventListener('touchmove', move, {passive:true});
         wrap.addEventListener('mouseleave', leave); wrap.addEventListener('touchend', leave); wrap.addEventListener('touchcancel', leave);
     }
 }
 
-// 6. 主控制器 (The Brain)
+// --- 5. 主控制器 (The Brain) ---
 class AppController {
     constructor() {
-        this.lastRenderTime = performance.now();
-        this.logicAccumulator = 0;
-        this.reqId = null;
-        this.dials = {};
-        this.charts = new ChartManager();
-        this.wakeLock = null;
+        this.dials = {}; this.charts = new ChartManager(); this.reqId = null; this.lastTime = performance.now(); this.logicAcc = 0; this.wakeLock = null; this.holdTimer = null;
+        
+        // 解決鍵盤彈出遮擋 (VisualViewport)
+        const setVH = () => document.documentElement.style.setProperty('--vh', `${(window.visualViewport ? window.visualViewport.height : window.innerHeight) * 0.01}px`);
+        if(window.visualViewport) window.visualViewport.addEventListener('resize', setVH); setVH();
+        window.addEventListener('beforeunload', () => { if(AppState.state.runStatus === 'RUNNING') this.persistRun(); });
 
-        this.initData();
-        this.initUI();
-        this.bindDelegation();
-        this.bindFormEvents();
-        this.setupSubscriptions();
-        
-        // 解決 Bug #31: 虛擬鍵盤 VisualViewport
-        const updateVH = () => { document.documentElement.style.setProperty('--vh', `${(window.visualViewport ? window.visualViewport.height : window.innerHeight) * 0.01}px`); };
-        if(window.visualViewport) window.visualViewport.addEventListener('resize', updateVH); updateVH();
-        
-        // 解決 Bug #79: 離開前強迫存檔
-        window.addEventListener('beforeunload', () => { if(AppState.state.runStatus === 'RUNNING') this.persistRunState(true); });
+        this.initData(); this.initDials(); this.bindEvents(); this.setupSubscribers();
     }
 
     initData() {
-        let saved = StorageHelper.get('pro_treadmill_v27_state', null);
-        if(saved && saved.profiles) {
-            AppState.batch({ activeP: saved.activeP, profiles: saved.profiles, hw: saved.hw });
-        } else {
-            let p = PhysioEngine.getSanitizedProfile({ name: 'Runner', gender: 'M', unit: 'metric', uiLang: 'en', voiceOn: true });
-            AppState.batch({ activeP: 'Runner', profiles: { 'Runner': p } });
-        }
+        let s = StorageHelper.get('pro_treadmill_v28', null);
+        if(s && s.profiles) { AppState.batch({ activeP: s.activeP, profiles: s.profiles, hw: s.hw }); } 
+        else { let p = PhysioEngine.sanitize({ name: 'Runner', gender: 'M', unit: 'metric', lang: 'en', voiceOn: true }); AppState.batch({ activeP: 'Runner', profiles: { 'Runner': p } }); }
         
-        // 嘗試恢復先前的跑步狀態
-        let runS = StorageHelper.get('runState_v27', null);
-        if(runS && runS.accumMs > 0 && runS.matrix) {
-            AppState.batch({ runStatus: 'PAUSED', accumMs: runS.accumMs, matrix: runS.matrix, curData: runS.curData, activeP: runS.activeP });
-        } else {
-            this.recalcMatrix();
-        }
+        let r = StorageHelper.get('runState_v28', null);
+        if(r && r.accumMs > 0 && r.matrix) { AppState.batch({ runStatus: 'PAUSED', accumMs: r.accumMs, matrix: r.matrix, curData: r.curData, activeP: r.activeP }); } 
+        else { this.recalc(); }
     }
 
-    initUI() {
-        // 初始化 Dials
-        const changeHandler = (key, isSpd) => (val) => {
+    initDials() {
+        const change = (key, isSpd) => val => {
             if(AppState.state.runStatus !== 'STOPPED') return;
-            let p = AppState.state.profiles[AppState.state.activeP];
-            let isMet = p.unit !== 'imperial';
-            p[key] = isSpd ? (isMet ? val : val * 1.609344) : val;
-            this.saveData(); this.recalcMatrix();
+            let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
+            p[key] = isSpd ? (isMet ? val : val * 1.609344) : val; this.saveData(); this.recalc();
         };
-        this.dials.time = new SwipeDial('ds-time', false, changeHandler('tTime', false));
-        this.dials.dist = new SwipeDial('ds-dist', true, changeHandler('tKm', true));
-        this.dials.mxs = new SwipeDial('ds-mxs', true, changeHandler('msKPH', true));
-        this.dials.mns = new SwipeDial('ds-mns', true, changeHandler('mnKPH', true));
-        this.dials.mxi = new SwipeDial('ds-mxi', true, changeHandler('mxInc', false));
-        this.dials.mni = new SwipeDial('ds-mni', true, changeHandler('mnInc', false));
-        this.syncDials();
-        
-        // 初始化課表按鈕
-        let pg = document.getElementById('progGrid'); pg.innerHTML = '';
-        let d = i18n[AppState.state.profiles[AppState.state.activeP].lang || 'en'];
-        for(let i=1; i<=10; i++) {
-            let btn = document.createElement('div'); btn.className = 'prog-card'; btn.dataset.action = 'select-prog'; btn.dataset.pid = i;
-            btn.innerHTML = `<div class="p-title">${d.prog[`p${i}`][0]}</div><div class="p-desc">${d.prog[`p${i}`][1]}</div>`;
-            pg.appendChild(btn);
-        }
-        this.updateI18n();
-        this.charts.drawAll();
+        this.dials.time = new SwipeDial('ds-time', false, change('tTime', false)); this.dials.dist = new SwipeDial('ds-dist', true, change('tKm', true));
+        this.dials.mxs = new SwipeDial('ds-mxs', true, change('maxSpd', true)); this.dials.mns = new SwipeDial('ds-mns', true, change('minSpd', true));
+        this.dials.mxi = new SwipeDial('ds-mxi', true, change('mxInc', false)); this.dials.mni = new SwipeDial('ds-mni', true, change('mnInc', false));
     }
 
-    // 狀態訂閱器
-    setupSubscriptions() {
-        AppState.subscribe('runStatus', (status) => {
-            let isRun = status === 'RUNNING'; let isStop = status === 'STOPPED';
-            document.getElementById('btnLeft').className = `btn-ctrl btn-runner ${!isStop ? 'btn-hide' : ''}`;
-            document.getElementById('btnRight').className = `btn-ctrl btn-start ${isRun ? 'btn-hide' : ''}`;
-            document.getElementById('btnPause').className = `btn-ctrl btn-pause ${!isRun ? 'btn-hide' : ''}`;
-            document.getElementById('btnAskEnd').className = `btn-ctrl btn-end ${isStop ? 'btn-hide' : ''}`;
-            
-            document.getElementById('lblBtnRight').textContent = (status === 'PAUSED' && AppState.state.accumMs > 0) ? i18n[AppState.state.profiles[AppState.state.activeP].lang].rsm : i18n[AppState.state.profiles[AppState.state.activeP].lang].sta;
-            
-            if (isRun) { VoiceApp.unlock(); this.requestWakeLock(); this.lastRenderTime = performance.now(); this.loop(); } 
-            else { cancelAnimationFrame(this.reqId); if(this.wakeLock) this.wakeLock.release(); VoiceApp.clear(); }
-        });
-
-        AppState.subscribe('activeTab', (tab) => {
-            let isSet = tab === 'settings';
-            document.getElementById('tabSettings').classList.toggle('active', isSet);
-            document.getElementById('tabMatrix').classList.toggle('active', !isSet);
-            document.getElementById('tabIndicator').style.transform = isSet ? 'translateX(0)' : 'translateX(100%)';
-            document.getElementById('viewsSlider').style.transform = isSet ? 'translateX(0)' : 'translateX(-50%)'; // 滑動動畫
-            if(!isSet) {
-                let mIdx = Math.floor(AppState.state.accumMs / 60000);
-                let row = document.getElementById(`min-row-${mIdx}`);
-                if(row) row.scrollIntoView({behavior: 'smooth', block: 'center'});
-            }
-        });
-    }
-
-    // 全域事件代理 (解決 Bug #35, #56, #80)
-    bindDelegation() {
+    bindEvents() {
+        // 全域事件代理 (解決記憶體洩漏與幽靈點擊)
         document.body.addEventListener('click', e => {
-            const btn = e.target.closest('[data-action]'); if (!btn) return;
-            const action = btn.dataset.action;
-            let lang = AppState.state.profiles[AppState.state.activeP].lang || 'en';
-            let I = i18n[lang];
-
-            switch(action) {
-                case 'tab-settings': AppState.state.activeTab = 'settings'; break;
-                case 'tab-matrix': AppState.state.activeTab = 'matrix'; break;
-                case 'close-notif': NotificationManager.hide(); break;
-                case 'select-prog': 
-                    if(AppState.state.runStatus !== 'STOPPED') return;
-                    let pid = parseInt(btn.dataset.pid);
-                    document.querySelectorAll('.prog-card').forEach(c => c.classList.remove('selected')); btn.classList.add('selected');
-                    AppState.state.profiles[AppState.state.activeP].lastProg = pid; this.saveData(); this.recalcMatrix();
-                    break;
-                case 'start':
-                    if (AppState.state.runStatus === 'RUNNING') return; // 防呆
-                    if (AppState.state.accumMs === 0) {
-                        AppState.state.curData = { ms:0, dist:0, cal:0, z: [0,0,0,0,0], trans:{} };
-                        VoiceApp.speak('workoutBegins', 1, { t: AppState.state.matrix.length });
-                    }
-                    AppState.state.runStatus = 'RUNNING';
-                    AppState.state.activeTab = 'settings';
-                    break;
-                case 'pause': AppState.state.runStatus = 'PAUSED'; this.persistRunState(true); break;
-                case 'ask-end':
-                    AppState.state.runStatus = 'PAUSED';
-                    if (AppState.state.accumMs < 10000) this.stopAndReset(); // Bug #42: 不足10秒直接丟棄不問
-                    else VirtualModal.confirm(I.endAskL, I.endDescL, () => this.endWorkout(), () => AppState.state.runStatus = 'RUNNING');
-                    break;
-                case 'open-runner': this.openRunnerModal(); break;
-                case 'close-runner': document.getElementById('runnerModal').classList.remove('show'); break;
-                case 'save-runner': this.saveRunner(); break;
-                case 'overlay-close': if(e.target === document.getElementById('runnerModal')) document.getElementById('runnerModal').classList.remove('show'); break;
-                case 'toggle-accordion': 
-                    btn.classList.toggle('open'); document.getElementById(btn.dataset.target).classList.toggle('show'); break;
+            const t = e.target.closest('[data-action]'); if (!t) return;
+            const a = t.dataset.action; let I = i18n[AppState.state.profiles[AppState.state.activeP].lang || 'en'];
+            
+            if(a === 'tab-settings') AppState.state.activeTab = 'settings';
+            else if(a === 'tab-matrix') AppState.state.activeTab = 'matrix';
+            else if(a === 'close-notif') NotificationManager.hide();
+            else if(a === 'select-prog' && AppState.state.runStatus === 'STOPPED') {
+                document.querySelectorAll('.prog-card').forEach(c => c.classList.remove('selected')); t.classList.add('selected');
+                AppState.state.profiles[AppState.state.activeP].lastProg = parseInt(t.dataset.pid); this.saveData(); this.recalc();
             }
+            else if(a === 'start') {
+                VoiceApp.unlock(); // Safari 聲音解鎖
+                if (AppState.state.runStatus === 'RUNNING') return;
+                if (AppState.state.accumMs === 0) { AppState.state.curData = { ms:0, dist:0, cal:0, z: [0,0,0,0,0], trans:{} }; VoiceApp.speak('workoutBegins', 1, { t: AppState.state.matrix.length }); }
+                AppState.state.runStatus = 'RUNNING'; AppState.state.activeTab = 'settings';
+            }
+            else if(a === 'pause') { AppState.state.runStatus = 'PAUSED'; this.persistRun(); }
+            else if(a === 'open-runner') this.openModal();
+            else if(a === 'close-runner') document.getElementById('runnerModal').classList.remove('show');
+            else if(a === 'save-runner') this.saveModal();
+            else if(a === 'overlay-close') { if(e.target.id === 'runnerModal') document.getElementById('runnerModal').classList.remove('show'); }
+            else if(a === 'toggle-accordion') { t.classList.toggle('open'); document.getElementById(t.dataset.target).classList.toggle('show'); }
         });
 
-        // Segmented Controls 切換 (Bug #37)
-        document.querySelectorAll('.segmented-control').forEach(ctrl => {
-            ctrl.addEventListener('click', e => {
-                let btn = e.target.closest('.seg-btn'); if(!btn) return;
-                ctrl.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active');
-                let idx = Array.from(ctrl.querySelectorAll('.seg-btn')).indexOf(btn);
-                ctrl.querySelector('.seg-indicator').style.transform = `translateX(${idx * 100}%)`;
-                
-                // 單位切換即時換算
-                if(ctrl.id === 'segUnit') {
-                    let isMet = btn.dataset.val === 'metric'; let f = isMet ? 1/2.20462 : 2.20462; let sf = isMet ? 1.609 : 1/1.609;
-                    const conv = (id, fa) => { let el=document.getElementById(id); if(el.value) el.value = (parseFloat(el.value)*fa).toFixed(1).replace(/\.0+$/,''); };
-                    ['rmWeight','rmSMM'].forEach(id => conv(id, f)); ['rmMxS','rmMnS','hwMxS','hwMnS'].forEach(id => conv(id, sf));
+        // 長按防呆：結束按鈕 (解決 Bug #9)
+        const btnEnd = document.getElementById('btnAskEnd');
+        const startHold = () => { if(AppState.state.runStatus === 'STOPPED') return; btnEnd.classList.add('holding'); this.holdTimer = setTimeout(() => { btnEnd.classList.remove('holding'); this.endWorkout(); }, 1500); };
+        const stopHold = () => { btnEnd.classList.remove('holding'); clearTimeout(this.holdTimer); };
+        btnEnd.addEventListener('pointerdown', startHold); btnEnd.addEventListener('pointerup', stopHold); btnEnd.addEventListener('pointerleave', stopHold);
+
+        // Segmented Controls
+        document.querySelectorAll('.segmented-control').forEach(c => {
+            c.addEventListener('click', e => {
+                let b = e.target.closest('.seg-btn'); if(!b) return;
+                c.querySelectorAll('.seg-btn').forEach(x => x.classList.remove('active')); b.classList.add('active');
+                c.querySelector('.seg-indicator').style.transform = `translateX(${Array.from(c.children).indexOf(b)-1}00%)`;
+                if(c.id === 'segUnit') { // 即時單位換算
+                    let f = b.dataset.val === 'metric' ? 1/2.20462 : 2.20462; let sf = b.dataset.val === 'metric' ? 1.609 : 1/1.609;
+                    ['rmWeight','rmSMM'].forEach(id => { let el=document.getElementById(id); if(el.value) el.value=(parseFloat(el.value)*f).toFixed(1).replace(/\.0+$/,''); });
+                    ['rmMxS','rmMnS','hwMxS','hwMnS'].forEach(id => { let el=document.getElementById(id); if(el.value) el.value=(parseFloat(el.value)*sf).toFixed(1).replace(/\.0+$/,''); });
+                    document.getElementById('unitWgt').textContent = b.dataset.val === 'metric' ? 'kg' : 'lbs'; document.getElementById('unitSmm').textContent = b.dataset.val === 'metric' ? 'kg' : 'lbs';
+                    document.getElementById('unitMxS').textContent = b.dataset.val === 'metric' ? 'kph' : 'mph'; document.getElementById('unitMnS').textContent = b.dataset.val === 'metric' ? 'kph' : 'mph';
                 }
             });
         });
     }
 
-    // 表單綁定 (解決 Bug #82)
-    bindFormEvents() {
-        document.getElementById('rmWeight').addEventListener('blur', () => {
-            let w = parseFloat(document.getElementById('rmWeight').value) || 70;
-            let a = parseFloat(document.getElementById('rmAge').value) || 35;
-            let s = document.querySelector('#segSex .seg-btn.active').dataset.val === 'M';
-            let isMet = document.querySelector('#segUnit .seg-btn.active').dataset.val === 'metric';
-            let wKg = isMet ? w : w / 2.20462;
-            document.getElementById('rmBMR').value = Math.max(500, Math.round(10 * wKg + 6.25 * 170 - 5 * a + (s ? 5 : -161)));
+    setupSubscribers() {
+        AppState.subscribe('runStatus', s => {
+            let R = s === 'RUNNING'; let S = s === 'STOPPED';
+            document.getElementById('btnLeft').className = `btn-ctrl btn-runner ${!S ? 'btn-hide' : ''}`;
+            document.getElementById('btnRight').className = `btn-ctrl btn-start ${R ? 'btn-hide' : ''}`;
+            document.getElementById('btnPause').className = `btn-ctrl btn-pause ${!R ? 'btn-hide' : ''}`;
+            document.getElementById('btnAskEnd').className = `btn-ctrl btn-end ${S ? 'btn-hide' : ''}`;
+            document.getElementById('lblBtnRight').textContent = (s === 'PAUSED' && AppState.state.accumMs > 0) ? i18n[AppState.state.profiles[AppState.state.activeP].lang].rsm : i18n[AppState.state.profiles[AppState.state.activeP].lang].sta;
+            
+            if (R) { this.reqWL(); this.lastTime = performance.now(); this.loop(); } 
+            else { cancelAnimationFrame(this.reqId); if(this.wakeLock) this.wakeLock.release(); VoiceApp.clear(); }
+        });
+
+        AppState.subscribe('activeTab', t => {
+            let isS = t === 'settings';
+            document.getElementById('tabSettings').classList.toggle('active', isS); document.getElementById('tabMatrix').classList.toggle('active', !isS);
+            document.getElementById('tabIndicator').style.transform = isS ? 'translateX(0)' : 'translateX(100%)';
+            document.getElementById('viewsSlider').style.transform = isS ? 'translateX(0)' : 'translateX(-50%)';
+            if(!isS) { let r = document.getElementById(`min-row-${Math.floor(AppState.state.accumMs/60000)}`); if(r) r.scrollIntoView({behavior: 'smooth', block: 'center'}); }
         });
     }
 
-    // 分離迴圈機制 (解決 Bug #43, #76)
+    // --- 迴圈引擎：降頻處理防發熱 (Bug #43) ---
     loop() {
         if(AppState.state.runStatus !== 'RUNNING') return;
-        let time = performance.now();
-        let delta = time - this.lastRenderTime;
-        this.lastRenderTime = time;
+        let t = performance.now(); let dt = t - this.lastTime; this.lastTime = t;
 
-        if (delta > 2000) {
-            AppState.state.runStatus = 'PAUSED';
-            NotificationManager.show(['系統經歷休眠，已自動暫停']);
-            return;
-        }
+        // 休眠防護 (Bug #76)
+        if (dt > 2000) { AppState.state.runStatus = 'PAUSED'; NotificationManager.show(['系統經歷休眠，已自動暫停']); return; }
 
-        AppState.state.accumMs += delta;
-        this.logicAccumulator += delta;
+        AppState.state.accumMs += dt; this.logicAcc += dt;
+        Binder.update('massiveTime', Utils.fmtTime(AppState.state.accumMs, true));
 
-        // 1. 渲染迴圈 (每幀更新)
-        this.renderFastUI(AppState.state.accumMs);
-
-        // 2. 邏輯迴圈 (每 500ms 更新)
-        if (this.logicAccumulator >= 500) {
-            this.processLogicTick(this.logicAccumulator);
-            this.logicAccumulator = 0;
-            this.charts.drawAll();
-        }
-
+        if (this.logicAcc >= 500) { this.logicTick(this.logicAcc); this.logicAcc = 0; this.charts.drawAll(); }
         this.reqId = requestAnimationFrame(() => this.loop());
     }
 
-    renderFastUI(ms) {
-        document.getElementById('massiveTime').textContent = Utils.fmtTime(ms, true);
-        
-        // 處理 Zone 條動畫
-        let d = AppState.state.curData; if(!d) return;
-        let tM = Math.max(1, Math.floor(ms / 60000) + 1);
-        [1,2,3,4,5].forEach(i => {
-            document.getElementById(`sz${i}`).style.flexBasis = `${(d.z[i-1]/tM)*100}%`;
-        });
-    }
-
-    processLogicTick(delta) {
-        let m = AppState.state.matrix; let totMs = m.length * 60000;
-        let ms = AppState.state.accumMs;
+    logicTick(dt) {
+        let m = AppState.state.matrix; let totMs = m.length * 60000; let ms = AppState.state.accumMs;
         if (ms >= totMs) { this.endWorkout(); return; }
 
-        let cM = Math.floor(ms / 60000); let cS = ms % 60000;
-        let d = AppState.state.curData; let curM = m[cM]; let stepRatio = delta / 60000;
-
-        d.dist += curM.dist * stepRatio; d.cal += curM.cal * stepRatio;
+        let cM = Math.floor(ms/60000); let cS = ms%60000; let d = AppState.state.curData; let curM = m[cM]; let sr = dt/60000;
+        d.dist += curM.dist * sr; d.cal += curM.cal * sr;
         
-        let p = AppState.state.profiles[AppState.state.activeP];
-        let maxHr = 208 - 0.7 * (p.age||35); let pHR = curM.hr / maxHr;
-        if(pHR<0.6) d.z[0]+=stepRatio; else if(pHR<0.7) d.z[1]+=stepRatio; else if(pHR<0.8) d.z[2]+=stepRatio; else if(pHR<0.9) d.z[3]+=stepRatio; else d.z[4]+=stepRatio;
+        let p = AppState.state.profiles[AppState.state.activeP]; let pHR = curM.hr / (208 - 0.7 * p.age);
+        if(pHR<0.6) d.z[0]+=sr; else if(pHR<0.7) d.z[1]+=sr; else if(pHR<0.8) d.z[2]+=sr; else if(pHR<0.9) d.z[3]+=sr; else d.z[4]+=sr;
 
-        // 更新慢速 UI
         let isMet = p.unit !== 'imperial';
-        document.getElementById('runDist').textContent = (isMet ? d.dist : d.dist/1.609).toFixed(2);
-        document.getElementById('runCal').textContent = `${Math.floor(d.cal)} kcal`; // Bug #62
-        document.getElementById('runSpd').textContent = (isMet ? curM.spd : curM.spd/1.609).toFixed(1);
-        document.getElementById('runInc').textContent = curM.inc.toFixed(1);
-        document.getElementById('runHr').textContent = curM.hr;
-        document.getElementById('runLac').textContent = curM.lac.toFixed(1);
-        document.getElementById('runPace').textContent = Utils.getPaceStr(curM.spd, isMet);
+        Binder.updateBatch({ runDist: (isMet?d.dist:d.dist/1.609).toFixed(2), runCal: `${Math.floor(d.cal)} kcal`, runSpd: (isMet?curM.spd:curM.spd/1.609).toFixed(1), runInc: curM.inc.toFixed(1), runHr: curM.hr, runLac: curM.lac.toFixed(1), runPace: Utils.getPaceStr(curM.spd, isMet) });
         
-        if (Math.floor(ms / 5000) !== Math.floor((ms - delta) / 5000)) this.persistRunState(false);
+        let tM = Math.max(1, cM + 1); [1,2,3,4,5].forEach(i => document.getElementById(`sz${i}`).style.flexBasis = `${(d.z[i-1]/tM)*100}%`);
+        if (Math.floor(ms/5000) !== Math.floor((ms-dt)/5000)) this.persistRun();
 
-        // 語音與預告邏輯
+        // 語音排程
         if(!d.trans[cM]) d.trans[cM] = { t: false, p: false, tab: false };
-        
-        // Bug #38: 溫和的 AutoPilot (Toast 而不強制切換)
-        if(cS > 48000 && cM < m.length - 1 && !d.trans[cM].tab) {
-            d.trans[cM].tab = true;
-            let n = m[cM + 1];
-            NotificationManager.show([`準備: ${(isMet?n.spd:n.spd/1.609).toFixed(1)} ${isMet?'KPH':'MPH'} / ${n.inc.toFixed(1)}%`], "下階段預告");
+        if(cS > 45000 && cM < m.length-1 && !d.trans[cM].t) {
+            d.trans[cM].t = true; let n = m[cM+1];
+            if(n.phase !== curM.phase || Math.abs(n.spd-curM.spd)>0.2 || Math.abs(n.inc-curM.inc)>=1.0) VoiceApp.speak('trans', 1, { s: isMet?n.spd:n.spd/1.609, i: n.inc });
         }
-        
-        if(cS > 45000 && cM < m.length - 1 && !d.trans[cM].t) {
-            d.trans[cM].t = true; let n = m[cM + 1];
-            if(n.phase !== curM.phase || Math.abs(n.spd - curM.spd) > 0.2 || Math.abs(n.inc - curM.inc) >= 1.0) {
-                VoiceApp.speak('trans', 1, { s: isMet ? n.spd : n.spd / 1.609, i: n.inc });
-            }
-        }
-        
         if(cS > 20000 && !d.trans[cM].p) {
             d.trans[cM].p = true; 
-            if(pHR > 0.95) VoiceApp.speak('warn_hr', 2);
-            else if(curM.lac > 14) VoiceApp.speak('warn_lac', 2);
+            if(pHR > 0.95) VoiceApp.speak('warn_hr', 2); else if(curM.lac > 14) VoiceApp.speak('warn_lac', 2);
             else if(curM.phase === 'sprint' || curM.phase === 'exhaust') VoiceApp.speak(pHR > 0.9 ? 'val_high' : 'phy_ana', 0);
             else if(curM.phase === 'steep') VoiceApp.speak('bio_steep', 0);
             else if(curM.phase === 'recovery' || curM.phase === 'cooldown') VoiceApp.speak('val_rec', 0);
@@ -1291,109 +958,78 @@ class AppController {
         }
     }
 
-    recalcMatrix() {
-        let p = PhysioEngine.getSanitizedProfile(AppState.state.profiles[AppState.state.activeP]);
-        let res = PhysioEngine.generateMatrix(p, p.lastProg, AppState.state.hw);
+    recalc() {
+        let p = PhysioEngine.sanitize(AppState.state.profiles[AppState.state.activeP]);
+        let res = PhysioEngine.buildMatrix(p, p.lastProg, AppState.state.hw);
         AppState.state.matrix = res.matrix;
-        
-        if(res.autoExtended) NotificationManager.show([`為符合硬體極限，時間自動延長至 ${res.extTime} 分鐘`], "系統修正");
-        
-        this.renderPreviewList();
-        this.charts.drawAll();
+        if(res.extended) NotificationManager.show([`為符合機器極限，時間自動延長至 ${res.extTime} 分鐘`], "保護機制觸發");
+        this.updateUI();
     }
 
-    renderPreviewList() {
-        let m = AppState.state.matrix; let isMet = AppState.state.profiles[AppState.state.activeP].unit !== 'imperial';
-        let ul = document.getElementById('previewList'); ul.innerHTML = '';
-        let lang = AppState.state.profiles[AppState.state.activeP].lang || 'en';
-        m.forEach((r, i) => {
-            let li = document.createElement('li'); li.id = `min-row-${i}`; 
-            let pt = VoiceDB[lang].phases[r.phase] || r.phase;
-            let sDisp = isMet ? r.spd : r.spd / 1.609;
-            li.innerHTML = `<span class="list-col-time">${Utils.fmtTime(i * 60000)}</span><span class="list-col-spd">${sDisp.toFixed(1)}</span><span class="list-col-inc">${r.inc.toFixed(1)}%</span><span class="list-col-phase">${pt}</span><span class="list-col-hr">${r.hr}</span>`;
-            ul.appendChild(li);
-        });
-    }
-
-    syncDials() {
-        let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
+    updateUI() {
+        let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial'; let d = i18n[p.lang || 'en'];
         this.dials.time.build(10, 180, 5); this.dials.time.setValue(p.tTime);
         this.dials.dist.build(isMet?0.5:0.3, isMet?50.0:31.0, isMet?0.5:0.1); this.dials.dist.setValue(isMet ? p.tKm : p.tKm / 1.609);
         this.dials.mxs.build(isMet?1.0:0.6, isMet?25.0:15.5, 0.1); this.dials.mxs.setValue(isMet ? p.maxSpd : p.maxSpd / 1.609);
         this.dials.mns.build(0.0, isMet?20.0:12.4, 0.1); this.dials.mns.setValue(isMet ? p.minSpd : p.minSpd / 1.609);
-        this.dials.mxi.build(0.0, 20.0, 0.1); this.dials.mxi.setValue(p.maxInc);
-        this.dials.mni.build(0.0, 10.0, 0.1); this.dials.mni.setValue(p.minInc);
-    }
+        this.dials.mxi.build(0.0, 20.0, 0.1); this.dials.mxi.setValue(p.mxInc);
+        this.dials.mni.build(0.0, 10.0, 0.1); this.dials.mni.setValue(p.mnInc);
 
-    updateI18n() {
-        let lang = AppState.state.profiles[AppState.state.activeP].lang || 'en';
-        let isMet = AppState.state.profiles[AppState.state.activeP].unit !== 'imperial';
-        let d = i18n[lang];
-        document.getElementById('tabSettings').textContent = d.tSet;
-        document.getElementById('tabMatrix').textContent = d.tMat;
-        document.getElementById('lblTotalTime').textContent = d.tim;
-        document.getElementById('lblTargetKm').textContent = isMet ? d.km : d.mi;
-        document.getElementById('lblSetMxS').textContent = isMet ? d.mxS : d.mxSImp;
-        document.getElementById('lblSetMnS').textContent = isMet ? d.mnS : d.mnSImp;
-        document.getElementById('lblSetMxI').textContent = d.mxI;
-        document.getElementById('lblSetMnI').textContent = d.mnI;
+        let ul = document.getElementById('previewList'); ul.innerHTML = ''; let m = AppState.state.matrix;
+        let vdb = VoiceDB[p.lang || 'en'].phases;
+        m.forEach((r, i) => {
+            let li = document.createElement('li'); li.id = `min-row-${i}`; 
+            li.innerHTML = `<span class="list-col-time">${Utils.fmtTime(i*60000)}</span><span class="list-col-spd">${(isMet?r.spd:r.spd/1.609).toFixed(1)}</span><span class="list-col-inc">${r.inc.toFixed(1)}%</span><span class="list-col-phase">${vdb[r.phase]||r.phase}</span><span class="list-col-hr">${r.hr}</span>`;
+            ul.appendChild(li);
+        });
+
+        document.getElementById('lblTotalTime').textContent = d.tim; document.getElementById('lblTargetKm').textContent = isMet ? d.km : d.mi;
+        document.getElementById('lblSetMxS').textContent = isMet ? d.mxS : d.mxSImp; document.getElementById('lblSetMnS').textContent = isMet ? d.mnS : d.mnSImp;
         document.getElementById('lblBtnLeft').textContent = AppState.state.activeP.split(' ')[0];
+        
+        // 更新課表與 HUD
+        let pg = document.getElementById('progGrid'); pg.innerHTML = '';
+        for(let i=1; i<=10; i++) {
+            let btn = document.createElement('div'); btn.className = `prog-card ${p.lastProg===i?'selected':''}`; btn.dataset.action = 'select-prog'; btn.dataset.pid = i;
+            btn.innerHTML = `<div class="p-title">${d.prog[`p${i}`][0]}</div><div class="p-desc">${d.prog[`p${i}`][1]}</div>`; pg.appendChild(btn);
+            if(p.lastProg===i) setTimeout(() => btn.scrollIntoView({behavior: 'smooth', inline: 'center', block: 'nearest'}), 100);
+        }
+        
+        let aS=m.reduce((s,x)=>s+x.spd,0)/m.length, aI=m.reduce((s,x)=>s+x.inc,0)/m.length, aH=m.reduce((s,x)=>s+x.hr,0)/m.length, aL=m.reduce((s,x)=>s+x.lac,0)/m.length;
+        Binder.updateBatch({ sAvgSpd: (isMet?aS:aS/1.609).toFixed(1), sAvgInc: aI.toFixed(1), sAvgHr: Math.round(aH), sAvgLac: aL.toFixed(1),
+            sMaxSpd: (isMet?Math.max(...m.map(x=>x.spd)):Math.max(...m.map(x=>x.spd))/1.609).toFixed(1), sMaxInc: Math.max(...m.map(x=>x.inc)).toFixed(1), sMaxHr: Math.max(...m.map(x=>x.hr)), sMaxLac: Math.max(...m.map(x=>x.lac)).toFixed(1) });
+        
+        this.charts.drawAll();
     }
 
-    openRunnerModal() {
-        let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
-        const setV = (id, val) => document.getElementById(id).value = Number(val).toFixed(1).replace(/\.0+$/,'');
-        
+    openModal() {
+        let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial'; let hw = AppState.state.hw;
+        const setV = (id, v) => document.getElementById(id).value = Number(v).toFixed(1).replace(/\.0+$/,'');
         document.getElementById('rmName').value = AppState.state.activeP;
-        setV('rmAge', p.age); setV('rmWeight', isMet ? p.weight : p.weight * 2.20462);
-        setV('rmBMR', p.bmr); setV('rmSMM', isMet ? p.smm : p.smm * 2.20462); setV('rmBF', p.bf); setV('rmVO2', p.vo2);
-        setV('rmMxS', isMet ? p.maxSpd : p.maxSpd / 1.609); setV('rmMnS', isMet ? p.minSpd : p.minSpd / 1.609); setV('rmMxI', p.maxInc); setV('rmMnI', p.minInc);
+        setV('rmAge', p.age); setV('rmWeight', isMet?p.weight:p.weight*2.204); setV('rmBMR', p.bmr); setV('rmSMM', isMet?p.smm:p.smm*2.204); setV('rmBF', p.bf); setV('rmVO2', p.vo2);
+        setV('rmMxS', isMet?p.maxSpd:p.maxSpd/1.609); setV('rmMnS', isMet?p.minSpd:p.minSpd/1.609); setV('rmMxI', p.mxInc); setV('rmMnI', p.mnInc);
+        setV('hwMxS', isMet?hw.maxSpd:hw.maxSpd/1.609); setV('hwMnS', isMet?hw.minSpd:hw.minSpd/1.609); setV('hwMxI', hw.maxInc); setV('hwMnI', hw.minInc);
         
-        let hw = AppState.state.hw;
-        setV('hwMxS', isMet ? hw.maxSpd : hw.maxSpd / 1.609); setV('hwMnS', isMet ? hw.minSpd : hw.minSpd / 1.609); setV('hwMxI', hw.maxInc); setV('hwMnI', hw.minInc);
-        
-        const setSeg = (id, val) => {
-            let ctrl = document.getElementById(id); ctrl.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
-            let btn = ctrl.querySelector(`[data-val="${val}"]`); if(btn) { btn.classList.add('active'); ctrl.querySelector('.seg-indicator').style.transform = `translateX(${Array.from(ctrl.children).indexOf(btn)-1}00%)`; }
-        };
-        setSeg('segLang', p.lang || 'en'); setSeg('segVoice', p.voiceOn ? 'on' : 'off'); setSeg('segUnit', p.unit); setSeg('segSex', p.gender);
-
+        const setS = (id, v) => { let c=document.getElementById(id); c.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active')); let b=c.querySelector(`[data-val="${v}"]`); if(b) { b.classList.add('active'); c.querySelector('.seg-indicator').style.transform=`translateX(${Array.from(c.children).indexOf(b)-1}00%)`; } };
+        setS('segLang', p.lang||'en'); setS('segVoice', p.voiceOn?'on':'off'); setS('segUnit', p.unit); setS('segSex', p.gender);
         document.getElementById('runnerModal').classList.add('show');
     }
 
-    saveRunner() {
-        let name = document.getElementById('rmName').value.trim() || 'Runner';
-        let isMet = document.querySelector('#segUnit .seg-btn.active').dataset.val === 'metric';
-        let p = {
-            name, gender: document.querySelector('#segSex .seg-btn.active').dataset.val, unit: isMet ? 'metric' : 'imperial',
-            lang: document.querySelector('#segLang .seg-btn.active').dataset.val, voiceOn: document.querySelector('#segVoice .seg-btn.active').dataset.val === 'on',
-            age: parseFloat(document.getElementById('rmAge').value)||35, bmr: parseFloat(document.getElementById('rmBMR').value)||0, bf: parseFloat(document.getElementById('rmBF').value)||0, vo2: parseFloat(document.getElementById('rmVO2').value)||0,
-            tTime: AppState.state.profiles[AppState.state.activeP].tTime, tKm: AppState.state.profiles[AppState.state.activeP].tKm, lastProg: AppState.state.profiles[AppState.state.activeP].lastProg
-        };
-        
-        const getV = (id, f) => (parseFloat(document.getElementById(id).value)||0) * f;
-        p.weight = getV('rmWeight', isMet ? 1 : 1/2.204); p.smm = getV('rmSMM', isMet ? 1 : 1/2.204);
-        p.maxSpd = getV('rmMxS', isMet ? 1 : 1.609); p.minSpd = getV('rmMnS', isMet ? 1 : 1.609); p.maxInc = parseFloat(document.getElementById('rmMxI').value)||0; p.minInc = parseFloat(document.getElementById('rmMnI').value)||0;
-        
-        AppState.state.hw.maxSpd = getV('hwMxS', isMet ? 1 : 1.609); AppState.state.hw.minSpd = getV('hwMnS', isMet ? 1 : 1.609);
-        AppState.state.hw.maxInc = parseFloat(document.getElementById('hwMxI').value)||15; AppState.state.hw.minInc = parseFloat(document.getElementById('hwMnI').value)||0;
+    saveModal() {
+        let name = document.getElementById('rmName').value.trim() || 'Runner'; let isMet = document.querySelector('#segUnit .seg-btn.active').dataset.val === 'metric';
+        let p = { name, gender: document.querySelector('#segSex .seg-btn.active').dataset.val, unit: isMet?'metric':'imperial', lang: document.querySelector('#segLang .seg-btn.active').dataset.val, voiceOn: document.querySelector('#segVoice .seg-btn.active').dataset.val==='on', age: parseFloat(document.getElementById('rmAge').value)||35, bmr: parseFloat(document.getElementById('rmBMR').value)||0, bf: parseFloat(document.getElementById('rmBF').value)||0, vo2: parseFloat(document.getElementById('rmVO2').value)||0, tTime: AppState.state.profiles[AppState.state.activeP].tTime, tKm: AppState.state.profiles[AppState.state.activeP].tKm, lastProg: AppState.state.profiles[AppState.state.activeP].lastProg };
+        const getV = (id, f) => (parseFloat(document.getElementById(id).value)||0)*f;
+        p.weight = getV('rmWeight', isMet?1:1/2.204); p.smm = getV('rmSMM', isMet?1:1/2.204); p.maxSpd = getV('rmMxS', isMet?1:1.609); p.minSpd = getV('rmMnS', isMet?1:1.609); p.mxInc = parseFloat(document.getElementById('rmMxI').value)||0; p.mnInc = parseFloat(document.getElementById('rmMnI').value)||0;
+        AppState.state.hw.maxSpd = getV('hwMxS', isMet?1:1.609); AppState.state.hw.minSpd = getV('hwMnS', isMet?1:1.609); AppState.state.hw.maxInc = parseFloat(document.getElementById('hwMxI').value)||15; AppState.state.hw.minInc = parseFloat(document.getElementById('hwMnI').value)||0;
         
         if (name !== AppState.state.activeP) { delete AppState.state.profiles[AppState.state.activeP]; AppState.state.activeP = name; }
-        AppState.state.profiles[name] = p; this.saveData(); this.syncDials(); this.updateI18n(); this.recalcMatrix();
-        
-        document.getElementById('runnerModal').classList.remove('show');
+        AppState.state.profiles[name] = p; this.saveData(); this.recalc(); document.getElementById('runnerModal').classList.remove('show');
         if(p.voiceOn) VoiceApp.speak('voiceOn', 2);
     }
 
-    saveData() { StorageHelper.set('pro_treadmill_v27_state', { activeP: AppState.state.activeP, profiles: AppState.state.profiles, hw: AppState.state.hw }); }
+    saveData() { StorageHelper.set('pro_treadmill_v28', { activeP: AppState.state.activeP, profiles: AppState.state.profiles, hw: AppState.state.hw }); }
+    persistRun(sync=false) { if (AppState.state.accumMs > 0) StorageHelper.set('runState_v28', { activeP: AppState.state.activeP, accumMs: AppState.state.accumMs, matrix: AppState.state.matrix, curData: AppState.state.curData }); else StorageHelper.remove('runState_v28'); }
     
-    persistRunState(sync) {
-        if (AppState.state.accumMs > 0) {
-            let data = { activeP: AppState.state.activeP, accumMs: AppState.state.accumMs, matrix: AppState.state.matrix, curData: AppState.state.curData };
-            StorageHelper.set('runState_v27', data);
-        } else { StorageHelper.remove('runState_v27'); }
-    }
-
     endWorkout() {
         let d = AppState.state.curData;
         if(d && d.ms >= 10000) {
@@ -1401,24 +1037,14 @@ class AppController {
             h.unshift({ date: new Date().toLocaleString(), ms: d.ms, distKm: d.dist, cal: d.cal, avgSpdKm: d.dist/(d.ms/3600000), z: d.z });
             StorageHelper.set(`history_${AppState.state.activeP}`, h);
         }
-        this.stopAndReset();
-    }
-
-    stopAndReset() {
         AppState.state.runStatus = 'STOPPED'; AppState.state.accumMs = 0; AppState.state.curData = null; AppState.state.activeTab = 'settings';
-        this.persistRunState(true); this.recalcMatrix();
+        this.persistRun(true); this.recalc();
     }
-
-    async requestWakeLock() { try { if('wakeLock' in navigator) this.wakeLock = await navigator.wakeLock.request('screen'); } catch(e){} }
+    async reqWL() { try { if('wakeLock' in navigator) this.wakeLock = await navigator.wakeLock.request('screen'); } catch(e){} }
 }
 
-// 系統啟動器
-document.addEventListener('DOMContentLoaded', () => { window.App = new AppController(); });
-
+// --- 啟動引擎 ---
+document.addEventListener('DOMContentLoaded', () => window.App = new AppController());
 </script>
 </body>
 </html>
-
-
-
-    
