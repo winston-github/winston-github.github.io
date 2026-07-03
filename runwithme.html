@@ -1,232 +1,203 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-TW" id="htmlRoot">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <!-- 阻擋 Safari 預設的電話號碼辨識與連點放大 -->
     <meta name="format-detection" content="telephone=no">
-    <title>Pro Treadmill OS (Olympic V28 - Ultimate)</title>
+    <title>Pro Treadmill OS</title>
     <style>
         :root { 
-            /* OLED 友善背景與統一 Z-index 管理 */
-            --bg-dark: #0A0A0A; --bg-card: #151515; --bg-overlay: rgba(0,0,0,0.85);
-            /* 調和霓虹色，降低刺眼感 */
+            --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.9);
             --neon-green: #32D74B; --neon-yellow: #FFD60A; --neon-red: #FF453A; --neon-blue: #0A84FF;
             --z1: #8E8E93; --z2: #0A84FF; --z3: #FFD60A; --z4: #FF9F0A; --z5: #FF453A;
             --gray: #8E8E93; --gray-light: #D1D1D6; --text-main: #FFFFFF; 
-            --border-color: #2C2C2E; 
-            --safe-bottom: env(safe-area-inset-bottom, 20px);
-            --safe-top: env(safe-area-inset-top, 20px);
+            --border-color: #222222; 
+            --safe-bottom: env(safe-area-inset-bottom, 20px); --safe-top: env(safe-area-inset-top, 20px);
             --z-toast: 10000; --z-modal: 9000; --z-header: 500; --z-footer: 100;
         }
 
-        /* 全域重置與等寬數字 */
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; font-variant-numeric: tabular-nums; }
         
-        /* App Shell 佈局：動態高度防鍵盤，嚴格的 Flex Column */
         body { 
             background-color: var(--bg-dark); color: var(--text-main); 
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", Roboto, Helvetica, sans-serif; 
-            height: calc(var(--vh, 1vh) * 100); 
-            display: flex; flex-direction: column; overflow: hidden; overscroll-behavior: none;
+            height: calc(var(--vh, 1vh) * 100); display: flex; flex-direction: column; overflow: hidden; overscroll-behavior: none;
             -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
         }
 
-        input { -webkit-user-select: auto; user-select: auto; font-variant-numeric: tabular-nums; }
-        input:focus { outline: 1px solid var(--neon-blue); box-shadow: 0 0 8px rgba(10, 132, 255, 0.4); }
-
         #app-shell { width: 100%; max-width: 768px; margin: 0 auto; display: flex; flex-direction: column; height: 100%; position: relative; padding-top: var(--safe-top); }
 
-        /* --- Header (Tab 導航) --- */
         #header { flex: 0 0 50px; display: flex; background: var(--bg-dark); position: relative; z-index: var(--z-header); }
-        .tab-btn { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; font-weight: 700; color: var(--gray); background: transparent; border: none; cursor: pointer; transition: color 0.2s; touch-action: manipulation; outline: none; }
+        .tab-btn { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; font-weight: 700; color: var(--gray); background: transparent; border: none; cursor: pointer; outline: none; }
         .tab-btn.active { color: var(--text-main); }
-        .tab-indicator { position: absolute; bottom: 0; height: 3px; background: var(--neon-green); width: 50%; transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1); border-radius: 3px 3px 0 0;}
+        .tab-indicator { position: absolute; bottom: 0; height: 3px; background: var(--text-main); width: 50%; transition: transform 0.34s cubic-bezier(0.34, 1.56, 0.64, 1); border-radius: 3px 3px 0 0;}
 
-        /* --- Content (自動延展，獨立捲動) --- */
         #content-wrapper { flex: 1 1 auto; overflow: hidden; position: relative; }
-        .views-slider { display: flex; width: 200vw; height: 100%; transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1); will-change: transform; }
+        .views-slider { display: flex; width: 200vw; height: 100%; transition: transform 0.34s cubic-bezier(0.34, 1.56, 0.64, 1); will-change: transform; }
         .tab-content { width: 100vw; max-width: 768px; flex-shrink: 0; display: flex; flex-direction: column; height: 100%; overflow: hidden; position: relative; }
         .view-section { flex: 1; display: none; flex-direction: column; height: 100%; overflow-y: auto; scrollbar-width: none; padding: 15px; gap: 15px; }
-        .view-section.active { display: flex; animation: fadeIn 0.2s ease-out; }
+        .view-section.active { display: flex; animation: fadeIn 0.15s ease-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-        /* === 視圖 1: 設定與儀表板 === */
-        /* 撥盤 2x3 佈局 (解決擁擠) */
+        /* Dial Input Lock Overlay */
+        #dialInputLock { position: absolute; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.4); z-index: 100; display: none; }
+        
         .setup-top-half { flex: none; display: flex; flex-direction: column; gap: 15px; }
         .dial-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 15px; }
-        .dial-group { display: flex; flex-direction: column; align-items: center; background: var(--bg-card); border-radius: 12px; padding: 8px 4px; border: 1px solid var(--border-color); }
-        .dial-label { font-size: 0.8rem; font-weight: 600; color: var(--gray-light); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .dial-group { display: flex; flex-direction: column; align-items: center; background: var(--bg-card); border-radius: 12px; padding: 8px 4px; border: 1px solid var(--border-color); position: relative;}
+        .dial-label { font-size: 0.8rem; font-weight: 600; color: var(--gray-light); margin-bottom: 6px; letter-spacing: 0.5px; }
         .dial-window { height: 90px; width: 100%; position: relative; overflow: hidden; }
         .dial-window::before { content:''; position:absolute; top: 0; left: 0; right: 0; height: 30px; background: linear-gradient(180deg, var(--bg-card), transparent); z-index: 2; pointer-events: none; }
         .dial-window::after { content:''; position:absolute; bottom: 0; left: 0; right: 0; height: 30px; background: linear-gradient(0deg, var(--bg-card), transparent); z-index: 2; pointer-events: none; }
         .dial-selection-bar { position: absolute; top: 50%; left: 10%; right: 10%; transform: translateY(-50%); height: 30px; border-top: 1px solid rgba(255,255,255,0.1); border-bottom: 1px solid rgba(255,255,255,0.1); z-index: 1; pointer-events: none; }
-        .dial-scroll { height: 100%; overflow-y: scroll; scroll-snap-type: y mandatory; scrollbar-width: none; -ms-overflow-style: none; }
+        .dial-scroll { height: 100%; overflow-y: scroll; scroll-snap-type: y mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch;}
+        .dial-scroll.locked { overflow-y: hidden; }
         .dial-scroll::-webkit-scrollbar { display: none; }
         .dial-spacer { height: 30px; scroll-snap-align: center; }
-        .dial-item { height: 30px; display: flex; justify-content: center; align-items: center; font-size: 1.15rem; font-weight: 600; color: var(--gray); scroll-snap-align: center; transition: color 0.1s; }
-        .dial-item.active { font-size: 1.4rem; font-weight: 900; color: var(--text-main); text-shadow: 0 0 10px rgba(255,255,255,0.2); }
+        .dial-item { height: 30px; display: flex; justify-content: center; align-items: center; font-size: 1.15rem; font-weight: 600; color: var(--gray); scroll-snap-align: center; cursor: pointer; }
+        .dial-item.active { font-size: 1.4rem; font-weight: 900; color: var(--text-main); }
+        .dial-input-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; height: 40px; background: #222; border: 2px solid var(--neon-blue); border-radius: 8px; color: #FFF; font-size: 1.4rem; font-weight: 900; text-align: center; z-index: 105; outline: none; }
 
-        /* 課表卡片暗示 */
         .prog-carousel-wrap { width: 100%; position: relative; }
-        .prog-carousel-wrap::after { content: ''; position: absolute; top: 0; right: 0; width: 30px; height: 100%; background: linear-gradient(to left, var(--bg-dark), transparent); pointer-events: none; }
-        .prog-carousel { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding: 0 30px 5px 0; }
+        .prog-carousel { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding-bottom: 5px; }
         .prog-carousel::-webkit-scrollbar { display: none; }
         .prog-card { scroll-snap-align: start; flex: 0 0 150px; height: 75px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; justify-content: center; transition: all 0.2s; cursor: pointer; }
         .prog-card .p-title { font-size: 0.95rem; font-weight: 800; color: var(--text-main); margin-bottom: 4px; }
-        .prog-card .p-desc { font-size: 0.75rem; color: var(--gray); font-weight: 500; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .prog-card.selected { border-color: var(--neon-green); background: rgba(50, 215, 75, 0.1); transform: scale(1.02); }
-        .prog-card.selected .p-title { color: var(--neon-green); }
+        .prog-card .p-desc { font-size: 0.75rem; color: var(--gray); font-weight: 500; line-height: 1.3; }
+        .prog-card.selected { border-color: var(--text-main); background: #222; }
 
-        /* HUD 重構 (嚴格 Grid 對齊) */
         .chart-card { flex: 1; min-height: 250px; display: flex; flex-direction: column; background: var(--bg-card); border-radius: 12px; padding: 12px; border: 1px solid var(--border-color); }
         .hud-grid { width: 100%; display: flex; flex-direction: column; margin-bottom: 8px; position: relative; }
-        .hud-row { display: grid; grid-template-columns: 45px repeat(4, 1fr); align-items: center; text-align: right; padding: 5px 0; }
-        .hud-row.header { font-weight: 700; font-size: 0.75rem; color: var(--gray); border-bottom: 1px solid #333; margin-bottom: 2px; }
-        .hud-row .lbl { text-align: left; font-weight: 800; font-size: 0.75rem; color: inherit; letter-spacing: 0.5px; }
-        .hud-row span { font-weight: 900; font-size: 0.95rem; }
+        .hud-row { display: grid; grid-template-columns: 45px repeat(4, 1fr); align-items: center; text-align: right; padding: 5px 0; font-size: clamp(0.7rem, 3.5vw, 0.95rem);}
+        .hud-row.header { font-weight: 700; color: var(--gray); border-bottom: 1px solid #333; margin-bottom: 2px; }
+        .hud-row .lbl { text-align: left; font-weight: 800; color: inherit; }
+        .hud-row span { font-weight: 900; }
         .hud-avg { color: var(--gray); border-bottom: 1px dashed #222; }
         .hud-max { color: var(--text-main); padding-top: 6px; }
-        
-        /* 徹底解決 Hover 閃爍：保留空間，只切換 visibility */
-        .hud-hov { visibility: hidden; opacity: 0; color: #FFF; padding-top: 6px; border-top: 1px dashed #222; margin-top: 4px; transition: opacity 0.15s ease; }
+        .hud-hov { visibility: hidden; opacity: 0; color: #FFF; padding-top: 6px; border-top: 1px dashed #222; margin-top: 4px; position: absolute; bottom: -30px; left:0; right:0; background: rgba(0,0,0,0.8); z-index: 10; border-radius: 8px; padding: 8px;}
         .hud-hov.show { visibility: visible; opacity: 1; }
         
         .val-spd { color: var(--neon-green); } .val-inc { color: var(--neon-yellow); } .val-hr { color: var(--neon-blue); } .val-lac { color: var(--neon-red); }
 
         .canvas-container { position: relative; width: 100%; flex: 1; min-height: 10px; }
         canvas { width: 100%; height: 100%; display: block; }
-        /* 游標 Tooltip 偏移，防手指遮擋 */
-        .crosshair { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.2); pointer-events: none; display: none; z-index: 5;}
+        .crosshair { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.4); pointer-events: none; display: none; z-index: 5;}
         
-        /* Run View 黃金三角 */
-        .massive-time { font-size: 4.5rem; font-weight: 900; line-height: 1; text-align: center; letter-spacing: -2px; padding: 10px 0; }
+        /* OLED White Running Text */
+        .massive-time { font-size: 4.5rem; font-weight: 900; line-height: 1; text-align: center; letter-spacing: -2px; padding: 10px 0; color: #FFFFFF; }
         .run-primary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; flex: none; }
-        .run-val-box { display: flex; flex-direction: column; align-items: center; background: var(--bg-card); padding: 20px 0; border-radius: 16px; border: 1px solid var(--border-color); }
-        .run-big-val { font-size: 3.8rem; font-weight: 900; line-height: 1; letter-spacing: -1px; }
-        .run-lbl { font-size: 0.85rem; color: var(--gray); font-weight: 700; margin-top: 10px; text-transform: uppercase; letter-spacing: 1px; }
+        .run-val-box { position: relative; display: flex; flex-direction: column; align-items: center; background: var(--bg-card); padding: 20px 0; border-radius: 16px; border: 1px solid var(--border-color); overflow: hidden;}
+        .run-big-val { font-size: 3.8rem; font-weight: 900; line-height: 1; letter-spacing: -1px; color: #FFFFFF; z-index: 2; pointer-events: none; transition: transform 0.1s;}
+        .run-lbl { font-size: 0.85rem; color: var(--gray); font-weight: 700; margin-top: 10px; letter-spacing: 1px; z-index: 2; pointer-events: none;}
+        
+        /* Massive Hitboxes for +/- */
+        .hitbox-left, .hitbox-right { position: absolute; top: 0; bottom: 0; width: 50%; z-index: 3; cursor: pointer; }
+        .hitbox-left { left: 0; } .hitbox-right { right: 0; }
+        .hitbox-left:active { background: rgba(255,255,255,0.05); } .hitbox-right:active { background: rgba(255,255,255,0.05); }
         
         .run-sec-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 15px 10px; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); flex: none; }
         .r-s-box { display: flex; flex-direction: column; align-items: center; }
-        .r-s-val { font-size: 1.4rem; font-weight: 900; color: var(--text-main); }
-        .r-s-lbl { font-size: 0.75rem; color: var(--gray); font-weight: 700; margin-top: 6px; text-transform: uppercase; }
+        .r-s-val { font-size: 1.4rem; font-weight: 900; color: #FFFFFF; }
+        .r-s-lbl { font-size: 0.75rem; color: var(--gray); font-weight: 700; margin-top: 6px; }
         
-        /* 水平 Zone Bar */
         .zone-dash { background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); padding: 15px; flex: none; }
         .zd-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .zd-title { color: var(--gray-light); font-weight: 700; font-size: 0.9rem; }
-        .zd-cal { color: var(--neon-yellow); font-weight: 900; font-size: 1.2rem; }
+        .zd-cal { color: var(--text-main); font-weight: 900; font-size: 1.2rem; }
         .stacked-zone-bar { width: 100%; height: 14px; display: flex; border-radius: 7px; overflow: hidden; background: #222; }
         .sz-segment { height: 100%; transition: flex-basis 0.3s ease; }
         .bg-z1 { background-color: var(--z1); } .bg-z2 { background-color: var(--z2); } .bg-z3 { background-color: var(--z3); } .bg-z4 { background-color: var(--z4); } .bg-z5 { background-color: var(--z5); }
         .zone-legend { display: flex; justify-content: space-between; margin-top: 8px; font-size: 0.8rem; font-weight: 700; color: var(--gray); }
 
-        /* === 視圖 2: Pace List === */
         #tabContent2 { overflow-y: auto; scrollbar-width: none; }
-        .list-header { display: flex; justify-content: space-between; padding: 12px 20px; color: var(--gray-light); font-size: 0.8rem; font-weight: 700; border-bottom: 1px solid #333; position: sticky; top: 0; background: rgba(10,10,10,0.85); backdrop-filter: blur(10px); z-index: 10;}
+        .list-header { display: flex; justify-content: space-between; padding: 12px 20px; color: var(--gray-light); font-size: 0.8rem; font-weight: 700; border-bottom: 1px solid #333; position: sticky; top: 0; background: rgba(0,0,0,0.9); z-index: 10;}
         .preview-list { list-style: none; padding: 10px; }
-        .preview-list li { padding: 16px 15px; border-radius: 8px; margin-bottom: 4px; font-size: 1.05rem; color: var(--gray); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .preview-list li.active-row { background: rgba(50, 215, 75, 0.15); color: #FFF; font-weight: 800; border-left: 4px solid var(--neon-green); border-bottom: none; transform: scale(1.01); }
+        .preview-list li { padding: 16px 15px; border-radius: 8px; margin-bottom: 4px; font-size: 1.05rem; color: var(--gray); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #111; }
         .list-col-time { width: 65px; font-weight: 900; color: var(--text-main);}
         .list-col-spd { width: 80px; text-align: center; color: var(--neon-green); }
         .list-col-inc { width: 60px; text-align: center; color: var(--neon-yellow); }
         .list-col-phase { flex: 1; text-align: center; font-size: 0.95rem;}
         .list-col-hr { width: 65px; text-align: right; color: var(--neon-red); font-weight: 800;}
 
-        /* --- Footer (底部控制列) --- */
-        #footer { flex: 0 0 auto; background: rgba(20,20,21,0.85); backdrop-filter: blur(20px); border-top: 1px solid var(--border-color); padding: 15px 20px calc(15px + var(--safe-bottom)) 20px; z-index: var(--z-footer); }
+        #footer { flex: 0 0 auto; background: var(--bg-dark); border-top: 1px solid var(--border-color); padding: 15px 20px calc(15px + var(--safe-bottom)) 20px; z-index: var(--z-footer); }
         .bottom-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
         
-        .btn-ctrl { height: 64px; border-radius: 32px; border: none; font-size: 1.25rem; font-weight: 900; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 10px; transition: transform 0.1s, opacity 0.2s, background 0.3s; outline: none; color: #000; touch-action: manipulation; white-space: nowrap; }
-        .btn-ctrl:active { transform: scale(0.95); opacity: 0.8; }
+        .btn-ctrl { height: 64px; border-radius: 32px; border: none; font-size: 1.25rem; font-weight: 900; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 10px; outline: none; touch-action: manipulation; }
+        .btn-ctrl:active { opacity: 0.8; }
         .btn-ctrl svg { width: 24px; height: 24px; fill: currentColor; flex-shrink: 0;}
         
-        .btn-runner { background: var(--bg-dark); color: var(--text-main); border: 1px solid #444; }
-        .btn-start { background: var(--neon-green); }
-        .btn-pause { background: var(--neon-yellow); }
+        .btn-runner { background: var(--bg-card); color: var(--text-main); border: 1px solid #333; }
+        .btn-start { background: var(--text-main); color: #000; }
+        .btn-pause { background: var(--neon-yellow); color: #000; }
         .btn-end { background: transparent; color: var(--neon-red); border: 2px solid var(--neon-red); position: relative; overflow: hidden;}
         
-        /* 長按動畫準備 */
-        .btn-end::after { content: ''; position: absolute; top: 0; left: 0; height: 100%; width: 0%; background: rgba(255, 69, 58, 0.2); transition: width 0s; }
+        .btn-end::after { content: ''; position: absolute; top: 0; left: 0; height: 100%; width: 0%; background: rgba(255, 69, 58, 0.3); transition: width 0s; }
         .btn-end.holding::after { width: 100%; transition: width 1.5s linear; }
-
-        /* 絕對隱藏 (解決 Safari Flex Gap Bug) */
         .btn-hide { display: none !important; }
 
-        /* --- Modals --- */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-overlay); z-index: var(--z-modal); display: flex; justify-content: center; align-items: center; backdrop-filter: blur(5px); opacity: 0; pointer-events: none; transition: opacity 0.2s ease;}
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-overlay); z-index: var(--z-modal); display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;}
         .modal-overlay.show { opacity: 1; pointer-events: auto; }
-        .modal-box { background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 20px; width: 92%; max-width: 440px; max-height: 90%; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,0.9); transform: scale(0.95); transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);}
+        .modal-box { background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 20px; width: 92%; max-width: 440px; max-height: 90%; display: flex; flex-direction: column; transform: scale(0.95); transition: transform 0.2s ease;}
         .modal-overlay.show .modal-box { transform: scale(1); }
         
         .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 20px; border-bottom: 1px solid #222; }
         .modal-title { color: var(--text-main); font-size: 1.15rem; font-weight: 800; }
-        .btn-close-modal { background: transparent; border: none; fill: var(--gray-light); width: 28px; height: 28px; padding: 4px; margin: -4px; cursor: pointer; }
+        .btn-close-modal { background: transparent; border: none; fill: var(--gray-light); width: 44px; height: 44px; display: flex; justify-content: center; align-items: center; margin: -10px; cursor: pointer; }
         
-        /* 解決鍵盤遮擋：給予充裕的 padding-bottom */
         .modal-content-scroll { overflow-y: auto; padding: 20px; padding-bottom: 50vh; flex: 1; overscroll-behavior: contain; scrollbar-width: none; }
         .modal-footer { display: flex; justify-content: space-between; padding: 15px 20px; border-top: 1px solid #222; background: var(--bg-card); border-radius: 0 0 20px 20px; flex-shrink: 0;}
         
-        .btn-modal { flex: 1; padding: 16px; border-radius: 14px; font-size: 1.1rem; font-weight: 800; border: none; cursor: pointer; transition: transform 0.1s, opacity 0.2s; touch-action: manipulation; display: flex; justify-content: center; align-items: center; margin: 0 5px;}
-        .btn-modal:active { transform: scale(0.95); opacity: 0.8; }
-        .btn-save { background: var(--neon-blue); color: #FFF; }
+        .btn-modal { flex: 1; padding: 16px; border-radius: 14px; font-size: 1.1rem; font-weight: 800; border: none; cursor: pointer; display: flex; justify-content: center; align-items: center; margin: 0 5px;}
+        .btn-save { background: var(--text-main); color: #000; }
         .btn-ghost { background: transparent; color: var(--gray-light); border: 1px solid #444; }
-        .btn-ghost-danger { background: transparent; color: var(--neon-red); border: 1px solid rgba(255,69,58,0.3); }
 
-        /* 手風琴表單 */
         .rm-group { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
-        .rm-label { font-size: 0.85rem; color: var(--gray-light); font-weight: 700; border-bottom: 1px solid #222; padding-bottom: 8px; display: flex; justify-content: space-between; align-items: center; text-transform: uppercase; letter-spacing: 0.5px;}
+        .rm-label { font-size: 0.85rem; color: var(--gray-light); font-weight: 700; border-bottom: 1px solid #222; padding-bottom: 8px; display: flex; justify-content: space-between; align-items: center; letter-spacing: 0.5px;}
         
-        .accordion-header { cursor: pointer; color: var(--text-main); transition: color 0.2s; }
-        .accordion-header:active { color: var(--neon-blue); }
-        .accordion-header svg { width: 16px; height: 16px; fill: currentColor; transition: transform 0.3s; }
+        .accordion-header { cursor: pointer; color: var(--text-main); }
+        .accordion-header svg { width: 18px; height: 18px; fill: currentColor; transition: transform 0.3s; margin-left: 5px; }
         .accordion-header.open svg { transform: rotate(180deg); }
         .accordion-content { display: none; padding-top: 5px; animation: fadeIn 0.3s; }
         .accordion-content.show { display: block; }
 
-        .input-wrapper { background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); padding: 12px 15px; display: flex; align-items: center; position: relative;}
+        .input-wrapper { background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); padding: 12px 15px; display: flex; align-items: center; }
         .input-wrapper input { flex: 1; background: transparent; border: none; color: #FFF; font-size: 1.2rem; font-weight: 800; outline: none; width: 100%; }
-        .input-unit { font-size: 0.85rem; font-weight: 700; color: var(--gray); margin-left: 10px; pointer-events: none;}
-
+        
         .param-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px;}
         .param-item { background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); padding: 10px 15px; display: flex; flex-direction: column; position: relative;}
-        .param-item label { color: var(--gray); font-size: 0.75rem; font-weight: 600; margin-bottom: 4px; text-transform: uppercase;}
+        .param-item label { color: var(--gray); font-size: 0.75rem; font-weight: 600; margin-bottom: 4px; }
         .param-item input { background: transparent; border: none; color: #FFF; font-size: 1.3rem; font-weight: 900; outline: none; width: 100%; }
         .param-item .unit { position: absolute; right: 12px; bottom: 12px; font-size: 0.75rem; font-weight: 700; color: #555; pointer-events: none;}
 
-        /* Pill Segmented Control */
         .segmented-control { display: flex; background: #000; border-radius: 10px; padding: 4px; border: 1px solid #333; position: relative; }
         .seg-btn { flex: 1; padding: 10px 0; background: transparent; border: none; color: var(--gray); font-size: 0.9rem; font-weight: 700; cursor: pointer; z-index: 2; outline: none; transition: color 0.3s;}
         .seg-btn.active { color: #FFF; }
-        .seg-indicator { position: absolute; top: 4px; bottom: 4px; background: #333; border-radius: 8px; z-index: 1; transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1); }
+        .seg-indicator { position: absolute; top: 4px; bottom: 4px; background: #333; border-radius: 8px; z-index: 1; transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
 
-        /* Toast 頂層通知 (移至頂層) */
-        #topNotification { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px; background: rgba(28, 28, 30, 0.95); backdrop-filter: blur(15px); border-radius: 16px; z-index: var(--z-toast); transition: top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.8); border: 1px solid #333;}
+        #topNotification { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px; background: rgba(20, 20, 20, 0.95); border-radius: 16px; z-index: var(--z-toast); transition: top 0.3s ease; overflow: hidden; border: 1px solid #444;}
         #topNotification.show { top: env(safe-area-inset-top, 15px); }
-        .notif-content { padding: 15px 40px 15px 15px; font-size: 0.9rem; color: #FFF; line-height: 1.4; font-weight: 600;}
-        .notif-close-hitbox { position: absolute; top: 0; right: 0; padding: 15px; cursor: pointer; z-index: 2; }
-        .notif-close { fill: var(--gray); width: 20px; height: 20px; transition: fill 0.2s; }
-        .notif-close-hitbox:active .notif-close { fill: #FFF; }
+        .notif-content { padding: 15px; font-size: 0.9rem; color: #FFF; line-height: 1.4; font-weight: 600;}
         .notif-bar-bg { width: 100%; height: 3px; background: #222; }
-        .notif-bar-fill { height: 100%; background: var(--neon-blue); width: 100%; transform-origin: left; transition: transform linear; }
+        .notif-bar-fill { height: 100%; background: var(--text-main); width: 100%; transform-origin: left; }
+        
+        .svg-icon { width: 20px; height: 20px; fill: currentColor; vertical-align: middle; margin-right: 6px; }
     </style>
 </head>
+
+
 <body>
 
-<div id="topNotification">
-    <div class="notif-close-hitbox" data-action="close-notif">
-        <svg class="notif-close" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-    </div>
-    <div class="notif-content" id="notifContent"></div>
-    <div class="notif-bar-bg"><div class="notif-bar-fill" id="notifBar"></div></div>
-</div>
+<!-- Silent Audio for Keep-Alive (極短靜音WAV，防背景失聲) -->
+<audio id="silentAudio" loop playsinline src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA"></audio>
+
+<div id="dialInputLock"></div>
 
 <div id="app-shell">
     
     <!-- 頂部 Tab 導航 -->
     <header id="header">
-        <button class="tab-btn active" data-action="tab-settings" id="tabSettings">設定</button>
-        <button class="tab-btn" data-action="tab-matrix" id="tabMatrix">配速</button>
+        <button class="tab-btn active" data-action="tab-settings" id="tabSettings"></button>
+        <button class="tab-btn" data-action="tab-matrix" id="tabMatrix"></button>
         <div class="tab-indicator" id="tabIndicator"></div>
     </header>
 
@@ -241,21 +212,21 @@
                 <div id="setup-view" class="view-section active">
                     <div class="setup-top-half">
                         <div class="dial-grid">
-                            <div class="dial-group"><div class="dial-label" id="lblTotalTime">總時間 (MIN)</div><div class="dial-window" id="dw-time"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-time"></div></div></div>
-                            <div class="dial-group"><div class="dial-label" id="lblSetMxS">最高速 (KPH)</div><div class="dial-window" id="dw-mxs"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-mxs"></div></div></div>
-                            <div class="dial-group"><div class="dial-label" id="lblSetMxI">最高坡 (%)</div><div class="dial-window" id="dw-mxi"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-mxi"></div></div></div>
-                            <div class="dial-group"><div class="dial-label" id="lblTargetKm">目標里程 (KM)</div><div class="dial-window" id="dw-dist"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-dist"></div></div></div>
-                            <div class="dial-group"><div class="dial-label" id="lblSetMnS">最低速 (KPH)</div><div class="dial-window" id="dw-mns"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-mns"></div></div></div>
-                            <div class="dial-group"><div class="dial-label" id="lblSetMnI">最低坡 (%)</div><div class="dial-window" id="dw-mni"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-mni"></div></div></div>
+                            <div class="dial-group"><div class="dial-label" id="lblTotalTime"></div><div class="dial-window" id="dw-time"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-time"></div></div></div>
+                            <div class="dial-group"><div class="dial-label" id="lblSetMxS"></div><div class="dial-window" id="dw-mxs"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-mxs"></div></div></div>
+                            <div class="dial-group"><div class="dial-label" id="lblSetMxI"></div><div class="dial-window" id="dw-mxi"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-mxi"></div></div></div>
+                            <div class="dial-group"><div class="dial-label" id="lblTargetKm"></div><div class="dial-window" id="dw-dist"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-dist"></div></div></div>
+                            <div class="dial-group"><div class="dial-label" id="lblSetMnS"></div><div class="dial-window" id="dw-mns"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-mns"></div></div></div>
+                            <div class="dial-group"><div class="dial-label" id="lblSetMnI"></div><div class="dial-window" id="dw-mni"><div class="dial-selection-bar"></div><div class="dial-scroll" id="ds-mni"></div></div></div>
                         </div>
                         <div class="prog-carousel-wrap"><div class="prog-carousel" id="progGrid"></div></div>
                     </div>
 
                     <div class="chart-card">
                         <div class="hud-grid">
-                            <div class="hud-row header"><span></span><span>SPD</span><span>INC</span><span>HR</span><span>LAC</span></div>
-                            <div class="hud-row hud-avg"><span class="lbl" id="lblAvg">AVG</span><span class="val-spd" data-bind="sAvgSpd">--</span><span class="val-inc" data-bind="sAvgInc">--</span><span class="val-hr" data-bind="sAvgHr">--</span><span class="val-lac" data-bind="sAvgLac">--</span></div>
-                            <div class="hud-row hud-max"><span class="lbl" id="lblMax">MAX</span><span class="val-spd" data-bind="sMaxSpd">--</span><span class="val-inc" data-bind="sMaxInc">--</span><span class="val-hr" data-bind="sMaxHr">--</span><span class="val-lac" data-bind="sMaxLac">--</span></div>
+                            <div class="hud-row header"><span id="hudH1"></span><span id="hudH2"></span><span id="hudH3"></span><span id="hudH4"></span><span id="hudH5"></span></div>
+                            <div class="hud-row hud-avg"><span class="lbl" id="lblAvg"></span><span class="val-spd" data-bind="sAvgSpd">--</span><span class="val-inc" data-bind="sAvgInc">--</span><span class="val-hr" data-bind="sAvgHr">--</span><span class="val-lac" data-bind="sAvgLac">--</span></div>
+                            <div class="hud-row hud-max"><span class="lbl" id="lblMax"></span><span class="val-spd" data-bind="sMaxSpd">--</span><span class="val-inc" data-bind="sMaxInc">--</span><span class="val-hr" data-bind="sMaxHr">--</span><span class="val-lac" data-bind="sMaxLac">--</span></div>
                             <div class="hud-row hud-hov" id="sHovRow"><span class="lbl" data-bind="sHovMin">--m</span><span class="val-spd" data-bind="sHovSpd">--</span><span class="val-inc" data-bind="sHovInc">--</span><span class="val-hr" data-bind="sHovHr">--</span><span class="val-lac" data-bind="sHovLac">--</span></div>
                         </div>
                         <div class="canvas-container" id="sChartWrap">
@@ -265,44 +236,53 @@
                     </div>
                 </div>
 
-                <!-- 狀態 B: 跑步儀表板 -->
+                <!-- 狀態 B: 跑步儀表板 (RUNNING) -->
                 <div id="run-view" class="view-section">
                     <div class="massive-time" data-bind="massiveTime">00:00</div>
                     
                     <div class="run-primary-grid">
-                        <div class="run-val-box"><div class="run-big-val spd" data-bind="runSpd">0.0</div><div class="run-lbl" id="lblRunSpd">SPEED</div></div>
-                        <div class="run-val-box"><div class="run-big-val inc" data-bind="runInc">0.0</div><div class="run-lbl" id="lblRunInc">INCLINE</div></div>
+                        <!-- 巨大熱區 +/- (左右各佔 50%) -->
+                        <div class="run-val-box">
+                            <div class="hitbox-left" data-action="live-spd-down"></div>
+                            <div class="hitbox-right" data-action="live-spd-up"></div>
+                            <div class="run-big-val spd" id="runValSpd" data-bind="runSpd">0.0</div>
+                            <div class="run-lbl" id="lblRunSpd"></div>
+                        </div>
+                        <div class="run-val-box">
+                            <div class="hitbox-left" data-action="live-inc-down"></div>
+                            <div class="hitbox-right" data-action="live-inc-up"></div>
+                            <div class="run-big-val inc" id="runValInc" data-bind="runInc">0.0</div>
+                            <div class="run-lbl" id="lblRunInc"></div>
+                        </div>
                     </div>
                     
                     <div class="run-sec-grid">
-                        <div class="r-s-box"><div class="r-s-val" data-bind="runDist">0.00</div><div class="r-s-lbl" id="lblRunDist">DIST</div></div>
-                        <div class="r-s-box"><div class="r-s-val" data-bind="runPace">--:--</div><div class="r-s-lbl" id="lblRunPace">PACE</div></div>
-                        <div class="r-s-box"><div class="r-s-val val-hr" data-bind="runHr">0</div><div class="r-s-lbl" id="lblRunHr">HR</div></div>
-                        <div class="r-s-box"><div class="r-s-val val-lac" data-bind="runLac">0.0</div><div class="r-s-lbl" id="lblRunLac">LAC</div></div>
+                        <div class="r-s-box"><div class="r-s-val" data-bind="runDist">0.00</div><div class="r-s-lbl" id="lblRunDist"></div></div>
+                        <div class="r-s-box"><div class="r-s-val" data-bind="runPace">--:--</div><div class="r-s-lbl" id="lblRunPace"></div></div>
+                        <div class="r-s-box"><div class="r-s-val val-hr" data-bind="runHr">0</div><div class="r-s-lbl" id="lblRunHr"></div></div>
+                        <div class="r-s-box"><div class="r-s-val val-lac" data-bind="runLac">0.0</div><div class="r-s-lbl" id="lblRunLac"></div></div>
                     </div>
                     
                     <div class="zone-dash">
-                        <div class="zd-header"><span class="zd-title" id="lblZoneTitle">ZONE 分佈</span><span class="zd-cal" data-bind="runCal">0.0 kcal</span></div>
+                        <div class="zd-header"><span class="zd-title" id="lblZoneTitle"></span><span class="zd-cal" data-bind="runCal">0.0 kcal</span></div>
                         <div class="stacked-zone-bar">
-                            <div class="sz-segment bg-z1" data-bind="sz1" style="flex-basis: 0%;"></div>
-                            <div class="sz-segment bg-z2" data-bind="sz2" style="flex-basis: 0%;"></div>
-                            <div class="sz-segment bg-z3" data-bind="sz3" style="flex-basis: 0%;"></div>
-                            <div class="sz-segment bg-z4" data-bind="sz4" style="flex-basis: 0%;"></div>
-                            <div class="sz-segment bg-z5" data-bind="sz5" style="flex-basis: 0%;"></div>
+                            <div class="sz-segment bg-z1" id="sz1" style="flex-basis: 0%;"></div>
+                            <div class="sz-segment bg-z2" id="sz2" style="flex-basis: 0%;"></div>
+                            <div class="sz-segment bg-z3" id="sz3" style="flex-basis: 0%;"></div>
+                            <div class="sz-segment bg-z4" id="sz4" style="flex-basis: 0%;"></div>
+                            <div class="sz-segment bg-z5" id="sz5" style="flex-basis: 0%;"></div>
                         </div>
                         <div class="zone-legend"><span class="txt-z1">Z1</span><span class="txt-z2">Z2</span><span class="txt-z3">Z3</span><span class="txt-z4">Z4</span><span class="txt-z5">Z5</span></div>
                     </div>
                     
                     <div class="chart-card" id="rChartWrap">
                         <div class="hud-grid">
-                            <div class="hud-row header"><span></span><span>SPD</span><span>INC</span><span>HR</span><span>LAC</span></div>
-                            <div class="hud-row hud-avg"><span class="lbl" id="lblRAvg">AVG</span><span class="val-spd" data-bind="rAvgSpd">--</span><span class="val-inc" data-bind="rAvgInc">--</span><span class="val-hr" data-bind="rAvgHr">--</span><span class="val-lac" data-bind="rAvgLac">--</span></div>
-                            <div class="hud-row hud-max"><span class="lbl" id="lblRMax">MAX</span><span class="val-spd" data-bind="rMaxSpd">--</span><span class="val-inc" data-bind="rMaxInc">--</span><span class="val-hr" data-bind="rMaxHr">--</span><span class="val-lac" data-bind="rMaxLac">--</span></div>
-                            <div class="hud-row hud-hov" id="rHovRow"><span class="lbl" data-bind="rHovMin">--m</span><span class="val-spd" data-bind="rHovSpd">--</span><span class="val-inc" data-bind="rHovInc">--</span><span class="val-hr" data-bind="rHovHr">--</span><span class="val-lac" data-bind="rHovLac">--</span></div>
+                            <div class="hud-row header"><span id="hudRH1"></span><span id="hudRH2"></span><span id="hudRH3"></span><span id="hudRH4"></span><span id="hudRH5"></span></div>
+                            <div class="hud-row hud-avg"><span class="lbl" id="lblRAvg"></span><span class="val-spd" data-bind="rAvgSpd">--</span><span class="val-inc" data-bind="rAvgInc">--</span><span class="val-hr" data-bind="rAvgHr">--</span><span class="val-lac" data-bind="rAvgLac">--</span></div>
+                            <div class="hud-row hud-max"><span class="lbl" id="lblRMax"></span><span class="val-spd" data-bind="rMaxSpd">--</span><span class="val-inc" data-bind="rMaxInc">--</span><span class="val-hr" data-bind="rMaxHr">--</span><span class="val-lac" data-bind="rMaxLac">--</span></div>
                         </div>
                         <div class="canvas-container">
                             <canvas id="rChart"></canvas>
-                            <div class="crosshair" id="rCrosshair"></div>
                         </div>
                     </div>
                 </div>
@@ -311,7 +291,7 @@
             <!-- 視圖 2: Pace List -->
             <div class="tab-content" id="tabContent2">
                 <div class="list-header">
-                    <span class="list-col-time">TIME</span><span class="list-col-spd">SPD</span><span class="list-col-inc">INC</span><span class="list-col-phase">PHASE</span><span class="list-col-hr">HR</span>
+                    <span class="list-col-time" id="thTime"></span><span class="list-col-spd" id="thSpd"></span><span class="list-col-inc" id="thInc"></span><span class="list-col-phase" id="thPhase"></span><span class="list-col-hr" id="thHr"></span>
                 </div>
                 <ul id="previewList" class="preview-list"></ul>
             </div>
@@ -319,95 +299,89 @@
         </div>
     </main>
 
-    <!-- 底部控制列 -->
+    <!-- 底部控制列 (全 SVG) -->
     <footer id="footer">
         <div class="bottom-controls">
-            <!-- 準備階段按鈕 -->
             <button id="btnLeft" class="btn-ctrl btn-runner" data-action="open-runner">
                 <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                <span id="lblBtnLeft">Runner</span>
+                <span id="lblBtnLeft"></span>
             </button>
             <button id="btnRight" class="btn-ctrl btn-start" data-action="start">
                 <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                <span id="lblBtnRight">開始</span>
+                <span id="lblBtnRight"></span>
             </button>
             
-            <!-- 跑步階段按鈕 (預設隱藏) -->
             <button id="btnAskEnd" class="btn-ctrl btn-end btn-hide" data-action="ask-end">
                 <svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
-                <span id="lblEnd">長按結束</span>
+                <span id="lblEnd"></span>
             </button>
             <button id="btnPause" class="btn-ctrl btn-pause btn-hide" data-action="pause">
                 <svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-                <span id="lblPause">暫停</span>
+                <span id="lblPause"></span>
             </button>
         </div>
     </footer>
 
-    <!-- Runner Modal (修復紅框恐懼與鍵盤遮擋) -->
+    <!-- Runner Modal (無 Emoji, 全 SVG) -->
     <div id="runnerModal" class="modal-overlay" data-action="overlay-close">
         <div class="modal-box" id="rmBox" data-no-close>
             <div class="modal-header">
-                <div class="modal-title" id="lblRmTitle">跑者檔案設定</div>
+                <div class="modal-title" id="lblRmTitle"></div>
                 <button class="btn-close-modal" data-action="close-runner"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
             </div>
             
             <div class="modal-content-scroll">
                 <div class="rm-group">
-                    <label class="rm-label" id="lblRmName">名稱</label>
-                    <div class="input-wrapper">
-                        <input type="text" id="rmName" maxlength="10" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-                    </div>
+                    <label class="rm-label" id="lblRmName"></label>
+                    <div class="input-wrapper"><input type="text" id="rmName" maxlength="12" autocomplete="off" spellcheck="false"></div>
                 </div>
                 
                 <div class="rm-group">
-                    <label class="rm-label" id="lblRmPhysio">基本生理</label>
+                    <label class="rm-label" id="lblRmPhysio"></label>
                     <div class="param-grid">
-                        <div class="param-item"><label id="lblAge">年齡</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmAge" class="lockable"><span class="unit">歲</span></div>
-                        <div class="param-item"><label id="lblWgt">體重</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmWeight" class="lockable"><span class="unit" id="unitWgt">kg</span></div>
+                        <div class="param-item"><label id="lblAge"></label><input type="number" id="rmAge"><span class="unit" id="unitAge"></span></div>
+                        <div class="param-item"><label id="lblWgt"></label><input type="number" id="rmWeight" inputmode="decimal"><span class="unit" id="unitWgt"></span></div>
                     </div>
                 </div>
 
-                <!-- 手風琴：進階設定 -->
                 <div class="rm-group">
                     <div class="rm-label accordion-header" data-action="toggle-accordion" data-target="advSettings">
-                        <span id="lblAdvTitle">進階生理與極限 ⚙️</span>
+                        <span><svg class="svg-icon" viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg><span id="lblAdvTitle"></span></span>
                         <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
                     </div>
                     <div class="accordion-content" id="advSettings">
                         <div class="param-grid" style="margin-bottom: 15px;">
-                            <div class="param-item"><label id="lblBMR">基礎代謝</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmBMR" class="lockable"><span class="unit">kcal</span></div>
-                            <div class="param-item"><label id="lblSMM">骨骼肌</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmSMM" class="lockable"><span class="unit" id="unitSmm">kg</span></div>
-                            <div class="param-item"><label id="lblBF">體脂肪</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmBF" class="lockable"><span class="unit">%</span></div>
-                            <div class="param-item"><label id="lblVO2">VO₂max</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmVO2" class="lockable"><span class="unit">ml/kg/min</span></div>
+                            <div class="param-item"><label id="lblRHR"></label><input type="number" id="rmRHR" placeholder="Auto"><span class="unit">bpm</span></div>
+                            <div class="param-item"><label id="lblMHR"></label><input type="number" id="rmMHR" placeholder="Auto"><span class="unit">bpm</span></div>
+                            <div class="param-item"><label id="lblSMM"></label><input type="number" id="rmSMM" inputmode="decimal"><span class="unit" id="unitSmm"></span></div>
+                            <div class="param-item"><label id="lblVO2"></label><input type="number" id="rmVO2" inputmode="decimal" placeholder="Auto"><span class="unit">ml/kg</span></div>
                         </div>
                         <div class="param-grid" style="margin-bottom: 15px;">
-                            <div class="param-item"><label id="lblPMxS">最高速</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmMxS" class="lockable"><span class="unit" id="unitMxS">kph</span></div>
-                            <div class="param-item"><label id="lblPMnS">最低速</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmMnS" class="lockable"><span class="unit" id="unitMnS">kph</span></div>
-                            <div class="param-item"><label id="lblPMxI">最高坡</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmMxI" class="lockable"><span class="unit">%</span></div>
-                            <div class="param-item"><label id="lblPMnI">最低坡</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="rmMnI" class="lockable"><span class="unit">%</span></div>
+                            <div class="param-item"><label id="lblPMxS"></label><input type="number" id="rmMxS" inputmode="decimal"><span class="unit" id="unitMxS1"></span></div>
+                            <div class="param-item"><label id="lblPMnS"></label><input type="number" id="rmMnS" inputmode="decimal"><span class="unit" id="unitMnS1"></span></div>
+                            <div class="param-item"><label id="lblPMxI"></label><input type="number" id="rmMxI" inputmode="decimal"><span class="unit">%</span></div>
+                            <div class="param-item"><label id="lblPMnI"></label><input type="number" id="rmMnI" inputmode="decimal"><span class="unit">%</span></div>
                         </div>
                     </div>
                 </div>
                 
-                <!-- 手風琴：硬體極限 (拔除紅框，改深色背景) -->
                 <div class="rm-group">
                     <div class="rm-label accordion-header" data-action="toggle-accordion" data-target="hwSettings">
-                        <span id="lblHwTitle">硬體限制 (跑步機極限) 🔒</span>
+                        <span><svg class="svg-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg><span id="lblHwTitle"></span></span>
                         <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
                     </div>
                     <div class="accordion-content" id="hwSettings">
                         <div class="param-grid" style="background: #111; padding: 12px; border-radius: 12px; border: 1px solid #333;">
-                            <div class="param-item" style="background: #000;"><label>機器最高速</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="hwMxS" class="lockable"></div>
-                            <div class="param-item" style="background: #000;"><label>機器最低速</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="hwMnS" class="lockable"></div>
-                            <div class="param-item" style="background: #000;"><label>機器最高坡</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="hwMxI" class="lockable"></div>
-                            <div class="param-item" style="background: #000;"><label>機器最低坡</label><input type="text" inputmode="decimal" pattern="[0-9]*" id="hwMnI" class="lockable"></div>
+                            <div class="param-item" style="background: #000;"><label id="lblHwMxS"></label><input type="number" id="hwMxS" inputmode="decimal"><span class="unit" id="unitMxS2"></span></div>
+                            <div class="param-item" style="background: #000;"><label id="lblHwMnS"></label><input type="number" id="hwMnS" inputmode="decimal"><span class="unit" id="unitMnS2"></span></div>
+                            <div class="param-item" style="background: #000;"><label id="lblHwMxI"></label><input type="number" id="hwMxI" inputmode="decimal"><span class="unit">%</span></div>
+                            <div class="param-item" style="background: #000;"><label id="lblHwMnI"></label><input type="number" id="hwMnI" inputmode="decimal"><span class="unit">%</span></div>
                         </div>
                     </div>
                 </div>
                 
                 <div class="rm-group">
-                    <label class="rm-label" id="lblRmPref">偏好設定</label>
+                    <label class="rm-label" id="lblRmPref"></label>
                     <div class="param-grid">
                         <div class="segmented-control" id="segLang">
                             <div class="seg-indicator" style="width: 50%; transform: translateX(0);"></div>
@@ -430,35 +404,118 @@
             </div>
             
             <div class="modal-footer">
-                <button class="btn-modal btn-ghost" data-action="close-runner" id="btnRmCancel">取消</button>
-                <button class="btn-modal btn-save" data-action="save-runner" id="btnRmSave">儲存</button>
+                <button class="btn-modal btn-ghost" data-action="close-runner" id="btnRmCancel"></button>
+                <button class="btn-modal btn-save" data-action="save-runner" id="btnRmSave"></button>
             </div>
         </div>
     </div>
 
-    <!-- Confirm Modal -->
-    <div id="vConfirmModal" class="modal-overlay">
-        <div class="modal-box" id="vcBox" style="max-width: 320px;">
-            <div class="modal-header" style="justify-content: center; border: none;">
-                <div class="modal-title" id="vcTitle" style="color:var(--neon-red); font-size: 1.3rem;">確認</div>
-            </div>
-            <p style="color:var(--gray-light); font-size:1.05rem; font-weight:600; text-align:center; padding: 10px 20px 25px 20px;" id="vcDesc"></p>
-            <div class="modal-footer" style="padding: 15px;">
-                <button class="btn-modal btn-ghost" style="flex:1;" id="vcCancel">取消</button>
-                <button class="btn-modal btn-ghost-danger" style="flex:1;" id="vcYes">確定</button>
-            </div>
-        </div>
+    <!-- Top Toast Notification -->
+    <div id="topNotification">
+        <div class="notif-content" id="notifContent"></div>
+        <div class="notif-bar-bg"><div class="notif-bar-fill" id="notifBar"></div></div>
     </div>
 </div>
 
 <script>
 /**
  * ==========================================
- * PART 2: CORE STATE ENGINE & BUSINESS LOGIC
+ * PRO TREADMILL OS (OLYMPIC V28 - ULTIMATE)
  * ==========================================
+ * 架構說明：
+ * 1. Web Worker：背景不死核心，解決休眠斷線問題。
+ * 2. Delta-Merge Engine：即時變速與歷史資料無縫縫合，保證運動科學絕對正確。
+ * 3. IndexedDB：取代 LocalStorage 作為無限歷史紀錄儲存庫 (LRU機制)。
+ * 4. Karvonen 心率法：支援安靜心率與客製化最大心率的頂級演算。
+ * 5. i18n & VoiceEngine：零延遲切換語系與雙語音擴充庫。
  */
 
-// --- 工具箱 ---
+// --- 1. 字典庫 (i18n) & 語音庫 (VoiceDB) ---
+const i18n = {
+    zh: {
+        tab1: "設定", tab2: "配速",
+        tim: "總時間 (MIN)", km: "目標里程 (KM)", mxS: "最高速 (KPH)", mnS: "最低速 (KPH)", mxI: "最高坡 (%)", mnI: "最低坡 (%)",
+        mxSImp: "最高速 (MPH)", mnSImp: "最低速 (MPH)",
+        hud1: "階段", hud2: "速度", hud3: "坡度", hud4: "心率", hud5: "乳酸",
+        avg: "AVG", max: "MAX",
+        rSpd: "速度", rInc: "坡度", rDist: "里程", rPace: "配速", rHr: "心率", rLac: "乳酸", zDist: "ZONE 分佈",
+        thTime: "時間", thSpd: "速度", thInc: "坡度", thPhase: "階段", thHr: "心率",
+        btnLeft: "跑者", btnStart: "開始", btnResume: "繼續", btnHold: "長按結束", btnPause: "暫停",
+        rmTitle: "跑者檔案設定", rmName: "名稱", rmPhy: "基本生理", rmAge: "年齡", rmWgt: "體重",
+        rmAdv: "進階生理與極限", rRHR: "安靜心率", rMHR: "最大心率", rSMM: "骨骼肌", rVO2: "VO₂Max",
+        rMxS: "最高速", rMnS: "最低速", rMxI: "最高坡", rMnI: "最低坡",
+        hwTitle: "硬體限制 (機台極限)", hMxS: "機器最高速", hMnS: "機器最低速", hMxI: "機器最高坡", hMnI: "機器最低坡",
+        rmPref: "偏好設定", btnCancel: "取消", btnSave: "儲存",
+        phases: { warmup: "暖身", steep: "爬坡", sprint: "衝刺", recovery: "恢復", exhaust: "力竭", cooldown: "緩和" },
+        prog: {
+            p1: ["輕鬆恢復跑", "全程 Zone 1-2，促進乳酸排除與微血管增生。"], p2: ["有氧耐力底層", "經典 Zone 2 巡航，鍛鍊脂肪氧化能力。"],
+            p3: ["節奏跑 (Tempo)", "逼近乳酸閾值 (Zone 3-4)，提升抗疲勞極限。"], p4: ["1:1 法特萊克", "快慢交替，隨機刺激無氧與有氧系統。"],
+            p5: ["金字塔間歇", "速度逐步提升再下降，考驗心肺恢復力。"], p6: ["陡坡攻頂", "模擬高海拔爬升，強迫臀大肌與後側鍊發力。"],
+            p7: ["漸速跑 (Progression)", "由慢到快，訓練身體在疲勞時的配速控制。"], p8: ["5x5 VO2Max", "針對最大攝氧量的殘酷打擊，Zone 5 挑戰。"],
+            p9: ["乳酸耐受考驗", "長時間維持在閾值邊緣，極度考驗意志力。"], p10: ["奧林匹克決賽", "無情的變速與爬坡綜合體，專為頂尖設計。"]
+        },
+        warnHw: "已達硬體極限", warnCrash: "已從異常中斷恢復進度", warnSave: "資料已儲存"
+    },
+    en: {
+        tab1: "Setup", tab2: "Pace",
+        tim: "TIME (MIN)", km: "DIST (KM)", mxS: "MAX SPD (KPH)", mnS: "MIN SPD (KPH)", mxI: "MAX INC (%)", mnI: "MIN INC (%)",
+        mxSImp: "MAX SPD (MPH)", mnSImp: "MIN SPD (MPH)",
+        hud1: "PHASE", hud2: "SPD", hud3: "INC", hud4: "HR", hud5: "LAC",
+        avg: "AVG", max: "MAX",
+        rSpd: "SPEED", rInc: "INCLINE", rDist: "DIST", rPace: "PACE", rHr: "HR", rLac: "LAC", zDist: "ZONE DIST",
+        thTime: "TIME", thSpd: "SPD", thInc: "INC", thPhase: "PHASE", thHr: "HR",
+        btnLeft: "Runner", btnStart: "Start", btnResume: "Resume", btnHold: "Hold End", btnPause: "Pause",
+        rmTitle: "Runner Profile", rmName: "Name", rmPhy: "Physiology", rmAge: "Age", rmWgt: "Weight",
+        rmAdv: "Advanced Physiology", rRHR: "Resting HR", rMHR: "Max HR", rSMM: "Skel. Muscle", rVO2: "VO₂Max",
+        rMxS: "Max Speed", rMnS: "Min Speed", rMxI: "Max Incline", rMnI: "Min Incline",
+        hwTitle: "Hardware Limits", hMxS: "Machine Max Spd", hMnS: "Machine Min Spd", hMxI: "Machine Max Inc", hMnI: "Machine Min Inc",
+        rmPref: "Preferences", btnCancel: "Cancel", btnSave: "Save",
+        phases: { warmup: "Warmup", steep: "Steep", sprint: "Sprint", recovery: "Recovery", exhaust: "Exhaust", cooldown: "Cool" },
+        prog: {
+            p1: ["Recovery Run", "Zone 1-2 only. Promotes lactate clearance."], p2: ["Aerobic Base", "Classic Zone 2 cruise. Enhances fat oxidation."],
+            p3: ["Tempo Run", "Pushing lactate threshold (Z3-Z4). Builds fatigue resistance."], p4: ["1:1 Fartlek", "Speed play. Random anaerobic/aerobic stimulus."],
+            p5: ["Pyramid Intervals", "Step up and down. Tests cardiopulmonary recovery."], p6: ["Hill Attack", "Simulates elevation. Forces massive glute activation."],
+            p7: ["Progression", "Start slow, finish fast. Pace control under fatigue."], p8: ["5x5 VO2Max", "Brutal Zone 5 strikes targeting max oxygen uptake."],
+            p9: ["Lactate Tolerance", "Sustained threshold edge. Ultimate mental test."], p10: ["Olympic Final", "Relentless speed & hills. For the elite."]
+        },
+        warnHw: "Hardware Limit Reached", warnCrash: "Recovered from unexpected crash", warnSave: "Profile Saved"
+    }
+};
+
+const VoiceDB = {
+    zh: {
+        val_low: ["呼吸節奏完美，心率維持在有氧底端。","步伐毫無拖泥帶水，保持這份輕盈。","自覺費力程度很低，這是絕佳的巡航。","血乳酸穩定在安靜值，你的有氧系統運作極其高效。","聽這安靜的落地聲，代表煞車效應趨近於零。","肌肉處於最舒服的張力狀態，好好享受。"],
+        val_mid: ["大腿開始有張力了，快縮肌群正在介入。","心率進入中高區段，你在挑戰有氧與無氧的邊界。","核心體溫穩步上升，體溫調節中樞全力排汗中。","感覺到挑戰了嗎？這點壓力是引發超補償的關鍵！","雙腿正適應高強度的機械張力，穩住節奏。","傳說中的『痛快』，肌肉正經歷高效率的代謝考驗。"],
+        val_high: ["肺部像在燃燒？這是糖酵解代謝的強大壓力！","雙腿像灌鉛，這是真實的肌肉力竭，撐住它！","大腦瘋狂尖叫求救！這是中樞神經的疲勞假警報！","汗水模糊視線！這就是區分平庸與卓越的決定時刻！","挑戰最大攝氧量極限！逼出你身體裡所有的潛能！","肌肉纖維在哀嚎，但你絕對不能對軟弱妥協！"],
+        val_rec: ["漂亮！撐過來了！副交感神經開始接管身體。","挺過高壓，你絕對值得為這份驚人的毅力感到驕傲。","痛苦結束了，享受突破極限後的巨大成就感！","放慢腳步，體會從地獄回到人間的呼吸感。","活下來了！這是強者的自我證明。"],
+        bio_steep: ["從腳踝作支點，整體前傾對抗陡坡，改變重心向量！","絕不能坐著跑！髖關節完全伸展，強迫臀大肌發力！","爬坡嚴禁跨大步！縮小步幅，大幅提高步頻！","前腳掌著地，腳跟微懸，利用小腿與阿基里斯腱彈簧效應。","克服重力的秘訣就是高步頻，讓腳底像裝了馬達一樣！"],
+        phy_warm: ["關節分泌滑液，微血管床擴張，安全潤滑開來。","低強度安全喚醒慢肌纖維，提高肌肉溫度預防撕裂傷。","深呼吸，氧氣送進腹部，穩定副交感神經防心率過早飆升。","增加肌肉黏彈性，讓接下來每一步更流暢安全。"],
+        phy_ana: ["乳酸是燃料不是敵人！肝臟正透過柯氏循環把它轉回葡萄糖！","快縮肌全面啟動！榨乾肌肉裡所有的儲備肌醣原！","這股酸痛是刺激肌肉生長變強的最強信號！","你的極速快肌正在燃燒殆盡，這是爆發力的絕對關鍵！"],
+        trans: ["準備進入下階段，速度即將來到 {s}，坡度 {i}，穩定核心！","注意了！即將變速，速度 {s}，坡度 {i}，咬緊牙關！"],
+        sys_speed_up: ["收到，速度提升，穩住重心。","配速拉高，步頻跟上，做得好。","提速確認，啟動快縮肌群。"],
+        sys_speed_down: ["速度已調降，趁現在深呼吸調整。","配速放緩，把氧氣吸進腹部。","降速確認，享受短暫的喘息。"],
+        sys_inc_up: ["坡度增加，啟動你的臀大肌！","迎擊陡坡，身體微幅前傾。","坡度上升，不要跨大步，拉高步頻。"],
+        sys_inc_down: ["坡度減緩，放鬆小腿準備加速。","坡度下降，順著重力往前推蹬。"],
+        sys_resume: ["生理參數已更新，系統重新校準中，請維持當下節奏。","設定已同步，未來軌跡重新運算完畢。"]
+    },
+    en: {
+        val_low: ["Breathing is effortless. Perfect aerobic foundation.","Footsteps light and crisp. Keep this calm grace.","Blood lactate at resting baseline. Highly efficient system.","No braking forces. Mechanical efficiency is peaking."],
+        val_mid: ["Quads starting to hum. Fast-twitch fibers kicking in.","Heartbeat louder. Riding the edge of aerobic threshold.","Feeling the challenge? Stress triggers supercompensation.","The 'good pain'. Enjoy moderate metabolic stress."],
+        val_high: ["Lungs on fire. Massive glycolytic metabolic stress.","Legs like concrete. True threshold of muscular failure.","CNS screaming for mercy. It's a false fatigue alarm!","Pushing absolute VO2 Max limit. Give it everything!"],
+        val_rec: ["Beautiful! Survived the fire. Parasympathetic taking over.","Worst is over. Taste the victory of that interval.","Slow down. Feel massive pride conquering that limit.","Heart rate dropping safely. Elite recovery capacity."],
+        bio_steep: ["Pivot from the ankles. Lean your whole body into the hill.","Don't run seated! Fully extend the hips and force glute activation.","Shorten your stride! High cadence is mandatory to conquer steep inclines.","Forefoot strike, heel slightly floating. Load the calf spring."],
+        phy_warm: ["Synovial fluid is lubricating your joints for the incoming impact.","Waking up slow-twitch fibers safely to prevent micro-tears.","Deep belly breaths to activate vagal tone and parasympathetic calmness."],
+        phy_ana: ["Lactate is fuel! Liver is recycling it into glucose!","Fast-twitch fibers fully engaged. Rapidly depleting glycogen stores!","Extreme hydrogen ion accumulation. Hold the burn, it triggers massive growth!"],
+        trans: ["Preparing for next phase, speed at {s}, incline {i}, core engaged!","Attention! Speed shifting to {s}, incline {i}, grit your teeth!"],
+        sys_speed_up: ["Copy that. Speed increased. Hold your center.","Pace up. Increase cadence to match.","Speed override confirmed. Engage fast-twitch fibers."],
+        sys_speed_down: ["Speed decreased. Take deep breaths to recover.","Pace dialed back. Pull oxygen deep into your lungs.","Deceleration confirmed. Enjoy the recovery."],
+        sys_inc_up: ["Incline increased. Fire up those glutes!","Attacking the hill. Lean forward slightly.","Elevation rising. Shorten stride, high cadence."],
+        sys_inc_down: ["Incline decreased. Relax calves and prepare to push.","Elevation dropping. Use gravity to propel forward."],
+        sys_resume: ["Parameters updated. System recalibrating, maintain your rhythm.","Settings synced. Future trajectory recomputed."]
+    }
+};
+
+// --- 2. 工具庫 (Utils) ---
 const Utils = {
     fmtTime: (ms, showMs = false) => {
         let totS = Math.floor(ms / 1000); let h = Math.floor(totS / 3600); let m = Math.floor((totS % 3600) / 60); let s = totS % 60;
@@ -468,112 +525,69 @@ const Utils = {
     },
     getPaceStr: (speedKph, isMet) => {
         if (speedKph <= 0.1) return `--:-- /${isMet?'km':'mi'}`; 
-        let speed = isMet ? speedKph : speedKph / 1.609344;
-        let pace = 60 / speed; let pM = Math.floor(pace); let pS = Math.floor((pace - pM) * 60);
-        if (pM >= 100) return `--:-- /${isMet?'km':'mi'}`; 
+        let speed = isMet ? speedKph : speedKph / 1.609344; let pace = 60 / speed; 
+        if (pace >= 100) return `99:59 /${isMet?'km':'mi'}`; // 極端配速防破版
+        let pM = Math.floor(pace); let pS = Math.floor((pace - pM) * 60);
         return `${String(pM).padStart(2,'0')}:${String(pS).padStart(2,'0')} /${isMet?'km':'mi'}`;
     },
-    PRNG: { seed: 12345, get(lang, key, arr) { this.seed = (this.seed * 9301 + 49297) % 233280; return arr[Math.floor((this.seed / 233280) * arr.length)]; } },
+    PRNG: { seed: Date.now(), get(lang, key, arr) { this.seed = (this.seed * 9301 + 49297) % 233280; return arr[Math.floor((this.seed / 233280) * arr.length)]; } },
     clamp: (val, min, max) => Math.max(min, Math.min(max, val))
 };
 
-// --- 海量語音庫與 I18n ---
-const VoiceDB = {
-    zh: {
-        val_low: ["呼吸節奏完美，心率維持在有氧底端。","步伐毫無拖泥帶水，保持這份輕盈。","自覺費力程度RPE小於4，這是絕佳的巡航。","血乳酸穩定在安靜值，你的有氧系統運作極其高效。","聽這安靜的落地聲，代表煞車效應趨近於零。","肌肉處於最舒服的張力狀態，好好享受。","現在的心跳只是在幫細胞做微型按摩。","游刃有餘！把專注力放在橫膈膜的深度收縮上。","這配速對你的心血管就像是潤滑油，非常健康。","感覺不到疲勞？這代表你的基礎體能已經大幅進化。","放鬆你的肩膀和下巴，這階段不該有任何壓力。","跑姿經濟性極高，你現在就像一台自動駕駛的機器。","微血管網正在全開，源源不絕地接收氧氣。","維持這個輸出功率，不要急，耐心是超馬選手的武器。","你的呼吸頻率與步頻結合得天衣無縫。","這個狀態下的神經傳導異常清晰，做得好。","肌肉的牽張反射正在完美運作。","把每一次吐氣拉長，你的心跳會更省力。","你現在的動態平衡感堪稱教科書級別。","這就是累積訓練量最好的舒適區間。","感覺不到重量，這就是力學與重力對抗的完美平衡。","每一滴汗水都在為你的細胞降溫。","輕鬆寫意，現在的你就是一部高效能內燃機。","保持微笑，告訴大腦這一切都很輕鬆。","感受腳底板輕觸履帶的瞬間，非常流暢。","完美掌控重心，步態輕盈無聲，簡直是藝術。","呼吸深度極佳，正在將氧氣送達微血管末端。","動作連貫順暢，這是頂尖運動員的熱身水準。","你現在像水一樣流動，身體毫無多餘的機械阻力。","保持微笑，副交感神經正在幫你過濾所有的緊張感。","游刃有餘的姿態，你的有氧基底正因為這份從容而生長。","感受核心的穩定，你的骨盆就像是平穩的避震器。","這種低功率輸出，正在教導大腦如何極致地節省能量。","每一滴汗都代表粒線體的甦醒，繼續維持。","太棒了，你現在的跑步經濟性幾乎達到了滿分。","你的本體感覺神經元正在完美計算空間座標。","安靜的呼吸聲，這是大師級跑者的專屬印記。","步伐轉換如同鐘擺般精準，這是物理學的最優解。","慢肌纖維正在微笑，它們非常享受這份穩定的負荷。","沒有任何代償性發力，你的生物力學模型完美無瑕。","感受風擦過臉頰，把這個節奏烙印在小腦裡。","現在的心搏出量非常經濟，心臟正處於極佳的訓練狀態。","這份從容感，是無數滴汗水累積出來的強大。","不要被多餘的想法干擾，享受這具完美機器的運轉。","你的足底筋膜正在進行最柔和的能量回收。","動作力學毫無破綻，就像是在無重力艙內巡航。","完美的脂肪燃燒區間，你正在將體脂轉化為純淨動能。","血紅素的攜氧效率極高，這就是科學訓練的成果。","聆聽心臟平穩的節拍，這是一首屬於耐力的交響樂。","現在的感覺就像是可以永遠跑下去，鎖定這個狀態！"],
-        val_mid: ["大腿開始有張力了，快縮肌群正在介入。","心率進入 Zone 3，你在挑戰有氧與無氧的邊界。","核心體溫穩步上升，體溫調節中樞全力排汗中。","二氧化碳濃度上升，強迫你的呼吸頻率加快。","感覺到挑戰了嗎？這點壓力是引發超補償的關鍵！","雙腿正適應高強度的機械張力，穩住節奏。","傳說中的『痛快』，肌肉正經歷高效率的代謝考驗。","心搏出量已經到頂，心臟正全力輸送帶氧血液。","需要高度專注力！別讓大腦的保護機制騙了你。","維持 RPE 七到八的黃金帶，提升你的抗疲勞極限。","小腿肚緊繃是推進力增加的正常反應，繼續踩！","循環系統正承受壓力，但你的身體絕對負荷得了。","汗水流進眼睛也別擦！用專注力蓋過這點不適。","你的代謝系統正在高效率燃燒脂肪與肝醣的混合物。","擴大你的心肺引擎容量，這階段就是要撐住不掉速。","感覺有點喘？這是乳酸在邊緣試探的正常現象。","維持住！這是刺激你最大穩定狀態的最佳時刻。","不要因為一點酸痛就放棄你好不容易建立的步頻。","你的肺泡正在瘋狂擴張，貪婪地吸取氧氣。","把注意力放在核心，讓軀幹幫忙分擔雙腿的壓力。","這裡最容易讓人想偷懶，證明你跟別人不一樣！","這個區間的收益最高，每一秒都在讓你變強。","汗水在狂飆，你的身體正在進行最高級的熱交換。","用節奏感去壓制肌肉的疲勞感，你可以的！","不要看時間，專注在每一次手臂的擺動上。","這就是進步的代價，擁抱這種沉重感！","不要向大腦的假性疲勞低頭，你真正的體力還剩很多。","心率攀升得很漂亮，這正是心肺引擎升級的過程。","肌肉在燃燒？那是因為游離脂肪酸正在被大量氧化！","穩住你的上肢，讓強壯的背部幫你分擔下肢的酸楚。","現在的每一秒都在改寫你的耐力極限，不准掉速！","你的意志力正和你的乳酸閾值正面交鋒，撐過去。","把專注力放在腳跟的收縮，用臀大肌的力量把履帶往後刷！","忍耐這份不適，超補償效應就是在這個瞬間啟動的。","深呼吸！用更深的吐氣去抵抗血液中的酸性堆積。","肌肉組織的微小破壞正在發生，你正在為進化鋪路。","有氧引擎正在被逼到邊界，堅守住這條防線！","這就是馬拉松撞牆期前的預演，讓身體習慣這份沉重。","肝醣正在被快速消耗，堅持住，燃脂效率即將飆升！","心肺系統正在擴建，享受這種突破瓶頸的擴張感。","不要讓步伐變沉，用核心的力量把雙腿提起來！","你現在的狀態就是教科書級別的節奏跑，極其漂亮。","把注意力從痠痛上移開，專注在強有力的吐氣。","不要逃避，正視這份肌肉的酸楚，這是你變強的證明。","神經募集單位正在增加，你的潛能正在被徹底解鎖。","感覺橫膈膜正在強烈收縮，很好，這就是在鍛鍊呼吸肌。","這股酸痛感是游離氫離子在作祟，用氧氣去中和它！","汗水浸濕衣服又怎樣？這是你努力的徽章！","不要讓腦袋裡的懷疑聲變大，用規律的腳步聲蓋過它。","這就是所謂的『舒適的痛苦』，你是享受這種感覺的瘋子！"],
-        val_high: ["肺部像在燃燒？這是糖酵解代謝的強大壓力！","雙腿像灌鉛，這是真實的肌肉力竭，撐住它！","大腦瘋狂尖叫求救！這是中樞神經的疲勞假警報！","汗水模糊視線！這就是區分平庸與卓越的決定時刻！","挑戰最大攝氧量極限！逼出你身體裡所有的潛能！","肌肉纖維在哀嚎，但你絕對不能對軟弱妥協！","痛苦百分之百真實，但你的意志力無堅不摧！","純粹的意志對決！關掉理智，用動物的本能去跑！","粗重的喘息是變強的必經之路，擁抱這個聲音！","視線開始狹窄，咬緊牙關！這就是硬核無氧訓練！","大腿後側快抽筋了？這是在撕裂並重建你的肌纖維！","越痛苦越要挺起胸膛！讓橫膈膜吸進最後的氧氣！","這是與神經系統的戰爭！拒絕大腦的停止指令！","痛苦是一時的，放棄的懊悔會跟著你一整天！","把靈魂深處的底牌掀出來！證明你自己的能耐！","這就是奧運選手每天都在經歷的地獄，撐住！","這是摧毀舊我、誕生新我的高溫熔爐！","現在放手，一切歸零；繼續咬牙，你就是王者！","心臟快炸了？告訴它繼續跳！你才是身體的主人！","沒錯，這感覺就像快死了一樣，跨過它迎來新生！","把所有的質疑聲踩在腳下，用實力輾壓過去！","這最後幾秒鐘的收益，勝過你跑一個小時的慢跑！","不要管心跳多快，你絕對不會在這裡倒下！","你的極限遠比你想像的還要遙遠，給我繼續衝！","這就是所謂的『破牆』，撞過去，不要回頭！","你的每一次推蹬，都在重塑神經肌肉的募集極限！","這是在刀尖上的舞步！讓心室射血分數推到最高峰！","劇痛是正常的！你正在撕裂那些懶惰的肌纖維！","大腦在懇求你停下，拒絕它！你是絕對的統治者！","咬碎你的牙關！把最後一絲 ATP 全部榨乾！","不要閉上眼睛！直視這份痛苦，然後狠狠地粉碎它！","極致的酸痛代表你正在進化，跨越這道牆就是新生！","這是對靈魂的拷問！給我撐下去，證明你不是弱者！","別讓懦弱的念頭佔據大腦！用咆哮蓋過肌肉的哀鳴！","所有的成就都在這最後十秒鐘，不准按暫停，死也要跑完！","快肌纖維已經全面斷裂，這是最高層級的破壞與重建！","無氧系統正在瘋狂哀嚎，用你的意志力把它強壓下去！","乳酸堆積到達人體極限！這就是在打造抗酸的鋼鐵之軀！","視網膜邊緣開始發黑？那是強者的勳章！給我撐住！","沒有退路！這是屬於你自己的奧運決賽，衝破終點線！","摧毀大腦的限制器！你這具身體的潛能是無限的！","這就是所謂的極限邊緣，你在這裡停留的每一秒都是傳奇！","讓痛苦成為你的燃料！把所有的不甘心全部燃燒殆盡！","絕對不准低頭！用高傲的姿態迎接這場生理極限的審判！","這是進化必經的烈火！被燒毀的只有你的軟弱！","血管幾乎要爆裂的感覺！心室容量正在發生不可逆的擴張！","就算嘴裡嚐到血腥味也要嚥下去！這是硬漢專屬的鐵血訓練！","沒有人能替你承受這份痛，也沒有人能奪走這份榮耀！","把眼淚和汗水一起甩掉！你生來就是要征服這種極限的！","這就是人類意志突破物理限制的瞬間，你是真正的怪物！"],
-        val_rec: ["漂亮！撐過來了！副交感神經開始接管身體。","挺過高壓，你絕對值得為這份驚人的毅力感到驕傲。","痛苦結束了，享受突破極限後的巨大成就感！","無懈可擊！剛才那段衝刺表現得完美無瑕。","放慢腳步，體會從地獄回到人間的呼吸感。","活下來了！這是強者的自我證明，沒人能拿走你的努力。","給自己一個微笑，你戰勝了心裡想放棄的懦夫。","最難熬的已過去，現在是榮耀的恢復時刻。","心跳從狂飆慢慢穩定，你的恢復力真的極強。","這就是競技體育的精神，你扛下來了！","大口吞嚥氧氣，你贏得了這份平靜。","不要停下，享受這份從痛苦中抽離的釋放。","感覺細胞正在重新充滿能量的美妙過程。","剛才的你，簡直像一頭無法阻擋的猛獸。","把氧氣還給細胞，你的身體正在瘋狂修復。","這就是你流汗換來的多巴胺，盡情享受吧。","收下這份驕傲，剛才的你展現了絕對的硬漢本色。","讓肺臟貪婪地吸取氧氣，你完全配得上這份喘息。","不可思議的毅力！細胞正在為你的強大而歡呼。","肌肉的發炎反應已經開始被白血球接管，完美的訓練刺激。","放鬆下巴，讓成就感隨著多巴胺流遍全身。","你剛才的表現，是科學與意志力完美結合的結晶。","這就是強者的心跳聲，平穩、強悍、不可戰勝。","走動一下，讓小腿幫浦把堆積的廢物徹底排空。","皮質醇濃度開始下降，睪固酮與生長激素即越大量分泌。","這是最強烈的多巴胺衝擊，恭喜你跨越了地獄。","感受肌肉裡那份沉重的滿足感，那是進步的重量。","你做到了無數人做不到的事，享受這份勝利者的孤獨。","深呼吸，把你剛剛展現的韌性刻進你的 DNA 裡。","這就是跑者高潮的精髓，痛苦與狂喜的完美交織。","氧氣正在瘋狂償還剛剛欠下的氧債，修復機制全開。","用緩慢的步伐去丈量你剛才跨越的極限，做得太棒了。","汗水終於不再冰冷，你重新奪回了身體的控制權。","閉上眼睛感受一下，那股直衝腦門的無敵感。","你剛才的極速簡直撕裂了空間，現在好好休息吧。","這是一場完美的戰役，你沒有對軟弱低頭，你贏了。","讓脈搏慢慢回歸平靜，你現在比一小時前更強大了。"],
-        bio_flat: ["縮短觸地時間！跑帶是高溫的，啟動伸展收縮循環！","步頻拉高到180，減少髕骨股骨關節高達15%的衝擊壓力。","腳掌落在重心正下方，避免強大的煞車反作用力！","腳步放輕！安靜落地代表緩衝與肌肉剛性完美。","收緊下腹橫肌，骨盆中立，避免腰椎承受壓力！","利用前腳掌與中足過渡，把反作用力轉為向前的純粹動能。","手肘鎖定90度向後擺動！胸椎旋轉神經連結到雙腿。","放鬆小腿肚！主要的推進動力應該來自你的臀大肌與大腿後側動力鍊。","保持腳踝的彈性，充分利用阿基里斯腱的免費回彈力省力。","整體微前傾，讓重力成為前進的推手，而非對抗的阻力。","下巴微收，平視前方，維持頸椎中立與氣管暢通。","絕對不左右搖晃！多餘橫向位移都在浪費寶貴的 ATP。","腳趾不要抓地！放鬆足底筋膜讓它自然伸展緩衝。","膝蓋微彎，絕對不要在落地時鎖死膝關節！","想像腿是一個完美的圓，推蹬、折疊、下踩。","把你的核心當作懸吊系統，過濾掉所有震動。","雙手擺動的軌跡不要超過身體中線，減少旋轉阻力。","腳跟輕輕吻過履帶就好，主要靠前中足支撐。","保持上身挺拔，想像你在水面上飄過一樣輕盈。","雙眼直視前方，維持頸椎的完美弧度，不要壓迫氣管。","每一次著地都是一次精準的物理學計算，保持重心穩定。","啟動你的筋膜網路，讓彈性位能幫您省下寶貴的肌肉力量。","把腳步縮小，用高步頻去切割距離，這樣對膝蓋最友善。","感受前足的扒地感，把反作用力完全轉換為推進向量。","想像你的腿是一組強大的活塞，直上直下，毫無遲疑。","腳踝關節保持適度的剛性，這是能量回饋的關鍵秘密。","肩膀不准聳起！把多餘的能量全部導向你的下肢。","雙臂的擺動要俐落，帶動骨盆進行微小但致命的推進旋轉。","維持這個完美的軀幹前傾角，讓地心引力帶跨越飛翔。"],
-        bio_steep: ["從腳踝作支點，整體前傾對抗陡坡，改變重心向量！","絕不能坐著跑！髖關節完全伸展，強迫臀大肌發力！","爬坡嚴禁跨大步！縮小步幅，大幅提高步頻！","看前方三公尺，低頭看腳會壓迫頸椎並干擾平衡。","前腳掌著地，腳跟微懸，利用小腿與阿基里斯腱彈簧效應。","大腿後側燃燒？很好，這在強化你薄弱的後側動力鍊！","核心全面繃緊！彎腰駝背會壓迫橫膈膜導致缺氧。","手臂用力向後擺！上半身強勢動能能省下20%的腿力。","抬高膝蓋，增加髖屈肌參與，征服真實的陡峭高山！","絕對不要抓扶手！強迫軀幹核心去平衡重力拉扯！","重心壓在前腳掌，推蹬要感受到地面扎實的反饋。","坡度越陡身體越要穩定，不讓上半身產生無效的扭轉。","小步快頻！像忍者一樣輕巧而快速地向上切入！","不要把力氣浪費在向上跳，所有的力氣都要向前推！","想像屁股後面有一根彈簧，把你整個人往坡頂射出去！","每一次踩踏都要有侵略性，把坡度吃下去！","雙手擺動的幅度加大，用肩膀的力量帶動你的大腿！","克服重力的秘訣就是高步頻，讓腳底像裝了馬達一樣！","這是對抗地心引力的純粹戰爭，把重力當成鍛鍊的工具。","提高你的膝蓋抬升角度，強迫髂腰肌參與這場爬坡盛宴。","小腿後側酸痛是必然的，這是在鍛造你阿基里斯腱的韌性。","用強烈的手臂擺動去抵銷重力矩，上半身絕不能鬆懈。","緊咬住這個坡度，每一次推蹬都在強化你的心臟容積。","把坡度想像成階梯，不要滑行，而是每一步都穩穩踩上台階。","背部肌群全面啟動！用豎脊肌鎖死你的抗重力結構。","大口把空氣吸進腹部，對抗上坡造成的胸腔壓迫感。","每一次髖部的推展都要做到極致，這是啟動臀大肌的唯一解。","把自己當成一頭攀岩的雪豹，充滿侵略性地吞噬這個陡坡。"],
-        bio_gen: ["肩膀下沉，遠離耳朵！你不需要用上斜方肌來跑步。","打開胸腔！駝背會減少20%肺活量，挺起胸膛！","雙手不緊握，想像手裡握著蝴蝶，過度握拳引發神經緊繃。","放鬆眉心跟下巴！跑步不用臉部肌肉，能量留給下肢。","脊椎一節節往上延伸，想像頭頂有線把你往上拉。","兩步一吸兩步一呼，建立穩定韻律，換氣效率極大化。","鼻子深吸，嘴巴用力吐，肺泡底部廢氣徹底排空。","掃描全身一次，把不必要的代償性緊繃感全部釋放。","維持上半身安靜，核心是超級避震器與動力傳導樞紐。","腳尖朝向正前方，避免外八內八造成的扭轉應力。","把你的骨盆想像成一個裝滿水的碗，不要讓水灑出來。","手掌放鬆，大拇指輕觸食指，消除上肢所有的阻力。","把呼吸的重點放在『吐氣』，用力吐空才能吸進更多新鮮氧氣。","聽自己的腳步聲，越不對稱代表你正在用代償姿勢跑步。","保持眼球放鬆，注視前方一個定點，減少大腦的資訊處理量。","把面部肌肉徹底放鬆，任何猙獰的表情都在浪費氧氣。","頸椎保持中立，這是所有神經傳導的超級高速公路。","收束你的肋骨，不要讓核心的力量從腹部發散出去。","雙手像鐘擺一樣規律，這是幫助大腦穩定節奏的最佳提示。","保持冷靜的頭腦，不要讓身體的不適感影響了姿勢的正確性。","想像頭頂有一股氣流將你往上托，卸除下肢的沉重感。","將骨盆微幅前傾，找到那個不用費力就能自然前進的甜蜜點。","讓手指的輕觸來建立神經的安定感，拒絕任何握拳的衝動。","放空你的視線，用周邊視覺去感知空間，大幅節省腦力消耗。","核心不是死硬的木板，而是充滿彈性的避震彈簧，運用它。"],
-        phy_warm: ["關節分泌滑液，微血管床擴張，安全潤滑開來。","低強度安全喚醒慢肌纖維，提高肌肉溫度預防撕裂傷。","血液正從內臟轉移到四肢，交感神經溫和啟動。","深呼吸，氧氣送進腹部，穩定副交感神經防心率過早飆升。","提升血漿容積，促使體溫調節中樞提前運作。","高爾基腱器官正適應肌肉張力，神經連結逐漸熱絡。","增加肌肉黏彈性，讓接下來每一步更流暢安全。","肌凝蛋白正在預熱，橫橋循環準備啟動。","打開微血管的閘門，讓帶氧血液暢通無阻。","滑囊膜正在釋放潤滑液，你的關節活動度正在最大化。","肌肉裡的肌質網正在預先釋放鈣離子，為收縮做準備。","這是喚醒中樞神經的最優頻率，讓大腦準備迎接高壓。","血液正在緩慢重新分配，從消化系統轉移到運動皮層。","深層核心肌群正在啟動，為即將到來的衝擊力做好防護機制。","結締組織正在吸收熱能，你的筋膜網路即將全面展開。","神經突觸正在進行熱機放電，運動單元的徵召越來越順暢。","心臟正在溫和地調整搏出量，讓每一次跳動都精準到位。"],
-        phy_aero: ["肝臟與肌肉進行 Beta 氧化，將脂肪轉為游離脂肪酸燃料。","慢肌纖維合成粒線體並增加微血管，打造耐力銀行。","心室舒張末期容積增加，每跳打出比平常多30%的血液。","有氧酶活性倍增，同速度下將消耗更少的肝醣。","波耳效應啟動，血紅素加速釋放氧氣給飢渴細胞。","訓練肌肉的抗疲勞度，次最大耗氧量巡航對馬拉松至關重要。","呼吸交換率顯示你正依賴脂肪代謝，最純粹的有氧底層。","肺泡氣體交換效率達巔峰，心肺系統運轉極度完美。","AMPK路徑正在被大量活化，全面提升你的耐力基因。","這正是增加慢縮肌內肌紅蛋白濃度的完美狀態。","你的心臟正在經歷離心性肥大，左心室的容積正在擴張。","這種配速能大幅促進毛細血管新生，讓每一條肌纖維都充滿氧氣。","脂肪分解酶正在全速運轉，把你身上的脂肪轉化為純粹的推力。","你的肌肉細胞正在增加脂肪酸結合蛋白的數量，燃脂效率飆升！","這是提升有氧代謝酶濃度的黃金區間，保持這份穩定。","有氧系統正在將乳酸當作燃料重新回收，效率極高。","你現在就像是一台混合動力車，完美平衡了糖與脂肪的燃燒。","持續這份壓力，你的微血管床正在像樹枝一樣瘋狂生長。","細胞內的粒線體工廠正在瘋狂擴建，這是你未來的體能基石。","葡萄糖與游離脂肪酸在細胞內完美共舞，輸出極度穩定。","感受這份純粹的有氧做功，你的心肌正在變得更加強韌有力。"],
-        phy_ana: ["乳酸是燃料不是敵人！肝臟正透過柯氏循環把它轉回葡萄糖！","跨越臨界點，強迫身體適應強酸環境下的收縮！","快縮肌全面啟動！榨乾肌肉裡所有的儲備肌醣原！","交感神經放電，兒茶酚胺大量分泌，逼出最大攝氧極限！","氫離子濃度飆升，這股酸痛是刺激肌肉生長變強的最強信號！","無氧系統超載運轉，乳酸閾值大幅右移，極速將突破天際！","高壓引發微小肌肉損傷，今晚深度睡眠將把它們修復更粗壯！","肺部通氣量達極限，呼吸肌群承受巨大壓力，挺住考驗！","神經肌肉接合處正瘋狂釋放乙醯膽鹼，撐住這高頻率！","你的極速快肌正在燃燒殆盡，這是爆發力的絕對關鍵！","血液中的重碳酸鹽正在拼命緩衝酸鹼值，用呼吸來幫助它！","無氧醣解正在產生大量的丙酮酸，這是你突破瓶頸的代價！","感受肌纖維的強力收縮，這是在召喚你最深處的運動單元！","你的無氧做功能力正在以指數級別上升，忍受這短暫的地獄！","神經元的放電頻率已經到達巔峰，這是真正的爆發力訓練。","無氧代謝正在摧毀舊的肌肉結構，為更強大的纖維騰出空間。","乳酸脫氫酶正在滿載運作，這份痛苦將化為你明天的極速。","榨乾所有的肝醣儲備，逼迫身體在恢復期引發超量補償！","這種缺氧的灼燒感，正是刺激生長激素大量爆發的唯一途徑！","你的無氧動力正在刷新歷史紀錄，把這些乳酸全部吃下去！","這是在對抗細胞內的劇烈酸鹼失衡，你的緩衝能力正在進化！"],
-        phy_rec: ["深呼吸啟動迷走神經，提高副交感張力，運動後耗氧效應持續大量燃脂。","小腿肌肉幫浦加速靜脈回流，迅速排除堆積的代謝廢物。","剛產生的乳酸正被心臟與慢肌纖維氧化，當作超級燃料回收。","走動讓血液循環，防靜脈血液滯留，心率安全且平滑地降下。","腦內啡與多巴胺在突觸間瘋狂釋放，無與倫比的跑者高潮！","體溫中樞慢慢關閉排汗，肌肉發炎正被身體修復機制接管。","動態恢復比完全靜止更能減輕明天的延遲性肌肉痠痛。","這就是償還氧債的階段，大口把氧氣還給耗竭的細胞。","讓交感神經慢慢退出，你的身體正在記錄剛才高強度的神經印記。","白血球正在前往受損的微小肌纖維，開始進行最強的修復工程。","巨噬細胞正在清理肌肉微細損傷的碎片，恢復機制全開。","神經遞質正在重新平衡，享受這份歷經劫難後的極致平靜。","運動後過量耗氧正在發生，你即使停下也還在燃燒卡路里。","血管舒張效應帶來了大量的養分，受損的肌肉正在貪婪吸收。","乳酸鹽正在被快速轉運出細胞，你的血液酸鹼值正在回歸完美中性。","感受心搏徐緩的美妙，你的心臟在證明它的強大恢復力。"],
-        psy_focus: ["採用解離策略！不專注痛苦，專注吐氣，數著『一、二、吐盡』。","想像是一台無情機械，沒有痛覺沒有感情，只有規律步頻。","閉眼三秒，切斷視覺輸入，只聽呼吸聲找回身體主導權。","不想終點還有多遠，專注在此時此刻，這一步踩穩再踩下一步。","意識抽離燃燒的大腿，你是身體的冷酷駕駛員，指令一下就得動。","注意力集中手臂擺動，用上半身強行帶動已經疲勞的下半身。","想像跑在沒有盡頭的光滑軌道上，輕輕滑過毫無摩擦。","把意識放在心臟的跳動上，感受它強大不屈的推進力。","把你的大腦想成第三人稱視角，俯視著這具正在奔跑的軀殼。","痛覺只是神經的電流訊號，你可以選擇拒絕讀取它。","將意識鎖定在鼻腔吸入冷空氣的觸感，摒除一切雜念。","把痛苦具象化為一道煙霧，隨著每一次用力吐氣把它排出體外。","你是這場訓練的旁觀者，冷靜地監控著機體的每一項數據運作。","縮小你的視野，只看眼前履帶的轉動，其餘的世界與你無關。","化身為絕對理性的觀察者，感受肌肉的收縮，但不帶入情緒。","將所有的意志力灌注在核心，讓那裡成為不可撼動的能量源。","切斷對未來時間的恐懼，你現在唯一擁有的就是這一秒鐘。","想像身體被一層冷靜的藍光包圍，隔離掉所有的高溫與不適。"],
-        psy_micro: ["不想還有多少分鐘！撐過眼前十秒，十秒鐘你絕對做得到！","痛苦路程切成五等份，現在只征服眼前這一小段，踩下去！","只要不按停止鍵你針對是贏家！配速掉一點也沒關係，繼續動！","跟我倒數五秒，五四三二一，你看，又成功撐過地獄時刻！","把大目標丟進垃圾桶，唯一目標只有眼前的下一個十步！","別看時間！那會摧毀意志，看著前方，專注吸進的每一口氣！","只要撐過這一個坡！過坡我們再說，咬緊牙關把它吃下來！","告訴自己再撐三步就好，然後再騙自己三步，就這樣熬過去！","只要你還在履帶上，每一秒你都在擊敗過去的自己！","不要去想明天會多痠痛，我只要你把這一分鐘跑完！","撐過這一次的呼吸循環，只要一次！然後我們再來下一次！","把專注力縮小到這三步之內，不要讓未來壓垮現在的你。","再跑十公尺就好，對，就是這種自我欺騙帶你突破極限！","時間是虛無的，唯有你腳下踩出的這一步是絕對真實的。","忘掉里程！忘掉配速！你現在的任務就是不讓這台機器停下！","把剩下的時間切成五秒一局的微型遊戲，贏下眼前的這一局！","現在看手錶只會剝奪你的勇氣，看著前方，你是無畏的挑戰者！","每一次落地都在累積勝利的籌碼，不要在最後關頭掀牌認輸！"],
-        psy_over: ["中央統治者理論證明，大腦說不行，肌肉其實還有30%儲備電力！","痛苦是防止受傷的保護謊言，告訴大腦『我很安全，我做主』，跑！","擁抱不適感！頂尖奧運選手的蛻變，全發生在想放棄的瞬間！","意志力絕對比跑步機馬達堅強。打破大腦限制器，釋放野性！","這就是重塑自我的高溫火爐，不經過鍛打怎麼可能成為鋼鐵？","感覺像快死了？但你不會死！跨越恐懼邊界將迎來新生！","記住為什麼站在這裡！把質疑聲音踩在腳下，用實力輾壓過去！","當痛苦離開身體的時候，就是軟弱離開身體的時候！","你的極限遠比你大腦設定的底線還要遙遠，去觸碰它！","真正的突破，永遠發生在你覺得自己絕對辦不到的那一秒！","人類的基因是在大草原上獵殺獵物演化來的，喚醒你的原始本能！","痛苦是一道門，推開它，背後就是你夢寐以求的強大自我。","別讓潛意識裡的舒適圈綁架你，暴力地撕碎大腦的警告！","這是對靈魂強度的最高測試，向整個世界證明你的硬度！","大腦會說謊，但數據不會！你的身體完全有能力繼續，給我衝！","在放棄的懸崖邊緣跳舞吧！跨越這道界線，你將再也不平庸！","不要對妥協讓步！今天在這裡低頭，明天就會在人生中低頭！","你是掌控這具軀殼的暴君，命令你的肌肉繼續收縮，絕對服從！"],
-        warn_hr: ["警告！心率突破紅線！強迫拉長吐氣！若胸悶請立刻降速！", "心跳接近極限！心臟負荷極高，專注深吐氣，安全第一！", "醫學警告！心室射血分數接近極限，加深呼吸增加回心血量！","心肺負載過高！如果伴隨頭暈，立刻抓緊扶手降低速度！"],
-        warn_lac: ["氫離子大量堆積，絕不憋氣！氧氣是你現在唯一的解藥！", "乳酸濃度瘋狂飆升！肌肉正在哀嚎，用深層的腹式呼吸去代謝它！", "血液緩衝正在失效！大口吸氣，用呼吸鹼中毒機制中和肌肉酸性！","肌肉已經處於強酸狀態，忍耐這種灼燒感，這是變強的必經之路！"],
-        trans: ["準備進入下階段，速度即將來到 {s}，坡度 {i}，穩定核心！","即將切換課表，下一分鐘坡度 {i}，速度 {s}，深呼吸準備！","注意了！即將變速，速度 {s}，坡度 {i}，咬緊牙關！","迎擊下一個挑戰，下一分鐘速度 {s}，坡度 {i}，你可以的！","預告切換，速度即將調整為 {s}，坡度 {i}，穩住你的節奏！"],
-        phases: { warmup: "暖身", steep: "爬坡", sprint: "衝刺", recovery: "恢復", exhaust: "力竭", cooldown: "緩和" }
-    },
-    en: {
-        val_low: ["Breathing is effortless. Perfect aerobic foundation.","Footsteps light and crisp. Keep this calm grace.","RPE is below 4. Excellent cruise control.","Blood lactate at resting baseline. Highly efficient system.","No braking forces. Mechanical efficiency is peaking.","Muscles feel fresh. Enjoy fluid propulsion.","Idling like a sports car, waiting to be unleashed.","Leave stress outside. Focus entirely on the belt.","Total control of biomechanics. Everything aligns.","Pure silence in footfalls means perfect efficiency.","Capillaries fully open, oxygen flowing freely.","Heart rate steady, teaching your heart to be efficient.","Neuromuscular recruitment is flawless right now.","Your stretch reflex is working perfectly in sync.","Elongate your exhales, make your heart beat more efficiently.","Your dynamic balance is textbook perfect.","This is the ultimate comfort zone for volume building.","Feeling weightless. A perfect balance against gravity.","Every drop of sweat is cooling your cellular engine.","You are a highly efficient internal combustion engine today.","Perfect center of gravity. Silent and efficient.","Excellent breathing depth. Oxygenating capillary beds perfectly.","Movements are fluid and connected. Elite warmup mechanics.","Flowing like water. Zero mechanical resistance detected.","Maintain that subtle smile. Parasympathetic tone is filtering stress.","Absolute poise. Your aerobic base is expanding in this tranquility.","Core is locked. Pelvis acting as the ultimate shock absorber.","This low output is teaching your brain ultimate neuromuscular efficiency.","Every drop of sweat awakens your mitochondria. Keep it steady.","Your proprioceptors are calculating spatial coordinates flawlessly.","Quiet breathing is the hallmark of a master runner.","Stride transitions as precise as a pendulum. Physics at its best.","Slow-twitch fibers are smiling under this stable load.","No compensatory movements. Flawless biomechanical model.","Stroke volume is highly economic. Heart is training perfectly.","This calm state is built upon oceans of sweat.","Do not let random thoughts interfere. Enjoy the machine's operation.","Plantar fascia is recycling energy with profound softness."],
-        val_mid: ["Quads starting to hum. Fast-twitch fibers kicking in.","Heartbeat louder. Riding the edge of aerobic threshold.","Sweat pooling. Core temperature rising steadily.","Breathing heavier. CO2 production is increasing.","Feeling the challenge? Stress triggers supercompensation.","Legs adapting to mechanical load. Hold your rhythm.","The 'good pain'. Enjoy moderate metabolic stress.","Stroke volume peaking. Heart pumping max oxygenated blood.","Focus extremely sharp here. Don't let the brain trick you.","Maintain RPE 7 to 8. The golden zone for fatigue resistance.","Calves tightening? Normal response to increased propulsion.","Hold the pace! Don't trade rhythm for comfort.","Metabolism adapting to high-efficiency burn.","Feeling slightly breathless? Lactate is probing the threshold.","Hold it! This is the perfect moment for maximal steady state.","Don't sacrifice cadence for a tiny bit of soreness.","Alveoli are expanding wildly, absorbing oxygen greedily.","Focus on your core to share the load from your legs.","This is where people get lazy. Prove you're different!","This zone yields the highest adaptations. Every second counts.","Sweat pouring. Your body is executing peak heat exchange.","This is the price of progress. Embrace the heaviness.","Do not bow to false fatigue. You have massive reserves left.","Heart rate climbing beautifully. This is cardiovascular upgrading.","Muscles burning? That's massive free fatty acid oxidation!","Stabilize the upper body. Let a strong back assist those legs.","Rewriting your endurance limits right now. Do not drop the pace!","Willpower versus lactate threshold. Win this battle.","Focus on heel retraction. Use glutes to brush that belt backwards.","Endure the discomfort. Supercompensation starts in this exact moment.","Micro-tears are occurring. You are paving the road to evolution.","Aerobic engine pushed to the boundaries. Hold the line!","This is the rehearsal for the marathon wall. Embrace the gravity.","Glycogen depleting rapidly. Fat oxidation will skyrocket soon!","Cardiopulmonary system is expanding. Revel in the bottleneck break.","Textbook tempo run. The mechanics are absolutely gorgeous.","Shift focus away from the burn. Concentrate on forceful exhales.","Motor unit recruitment multiplying. Unlocking total potential."],
-        val_high: ["Lungs on fire. Massive glycolytic metabolic stress.","Legs like concrete. True threshold of muscular failure.","CNS screaming for mercy. It's a false fatigue alarm!","Sweat stinging eyes. This separates great from average.","Pushing absolute VO2 Max limit. Give it everything!","Muscle fibers protesting. Do not negotiate with weakness.","Pain is 100% real, but your willpower is astronomically stronger.","Pure mental warfare right now. Do not bow to physical weakness!","Heavy breathing is the exact sound of getting stronger.","Vision narrowing. Grit your teeth. Hardcore anaerobic training!","Hamstrings cramping? Survive it. Tearing and rebuilding fibers!","Don't look down! Open diaphragm for maximum oxygen!","War against your nervous system! Reject the stop command!","Pain is temporary. Regret of quitting lasts all day!","Think you're done? Reveal the trump card in your soul!","Force motor unit recruitment! Limits are meant to be broken!","Olympic athletes live in this hell daily. Hold the line!","This is the forge. Destroy the old, birth the new!","Let go and fail, or bite down and become a king!","Heart exploding? Tell it to beat! You are the master!","Every toe-off redefines your neuromuscular recruitment limits!","Dancing on the razor's edge. Maximize that ejection fraction!","Agony is mandatory! You are shredding lazy muscle fibers!","Brain begging you to stop? Reject it! You are the sovereign!","Grind your teeth and extract the very last drop of ATP!","Do not close your eyes! Stare the pain down and crush it!","Extreme soreness is the signal of evolution. Break the wall!","This is an interrogation of the soul. Prove you are unshakeable!","Silence the weakness with internal roaring. Drown the pain!","Immortality is forged in these final ten seconds. Sprint!","Fast-twitch fibers failing. Highest tier of destruction and rebirth!","Anaerobic system screaming. Crush it with sheer willpower!","Lactate peaking. Forging an acid-proof body of steel!","Tunnel vision intensifying. The ultimate badge of honor. Hold on!","No retreat! This is your Olympic final. Crash through the tape!","Destroy the brain's governor! Your potential is infinite!","Let the agony fuel your fire. Burn away all regrets!","Do not lower your head! Meet this physiological judgment with arrogance!"],
-        val_rec: ["Beautiful! Survived the fire. Parasympathetic taking over.","Incredibly proud of what you just pushed your body through.","Worst is over. Taste the victory of that interval.","Flawless execution on that sprint. Incredible metabolic work.","Slow down. Feel massive pride conquering that limit.","Made it! Definitive proof of your resilience.","Give yourself a smile. You just beat your inner demons.","Suffering passed. Moment of physiological glory.","Heart rate dropping safely. Elite recovery capacity.","Brutal test passed with flying colors. Champion mindset.","Gulp that oxygen. You earned this peace.","Enjoy the sensation of cells recharging with ATP.","Don't stop moving. Bask in the release from the pain.","A minute ago you were an unstoppable beast. Well done.","Absorb this pride. You just displayed absolute grit.","Let lungs greedily pull oxygen. You earned every breath.","Unreal resilience. Your cells are celebrating the survival.","White blood cells taking over the inflammation. Perfect stimulus.","Relax the jaw. Let dopamine flood the systemic circulation.","That was the pinnacle of science meeting willpower.","This is the heartbeat of a champion. Steady, robust, invincible.","Keep stepping. Let the calf pump flush all metabolic debris.","Cortisol dropping. Testosterone and HGH about to surge.","The ultimate dopamine hit. Welcome back from hell.","Feel the heavy satisfaction in the muscle. The weight of progress.","Breathe deep. Carve this resilience into your DNA.","The runner's high in its purest form. Pain and ecstasy intertwined.","Oxygen frantically repaying the debt. Repair protocols online."],
-        bio_flat: ["Minimize ground contact time! Belt is lava, pull up fast!", "Cadence up to 180! Reduce patellofemoral joint impact by 15%.", "Land directly under your center of mass. No braking forces allowed!", "Light feet! A quiet strike is an efficient strike. Save energy.", "Engage the transverse abdominis. Keep the pelvis strictly neutral.", "Use the midfoot to claw the ground. Convert GRF to pure forward speed!", "Lock elbows at 90. Fast arm drive neurologically equals fast leg turnover.", "Relax the calves. Primary propulsion comes from the gluteus maximus.", "Keep ankles springy. Use the free elastic recoil of the Achilles tendon.", "Slight forward lean. Let gravity pull you forward, don't fight it.", "Chin tucked, looking forward. Keep airway fully open.", "No lateral swaying! Wasted movement burns precious ATP.", "Imagine your legs as a perfect wheel. Push, fold, strike.", "Do not grip with toes! Relax plantar fascia.", "Soft knees on impact. Never lock your joints!", "Eyes locked forward. Perfect cervical spine arc. Do not compress trachea.","Every strike is precise physics. Maintain stable center of mass.","Activate fascial networks. Let elastic potential energy save muscle force.","Shorten the stride. Slice distance with high cadence. Knees will thank you.","Feel the forefoot grip. Convert all reaction forces into forward vectors.","Legs acting as powerful pistons. Pure vertical efficiency.","Ankle stiffness maintained. The secret to elastic energy return.","Do not shrug! Channel all residual energy down to your legs.","Crisp arm swings. Initiating micro, lethal pelvic rotations.","Hold this perfect torso lean. Let gravity be your wings."],
-        bio_steep: ["Pivot from the ankles. Lean your whole body into the hill to alter the gravity vector.", "Don't run seated! Fully extend the hips and force glute activation.", "Shorten your stride! High cadence is mandatory to conquer steep inclines.", "Eyes forward! Looking down compresses the cervical spine and disrupts balance.", "Forefoot strike, heel slightly floating. Load the calf spring to its maximum.", "Hamstrings burning? Excellent. You are forging an unbreakable posterior chain.", "Brace your core. Slouching crushes your diaphragm and induces hypoxia.", "Pump the arms hard! Upper body drive saves 20% of your leg energy here.", "Drive the knees up. Imagine conquering a real, brutal mountain peak.", "Do not touch the handrails! Force your core stabilizers to balance the load!", "Weight on forefoot. Feel solid ground reaction force.", "Steeper the hill, tighter the core. No torso twisting.", "Short rapid steps! Cut up the hill like a ninja.", "Don't bounce vertically. All force must push forward!", "Imagine a spring launching your hips to the summit!", "Pure war against gravity. Use the incline as a forging tool.","Elevate knee drive angle. Force the psoas to join the climb.","Calf burn is inevitable. You are tempering the Achilles resilience.","Violent arm swings to counter gravity torque. Upper body stays rigid.","Bite into this grade. Every push expands cardiac dimensions.","Treat the incline as stairs. Power cleanly onto each step.","Erector spinae locked. Anti-gravity architecture fully deployed.","Belly breathe intensely to fight the chest compression of the hill.","Maximize hip extension. The only way to true glute activation.","Become a snow leopard scaling a cliff. Aggressive and lethal."],
-        bio_gen: ["Drop your shoulders! You don't need upper traps to run. Relax them.", "Open your chest! Slouching costs you 20% of your vital lung capacity.", "Loose hands. Imagine holding a fragile butterfly without crushing it.", "Relax your jaw and forehead. Keep the facial muscles completely tension-free.", "Run tall. Imagine a string pulling your cervical spine toward the ceiling.", "Two steps inhale, two steps exhale. Find the optimal ventilation rhythm.", "Deep breath in through the nose, forceful exhale through the mouth.", "Scan your entire body. Release any unnecessary compensatory tension immediately.", "Keep your torso quiet. Your core is a shock absorber and power hub.", "Toes pointing straight. Avoid any torsional stress on the knee joints.", "Completely relax facial muscles. Grimacing wastes pure oxygen.","Cervical spine neutral. This is the superhighway for neural transmission.","Knit your ribs. Do not let core tension bleed out anteriorly.","Arms like pendulums. The perfect cue to stabilize brain rhythms.","Keep a cold, analytical mind. Don't let discomfort ruin biomechanics.","Imagine an updraft lifting your crown. Unburden the legs.","Pelvis slightly tucked. Find the sweet spot of effortless forward drive.","Feather-light fingers create neurological calm. Reject the fist.","Soften your gaze. Use peripheral vision to save massive neural energy.","Core is not a stiff board, it's a dynamic spring. Utilize it."],
-        phy_warm: ["Synovial fluid is lubricating your joints for the incoming impact.", "Waking up slow-twitch fibers safely to prevent micro-tears.", "Shunting blood from your visceral organs directly to your working muscles.", "Deep belly breaths to activate vagal tone and parasympathetic calmness.", "Expanding your blood plasma volume and priming the thermoregulatory center.", "Golgi tendon organs adapting to muscle tension safely.", "Increasing muscle viscoelasticity for fluid mechanics.", "Myosin cross-bridges are literally warming up.", "Opening capillary floodgates. Blood is flowing freely.", "Optimal frequency to awaken the CNS. Priming brain for high stress.","Blood slowly redistributing from GI tract to motor cortex.","Deep core stabilizers firing up. Installing armor for impact forces.","Connective tissue absorbing thermal energy. Fascia unfolding.", "Synapses firing warmly. Motor unit recruitment smoothing out.", "Heart gently dialing up stroke volume. Precision circulation."],
-        phy_aero: ["Liver and muscles are performing beta-oxidation, utilizing free fatty acids.", "Synthesizing mitochondria and capillary beds. Building the endurance bank.", "End-diastolic volume is peaking. Heart pumping 30% more blood per stroke.", "Elevating aerobic enzyme activity. Perfecting your cardiovascular base.", "The Bohr effect is active. Hemoglobin is rapidly offloading oxygen to tissues.", "Training muscle fatigue resistance. This sub-maximal work is gold.", "Respiratory exchange ratio shows pure fat metabolism. Perfect aerobic state.", "Alveolar gas exchange at peak efficiency. Perfect system.", "AMPK pathways massively activated. Building endurance genes.", "Saturating slow-twitch fibers with myoglobin right now.", "Golden zone for aerobic enzyme concentration. Hold it steady.","Aerobic system recycling lactate as premium fuel. Extreme efficiency.","You are a hybrid engine. Perfectly balancing glucose and lipid burn.","Sustain this pressure. Capillary beds growing wildly like tree roots.","Cellular mitochondria factories undergoing massive expansion.","Glucose and free fatty acids dancing in perfect oxidative harmony.","Feel the pure aerobic work. Your myocardium is forging iron strength."],
-        phy_ana: ["Lactate is fuel! Liver is recycling it into glucose via the Cori Cycle!", "Crossing threshold! Teaching muscle units to contract in a highly acidic environment!", "Fast-twitch fibers fully engaged. Rapidly depleting glycogen stores!", "Sympathetic nervous system firing max catecholamines. Pushing VO2 Max limits!", "Extreme hydrogen ion accumulation. Hold the burn, it triggers massive growth!", "Overloading the anaerobic system to massively shift your lactate threshold rightward!", "Micro-tears occurring. Tonight's deep sleep will forge them stronger!", "Ventilation at absolute limit. Respiratory muscles under load!", "Neuromuscular junctions flooding with acetylcholine. Fire faster!", "Type IIB extreme fast-twitch fibers burning out. True power!", "Motor neuron firing rates at absolute peak. True explosive training.","Anaerobic metabolism destroying old structures to build denser fibers.","Lactate dehydrogenase fully loaded. This pain buys tomorrow's speed.","Empty glycogen vaults. Forcing massive supercompensation during recovery!","Hypoxic burn is the only trigger for massive HGH release!","Anaerobic power setting new records. Devour the lactate!","Fighting cellular acid-base imbalance. Buffering capacity evolving!"],
-        phy_rec: ["Deep breaths activate vagal tone. EPOC is heavily burning calories post-effort.", "Active recovery flushes metabolic waste rapidly via the calf muscle pump.", "Recycling lactate as premium oxidative fuel for the heart and Type I fibers.", "Keep moving to prevent venous pooling. HR is dropping safely and smoothly.", "Feel the endorphins and dopamine flooding the synapses. The runner's high!", "Thermoregulation is normalizing. Inflammatory repair mechanisms are initializing.", "Active recovery mitigates DOMS much better than standing still.", "Paying back the oxygen debt. Flood the cells with O2.", "Macrophages clearing micro-tear debris. Recovery protocols fully engaged.","Neurotransmitters rebalancing. Absorb this post-trauma serenity.","EPOC is massive right now. You are burning calories even while slowing down.","Vasodilation bringing massive nutrients. Damaged tissues feasting.","Lactate shuttled rapidly out of cells. Blood pH normalizing to perfection.","Feel the bradycardia. Proof of your heart's ultimate recovery engine."],
-        psy_focus: ["Implement dissociation strategy. Count your exhales: one, two, empty.", "Be a machine. No pain receptors. No emotions. Just mechanical rhythm.", "Close your eyes for 3 seconds. Reclaim total neurological control of your body.", "Don't think about the finish line. Focus exclusively on this exact step.", "Pull your consciousness out of your quads. You are the ruthless pilot.", "Focus on arm drive. Force upper body to carry the legs.", "Imagine running on an endless frictionless rail. Smooth.", "View yourself in third-person. Looking down at your moving shell.", "Lock consciousness onto cold air entering nasal cavity. Delete all noise.","Visualize pain as smoke. Exhale violently and purge it from the body.","You are the observer. Calmly monitoring the machine's telemetry.","Tunnel vision. Only the belt exists. The rest of the universe is void.","Become pure rationality. Observe muscle contraction without emotion.","Pour all willpower into the core. Make it an unshakeable reactor.","Sever the fear of future time. You only own this exact second.","Imagine a cold blue aura shielding you from heat and pain."],
-        psy_micro: ["Forget the total time. Survive the next 10 seconds. You can do 10 seconds!", "Slice the remaining distance into micro-chunks. Conquer just this chunk.", "Just don't hit the stop button. Slow down if absolutely needed, but move!", "Count down from 5 with me. 5, 4, 3, 2, 1. See? You survived another phase.", "Drop the macro goal. Your only objective right now is the next 10 steps.", "Don't look at the clock! Look forward. Breathe.", "Just survive this hill! We renegotiate at the top. Dig deep!", "Lie to yourself. Just three more steps. Then three more.", "Survive one breathing cycle. Just one! Then we do another.","Shrink focus to the next three steps. Don't let the future crush the present.","Ten more meters. Yes, tactical self-deception pushes limits.","Time is an illusion. Only this footstrike is absolute reality.","Forget the distance. Forget pace. Your mission is motion!","Break time into 5-second mini-games. Win the current game!","Looking at the watch steals courage. Stare forward, be fearless.","Every landing stacks chips of victory. Do not fold on the final river!"],
-        psy_over: ["The Central Governor model proves your muscles still have a 30% power reserve!", "Pain is a protective neurological lie. Tell your brain you are completely in charge!", "Embrace this severe discomfort. Elite athletes are forged in this exact millisecond!", "Your willpower is infinitely stronger than a treadmill motor. Unleash it now!", "This is the high-temperature furnace of transformation. Let it forge you into steel!", "Feels like dying? You won't die. Cross the boundary to rebirth!", "Remember why you started. Crush the doubt under your feet!", "When the pain leaves, the weakness leaves with it!", "Human genes evolved hunting on the savanna. Awaken primal instinct!","Pain is a door. Kick it open. Ultimate strength lies behind it.","Do not let subconscious comfort zones hijack you. Violently reject warnings.","This is the ultimate test of soul density. Prove your absolute hardness!","The brain lies, telemetry doesn't. Your body can do this, push!","Dance on the precipice of failure. Cross it, and be immortal!","Refuse to compromise. Yielding here means yielding in life!","You are the tyrant of this shell. Command the muscles. Absolute obedience!"],
-        warn_hr: ["Alert! HR over 95%! Force 3-second exhales! Grab rails if dizzy!", "Red zone HR! Massive cardiac load. Focus on deep oxygenation immediately!", "Medical alert! Ventricular ejection fraction near max. Breathe deep!"],
-        warn_lac: ["Acid flooding muscles! Normal reaction. DO NOT hold your breath. O2 is the cure!", "Lactate spiking hard! Breathe deep to buffer the acid and metabolize the burn!", "Bicarbonate buffering failing! Hyperventilate to neutralize the acid!"],
-        trans: ["Preparing for next phase, speed at {s}, incline {i}, core engaged!","Transition incoming, next minute incline {i}, speed {s}, deep breaths!","Attention! Speed shifting to {s}, incline {i}, grit your teeth!","Incoming challenge, speed {s}, incline {i}, you got this!","Upcoming change, speed to {s}, incline {i}, hold your rhythm!"],
-        phases: { warmup: "Warmup", steep: "Steep", sprint: "Sprint", recovery: "Recovery", exhaust: "Exhaust", cooldown: "Cool" }
-    }
-};
-
-// --- 響應式狀態庫 (Proxy 單向資料流) ---
+// --- 3. 響應式狀態庫 (Proxy) ---
 class ReactiveState {
-    constructor(initialState) {
+    constructor(initial) {
         this.listeners = new Map();
-        this.state = new Proxy(initialState, {
+        this.state = new Proxy(initial, {
             set: (target, key, value) => {
-                if (target[key] !== value) {
-                    target[key] = value;
-                    if (this.listeners.has(key)) this.listeners.get(key).forEach(cb => cb(value, target));
-                }
+                if (target[key] !== value) { target[key] = value; if (this.listeners.has(key)) this.listeners.get(key).forEach(cb => cb(value, target)); }
                 return true;
             }
         });
     }
-    subscribe(key, callback) {
-        if (!this.listeners.has(key)) this.listeners.set(key, new Set());
-        this.listeners.get(key).add(callback);
-    }
-    batch(updates) { Object.entries(updates).forEach(([key, val]) => { this.state[key] = val; }); }
+    subscribe(key, cb) { if (!this.listeners.has(key)) this.listeners.set(key, new Set()); this.listeners.get(key).add(cb); }
+    batch(updates) { Object.entries(updates).forEach(([k, v]) => this.state[k] = v); }
 }
 
 const AppState = new ReactiveState({
     activeP: 'Runner', profiles: {}, hw: { maxSpd: 20.0, minSpd: 0.1, maxInc: 15.0, minInc: 0.0 },
-    runStatus: 'STOPPED', accumMs: 0, curData: null, matrix: [], activeTab: 'settings'
+    runStatus: 'STOPPED', accumMs: 0, curData: null, matrix: [], activeTab: 'settings', speedOffset: 0, incOffset: 0
 });
 
-// --- 生理與矩陣引擎 ---
+// --- 4. 運動科學引擎 (PhysioEngine - Karvonen / Delta-Merge) ---
 class PhysioEngine {
     static sanitize(raw) {
         let m = { ...raw }; 
-        let wKG = Math.max(30, m.weight || (m.gender === 'M' ? 70 : 55)); 
-        let sKG = Math.max(0, m.smm || 0); 
+        // 體重最低 30kg (防卡路里崩壞)
+        let wKG = Utils.clamp(m.weight || (m.gender === 'M' ? 70 : 55), 30, 200); 
+        // SMM 最高不超過體重 60%
+        let sKG = Utils.clamp(m.smm || 0, 0, wKG * 0.6); 
         let defBF = m.gender === 'M' ? 18 : 26;
-        let bf = Math.max(3, m.bf || (sKG > 0 ? Math.max(5, 100 - (sKG/wKG*100) - (m.gender==='M'?20:15)) : defBF));
+        let bf = Utils.clamp(m.bf || (sKG > 0 ? Math.max(5, 100 - (sKG/wKG*100) - (m.gender==='M'?20:15)) : defBF), 3, 50);
         let smm = sKG || (wKG * (1 - bf/100) * (m.gender==='M'?0.45:0.38));
-        let bmr = Math.max(500, m.bmr || (10 * wKG + 6.25 * 170 - 5 * (m.age||35) + (m.gender === 'M' ? 5 : -161)));
+        
+        // 心率處理 (Karvonen 支援)
+        let mHR = m.customMHR || Math.max(130, 208 - 0.7 * (m.age||35)); // 下限 130
+        let rHR = m.customRHR || null;
+        if (rHR && rHR >= mHR) rHR = mHR - 40; // 防呆
         
         let ms = Math.max(1.0, m.maxSpd || 12.0);
-        let vo2 = Math.max(20, m.vo2 || Math.min(80, Math.max(25, 3.5 + 0.2*(ms*16.67) + 0.9*(ms*16.67)*0.01))); 
+        let vo2 = m.customVO2 || Math.min(80, Math.max(25, 3.5 + 0.2*(ms*16.67) + 0.9*(ms*16.67)*0.01)); 
         
-        return { wKG, bf, smm, bmr, vo2, maxSpd: ms, minSpd: Math.max(0, m.minSpd||1.0), mxInc: Math.max(0, m.maxInc||5.0), mnInc: Math.max(0, m.minInc||0.0), tKm: Math.max(0.1, m.tKm||5.0), tTime: Math.max(10, m.tTime||60), age: Math.max(15, m.age||35), gender: m.gender, name: m.name, unit: m.unit, lang: m.lang, voiceOn: m.voiceOn, lastProg: m.lastProg || 2 };
+        return { wKG, bf, smm, vo2, mHR, rHR, maxSpd: ms, minSpd: Math.max(0, m.minSpd||1.0), mxInc: Math.max(0, m.maxInc||5.0), mnInc: Math.max(0, m.minInc||0.0), tKm: Math.max(0.1, m.tKm||5.0), tTime: Math.max(10, m.tTime||60), age: Math.max(15, m.age||35), gender: m.gender, name: m.name, unit: m.unit, lang: m.lang, voiceOn: m.voiceOn, lastProg: m.lastProg || 2 };
     }
 
-    static buildMatrix(p, pid, hw) {
+    // 支援 Delta-Merge：傳入 startIdx 與 offset
+    static buildMatrix(p, pid, hw, startIdx = 0, sOffset = 0, iOffset = 0, currentHR = 75, currentLac = 1.0) {
         let T = Math.floor(p.tTime); let D = p.tKm; 
         let hwS = hw.maxSpd || 20.0; let hwI = hw.maxInc || 15.0;
-        let safeMnS = Math.max(hw.minSpd, p.minSpd); 
-        let allowedMxS = Math.min(hwS, p.maxSpd); let allowedMxI = Math.min(hwI, p.mxInc);
-        let safeMnI = Math.max(hw.minInc, p.mnInc);
+        let safeMnS = Math.max(hw.minSpd, p.minSpd); let allowedMxS = Math.min(hwS, p.maxSpd); 
+        let safeMnI = Math.max(hw.minInc, p.mnInc); let allowedMxI = Math.min(hwI, p.mxInc);
         
         let m = []; let bP = []; let iP = [];
         let bLenS = Math.max(1, Math.ceil(T / 20)); let bLenI = Math.max(1, Math.ceil(T / 10));
 
+        // 產生基礎比例結構
         for(let i=0; i<T; i++) {
             let r=1; let ir=0;
             if(pid===4) { r=0.5; ir=0.5; }
@@ -586,80 +600,108 @@ class PhysioEngine {
             bP.push(r); iP.push(ir);
         }
 
-        for(let i=0; i<T; i++) {
+        // 套用速度與坡度 (含 offset)
+        for(let i=startIdx; i<T; i++) {
             let smoothR = bP[Math.floor(i / bLenS) * bLenS]; let smoothIR = iP[Math.floor(i / bLenI) * bLenI];
-            m.push({ spd: safeMnS + (allowedMxS - safeMnS)*smoothR, inc: safeMnI + (allowedMxI - safeMnI)*smoothIR });
+            m.push({ spd: safeMnS + (allowedMxS - safeMnS)*smoothR + sOffset, inc: safeMnI + (allowedMxI - safeMnI)*smoothIR + iOffset });
         }
 
-        // 防呆：如果要求速度超過機器極限，自動加長運動時間
-        let cD = m.reduce((s,x) => s + x.spd/60, 0); let diff = D - cD;
-        let extended = false;
+        // 時間為王：取消時間自動延長，若超過里程則超過。
         
-        if (Math.abs(diff) > 0.05 && pid !== 1 && pid !== 2) {
-            let workArea = bP.reduce((s,v) => s+v, 0) || T; let addP = (diff / workArea) * 60;
-            for(let i=0; i<T; i++) m[i].spd += addP * bP[Math.floor(i / bLenS) * bLenS];
-            let maxSpdReq = Math.max(...m.map(x=>x.spd));
-            if (maxSpdReq > hwS) {
-                let scale = maxSpdReq / hwS;
-                return this.buildMatrix({ ...p, tTime: Math.ceil(T * scale) }, pid, hw);
-            }
-        }
-
         let W = Math.max(2, Math.floor(T * 0.05)); let C = Math.max(2, Math.floor(T * 0.05)); let baseWalk = 4.0; 
-        let mHR = 208 - 0.7 * p.age; let cHR = 75; let cLac = 1.0;
-        let RE = p.gender === 'F' ? 1.05 : 1.0; if(p.smm / p.wKG > (p.gender==='M' ? 0.4 : 0.35)) RE -= 0.05; 
         
-        for(let i=0; i<T; i++) {
-            if (i < W) { let prog = i / W; m[i].spd = safeMnS + (m[W].spd - safeMnS) * prog; m[i].inc = Math.min(m[i].inc, 2.0); }
-            if (i >= T - C && i < T - 1) { let prog = (i - (T - C)) / (C - 1); m[i].spd = m[T-C].spd - (m[T-C].spd - safeMnS) * prog; m[i].inc = m[T-C].inc - (m[T-C].inc - safeMnI) * prog; }
-            if (i === T - 1) { m[i].spd = baseWalk; m[i].inc = 0.0; }
+        let RE = p.gender === 'F' ? 1.05 : 1.0; if(p.smm / p.wKG > (p.gender==='M' ? 0.4 : 0.35)) RE -= 0.05; 
+        let cHR = currentHR; let cLac = currentLac;
+        let lacThresh = p.vo2 > 60 ? 0.9 : 0.8; // 菁英抗酸延後
+
+        for(let i=0; i<m.length; i++) {
+            let actualI = startIdx + i;
+            if (actualI < W) { let prog = actualI / W; m[i].spd = safeMnS + (m[W||0].spd - safeMnS) * prog; m[i].inc = Math.min(m[i].inc, 2.0); }
+            if (actualI >= T - C && actualI < T - 1) { let prog = (actualI - (T - C)) / (C - 1); m[i].spd = m[T-C-startIdx].spd - (m[T-C-startIdx].spd - safeMnS) * prog; m[i].inc = m[T-C-startIdx].inc - (m[T-C-startIdx].inc - safeMnI) * prog; }
+            if (actualI === T - 1) { m[i].spd = baseWalk; m[i].inc = 0.0; }
+            
+            // 絕對硬體極限 Clamp
             m[i].spd = Utils.clamp(m[i].spd, 0.1, hwS); m[i].inc = Utils.clamp(m[i].inc, hw.minInc, hwI);
             
             let r = (m[i].spd - safeMnS)/(hwS - safeMnS || 1);
-            m[i].phase = i < W ? 'warmup' : i >= T-C ? 'cooldown' : r > 0.8 ? 'sprint' : m[i].inc > safeMnI + 2 ? 'steep' : 'recovery';
+            m[i].phase = actualI < W ? 'warmup' : actualI >= T-C ? 'cooldown' : r > 0.8 ? 'sprint' : m[i].inc > safeMnI + 2 ? 'steep' : 'recovery';
 
             let sm = m[i].spd * 16.6667; let id = m[i].inc / 100;
             let vo2D = (m[i].spd <= 7.0 ? (3.5 + 0.1*sm + 1.8*sm*id) : (3.5 + 0.2*sm + 0.9*sm*id)) * RE;
+            if (actualI < W) vo2D *= 0.9; // 暖身期打9折
             
-            let tHR = Math.min(mHR, 60 + (vo2D / p.vo2) * (mHR - 60));
-            cHR += (tHR - cHR) * (m[i].phase === 'sprint' ? 0.6 : 0.3); let pHR = cHR / mHR; 
+            // Karvonen / 田中 混和心率推算
+            let tHR; let pHR;
+            if (p.rHR) { // Karvonen
+                let reserve = p.mHR - p.rHR; let targetPct = Math.min(1.0, vo2D / p.vo2);
+                tHR = p.rHR + (reserve * targetPct);
+                pHR = (cHR - p.rHR) / reserve;
+            } else {
+                tHR = Math.min(p.mHR, 60 + (vo2D / p.vo2) * (p.mHR - 60));
+                pHR = cHR / p.mHR;
+            }
             
-            if(pHR < 0.75) cLac += (1.0 - cLac) * 0.2; else if(pHR < 0.85) cLac += (2.5 - cLac) * 0.1; else cLac += Math.exp(10 * (pHR - 0.85)) - 1; 
+            cHR += (tHR - cHR) * (m[i].phase === 'sprint' ? 0.6 : 0.3); 
+            
+            if(pHR < lacThresh - 0.05) cLac += (1.0 - cLac) * 0.2; else if(pHR < lacThresh + 0.05) cLac += (2.5 - cLac) * 0.1; else cLac += Math.exp(10 * (pHR - (lacThresh+0.05))) - 1; 
+            
             let z = pHR < 0.6 ? 1 : (pHR < 0.7 ? 2 : (pHR < 0.8 ? 3 : (pHR < 0.9 ? 4 : 5)));
-            
-            m[i] = {...m[i], m:i+1, cal:(vo2D*p.wKG*5)/1000, dist:m[i].spd/60, hr:Math.round(cHR), lac:cLac, z};
+            m[i] = {...m[i], m:actualI+1, cal:(vo2D*p.wKG*5)/1000, dist:m[i].spd/60, hr:Math.round(cHR), lac:cLac, z};
         }
-        return { matrix: m, extended, extTime: T };
+        return m;
     }
 }
 
-// --- 語音防呆引擎 (FSM) ---
+// --- 5. 語音引擎 (VoiceEngine) ---
 class VoiceEngine {
     constructor() {
-        this.synth = window.speechSynthesis; this.q = []; this.state = 'IDLE'; this.currPri = 0; this.timer = null; this.unlocked = false;
+        this.synth = window.speechSynthesis; this.q = []; this.state = 'IDLE'; this.currPri = 0; this.timer = null; this.keepAlive = null;
         if(this.synth) this.synth.onvoiceschanged = () => { if(this.state === 'LOCKED') this.state = 'IDLE'; };
     }
-    unlock() { if(!this.unlocked && this.synth) { let u = new SpeechSynthesisUtterance(''); u.volume = 0; this.synth.speak(u); this.unlocked = true; } }
+    unlock() { 
+        if(this.synth) { 
+            let u = new SpeechSynthesisUtterance(''); u.volume = 0; this.synth.speak(u); 
+            // 啟動 3 分鐘心跳保活
+            clearInterval(this.keepAlive);
+            this.keepAlive = setInterval(() => { if(this.state === 'IDLE' && AppState.state.runStatus === 'RUNNING') { let a = new SpeechSynthesisUtterance(' '); a.volume = 0; this.synth.speak(a); } }, 180000);
+        } 
+    }
     speak(key, pri = 0, args = null) {
         if (!this.synth || AppState.state.runStatus === 'PAUSED') return;
         let p = AppState.state.profiles[AppState.state.activeP]; if(!p || !p.voiceOn) return;
         let lang = p.lang || 'en'; let db = VoiceDB[lang]; if (!db) return;
-        let txt = "";
         
-        if (args && db[key]) { txt = Utils.PRNG.get(lang, key, db[key]).replace('{s}', Number(args.s).toFixed(1)).replace('{i}', Number(args.i).toFixed(1)); } 
-        else if (db[key]) { txt = Array.isArray(db[key]) ? Utils.PRNG.get(lang, key, db[key]) : db[key]; } 
+        let txt = "";
+        if (args && db[key]) txt = Utils.PRNG.get(lang, key, db[key]).replace('{s}', Number(args.s).toFixed(1)).replace('{i}', Number(args.i).toFixed(1));
+        else if (db[key]) txt = Array.isArray(db[key]) ? Utils.PRNG.get(lang, key, db[key]) : db[key];
 
         if(!txt) return;
         if (pri > this.currPri) { this.synth.cancel(); this.q = []; clearTimeout(this.timer); this.state = 'IDLE'; } 
         else if (this.state === 'COOLDOWN' || pri < this.currPri) return;
 
-        this.q.push({ txt, pri, lang: lang === 'zh' ? 'zh-TW' : 'en-US' }); this.q.sort((a,b) => b.pri - a.pri); this._process();
+        // 加入 0.5 秒喚醒緩衝 & timestamp 防過期
+        this.q.push({ txt: `<speak><break time="500ms"/>${txt}</speak>`, raw: txt, pri, lang: lang === 'zh' ? 'zh-TW' : 'en-US', ts: Date.now() }); 
+        this.q.sort((a,b) => b.pri - a.pri); this._process();
     }
     _process() {
         if (this.state !== 'IDLE' || this.q.length === 0) return;
-        let job = this.q.shift(); this.state = 'SPEAKING'; this.currPri = job.pri;
+        let job = this.q.shift();
+        
+        // 5秒 Stale Drop 機制
+        if (Date.now() - job.ts > 5000) { this._process(); return; }
+
+        this.state = 'SPEAKING'; this.currPri = job.pri;
         try {
-            let msg = new SpeechSynthesisUtterance(job.txt); msg.lang = job.lang; msg.rate = 1.0;
+            let msg = new SpeechSynthesisUtterance(job.raw); // fallback if SSML fails
+            msg.lang = job.lang; msg.rate = 1.0;
+            
+            // 嘗試尋找優質語音
+            let voices = this.synth.getVoices();
+            if (voices.length > 0) {
+                let v = voices.find(x => x.lang.includes(job.lang) && (x.name.includes('Siri') || x.name.includes('Google')));
+                if(v) msg.voice = v;
+            }
+
             let tid = setTimeout(() => { this.state = 'LOCKED'; this.synth.cancel(); this._finish(); }, 8000); 
             msg.onend = () => { clearTimeout(tid); this._finish(); };
             msg.onerror = () => { clearTimeout(tid); this._finish(); };
@@ -674,47 +716,83 @@ class VoiceEngine {
 }
 const VoiceApp = new VoiceEngine();
 
-/**
- * ==========================================
- * PART 3: UI CONTROLLERS & RENDER ENGINE
- * ==========================================
- */
+// --- 6. IndexedDB 包裝器 (歷史紀錄 LRU) ---
+const DB = {
+    db: null,
+    init: async () => {
+        return new Promise((res, rej) => {
+            let req = indexedDB.open('ProTreadmillDB', 1);
+            req.onupgradeneeded = e => { let d = e.target.result; if(!d.objectStoreNames.contains('history')) d.createObjectStore('history', {keyPath: 'id', autoIncrement: true}); };
+            req.onsuccess = e => { DB.db = e.target.result; res(); }; req.onerror = rej;
+        });
+    },
+    saveHist: async (data) => {
+        if(!DB.db) return;
+        let tx = DB.db.transaction('history', 'readwrite'); let st = tx.objectStore('history');
+        st.add(data);
+        // LRU 100 筆限制
+        st.getAllKeys().onsuccess = e => {
+            let keys = e.target.result;
+            if(keys.length > 100) { let dTx = DB.db.transaction('history', 'readwrite'); keys.slice(0, keys.length-100).forEach(k => dTx.objectStore('history').delete(k)); }
+        };
+    }
+};
 
-// --- 1. UI 綁定引擎 (單向資料流) ---
+// --- 7. 背景不死 Web Worker (Blob inline) ---
+const workerCode = `
+    let timer = null; let last = 0; let running = false;
+    self.onmessage = function(e) {
+        if (e.data === 'START') {
+            if(!running) { running = true; last = performance.now(); timer = setInterval(() => { let n = performance.now(); self.postMessage({dt: n - last}); last = n; }, 1000); }
+        } else if (e.data === 'STOP') { running = false; clearInterval(timer); }
+    };
+`;
+const blob = new Blob([workerCode], {type: 'application/javascript'});
+const workerURL = URL.createObjectURL(blob);
+const BgWorker = new Worker(workerURL);
+
+// --- 8. UI 控制器 & 繪圖 ---
 class UIBinder {
-    constructor() { this.els = new Map(); document.querySelectorAll('[data-bind]').forEach(el => { let key = el.dataset.bind; if(!this.els.has(key)) this.els.set(key, []); this.els.get(key).push(el); }); }
-    update(key, val) { if(this.els.has(key)) this.els.get(key).forEach(el => { if(el.textContent !== String(val)) el.textContent = val; }); }
+    constructor() { this.els = new Map(); document.querySelectorAll('[data-bind]').forEach(el => { let k = el.dataset.bind; if(!this.els.has(k)) this.els.set(k, []); this.els.get(k).push(el); }); }
+    update(k, v) { if(this.els.has(k)) this.els.get(k).forEach(el => { if(el.textContent !== String(v)) el.textContent = v; }); }
     updateBatch(obj) { Object.entries(obj).forEach(([k,v]) => this.update(k, v)); }
 }
 const Binder = new UIBinder();
 
-// --- 2. 安全儲存與通知 ---
-const StorageHelper = {
-    get: (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch(e) { return d; } },
-    set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) { console.warn("Storage Full"); } },
-    remove: k => localStorage.removeItem(k)
-};
-
 const NotificationManager = {
     timer: null,
-    show: (msgs, title = "通知") => {
-        if(!msgs || !msgs.length) return;
-        let html = `<strong>${title}</strong><ul>`; msgs.forEach(m => html+=`<li>${m}</li>`); html+='</ul>';
-        document.getElementById('notifContent').innerHTML = html;
-        document.getElementById('topNotification').classList.add('show');
-        document.getElementById('notifBar').style.transition = 'none'; document.getElementById('notifBar').style.transform = 'scaleX(1)';
-        void document.getElementById('notifBar').offsetWidth; 
-        document.getElementById('notifBar').style.transition = `transform ${msgs.length<=2?3000:5000}ms linear`; document.getElementById('notifBar').style.transform = 'scaleX(0)';
-        clearTimeout(NotificationManager.timer); NotificationManager.timer = setTimeout(() => NotificationManager.hide(), msgs.length<=2?3000:5000);
-    },
-    hide: () => { document.getElementById('topNotification').classList.remove('show'); clearTimeout(NotificationManager.timer); }
+    show: (msg) => {
+        document.getElementById('notifContent').textContent = msg;
+        let p = document.getElementById('topNotification'); let b = document.getElementById('notifBar');
+        p.classList.add('show'); b.style.transition = 'none'; b.style.transform = 'scaleX(1)';
+        void b.offsetWidth; b.style.transition = 'transform 3000ms linear'; b.style.transform = 'scaleX(0)';
+        clearTimeout(NotificationManager.timer); NotificationManager.timer = setTimeout(() => p.classList.remove('show'), 3000);
+    }
 };
 
-// --- 3. 撥盤元件 (防抖優化) ---
 class SwipeDial {
     constructor(id, isFloat, onChange) {
-        this.scrollEl = document.getElementById(id); this.isFloat = isFloat; this.onChange = onChange; this.items = []; this.timer = null;
+        this.scrollEl = document.getElementById(id); this.isFloat = isFloat; this.onChange = onChange; this.items = []; this.timer = null; this.locked = false;
         this.scrollEl.addEventListener('scroll', () => this.handleScroll(), {passive: true});
+        
+        // 混合點擊輸入 (Hybrid Dial)
+        this.scrollEl.addEventListener('click', e => {
+            if(this.locked) return; let t = e.target.closest('.dial-item.active'); if(!t) return;
+            this.locked = true; this.scrollEl.classList.add('locked'); document.getElementById('dialInputLock').style.display = 'block';
+            
+            let inp = document.createElement('input'); inp.type = 'number'; inp.inputMode = 'decimal'; inp.className = 'dial-input-overlay'; inp.value = t.dataset.val;
+            document.body.appendChild(inp); inp.focus();
+
+            const finish = () => {
+                let v = parseFloat(inp.value); if(!isNaN(v)) { 
+                    v = Utils.clamp(v, parseFloat(this.items[0].dataset.val), parseFloat(this.items[this.items.length-1].dataset.val));
+                    this.setValue(v); this.onChange(v); 
+                }
+                inp.remove(); document.getElementById('dialInputLock').style.display = 'none';
+                setTimeout(() => { this.locked = false; this.scrollEl.classList.remove('locked'); }, 300); // 等待鍵盤收合
+            };
+            inp.addEventListener('blur', finish); inp.addEventListener('keydown', ev => { if(ev.key === 'Enter') finish(); });
+        });
     }
     build(min, max, step) {
         this.scrollEl.innerHTML = '<div class="dial-spacer"></div>'; this.items = [];
@@ -733,7 +811,7 @@ class SwipeDial {
         this.scrollEl.scrollTo({top, behavior: 'instant'}); this.items.forEach(i => i.classList.remove('active')); target.classList.add('active');
     }
     handleScroll() {
-        clearTimeout(this.timer);
+        if(this.locked) return; clearTimeout(this.timer);
         this.timer = setTimeout(() => {
             if(this.items.length===0) return; let center = this.scrollEl.scrollTop + this.scrollEl.clientHeight/2;
             let closest = this.items.reduce((p, c) => Math.abs((c.offsetTop - this.scrollEl.offsetTop + c.clientHeight/2) - center) < Math.abs((p.offsetTop - this.scrollEl.offsetTop + p.clientHeight/2) - center) ? c : p);
@@ -743,18 +821,14 @@ class SwipeDial {
     }
 }
 
-// --- 4. Canvas 防抖與渲染器 (徹底解決破版) ---
 class ChartManager {
     constructor() {
         this.ctxS = document.getElementById('sChart').getContext('2d', {alpha: false});
         this.ctxR = document.getElementById('rChart').getContext('2d', {alpha: false});
         this.rTimer = null;
-        
-        // 監聽父層大小改變，100ms 後才重繪，解決 Resize Storm
-        const RO = new ResizeObserver(() => { clearTimeout(this.rTimer); this.rTimer = setTimeout(() => this.drawAll(), 100); });
+        const RO = new ResizeObserver(() => { clearTimeout(this.rTimer); this.rTimer = setTimeout(() => { if(!document.querySelector('.dial-input-overlay')) this.drawAll(); }, 100); });
         RO.observe(document.getElementById('sChartWrap')); RO.observe(document.getElementById('rChartWrap'));
-        
-        this.bindEvents('s', document.getElementById('sChartWrap')); this.bindEvents('r', document.getElementById('rChartWrap'));
+        this.bindEvents('s', document.getElementById('sChartWrap'));
     }
     drawAll() { this.draw('s', document.getElementById('sChart'), this.ctxS); this.draw('r', document.getElementById('rChart'), this.ctxR); }
     draw(prefix, c, ctx) {
@@ -765,21 +839,24 @@ class ChartManager {
         let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
         let mxS = Math.max(10, AppState.state.hw.maxSpd * (isMet?1.1:1.1*1.609));
         
-        // 畫參考線
-        ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
         [0.25, 0.5, 0.75].forEach(r => { ctx.beginPath(); ctx.moveTo(0, H*r); ctx.lineTo(W, H*r); ctx.stroke(); }); ctx.setLineDash([]);
 
         let getX = i => (i/(m.length-1))*W; let getY = (v, max, min=0) => H - ((v-min)/(max-min))*H;
         let totMs = m.length * 60000; let cr = (AppState.state.runStatus !== 'STOPPED' && prefix === 'r') ? AppState.state.accumMs/totMs : 1.0;
 
-        let drawLine = (fn, col, w, fill=false) => {
+        let drawLine = (fn, col, w, isDash=false) => {
             ctx.beginPath(); ctx.moveTo(getX(0), fn(m[0])); for(let i=1; i<m.length; i++) ctx.lineTo(getX(i), fn(m[i]));
-            if(fill) { ctx.lineTo(W, H+10); ctx.lineTo(0, H+10); let g = ctx.createLinearGradient(0,0,0,H); g.addColorStop(0, col.replace('1)','0.4)')); g.addColorStop(0.9, 'transparent'); ctx.fillStyle = g; ctx.fill(); } 
-            else { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.stroke(); }
+            ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineJoin = 'round'; if(isDash) ctx.setLineDash([6,4]); else ctx.setLineDash([]); ctx.stroke();
         }
-        drawLine(r => getY(r.hr, 220, 60), 'rgba(10, 132, 255, 0.6)', 2, true); drawLine(r => getY(r.lac, 18, 0), 'rgba(255, 69, 58, 0.8)', 2);
-        drawLine(r => getY(r.inc, 15, 0), 'rgba(255, 214, 10, 0.8)', 2); drawLine(r => getY(r.spd, mxS, 0), 'rgba(50, 215, 75, 1)', 3);
-        if (cr < 1.0) { ctx.fillStyle = 'rgba(10, 10, 10, 0.8)'; ctx.fillRect(W*cr, 0, W*(1-cr), H); }
+        
+        let rBase = p.customRHR ? p.customRHR : 60;
+        drawLine(r => getY(r.hr, p.customMHR || 220, rBase), 'rgba(10, 132, 255, 0.8)', 2); 
+        drawLine(r => getY(r.lac, 18, 0), 'rgba(255, 69, 58, 0.9)', 2, true); // 乳酸改虛線
+        drawLine(r => getY(r.inc, 15, 0), 'rgba(255, 214, 10, 0.8)', 2); 
+        drawLine(r => getY(r.spd, mxS, 0), '#FFFFFF', 3); // 速度改純白
+        
+        if (cr < 1.0) { ctx.fillStyle = 'rgba(0, 0, 0, 0.85)'; ctx.fillRect(W*cr, 0, W*(1-cr), H); }
     }
     bindEvents(px, wrap) {
         const move = e => {
@@ -793,8 +870,7 @@ class ChartManager {
             
             let row = document.getElementById(px+'HovRow');
             if(row) { 
-                row.classList.add('show'); 
-                let isMet = AppState.state.profiles[AppState.state.activeP].unit !== 'imperial';
+                row.classList.add('show'); let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
                 Binder.updateBatch({ [`${px}HovMin`]: Utils.fmtTime(fIdx * 60000), [`${px}HovSpd`]: (isMet?iSpd:iSpd/1.609).toFixed(1), [`${px}HovInc`]: iInc.toFixed(1), [`${px}HovHr`]: Math.round(m[f].hr*(1-frac) + m[cIdx].hr*frac), [`${px}HovLac`]: (m[f].lac*(1-frac) + m[cIdx].lac*frac).toFixed(1) });
             }
         };
@@ -804,27 +880,31 @@ class ChartManager {
     }
 }
 
-// --- 5. 主控制器 (The Brain) ---
+// --- 9. 主控制器 (AppController) ---
 class AppController {
     constructor() {
-        this.dials = {}; this.charts = new ChartManager(); this.reqId = null; this.lastTime = performance.now(); this.logicAcc = 0; this.wakeLock = null; this.holdTimer = null;
+        this.dials = {}; this.charts = new ChartManager(); this.holdTimer = null; this.liveDebounce = null;
+        this.actualSpeed = 0; // 馬達物理模擬目前速度
         
-        // 解決鍵盤彈出遮擋 (VisualViewport)
         const setVH = () => document.documentElement.style.setProperty('--vh', `${(window.visualViewport ? window.visualViewport.height : window.innerHeight) * 0.01}px`);
         if(window.visualViewport) window.visualViewport.addEventListener('resize', setVH); setVH();
         window.addEventListener('beforeunload', () => { if(AppState.state.runStatus === 'RUNNING') this.persistRun(); });
 
-        this.initData(); this.initDials(); this.bindEvents(); this.setupSubscribers();
+        DB.init().then(() => { this.initData(); this.initDials(); this.bindEvents(); this.setupSubscribers(); });
     }
 
     initData() {
-        let s = StorageHelper.get('pro_treadmill_v28', null);
+        let s = null; try { s = JSON.parse(localStorage.getItem('pro_treadmill_v28')); } catch(e){}
         if(s && s.profiles) { AppState.batch({ activeP: s.activeP, profiles: s.profiles, hw: s.hw }); } 
-        else { let p = PhysioEngine.sanitize({ name: 'Runner', gender: 'M', unit: 'metric', lang: 'en', voiceOn: true }); AppState.batch({ activeP: 'Runner', profiles: { 'Runner': p } }); }
+        else { let p = PhysioEngine.sanitize({ name: 'Runner', gender: 'M', unit: 'metric', lang: 'zh', voiceOn: true }); AppState.batch({ activeP: 'Runner', profiles: { 'Runner': p } }); }
         
-        let r = StorageHelper.get('runState_v28', null);
-        if(r && r.accumMs > 0 && r.matrix) { AppState.batch({ runStatus: 'PAUSED', accumMs: r.accumMs, matrix: r.matrix, curData: r.curData, activeP: r.activeP }); } 
-        else { this.recalc(); }
+        let r = null; try { r = JSON.parse(sessionStorage.getItem('runState_v28')); } catch(e){} // Crash Recovery 採用 Session
+        if(r && r.accumMs > 0 && r.matrix) { 
+            AppState.batch({ runStatus: 'PAUSED', accumMs: r.accumMs, matrix: r.matrix, curData: r.curData, activeP: r.activeP, speedOffset: r.speedOffset||0, incOffset: r.incOffset||0 }); 
+            NotificationManager.show(i18n[AppState.state.profiles[AppState.state.activeP].lang].warnCrash);
+            this.updateI18n(); this.updateUI();
+        } 
+        else { this.updateI18n(); this.recalc(); }
     }
 
     initDials() {
@@ -838,11 +918,30 @@ class AppController {
         this.dials.mxi = new SwipeDial('ds-mxi', true, change('mxInc', false)); this.dials.mni = new SwipeDial('ds-mni', true, change('mnInc', false));
     }
 
+    updateI18n() {
+        let p = AppState.state.profiles[AppState.state.activeP]; let d = i18n[p.lang];
+        document.getElementById('htmlRoot').lang = p.lang === 'zh' ? 'zh-TW' : 'en';
+        document.getElementById('tabSettings').textContent = d.tab1; document.getElementById('tabMatrix').textContent = d.tab2;
+        ['tim','km','mxS','mnS','mxI','mnI'].forEach(k => { let isMet = p.unit !== 'imperial'; let key = k; if(!isMet && (k==='mxS'||k==='mnS')) key += 'Imp'; document.getElementById(`lbl${k==='tim'?'TotalTime':k==='km'?'TargetKm':`Set${k.charAt(0).toUpperCase()+k.slice(1)}`}`).textContent = d[key]; });
+        for(let i=1;i<=5;i++) { document.getElementById(`hudH${i}`).textContent = d[`hud${i}`]; document.getElementById(`hudRH${i}`).textContent = d[`hud${i}`]; }
+        ['Avg','Max','RAvg','RMax'].forEach(k => document.getElementById(`lbl${k}`).textContent = d[k.toLowerCase().includes('avg')?'avg':'max']);
+        ['Spd','Inc','Dist','Pace','Hr','Lac'].forEach(k => document.getElementById(`lblRun${k}`).textContent = d[`r${k}`]);
+        document.getElementById('lblZoneTitle').textContent = d.zDist;
+        ['Time','Spd','Inc','Phase','Hr'].forEach(k => document.getElementById(`th${k}`).textContent = d[`th${k}`]);
+        ['BtnLeft','End','Pause'].forEach(k => document.getElementById(`lbl${k}`).textContent = d[`btn${k}`]);
+        
+        document.getElementById('lblRmTitle').textContent = d.rmTitle; document.getElementById('lblRmName').textContent = d.rmName; document.getElementById('lblRmPhysio').textContent = d.rmPhy;
+        document.getElementById('lblAge').textContent = d.rmAge; document.getElementById('lblWgt').textContent = d.rmWgt; document.getElementById('lblAdvTitle').textContent = d.rmAdv;
+        ['RHR','MHR','SMM','VO2','PMxS','PMnS','PMxI','PMnI'].forEach(k => document.getElementById(`lbl${k}`).textContent = d[`r${k.replace('P','')}`]);
+        document.getElementById('lblHwTitle').textContent = d.hwTitle;
+        ['MxS','MnS','MxI','MnI'].forEach(k => document.getElementById(`lblHw${k}`).textContent = d[`h${k}`]);
+        document.getElementById('lblRmPref').textContent = d.rmPref; document.getElementById('btnRmCancel').textContent = d.btnCancel; document.getElementById('btnRmSave').textContent = d.btnSave;
+    }
+
     bindEvents() {
-        // 全域事件代理 (解決記憶體洩漏與幽靈點擊)
         document.body.addEventListener('click', e => {
             const t = e.target.closest('[data-action]'); if (!t) return;
-            const a = t.dataset.action; let I = i18n[AppState.state.profiles[AppState.state.activeP].lang || 'en'];
+            const a = t.dataset.action; 
             
             if(a === 'tab-settings') AppState.state.activeTab = 'settings';
             else if(a === 'tab-matrix') AppState.state.activeTab = 'matrix';
@@ -852,9 +951,12 @@ class AppController {
                 AppState.state.profiles[AppState.state.activeP].lastProg = parseInt(t.dataset.pid); this.saveData(); this.recalc();
             }
             else if(a === 'start') {
-                VoiceApp.unlock(); // Safari 聲音解鎖
+                document.getElementById('silentAudio').play().catch(e=>{}); VoiceApp.unlock(); 
                 if (AppState.state.runStatus === 'RUNNING') return;
-                if (AppState.state.accumMs === 0) { AppState.state.curData = { ms:0, dist:0, cal:0, z: [0,0,0,0,0], trans:{} }; VoiceApp.speak('workoutBegins', 1, { t: AppState.state.matrix.length }); }
+                if (AppState.state.accumMs === 0) { 
+                    AppState.state.curData = { ms:0, dist:0, cal:0, z: [0,0,0,0,0], trans:{} }; 
+                    this.actualSpeed = AppState.state.matrix[0].spd; // 初始化物理馬達速度
+                }
                 AppState.state.runStatus = 'RUNNING'; AppState.state.activeTab = 'settings';
             }
             else if(a === 'pause') { AppState.state.runStatus = 'PAUSED'; this.persistRun(); }
@@ -863,29 +965,71 @@ class AppController {
             else if(a === 'save-runner') this.saveModal();
             else if(a === 'overlay-close') { if(e.target.id === 'runnerModal') document.getElementById('runnerModal').classList.remove('show'); }
             else if(a === 'toggle-accordion') { t.classList.toggle('open'); document.getElementById(t.dataset.target).classList.toggle('show'); }
+            
+            // 即時微調 (Delta-Merge Trigger)
+            else if(a.startsWith('live-') && AppState.state.runStatus === 'RUNNING') {
+                let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
+                let hw = AppState.state.hw;
+                
+                let isSpd = a.includes('spd'); let isUp = a.includes('up');
+                let step = isSpd ? (isMet ? 0.1 : 0.1 * 1.60934) : 0.5;
+                if(!isUp) step *= -1;
+                
+                let el = document.getElementById(`runVal${isSpd?'Spd':'Inc'}`);
+                
+                // 震動與視覺回饋
+                if('vibrate' in navigator) navigator.vibrate(50);
+                el.style.transform = 'scale(1.2)'; setTimeout(()=>el.style.transform = 'scale(1)', 100);
+                
+                if(isSpd) AppState.state.speedOffset += step; else AppState.state.incOffset += step;
+                
+                // 硬體極限防呆
+                let cM = Math.floor(AppState.state.accumMs / 60000); let curM = AppState.state.matrix[cM];
+                if (isSpd && (curM.spd + step > hw.maxSpd || curM.spd + step < Math.max(0.1, hw.minSpd))) {
+                    AppState.state.speedOffset -= step; NotificationManager.show(i18n[p.lang].warnHw); el.style.color = 'var(--neon-red)'; setTimeout(()=>el.style.color='#FFF',500); return;
+                }
+                
+                clearTimeout(this.liveDebounce);
+                this.liveDebounce = setTimeout(() => {
+                    let oldM = AppState.state.matrix;
+                    let pastM = oldM.slice(0, cM + 1); // 保留歷史不可變
+                    
+                    // 重算未來
+                    let pClean = PhysioEngine.sanitize(p);
+                    let futureM = PhysioEngine.buildMatrix(pClean, pClean.lastProg, hw, cM + 1, AppState.state.speedOffset, AppState.state.incOffset, oldM[cM].hr, oldM[cM].lac);
+                    
+                    AppState.state.matrix = pastM.concat(futureM);
+                    this.charts.drawAll(); // 重繪 Canvas
+                    
+                    // 語音回饋
+                    VoiceApp.speak(`sys_${isSpd?'speed':'inc'}_${isUp?'up':'down'}`, 1);
+                }, 300);
+            }
         });
 
-        // 長按防呆：結束按鈕 (解決 Bug #9)
+        // 長按結束 (防呆取消)
         const btnEnd = document.getElementById('btnAskEnd');
         const startHold = () => { if(AppState.state.runStatus === 'STOPPED') return; btnEnd.classList.add('holding'); this.holdTimer = setTimeout(() => { btnEnd.classList.remove('holding'); this.endWorkout(); }, 1500); };
         const stopHold = () => { btnEnd.classList.remove('holding'); clearTimeout(this.holdTimer); };
         btnEnd.addEventListener('pointerdown', startHold); btnEnd.addEventListener('pointerup', stopHold); btnEnd.addEventListener('pointerleave', stopHold);
 
-        // Segmented Controls
+        // Segmented Controls (包含單位換算)
         document.querySelectorAll('.segmented-control').forEach(c => {
             c.addEventListener('click', e => {
                 let b = e.target.closest('.seg-btn'); if(!b) return;
                 c.querySelectorAll('.seg-btn').forEach(x => x.classList.remove('active')); b.classList.add('active');
                 c.querySelector('.seg-indicator').style.transform = `translateX(${Array.from(c.children).indexOf(b)-1}00%)`;
-                if(c.id === 'segUnit') { // 即時單位換算
-                    let f = b.dataset.val === 'metric' ? 1/2.20462 : 2.20462; let sf = b.dataset.val === 'metric' ? 1.609 : 1/1.609;
+                if(c.id === 'segUnit') { 
+                    let f = b.dataset.val === 'metric' ? 1/2.20462 : 2.20462; let sf = b.dataset.val === 'metric' ? 1.60934 : 1/1.60934;
                     ['rmWeight','rmSMM'].forEach(id => { let el=document.getElementById(id); if(el.value) el.value=(parseFloat(el.value)*f).toFixed(1).replace(/\.0+$/,''); });
                     ['rmMxS','rmMnS','hwMxS','hwMnS'].forEach(id => { let el=document.getElementById(id); if(el.value) el.value=(parseFloat(el.value)*sf).toFixed(1).replace(/\.0+$/,''); });
-                    document.getElementById('unitWgt').textContent = b.dataset.val === 'metric' ? 'kg' : 'lbs'; document.getElementById('unitSmm').textContent = b.dataset.val === 'metric' ? 'kg' : 'lbs';
-                    document.getElementById('unitMxS').textContent = b.dataset.val === 'metric' ? 'kph' : 'mph'; document.getElementById('unitMnS').textContent = b.dataset.val === 'metric' ? 'kph' : 'mph';
+                    let lblM = b.dataset.val === 'metric' ? 'kg' : 'lbs'; document.getElementById('unitWgt').textContent = lblM; document.getElementById('unitSmm').textContent = lblM;
+                    let lblS = b.dataset.val === 'metric' ? 'kph' : 'mph'; document.getElementById('unitMxS1').textContent = lblS; document.getElementById('unitMnS1').textContent = lblS; document.getElementById('unitMxS2').textContent = lblS; document.getElementById('unitMnS2').textContent = lblS;
                 }
             });
         });
+        
+        BgWorker.onmessage = e => { if (AppState.state.runStatus === 'RUNNING') { this.logicTick(e.data.dt); } };
     }
 
     setupSubscribers() {
@@ -895,10 +1039,14 @@ class AppController {
             document.getElementById('btnRight').className = `btn-ctrl btn-start ${R ? 'btn-hide' : ''}`;
             document.getElementById('btnPause').className = `btn-ctrl btn-pause ${!R ? 'btn-hide' : ''}`;
             document.getElementById('btnAskEnd').className = `btn-ctrl btn-end ${S ? 'btn-hide' : ''}`;
-            document.getElementById('lblBtnRight').textContent = (s === 'PAUSED' && AppState.state.accumMs > 0) ? i18n[AppState.state.profiles[AppState.state.activeP].lang].rsm : i18n[AppState.state.profiles[AppState.state.activeP].lang].sta;
+            let d = i18n[AppState.state.profiles[AppState.state.activeP].lang];
+            document.getElementById('lblBtnRight').textContent = (s === 'PAUSED' && AppState.state.accumMs > 0) ? d.btnResume : d.btnStart;
             
-            if (R) { this.reqWL(); this.lastTime = performance.now(); this.loop(); } 
-            else { cancelAnimationFrame(this.reqId); if(this.wakeLock) this.wakeLock.release(); VoiceApp.clear(); }
+            if (R) { 
+                BgWorker.postMessage('START'); 
+                if(AppState.state.accumMs > 0 && AppState.state.speedOffset !== 0) VoiceApp.speak('sys_resume', 2); // 中斷恢復語音
+            } 
+            else { BgWorker.postMessage('STOP'); VoiceApp.clear(); }
         });
 
         AppState.subscribe('activeTab', t => {
@@ -906,51 +1054,54 @@ class AppController {
             document.getElementById('tabSettings').classList.toggle('active', isS); document.getElementById('tabMatrix').classList.toggle('active', !isS);
             document.getElementById('tabIndicator').style.transform = isS ? 'translateX(0)' : 'translateX(100%)';
             document.getElementById('viewsSlider').style.transform = isS ? 'translateX(0)' : 'translateX(-50%)';
-            if(!isS) { let r = document.getElementById(`min-row-${Math.floor(AppState.state.accumMs/60000)}`); if(r) r.scrollIntoView({behavior: 'smooth', block: 'center'}); }
+            if(!isS) { let r = document.getElementById(`min-row-${Math.floor(AppState.state.accumMs/60000)}`); if(r) r.scrollIntoView({behavior: 'instant', block: 'center'}); }
         });
-    }
-
-    // --- 迴圈引擎：降頻處理防發熱 (Bug #43) ---
-    loop() {
-        if(AppState.state.runStatus !== 'RUNNING') return;
-        let t = performance.now(); let dt = t - this.lastTime; this.lastTime = t;
-
-        // 休眠防護 (Bug #76)
-        if (dt > 2000) { AppState.state.runStatus = 'PAUSED'; NotificationManager.show(['系統經歷休眠，已自動暫停']); return; }
-
-        AppState.state.accumMs += dt; this.logicAcc += dt;
-        Binder.update('massiveTime', Utils.fmtTime(AppState.state.accumMs, true));
-
-        if (this.logicAcc >= 500) { this.logicTick(this.logicAcc); this.logicAcc = 0; this.charts.drawAll(); }
-        this.reqId = requestAnimationFrame(() => this.loop());
     }
 
     logicTick(dt) {
         let m = AppState.state.matrix; let totMs = m.length * 60000; let ms = AppState.state.accumMs;
         if (ms >= totMs) { this.endWorkout(); return; }
 
+        AppState.state.accumMs += dt; ms += dt;
+        Binder.update('massiveTime', Utils.fmtTime(ms, true));
+
         let cM = Math.floor(ms/60000); let cS = ms%60000; let d = AppState.state.curData; let curM = m[cM]; let sr = dt/60000;
-        d.dist += curM.dist * sr; d.cal += curM.cal * sr;
         
-        let p = AppState.state.profiles[AppState.state.activeP]; let pHR = curM.hr / (208 - 0.7 * p.age);
+        // 物理馬達加速模擬 (Max 0.5 km/h per sec)
+        let targetSpd = curM.spd; let maxDelta = 0.5 * (dt/1000);
+        if (this.actualSpeed < targetSpd) this.actualSpeed = Math.min(targetSpd, this.actualSpeed + maxDelta);
+        else if (this.actualSpeed > targetSpd) this.actualSpeed = Math.max(targetSpd, this.actualSpeed - maxDelta);
+        
+        d.dist += this.actualSpeed * sr; 
+        // 卡路里基於實際速度重算
+        let p = AppState.state.profiles[AppState.state.activeP];
+        let RE = p.gender === 'F' ? 1.05 : 1.0; if(p.smm / p.wKG > (p.gender==='M' ? 0.4 : 0.35)) RE -= 0.05; 
+        let sm = this.actualSpeed * 16.6667; let id = curM.inc / 100;
+        let vo2D = (this.actualSpeed <= 7.0 ? (3.5 + 0.1*sm + 1.8*sm*id) : (3.5 + 0.2*sm + 0.9*sm*id)) * RE;
+        if(cM < Math.max(2, Math.floor(m.length*0.05))) vo2D *= 0.9;
+        d.cal += ((vo2D*p.wKG*5)/1000) * sr;
+
+        let mHR = p.customMHR || (208 - 0.7 * p.age);
+        let pHR = p.customRHR ? (curM.hr - p.customRHR) / (mHR - p.customRHR) : curM.hr / mHR;
         if(pHR<0.6) d.z[0]+=sr; else if(pHR<0.7) d.z[1]+=sr; else if(pHR<0.8) d.z[2]+=sr; else if(pHR<0.9) d.z[3]+=sr; else d.z[4]+=sr;
 
         let isMet = p.unit !== 'imperial';
-        Binder.updateBatch({ runDist: (isMet?d.dist:d.dist/1.609).toFixed(2), runCal: `${Math.floor(d.cal)} kcal`, runSpd: (isMet?curM.spd:curM.spd/1.609).toFixed(1), runInc: curM.inc.toFixed(1), runHr: curM.hr, runLac: curM.lac.toFixed(1), runPace: Utils.getPaceStr(curM.spd, isMet) });
+        Binder.updateBatch({ runDist: (isMet?d.dist:d.dist/1.609).toFixed(2), runCal: `${Math.floor(d.cal)} kcal`, runSpd: (isMet?targetSpd:targetSpd/1.609).toFixed(1), runInc: curM.inc.toFixed(1), runHr: curM.hr, runLac: curM.lac.toFixed(1), runPace: Utils.getPaceStr(this.actualSpeed, isMet) });
         
         let tM = Math.max(1, cM + 1); [1,2,3,4,5].forEach(i => document.getElementById(`sz${i}`).style.flexBasis = `${(d.z[i-1]/tM)*100}%`);
-        if (Math.floor(ms/5000) !== Math.floor((ms-dt)/5000)) this.persistRun();
+        
+        if (Math.floor(ms/5000) !== Math.floor((ms-dt)/5000)) this.persistRun(); // 每 5 秒備份
+        if (Math.floor(ms/1000) !== Math.floor((ms-dt)/1000)) this.charts.drawAll(); // 每 1 秒重繪
 
         // 語音排程
-        if(!d.trans[cM]) d.trans[cM] = { t: false, p: false, tab: false };
+        if(!d.trans[cM]) d.trans[cM] = { t: false, p: false };
         if(cS > 45000 && cM < m.length-1 && !d.trans[cM].t) {
             d.trans[cM].t = true; let n = m[cM+1];
             if(n.phase !== curM.phase || Math.abs(n.spd-curM.spd)>0.2 || Math.abs(n.inc-curM.inc)>=1.0) VoiceApp.speak('trans', 1, { s: isMet?n.spd:n.spd/1.609, i: n.inc });
         }
         if(cS > 20000 && !d.trans[cM].p) {
             d.trans[cM].p = true; 
-            if(pHR > 0.95) VoiceApp.speak('warn_hr', 2); else if(curM.lac > 14) VoiceApp.speak('warn_lac', 2);
-            else if(curM.phase === 'sprint' || curM.phase === 'exhaust') VoiceApp.speak(pHR > 0.9 ? 'val_high' : 'phy_ana', 0);
+            if(curM.phase === 'sprint' || curM.phase === 'exhaust') VoiceApp.speak(pHR > 0.9 ? 'val_high' : 'phy_ana', 0);
             else if(curM.phase === 'steep') VoiceApp.speak('bio_steep', 0);
             else if(curM.phase === 'recovery' || curM.phase === 'cooldown') VoiceApp.speak('val_rec', 0);
             else if(curM.phase === 'warmup') VoiceApp.speak('phy_warm', 0);
@@ -960,39 +1111,35 @@ class AppController {
 
     recalc() {
         let p = PhysioEngine.sanitize(AppState.state.profiles[AppState.state.activeP]);
-        let res = PhysioEngine.buildMatrix(p, p.lastProg, AppState.state.hw);
-        AppState.state.matrix = res.matrix;
-        if(res.extended) NotificationManager.show([`為符合機器極限，時間自動延長至 ${res.extTime} 分鐘`], "保護機制觸發");
+        AppState.state.matrix = PhysioEngine.buildMatrix(p, p.lastProg, AppState.state.hw);
+        AppState.state.speedOffset = 0; AppState.state.incOffset = 0;
         this.updateUI();
     }
 
     updateUI() {
-        let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial'; let d = i18n[p.lang || 'en'];
+        let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial'; let d = i18n[p.lang];
         this.dials.time.build(10, 180, 5); this.dials.time.setValue(p.tTime);
-        this.dials.dist.build(isMet?0.5:0.3, isMet?50.0:31.0, isMet?0.5:0.1); this.dials.dist.setValue(isMet ? p.tKm : p.tKm / 1.609);
-        this.dials.mxs.build(isMet?1.0:0.6, isMet?25.0:15.5, 0.1); this.dials.mxs.setValue(isMet ? p.maxSpd : p.maxSpd / 1.609);
-        this.dials.mns.build(0.0, isMet?20.0:12.4, 0.1); this.dials.mns.setValue(isMet ? p.minSpd : p.minSpd / 1.609);
+        this.dials.dist.build(isMet?0.5:0.3, isMet?50.0:31.0, isMet?0.5:0.1); this.dials.dist.setValue(isMet ? p.tKm : p.tKm / 1.60934);
+        this.dials.mxs.build(isMet?1.0:0.6, isMet?25.0:15.5, 0.1); this.dials.mxs.setValue(isMet ? p.maxSpd : p.maxSpd / 1.60934);
+        this.dials.mns.build(0.0, isMet?20.0:12.4, 0.1); this.dials.mns.setValue(isMet ? p.minSpd : p.minSpd / 1.60934);
         this.dials.mxi.build(0.0, 20.0, 0.1); this.dials.mxi.setValue(p.mxInc);
         this.dials.mni.build(0.0, 10.0, 0.1); this.dials.mni.setValue(p.mnInc);
 
         let ul = document.getElementById('previewList'); ul.innerHTML = ''; let m = AppState.state.matrix;
-        let vdb = VoiceDB[p.lang || 'en'].phases;
+        let vdb = d.phases;
         m.forEach((r, i) => {
             let li = document.createElement('li'); li.id = `min-row-${i}`; 
             li.innerHTML = `<span class="list-col-time">${Utils.fmtTime(i*60000)}</span><span class="list-col-spd">${(isMet?r.spd:r.spd/1.609).toFixed(1)}</span><span class="list-col-inc">${r.inc.toFixed(1)}%</span><span class="list-col-phase">${vdb[r.phase]||r.phase}</span><span class="list-col-hr">${r.hr}</span>`;
             ul.appendChild(li);
         });
 
-        document.getElementById('lblTotalTime').textContent = d.tim; document.getElementById('lblTargetKm').textContent = isMet ? d.km : d.mi;
-        document.getElementById('lblSetMxS').textContent = isMet ? d.mxS : d.mxSImp; document.getElementById('lblSetMnS').textContent = isMet ? d.mnS : d.mnSImp;
-        document.getElementById('lblBtnLeft').textContent = AppState.state.activeP.split(' ')[0];
+        document.getElementById('lblBtnLeft').textContent = AppState.state.activeP.substring(0,8);
         
-        // 更新課表與 HUD
         let pg = document.getElementById('progGrid'); pg.innerHTML = '';
         for(let i=1; i<=10; i++) {
             let btn = document.createElement('div'); btn.className = `prog-card ${p.lastProg===i?'selected':''}`; btn.dataset.action = 'select-prog'; btn.dataset.pid = i;
             btn.innerHTML = `<div class="p-title">${d.prog[`p${i}`][0]}</div><div class="p-desc">${d.prog[`p${i}`][1]}</div>`; pg.appendChild(btn);
-            if(p.lastProg===i) setTimeout(() => btn.scrollIntoView({behavior: 'smooth', inline: 'center', block: 'nearest'}), 100);
+            if(p.lastProg===i) setTimeout(() => btn.scrollIntoView({behavior: 'instant', inline: 'center', block: 'nearest'}), 100);
         }
         
         let aS=m.reduce((s,x)=>s+x.spd,0)/m.length, aI=m.reduce((s,x)=>s+x.inc,0)/m.length, aH=m.reduce((s,x)=>s+x.hr,0)/m.length, aL=m.reduce((s,x)=>s+x.lac,0)/m.length;
@@ -1004,46 +1151,62 @@ class AppController {
 
     openModal() {
         let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial'; let hw = AppState.state.hw;
-        const setV = (id, v) => document.getElementById(id).value = Number(v).toFixed(1).replace(/\.0+$/,'');
+        const setV = (id, v) => document.getElementById(id).value = (v!==null&&v!==undefined) ? Number(v).toFixed(1).replace(/\.0+$/,'') : '';
         document.getElementById('rmName').value = AppState.state.activeP;
-        setV('rmAge', p.age); setV('rmWeight', isMet?p.weight:p.weight*2.204); setV('rmBMR', p.bmr); setV('rmSMM', isMet?p.smm:p.smm*2.204); setV('rmBF', p.bf); setV('rmVO2', p.vo2);
-        setV('rmMxS', isMet?p.maxSpd:p.maxSpd/1.609); setV('rmMnS', isMet?p.minSpd:p.minSpd/1.609); setV('rmMxI', p.mxInc); setV('rmMnI', p.mnInc);
-        setV('hwMxS', isMet?hw.maxSpd:hw.maxSpd/1.609); setV('hwMnS', isMet?hw.minSpd:hw.minSpd/1.609); setV('hwMxI', hw.maxInc); setV('hwMnI', hw.minInc);
+        setV('rmAge', p.age); setV('rmWeight', isMet?p.weight:p.weight*2.20462); setV('rmSMM', isMet?p.smm:p.smm*2.20462); 
+        setV('rmRHR', p.customRHR); setV('rmMHR', p.customMHR); setV('rmVO2', p.customVO2);
+        setV('rmMxS', isMet?p.maxSpd:p.maxSpd/1.60934); setV('rmMnS', isMet?p.minSpd:p.minSpd/1.60934); setV('rmMxI', p.mxInc); setV('rmMnI', p.mnInc);
+        setV('hwMxS', isMet?hw.maxSpd:hw.maxSpd/1.60934); setV('hwMnS', isMet?hw.minSpd:hw.minSpd/1.60934); setV('hwMxI', hw.maxInc); setV('hwMnI', hw.minInc);
         
         const setS = (id, v) => { let c=document.getElementById(id); c.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active')); let b=c.querySelector(`[data-val="${v}"]`); if(b) { b.classList.add('active'); c.querySelector('.seg-indicator').style.transform=`translateX(${Array.from(c.children).indexOf(b)-1}00%)`; } };
-        setS('segLang', p.lang||'en'); setS('segVoice', p.voiceOn?'on':'off'); setS('segUnit', p.unit); setS('segSex', p.gender);
+        setS('segLang', p.lang||'zh'); setS('segVoice', p.voiceOn?'on':'off'); setS('segUnit', p.unit); setS('segSex', p.gender);
+        
+        let lblM = isMet ? 'kg' : 'lbs'; document.getElementById('unitWgt').textContent = lblM; document.getElementById('unitSmm').textContent = lblM;
+        let lblS = isMet ? 'kph' : 'mph'; document.getElementById('unitMxS1').textContent = lblS; document.getElementById('unitMnS1').textContent = lblS; document.getElementById('unitMxS2').textContent = lblS; document.getElementById('unitMnS2').textContent = lblS;
+
         document.getElementById('runnerModal').classList.add('show');
     }
 
     saveModal() {
         let name = document.getElementById('rmName').value.trim() || 'Runner'; let isMet = document.querySelector('#segUnit .seg-btn.active').dataset.val === 'metric';
-        let p = { name, gender: document.querySelector('#segSex .seg-btn.active').dataset.val, unit: isMet?'metric':'imperial', lang: document.querySelector('#segLang .seg-btn.active').dataset.val, voiceOn: document.querySelector('#segVoice .seg-btn.active').dataset.val==='on', age: parseFloat(document.getElementById('rmAge').value)||35, bmr: parseFloat(document.getElementById('rmBMR').value)||0, bf: parseFloat(document.getElementById('rmBF').value)||0, vo2: parseFloat(document.getElementById('rmVO2').value)||0, tTime: AppState.state.profiles[AppState.state.activeP].tTime, tKm: AppState.state.profiles[AppState.state.activeP].tKm, lastProg: AppState.state.profiles[AppState.state.activeP].lastProg };
+        let p = { name, gender: document.querySelector('#segSex .seg-btn.active').dataset.val, unit: isMet?'metric':'imperial', lang: document.querySelector('#segLang .seg-btn.active').dataset.val, voiceOn: document.querySelector('#segVoice .seg-btn.active').dataset.val==='on', age: parseFloat(document.getElementById('rmAge').value)||35, tTime: AppState.state.profiles[AppState.state.activeP].tTime, tKm: AppState.state.profiles[AppState.state.activeP].tKm, lastProg: AppState.state.profiles[AppState.state.activeP].lastProg };
+        
         const getV = (id, f) => (parseFloat(document.getElementById(id).value)||0)*f;
-        p.weight = getV('rmWeight', isMet?1:1/2.204); p.smm = getV('rmSMM', isMet?1:1/2.204); p.maxSpd = getV('rmMxS', isMet?1:1.609); p.minSpd = getV('rmMnS', isMet?1:1.609); p.mxInc = parseFloat(document.getElementById('rmMxI').value)||0; p.mnInc = parseFloat(document.getElementById('rmMnI').value)||0;
-        AppState.state.hw.maxSpd = getV('hwMxS', isMet?1:1.609); AppState.state.hw.minSpd = getV('hwMnS', isMet?1:1.609); AppState.state.hw.maxInc = parseFloat(document.getElementById('hwMxI').value)||15; AppState.state.hw.minInc = parseFloat(document.getElementById('hwMnI').value)||0;
+        p.weight = getV('rmWeight', isMet?1:1/2.20462); p.smm = getV('rmSMM', isMet?1:1/2.20462); 
+        p.customRHR = parseFloat(document.getElementById('rmRHR').value) || null; p.customMHR = parseFloat(document.getElementById('rmMHR').value) || null; p.customVO2 = parseFloat(document.getElementById('rmVO2').value) || null;
+        p.maxSpd = getV('rmMxS', isMet?1:1.60934); p.minSpd = getV('rmMnS', isMet?1:1.60934); p.mxInc = parseFloat(document.getElementById('rmMxI').value)||0; p.mnInc = parseFloat(document.getElementById('rmMnI').value)||0;
+        
+        if (p.maxSpd < p.minSpd) { let tmp = p.maxSpd; p.maxSpd = p.minSpd; p.minSpd = tmp; } // 防呆
+
+        AppState.state.hw.maxSpd = getV('hwMxS', isMet?1:1.60934); AppState.state.hw.minSpd = getV('hwMnS', isMet?1:1.60934); AppState.state.hw.maxInc = parseFloat(document.getElementById('hwMxI').value)||15; AppState.state.hw.minInc = parseFloat(document.getElementById('hwMnI').value)||0;
         
         if (name !== AppState.state.activeP) { delete AppState.state.profiles[AppState.state.activeP]; AppState.state.activeP = name; }
-        AppState.state.profiles[name] = p; this.saveData(); this.recalc(); document.getElementById('runnerModal').classList.remove('show');
-        if(p.voiceOn) VoiceApp.speak('voiceOn', 2);
+        AppState.state.profiles[name] = p; this.saveData(); 
+        
+        // 若在暫停時修改，觸發未來重算
+        if (AppState.state.runStatus === 'PAUSED') {
+            let cM = Math.floor(AppState.state.accumMs / 60000); let oldM = AppState.state.matrix;
+            let pastM = oldM.slice(0, cM + 1); let pClean = PhysioEngine.sanitize(p);
+            let futureM = PhysioEngine.buildMatrix(pClean, pClean.lastProg, AppState.state.hw, cM + 1, AppState.state.speedOffset, AppState.state.incOffset, oldM[cM].hr, oldM[cM].lac);
+            AppState.state.matrix = pastM.concat(futureM); this.updateI18n(); this.charts.drawAll();
+        } else { this.updateI18n(); this.recalc(); }
+        
+        document.getElementById('runnerModal').classList.remove('show');
+        NotificationManager.show(i18n[p.lang].warnSave);
+        if(!p.voiceOn) VoiceApp.clear();
     }
 
-    saveData() { StorageHelper.set('pro_treadmill_v28', { activeP: AppState.state.activeP, profiles: AppState.state.profiles, hw: AppState.state.hw }); }
-    persistRun(sync=false) { if (AppState.state.accumMs > 0) StorageHelper.set('runState_v28', { activeP: AppState.state.activeP, accumMs: AppState.state.accumMs, matrix: AppState.state.matrix, curData: AppState.state.curData }); else StorageHelper.remove('runState_v28'); }
+    saveData() { try { localStorage.setItem('pro_treadmill_v28', JSON.stringify({ activeP: AppState.state.activeP, profiles: AppState.state.profiles, hw: AppState.state.hw })); } catch(e){} }
+    persistRun() { if (AppState.state.accumMs > 0) sessionStorage.setItem('runState_v28', JSON.stringify({ activeP: AppState.state.activeP, accumMs: AppState.state.accumMs, matrix: AppState.state.matrix, curData: AppState.state.curData, speedOffset: AppState.state.speedOffset, incOffset: AppState.state.incOffset })); else sessionStorage.removeItem('runState_v28'); }
     
     endWorkout() {
         let d = AppState.state.curData;
-        if(d && d.ms >= 10000) {
-            let h = StorageHelper.get(`history_${AppState.state.activeP}`, []);
-            h.unshift({ date: new Date().toLocaleString(), ms: d.ms, distKm: d.dist, cal: d.cal, avgSpdKm: d.dist/(d.ms/3600000), z: d.z });
-            StorageHelper.set(`history_${AppState.state.activeP}`, h);
-        }
+        if(d && d.ms >= 10000) DB.saveHist({ date: new Date().getTime(), ms: d.ms, distKm: d.dist, cal: d.cal, avgSpdKm: d.dist/(d.ms/3600000), z: d.z, profile: AppState.state.activeP });
         AppState.state.runStatus = 'STOPPED'; AppState.state.accumMs = 0; AppState.state.curData = null; AppState.state.activeTab = 'settings';
-        this.persistRun(true); this.recalc();
+        sessionStorage.removeItem('runState_v28'); this.recalc(); document.getElementById('silentAudio').pause();
     }
-    async reqWL() { try { if('wakeLock' in navigator) this.wakeLock = await navigator.wakeLock.request('screen'); } catch(e){} }
 }
 
-// --- 啟動引擎 ---
 document.addEventListener('DOMContentLoaded', () => window.App = new AppController());
 </script>
 </body>
