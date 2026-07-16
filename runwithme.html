@@ -1,10 +1,25 @@
+以下是為您帶來的 **Pro Treadmill OS - Ultimate Edition (v36 - Bio-Adaptive Bulletproof)** 終極完整版原始碼。
+
+這份程式碼已經徹底融合了我們探討的所有高階架構防護：
+1. **陣列越界防護 (Infinite Anchoring)**
+2. **全域鎖定白名單 (Modal Whitelisting)**
+3. **延長賽雙重疲勞護城河 (Dual-Fatigue Moat)**
+4. **意圖播報與優先級佇列 (Priority Audio & Watchdog)**
+5. **蟲洞穿梭與靜默預演 (Wormhole Fast-Forward)**
+6. **怠速自動結算 (AFK Auto-Termination)**
+7. **執行期狀態隔離 (Hysteresis persistence)**
+8. **DOM 嚴格抹除與快照渲染 (Snapshot Rendering & Class Purging)**
+
+請完整複製以下內容，並儲存為 `runwithme.html`：
+
+```html
 <!DOCTYPE html>
 <html lang="zh-TW" id="htmlRoot">
 <head> 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="format-detection" content="telephone=no">
-    <title>Pro Treadmill OS - Ultimate Edition (v36 - Bio-Adaptive Bulletproof)</title>
+    <title>Pro Treadmill OS - Ultimate Edition (v36 - Bulletproof)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.85); 
@@ -110,6 +125,7 @@
         
         /* Run Screen */
         .massive-time { font-size: clamp(4.5rem, 20vw, 6rem); font-weight: 900; line-height: 1; text-align: center; letter-spacing: -1px; padding: 5px 0 15px 0; color: #FFFFFF; font-variant-numeric: tabular-nums;}
+        .massive-time.warn { color: var(--neon-yellow); }
         .run-primary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; flex: none; }
         .run-val-box { position: relative; display: flex; flex-direction: column; align-items: center; background: var(--bg-card); padding: 20px 0; border-radius: 16px; border: 1px solid var(--border-color); overflow: hidden; cursor: pointer; transition: transform 0.1s;}
         .run-val-box:active { transform: scale(0.96); background: #1a1a1a; }
@@ -135,8 +151,8 @@
         .preview-list li.active-row { background: var(--bg-card); border-left: 4px solid var(--neon-green); color: #FFF; transform: scale(1.02); box-shadow: 0 4px 12px rgba(0,0,0,0.5); font-weight: 800; }
         .preview-list li.max-lac-row { background: rgba(255, 69, 58, 0.15); color: #FFF; }
         .list-col-time { text-align: left; font-weight: 900; color: var(--text-main);}
-        .list-col-spd { color: var(--neon-green); border-radius: 4px;}
-        .list-col-inc { color: var(--neon-yellow); border-radius: 4px;}
+        .list-col-spd { color: var(--neon-green); border-radius: 4px; transition: text-shadow 0.3s; }
+        .list-col-inc { color: var(--neon-yellow); border-radius: 4px; transition: text-shadow 0.3s; }
         .list-col-phase { font-size: 0.9rem; }
         .list-col-hr { font-weight: 800;}
         .list-col-lac { font-weight: 800; }
@@ -279,9 +295,11 @@
         @keyframes pulse-speed { 0% { background: transparent; color: var(--neon-green); } 50% { background: var(--neon-green); color: #000; font-weight: 900; box-shadow: 0 0 10px var(--neon-green);} 100% { background: transparent; color: var(--neon-green); } }
         @keyframes pulse-inc { 0% { background: transparent; color: var(--neon-yellow); } 50% { background: var(--neon-yellow); color: #000; font-weight: 900; box-shadow: 0 0 10px var(--neon-yellow);} 100% { background: transparent; color: var(--neon-yellow); } }
         @keyframes flash-text { 0% { color:#FFF; text-shadow: none; } 50% { color:var(--neon-red); text-shadow: 0 0 20px var(--neon-red); } 100% { color:#FFF; text-shadow: none; } }
-        .pulse-spd-active { animation: pulse-speed 0.6s infinite; padding: 2px 0;}
-        .pulse-inc-active { animation: pulse-inc 0.6s infinite; padding: 2px 0;}
+        @keyframes warn-flash { 0% { color:#FFF; } 50% { color:var(--neon-yellow); text-shadow: 0 0 20px var(--neon-yellow); } 100% { color:#FFF; } }
+        .pulse-spd-active { animation: pulse-speed 0.8s infinite; padding: 2px 0;}
+        .pulse-inc-active { animation: pulse-inc 0.8s infinite; padding: 2px 0;}
         .run-big-val.flash { animation: flash-text 0.4s 3; }
+        .run-big-val.warn-flash { animation: warn-flash 1s infinite; }
         .val-capped { color: var(--neon-red) !important; position: relative; }
         .val-capped::after { content: '*'; position: absolute; top: -5px; right: -8px; font-size: 0.8rem; }
     </style>
@@ -354,7 +372,7 @@
 
                 <!-- RUN VIEW -->
                 <div id="run-view" class="view-section">
-                    <div class="massive-time" data-bind="massiveTime">00:00</div>
+                    <div class="massive-time" data-bind="massiveTime" id="massiveTime">00:00</div>
                     
                     <div class="run-primary-grid">
                         <div class="run-val-box" data-action="open-adj-inc">
@@ -853,10 +871,24 @@ const HUMAN_MAX_KPH = 25.0;
 const AppState = new ReactiveState({
     activeP: 'Runner', profiles: {}, hw: { maxSpd: 20.0, minSpd: 0.1, maxInc: 15.0, minInc: 0.0 },
     runStatus: 'STOPPED', accumMs: 0, matrix: [], snapshot: [], activeTab: 'settings', runnerToken: 0,
-    uiLocked: false
+    uiLocked: false, isMatrixDirty: false
 });
 
-const RunAcc = { sec: 0, spd: 0, inc: 0, hr: 0, lac: 0, mxS: 0, mxI: 0, mxH: 0, mxL: 0, dKm: 0, fCal: 0, cCal: 0, zs: [0,0,0,0,0], pLac: 12.0, transF: {}, actualSpd: 0, actualInc: 0, hrOvershoot: 0, deadzoneTimer: 0, hysteresisCap: {}, pauseCount: 0, lastPauseMs: 0, pausePenalty: false, otSpd: 4.0, otInc: 0.0, rampdownMs: 0 };
+const RunAcc = { 
+    sec: 0, spd: 0, inc: 0, hr: 0, lac: 0, mxS: 0, mxI: 0, mxH: 0, mxL: 0, dKm: 0, fCal: 0, cCal: 0, zs: [0,0,0,0,0], 
+    transF: {}, actualSpd: 0, actualInc: 0, hrOvershoot: 0, deadzoneTimer: 0, hysteresisCap: {}, 
+    pauseCount: 0, lastPauseMs: 0, pausePenalty: false, otSpd: 4.0, otInc: 0.0, rampdownMs: 0,
+    moatCount: 0, moatTriggered: false
+};
+
+const resetRunAcc = () => {
+    Object.assign(RunAcc, { 
+        sec: 0, spd: 0, inc: 0, hr: 0, lac: 0, mxS: 0, mxI: 0, mxH: 0, mxL: 0, dKm: 0, fCal: 0, cCal: 0, zs: [0,0,0,0,0], 
+        transF: {}, actualSpd: 0, actualInc: 0, hrOvershoot: 0, deadzoneTimer: 0, hysteresisCap: {}, 
+        pauseCount: 0, lastPauseMs: 0, pausePenalty: false, otSpd: 4.0, otInc: 0.0, rampdownMs: 0,
+        moatCount: 0, moatTriggered: false
+    });
+};
 
 class PhysioEngine {
     static sanitize(raw) {
@@ -1021,7 +1053,7 @@ class PhysioEngine {
 
 class VoiceEngine {
     constructor() {
-        this.synth = window.speechSynthesis; this.q = []; this.state = 'IDLE'; this.timer = null; this.keepAlive = null;
+        this.synth = window.speechSynthesis; this.q = []; this.state = 'IDLE'; this.timer = null; this.keepAlive = null; this.wd = null;
     }
     unlock() { 
         if(this.synth) { 
@@ -1034,7 +1066,7 @@ class VoiceEngine {
         if (!this.synth || AppState.state.runStatus === 'PAUSED') return;
         let p = AppState.state.profiles[AppState.state.activeP]; if(!p || !p.voiceOn) return;
         
-        if (pri === 1) { this.synth.cancel(); this.q = []; clearTimeout(this.timer); this.state = 'IDLE'; }
+        if (pri === 1) { this.synth.cancel(); this.q = []; clearTimeout(this.timer); clearTimeout(this.wd); this.state = 'IDLE'; }
         
         this.q.push({ txt: `<speak><break time="200ms"/>${txt}</speak>`, raw: txt, pri, lang: langCode, ts: Date.now() }); 
         this.q.sort((a,b) => a.pri - b.pri); 
@@ -1100,17 +1132,24 @@ class VoiceEngine {
                 let v = voices.find(x => x.lang.includes(job.lang) && (x.name.includes('Siri') || x.name.includes('Google')));
                 if(v) msg.voice = v;
             }
-            let tid = setTimeout(() => { this.state = 'LOCKED'; this.synth.cancel(); this._finish(); }, 12000); 
-            msg.onend = () => { clearTimeout(tid); this._finish(); };
-            msg.onerror = () => { clearTimeout(tid); this._finish(); };
+            
+            // Watchdog Hard Reset
+            this.wd = setTimeout(() => { 
+                this.synth.cancel(); this.state = 'IDLE'; 
+                let u = new SpeechSynthesisUtterance(''); u.volume = 0; this.synth.speak(u); 
+                this._process(); 
+            }, 10000); 
+            
+            msg.onend = () => { clearTimeout(this.wd); this._finish(); };
+            msg.onerror = () => { clearTimeout(this.wd); this._finish(); };
             this.synth.speak(msg);
-        } catch(e) { this._finish(); }
+        } catch(e) { clearTimeout(this.wd); this._finish(); }
     }
     _finish() {
         this.state = 'COOLDOWN';
         this.timer = setTimeout(() => { this.state = 'IDLE'; this._process(); }, 500); 
     }
-    clear() { this.q = []; if (this.synth) this.synth.cancel(); clearTimeout(this.timer); this.state = 'IDLE'; }
+    clear() { this.q = []; if (this.synth) this.synth.cancel(); clearTimeout(this.timer); clearTimeout(this.wd); this.state = 'IDLE'; }
     hardReset() { this.clear(); if(this.synth) this.synth.cancel(); }
 }
 const VoiceApp = new VoiceEngine();
@@ -1247,13 +1286,14 @@ class ChartManager {
         this.ctxS = document.getElementById('sChart').getContext('2d', {alpha: false});
         this.ctxR = document.getElementById('rChart').getContext('2d', {alpha: false});
         this.ctxSum = document.getElementById('sumChart').getContext('2d', {alpha: false});
+        this.hovTimeIdx = -1;
         const RO = new ResizeObserver(() => { this.teardown(); requestAnimationFrame(() => { this.drawAll(); if(document.getElementById('summaryModal').classList.contains('show')) this.drawSummary(this.sumM, this.sumCr); }); });
         RO.observe(document.getElementById('sChartWrap')); RO.observe(document.getElementById('rChartWrap')); RO.observe(document.getElementById('sumChartWrap'));
         this.bindEvents('s', document.getElementById('sChartWrap')); this.bindEvents('r', document.getElementById('rChartWrap')); this.bindEvents('sum', document.getElementById('sumChartWrap'));
     }
-    teardown() { ['s','r','sum'].forEach(px => { let ch = document.getElementById(`${px}Crosshair`); if(ch) ch.style.display='none'; let row = document.getElementById(`${px}HovRow`); if(row) row.classList.remove('show'); }); }
-    drawAll() { this.draw('s', document.getElementById('sChart'), this.ctxS); this.draw('r', document.getElementById('rChart'), this.ctxR); }
-    drawSummary(matrix, cr) { this.sumM = matrix; this.sumCr = cr; this.draw('sum', document.getElementById('sumChart'), this.ctxSum, matrix, cr); }
+    teardown() { ['s','r','sum'].forEach(px => { let ch = document.getElementById(`${px}Crosshair`); if(ch) ch.style.display='none'; let row = document.getElementById(`${px}HovRow`); if(row) row.classList.remove('show'); }); this.hovTimeIdx = -1; }
+    drawAll() { this.draw('s', document.getElementById('sChart'), this.ctxS); this.draw('r', document.getElementById('rChart'), this.ctxR); this.updateHovData('r'); }
+    drawSummary(matrix, cr) { this.sumM = matrix; this.sumCr = cr; this.draw('sum', document.getElementById('sumChart'), this.ctxSum, matrix, cr); this.updateHovData('sum'); }
     
     draw(prefix, c, ctx, custM = null, custCr = null) {
         let p = AppState.state.profiles[AppState.state.activeP]; if (prefix === 'sum' && window.App && window.App.viewingProfile) p = window.App.viewingProfile;
@@ -1270,20 +1310,30 @@ class ChartManager {
         if (cr < 1.0) { ctx.fillStyle = 'rgba(0, 0, 0, 0.65)'; ctx.fillRect(W*cr, 0, W*(1-cr), H); }
     }
     
+    updateHovData(px) {
+        if (this.hovTimeIdx === -1) return;
+        let m = (px === 'sum' && this.sumM) ? this.sumM : AppState.state.snapshot; if(!m.length) return;
+        let fIdx = this.hovTimeIdx;
+        let cIdx = Math.min(Math.ceil(fIdx), m.length - 1); let f = Math.floor(fIdx); let frac = fIdx - f;
+        let iSpd = m[f].spd*(1-frac) + m[cIdx].spd*frac; let iInc = m[f].inc*(1-frac) + m[cIdx].inc*frac;
+        let row = document.getElementById(px+'HovRow');
+        if(row && row.classList.contains('show')) { 
+            let isMet = AppState.state.profiles[AppState.state.activeP].unit !== 'imperial';
+            Binder.updateBatch({ [`${px}HovMin`]: Utils.fmtTime(fIdx * 60000), [`${px}HovSpd`]: (isMet?iSpd:iSpd/1.609344).toFixed(1), [`${px}HovInc`]: iInc.toFixed(1), [`${px}HovHr`]: Math.round(m[f].hr*(1-frac) + m[cIdx].hr*frac), [`${px}HovLac`]: (m[f].lac*(1-frac) + m[cIdx].lac*frac).toFixed(1) });
+        }
+    }
+
     bindEvents(px, wrap) {
         const move = e => {
             let m = (px === 'sum' && this.sumM) ? this.sumM : AppState.state.snapshot; if(!m.length) return;
             e.preventDefault(); let r = wrap.getBoundingClientRect(); let x = Utils.clamp((e.touches ? e.touches[0].clientX : e.clientX) - r.left, 0, r.width);
-            let fIdx = (x / r.width) * (m.length - 1); let ch = document.getElementById(`${px}Crosshair`); if(ch) { ch.style.display = 'block'; ch.style.left = `${(fIdx/(m.length-1))*100}%`; }
-            let cIdx = Math.min(Math.ceil(fIdx), m.length - 1); let f = Math.floor(fIdx); let frac = fIdx - f;
-            let iSpd = m[f].spd*(1-frac) + m[cIdx].spd*frac; let iInc = m[f].inc*(1-frac) + m[cIdx].inc*frac;
-            let row = document.getElementById(px+'HovRow');
-            if(row) { 
-                row.classList.add('show'); let isMet = AppState.state.profiles[AppState.state.activeP].unit !== 'imperial';
-                Binder.updateBatch({ [`${px}HovMin`]: Utils.fmtTime(fIdx * 60000), [`${px}HovSpd`]: (isMet?iSpd:iSpd/1.609344).toFixed(1), [`${px}HovInc`]: iInc.toFixed(1), [`${px}HovHr`]: Math.round(m[f].hr*(1-frac) + m[cIdx].hr*frac), [`${px}HovLac`]: (m[f].lac*(1-frac) + m[cIdx].lac*frac).toFixed(1) });
-            }
+            let fIdx = (x / r.width) * (m.length - 1); 
+            this.hovTimeIdx = fIdx;
+            let ch = document.getElementById(`${px}Crosshair`); if(ch) { ch.style.display = 'block'; ch.style.left = `${(fIdx/(m.length-1))*100}%`; }
+            let row = document.getElementById(px+'HovRow'); if(row) row.classList.add('show');
+            this.updateHovData(px);
         };
-        const leave = () => { let ch=document.getElementById(`${px}Crosshair`); if(ch) ch.style.display='none'; let row=document.getElementById(`${px}HovRow`); if(row) row.classList.remove('show'); };
+        const leave = () => { this.hovTimeIdx = -1; let ch=document.getElementById(`${px}Crosshair`); if(ch) ch.style.display='none'; let row=document.getElementById(`${px}HovRow`); if(row) row.classList.remove('show'); };
         wrap.addEventListener('mousemove', move); wrap.addEventListener('touchmove', move, {passive:false}); wrap.addEventListener('mouseleave', leave); wrap.addEventListener('touchend', leave); wrap.addEventListener('touchcancel', leave);
     }
 }
@@ -1291,7 +1341,7 @@ class ChartManager {
 class AppController {
     constructor() {
         this.dials = {}; this.adjDials = {}; this.charts = new ChartManager(); this.holdTimer = null; this.pauseTimeout = null;
-        this.adjTarget = ''; this.wakeLock = null; this.viewingProfile = null;
+        this.adjTarget = ''; this.wakeLock = null; this.viewingProfile = null; this.otIdleTimer = null;
         const setVH = () => document.documentElement.style.setProperty('--vh', `${(window.visualViewport ? window.visualViewport.height : window.innerHeight) * 0.01}px`);
         if(window.visualViewport) window.visualViewport.addEventListener('resize', setVH); setVH();
         window.addEventListener('beforeunload', () => { if(AppState.state.runStatus === 'RUNNING') this.persistRun(); this.releaseWakeLock(); });
@@ -1309,10 +1359,10 @@ class AppController {
         
         let r = null; try { r = JSON.parse(sessionStorage.getItem('runState_v36')); } catch(e){} 
         if(r && r.accumMs > 0 && r.matrix) { 
-            AppState.batch({ runStatus: 'PAUSED', accumMs: r.accumMs, matrix: r.matrix, snapshot: JSON.parse(JSON.stringify(r.matrix)), activeP: r.activeP, runnerToken: Date.now() }); 
+            AppState.batch({ runStatus: 'PAUSED', accumMs: r.accumMs, matrix: r.matrix, snapshot: JSON.parse(JSON.stringify(r.matrix)), activeP: r.activeP, runnerToken: Date.now(), isMatrixDirty: true }); 
             if(r.acc) { Object.assign(RunAcc, r.acc); }
             NotificationManager.show((i18n[AppState.state.profiles[AppState.state.activeP].lang]||i18n['zh']).warnCrash);
-            this.updateI18n(); this.updateUI(); this.scrollToRow();
+            this.updateI18n(); this.updateUIDataOnly();
         } else { this.updateI18n(); this.recalc(); }
     }
 
@@ -1327,7 +1377,6 @@ class AppController {
                 if(key === 'minSpd' && v > p.maxSpd) p.maxSpd = v;
                 if(key === 'mxInc' && v < p.mnInc) p.mnInc = v;
                 if(key === 'mnInc' && v > p.mxInc) p.mxInc = v;
-                
                 if(key === 'tTime' && v < 20) v = 20;
                 
                 p[key] = key === 'tKm' ? (isMet ? val : Utils.round(val * 1.609344)) : v; 
@@ -1349,8 +1398,7 @@ class AppController {
         this.dials.mni.build(0.0, 10.0, 0.5); this.dials.mni.setValue(p.mnInc, true);
 
         let safeMnS = Math.max(p.minSpd, Math.max(AppState.state.hw.minSpd, 1.0));
-        let allowedMxS = HUMAN_MAX_KPH;
-        let physicalMin = (p.tTime / 60) * safeMnS; let physicalMax = (p.tTime / 60) * allowedMxS;
+        let physicalMin = (p.tTime / 60) * safeMnS; let physicalMax = (p.tTime / 60) * HUMAN_MAX_KPH;
         let minDial = Math.ceil((isMet ? physicalMin : physicalMin / 1.609344) * 10) / 10;
         let maxDial = Math.floor((isMet ? physicalMax : physicalMax / 1.609344) * 10) / 10;
         if (minDial > maxDial) maxDial = minDial;
@@ -1386,7 +1434,6 @@ class AppController {
         document.getElementById('lblWarnAnaerobic').textContent = d.warnAnaerobic;
         document.getElementById('lblOtTitle').textContent = d.otTitle; document.getElementById('lblOtDesc').textContent = d.otDesc;
         document.getElementById('lblOtNo').textContent = d.otNo; document.getElementById('lblOtYes').textContent = d.otYes;
-        
         document.getElementById('btnLangZh').textContent = d.langZh; document.getElementById('btnLangEn').textContent = d.langEn;
         document.getElementById('btnVoiceOn').textContent = d.voiceOn; document.getElementById('btnVoiceOff').textContent = d.voiceOff;
         document.getElementById('btnUnitMet').textContent = d.met; document.getElementById('btnUnitImp').textContent = d.imp;
@@ -1419,10 +1466,17 @@ class AppController {
             }
             else if(a === 'open-runner') this.openRunnerModal();
             else if(a === 'close-runner') { document.getElementById('runnerModal').classList.remove('show'); this.charts.teardown(); }
-            else if(a === 'save-runner') this.saveRunnerModal();
+            else if(a === 'save-runner') {
+                if(!this.validateRunnerForm()) { 
+                    let wrap = document.getElementById('runnerModal').querySelector('.modal-box');
+                    wrap.style.transition = 'transform 0.1s'; wrap.style.transform = 'scale(1.02)'; setTimeout(()=>wrap.style.transform = 'scale(1)', 100);
+                    return; 
+                }
+                this.saveRunnerModal();
+            }
             else if(a === 'delete-runner') this.deleteRunner();
             else if(a === 'switch-runner') this.switchRunner(t.dataset.name);
-            else if(a === 'add-runner-mode') { document.getElementById('runnerSelectorRow').querySelectorAll('.runner-tag').forEach(x=>x.classList.remove('active')); t.classList.add('active'); this.clearRunnerForm(); document.getElementById('btnRmDelete').disabled = true; }
+            else if(a === 'add-runner-mode') { document.getElementById('runnerSelectorRow').querySelectorAll('.runner-tag').forEach(x=>x.classList.remove('active')); t.classList.add('active'); this.clearRunnerForm(); document.getElementById('btnRmDelete').disabled = true; this.validateRunnerForm(); }
             else if(a === 'open-history') this.openHistory();
             else if(a === 'close-history') { document.getElementById('historyModal').classList.remove('show'); this.viewingProfile = null; }
             else if(a === 'clear-history') { if(confirm((i18n[p.lang]||i18n['zh']).clearAsk)) { let fR = document.getElementById('histRunnerSelect').value; DB.clearHist(fR).then(()=>this.openHistory()); } }
@@ -1430,7 +1484,6 @@ class AppController {
             else if(a === 'overlay-close') { if(e.target.id === 'adjModal') document.getElementById('adjModal').classList.remove('show'); else if(e.target.id === 'historyModal') { document.getElementById('historyModal').classList.remove('show'); this.viewingProfile = null; } }
             else if(a === 'toggle-accordion') { t.classList.toggle('open'); document.getElementById(t.dataset.target).classList.toggle('show'); }
             
-            // Adjust Modals
             else if(a === 'open-adj-spd' || a === 'open-adj-inc') {
                 if(AppState.state.runStatus !== 'RUNNING' && AppState.state.runStatus !== 'PAUSED') return;
                 this.charts.teardown(); let isS = a === 'open-adj-spd'; this.adjTarget = isS ? 'spd' : 'inc';
@@ -1447,6 +1500,12 @@ class AppController {
                 let isS = this.adjTarget === 'spd';
                 if(isS) { p.maxSpd = isMet?mx:Utils.round(mx*1.609344); p.minSpd = isMet?mn:Utils.round(mn*1.609344); } else { p.mxInc = mx; p.mnInc = mn; }
                 this.saveData(); this.recalc(false); document.getElementById('adjModal').classList.remove('show');
+                
+                let dStr = i18n[p.lang] || i18n['zh'];
+                VoiceApp.speakText(dStr.trans[2], 2, p.lang==='zh'?'zh-TW':'en-US'); // Manual adj pulse
+                let elSpd = document.getElementById('runValSpd'); let elInc = document.getElementById('runValInc');
+                if(isS) { elSpd.classList.add('warn-flash'); setTimeout(()=>elSpd.classList.remove('warn-flash'), 10000); }
+                else { elInc.classList.add('warn-flash'); setTimeout(()=>elInc.classList.remove('warn-flash'), 10000); }
             }
             else if(a === 'adj-plus' || a === 'adj-minus') {
                 let dType = t.dataset.target === 'adj-max' ? this.adjDials.max : this.adjDials.min;
@@ -1460,11 +1519,11 @@ class AppController {
                     this.showSummaryModal(d.ms, d.totMs || (d.matrix.length * 60000), d.distKm, d.fCal, d.cCal, d.z, d.matrix, false, d.pausePenalty);
                 });
             }
-            // Overtime Modal Actions
-            else if(a === 'reject-ot') { document.getElementById('overtimeModal').classList.remove('show'); this.endWorkout(); }
+            else if(a === 'reject-ot') { 
+                clearTimeout(this.otIdleTimer); document.getElementById('overtimeModal').classList.remove('show'); this.endWorkout(); 
+            }
             else if(a === 'accept-ot') { 
-                document.getElementById('overtimeModal').classList.remove('show'); 
-                this.startOvertime(); 
+                clearTimeout(this.otIdleTimer); document.getElementById('overtimeModal').classList.remove('show'); this.startOvertime(); 
             }
         });
         
@@ -1480,15 +1539,15 @@ class AppController {
             if (AppState.state.runStatus === 'PAUSED') {
                 let pauseDuration = Date.now() - RunAcc.lastPauseMs; if(pauseDuration > 180000) RunAcc.pausePenalty = true;
                 if(RunAcc.pauseCount > 3) RunAcc.pausePenalty = true;
-                VoiceApp.speakText(dStr.resumeAudio, 2, p.lang==='zh'?'zh-TW':'en-US');
+                VoiceApp.speakText(dStr.resumeAudio, 3, p.lang==='zh'?'zh-TW':'en-US');
             } else {
-                Object.assign(RunAcc, { sec:0, spd:0, inc:0, hr:0, lac:0, mxS:0, mxI:0, mxH:0, mxL:0, dKm:0, fCal:0, cCal:0, zs:[0,0,0,0,0], transF:{}, actualSpd:0, actualInc:0, hrOvershoot:0, deadzoneTimer:0, hysteresisCap:{}, pauseCount:0, lastPauseMs:0, pausePenalty:false });
+                resetRunAcc();
                 let totalDist = AppState.state.snapshot.reduce((s,x)=>s+x.dist, 0); let totalKcal = Math.round(AppState.state.snapshot.reduce((s,x)=>s+x.cal, 0));
                 let distStr = (isMet ? totalDist : totalDist / 1.609344).toFixed(2) + " " + (isMet ? dStr.unitKm : dStr.unitMi);
                 VoiceApp.speakText(dStr.intro[`p${p.lastProg}`], 3, p.lang==='zh'?'zh-TW':'en-US');
                 VoiceApp.speakText(dStr.introDist.replace('{d}', distStr).replace('{k}', totalKcal), 3, p.lang==='zh'?'zh-TW':'en-US');
                 let initTrans = dStr.transMsg.replace('{s}', (isMet?AppState.state.snapshot[0].spd:AppState.state.snapshot[0].spd/1.609344).toFixed(1)).replace('{i}', AppState.state.snapshot[0].inc.toFixed(1));
-                VoiceApp.speakText(initTrans, 2, p.lang==='zh'?'zh-TW':'en-US');
+                VoiceApp.speakText(initTrans, 3, p.lang==='zh'?'zh-TW':'en-US');
             }
             AppState.state.runStatus = 'RUNNING'; AppState.state.activeTab = 'settings';
         });
@@ -1498,11 +1557,9 @@ class AppController {
         const stopHold = () => { btnEnd.classList.remove('holding'); clearTimeout(this.holdTimer); };
         btnEnd.addEventListener('pointerdown', startHold); btnEnd.addEventListener('pointerup', stopHold); btnEnd.addEventListener('pointerleave', stopHold); btnEnd.addEventListener('touchcancel', stopHold);
 
-        document.getElementById('rmName').addEventListener('input', e => {
-            let n = e.target.value.trim(); let isNew = document.querySelector('.runner-tag.add-new').classList.contains('active');
-            if (isNew && AppState.state.profiles[n]) { document.getElementById('nameInputWrap').classList.add('error'); document.getElementById('nameErrorMsg').classList.add('show'); document.getElementById('btnRmSave').disabled = true; } 
-            else { document.getElementById('nameInputWrap').classList.remove('error'); document.getElementById('nameErrorMsg').classList.remove('show'); document.getElementById('btnRmSave').disabled = !n; }
-        });
+        // Centralized Form Validation Binding
+        let rmForm = document.getElementById('runnerModal');
+        rmForm.addEventListener('input', () => this.validateRunnerForm());
 
         document.querySelectorAll('.segmented-control').forEach(c => {
             c.addEventListener('click', e => {
@@ -1518,13 +1575,27 @@ class AppController {
                         let lblM = b.dataset.val === 'metric' ? 'kg' : 'lbs'; document.getElementById('unitWgt').textContent = lblM; document.getElementById('unitSmm').textContent = lblM;
                         let lblS = b.dataset.val === 'metric' ? 'kph' : 'mph'; document.getElementById('unitMxS2').textContent = lblS; document.getElementById('unitMnS2').textContent = lblS;
                     }
-                    if(AppState.state.runStatus === 'PAUSED') { let op = AppState.state.profiles[AppState.state.activeP]; op[isUnit ? 'unit' : 'lang'] = b.dataset.val; VoiceApp.hardReset(); this.updateI18n(); this.updateUI(); this.charts.drawAll(); }
+                    if(AppState.state.runStatus === 'PAUSED') { let op = AppState.state.profiles[AppState.state.activeP]; op[isUnit ? 'unit' : 'lang'] = b.dataset.val; VoiceApp.hardReset(); this.updateI18n(); this.updateUIDataOnly(); this.charts.drawAll(); }
                 }
             });
         });
         
         document.getElementById('histRunnerSelect').addEventListener('change', () => this.openHistory());
-        BgWorker.onmessage = e => { if (AppState.state.runStatus === 'RUNNING' || AppState.state.runStatus === 'RAMPDOWN') { this.logicTick(e.data.dt); } };
+        BgWorker.onmessage = e => { if (AppState.state.runStatus === 'RUNNING' || AppState.state.runStatus === 'RAMPDOWN' || AppState.state.runStatus === 'OVERTIME') { this.logicTick(e.data.dt); } };
+    }
+
+    validateRunnerForm() {
+        let name = document.getElementById('rmName').value.trim(); 
+        let isNew = document.querySelector('.runner-tag.add-new').classList.contains('active');
+        let isValid = true;
+        if (!name) isValid = false;
+        if (isNew && AppState.state.profiles[name]) {
+            document.getElementById('nameInputWrap').classList.add('error'); document.getElementById('nameErrorMsg').classList.add('show'); isValid = false;
+        } else {
+            document.getElementById('nameInputWrap').classList.remove('error'); document.getElementById('nameErrorMsg').classList.remove('show');
+        }
+        document.getElementById('btnRmSave').disabled = !isValid;
+        return isValid;
     }
 
     switchRunner(name) {
@@ -1555,23 +1626,30 @@ class AppController {
         setV('hwMxS', isMet?hw.maxSpd:hw.maxSpd/1.609344); setV('hwMnS', isMet?hw.minSpd:hw.minSpd/1.609344); setV('hwMxI', hw.maxInc); setV('hwMnI', hw.minInc);
         const setS = (id, v) => { let c=document.getElementById(id); c.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active')); let b=c.querySelector(`[data-val="${v}"]`); if(b) { b.classList.add('active'); c.querySelector('.seg-indicator').style.left= b.dataset.idx === '0' ? '4px' : 'calc(50% + 0px)'; } };
         setS('segLang', p.lang||'zh'); setS('segVoice', p.voiceOn?'on':'off'); setS('segUnit', p.unit); setS('segSex', p.gender);
-        document.getElementById('btnRmDelete').disabled = Object.keys(AppState.state.profiles).length <= 1;
+        this.validateRunnerForm();
     }
 
     renderRunnerSelector() {
         let wrap = document.getElementById('runnerSelectorRow'); wrap.innerHTML = ''; let d = i18n[AppState.state.profiles[AppState.state.activeP].lang] || i18n['zh'];
         Object.keys(AppState.state.profiles).forEach(k => { let t = document.createElement('div'); t.className = `runner-tag ${k===AppState.state.activeP ? 'active':''}`; t.textContent = k; t.dataset.action = 'switch-runner'; t.dataset.name = k; wrap.appendChild(t); });
         let add = document.createElement('div'); add.className = 'runner-tag add-new'; add.textContent = d.btnAdd; add.dataset.action = 'add-runner-mode'; wrap.appendChild(add);
-        document.getElementById('nameInputWrap').classList.remove('error'); document.getElementById('nameErrorMsg').classList.remove('show'); document.getElementById('btnRmSave').disabled = false;
+        this.validateRunnerForm();
     }
 
     scrollToRow() {
         let cM = Math.floor(AppState.state.accumMs / 60000);
-        document.querySelectorAll('#previewList li').forEach(li => { li.classList.remove('active-row'); li.querySelector('.list-col-spd')?.classList.remove('pulse-spd-active'); li.querySelector('.list-col-inc')?.classList.remove('pulse-inc-active'); });
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-            let r = document.getElementById(`min-row-${cM}`);
-            if(r) { r.classList.add('active-row'); if(AppState.state.activeTab === 'matrix') { let tc2 = document.getElementById('tabContent2'); if(tc2) tc2.scrollTo({ top: r.offsetTop - tc2.clientHeight / 2 + r.clientHeight / 2, behavior: 'smooth' }); } }
-        }));
+        let ul = document.getElementById('previewList');
+        if(!ul) return;
+        Array.from(ul.children).forEach((li, idx) => { 
+            if(idx === cM) {
+                li.classList.add('active-row');
+                if(AppState.state.activeTab === 'matrix') { let tc2 = document.getElementById('tabContent2'); if(tc2) tc2.scrollTo({ top: li.offsetTop - tc2.clientHeight / 2 + li.clientHeight / 2, behavior: 'smooth' }); }
+            } else {
+                li.classList.remove('active-row'); 
+                let s = li.querySelector('.list-col-spd'); if(s) s.classList.remove('pulse-spd-active'); 
+                let i = li.querySelector('.list-col-inc'); if(i) i.classList.remove('pulse-inc-active');
+            }
+        });
     }
 
     setupSubscribers() {
@@ -1587,14 +1665,24 @@ class AppController {
             
             document.getElementById('setup-view').classList.toggle('active', S); document.getElementById('run-view').classList.toggle('active', !S); document.getElementById('runProgressRow').classList.toggle('show', !S);
 
-            if (R || D) { BgWorker.postMessage('START'); clearTimeout(this.pauseTimeout); this.scrollToRow(); } 
-            else { BgWorker.postMessage('STOP'); VoiceApp.clear(); this.releaseWakeLock(); if(s === 'PAUSED') this.pauseTimeout = setTimeout(()=>this.endWorkout(), 3600000); else clearTimeout(this.pauseTimeout); }
+            if (R || D) { 
+                BgWorker.postMessage('START'); clearTimeout(this.pauseTimeout); 
+                if (AppState.state.activeTab === 'matrix') this.renderPreviewList();
+                this.scrollToRow(); 
+            } 
+            else { 
+                BgWorker.postMessage('STOP'); VoiceApp.clear(); this.releaseWakeLock(); 
+                if(s === 'PAUSED') this.pauseTimeout = setTimeout(()=>this.endWorkout(), 3600000); else clearTimeout(this.pauseTimeout); 
+            }
         });
 
         AppState.subscribe('activeTab', t => {
             let isS = t === 'settings'; document.getElementById('tabSettings').classList.toggle('active', isS); document.getElementById('tabMatrix').classList.toggle('active', !isS);
             document.getElementById('tabIndicator').style.transform = isS ? 'translateX(0)' : 'translateX(100%)'; document.getElementById('viewsSlider').style.transform = isS ? 'translateX(0)' : 'translateX(-50%)';
-            if(!isS) this.scrollToRow();
+            if(!isS) { 
+                if(AppState.state.isMatrixDirty) this.renderPreviewList();
+                this.scrollToRow(); 
+            }
         });
 
         AppState.subscribe('uiLocked', locked => {
@@ -1606,15 +1694,21 @@ class AppController {
     logicTick(dt) {
         let m = AppState.state.matrix; let totMs = m.length * 60000; let ms = AppState.state.accumMs;
         
-        if (dt > 2500 && AppState.state.runStatus === 'RUNNING') {
+        // Wormhole Fast-Forward
+        if (dt > 2500 && (AppState.state.runStatus === 'RUNNING' || AppState.state.runStatus === 'RAMPDOWN' || AppState.state.runStatus === 'OVERTIME')) {
             if (dt > 7200000) { this.endWorkout(); return; }
             VoiceApp.clear(); 
-            let slices = Math.ceil(dt / 1000); let sliceDt = dt / slices;
-            for(let i=0; i<slices; i++) { this._processPhysicsTick(sliceDt, true); }
+            let slices = Math.floor(dt / 1000);
+            for(let i=0; i<slices; i++) { this._processPhysicsTick(1000, true); }
+            let rem = dt % 1000;
+            if(rem > 0) this._processPhysicsTick(rem, true);
+            this.charts.drawAll();
+            this.scrollToRow();
         } else { 
             this._processPhysicsTick(dt, false); 
         }
 
+        // State Machine
         if (ms >= totMs && AppState.state.runStatus === 'RUNNING') {
             let p = AppState.state.profiles[AppState.state.activeP];
             if (RunAcc.dKm < p.tKm - 0.05) {
@@ -1622,6 +1716,8 @@ class AppController {
                 AppState.state.runStatus = 'RAMPDOWN';
                 RunAcc.rampdownMs = 0;
                 let dStr = i18n[p.lang] || i18n['zh'];
+                document.getElementById('massiveTime').classList.add('warn');
+                document.getElementById('topProgressBar').style.background = 'var(--neon-yellow)';
                 VoiceApp.speakText(dStr.otRamp, 1, p.lang==='zh'?'zh-TW':'en-US');
             } else { this.endWorkout(); }
         } else if (AppState.state.runStatus === 'OVERTIME') {
@@ -1643,23 +1739,33 @@ class AppController {
             
             TweenApp.to('runValSpd', isMet?RunAcc.actualSpd:RunAcc.actualSpd/1.609344, v => v.toFixed(1)); TweenApp.to('runValInc', RunAcc.actualInc, v => v.toFixed(1));
             
-            if (RunAcc.rampdownMs > 60000) { document.getElementById('overtimeModal').classList.add('show'); BgWorker.postMessage('STOP'); }
+            if (RunAcc.rampdownMs > 60000) { 
+                document.getElementById('overtimeModal').classList.add('show'); BgWorker.postMessage('STOP'); 
+                // AFK Auto-termination
+                clearTimeout(this.otIdleTimer);
+                this.otIdleTimer = setTimeout(() => {
+                    document.getElementById('overtimeModal').classList.remove('show');
+                    this.endWorkout();
+                }, 180000);
+            }
             return;
         }
 
         AppState.state.accumMs += dt; ms += dt;
         let cM = Math.floor(ms/60000); let cS = ms%60000;
-        let curM = m[cM] || m[m.length - 1]; let nextM = m[cM+1] || curM; let sr = dt/60000; 
+        let safeM = Math.min(cM, m.length - 1);
+        let curM = m[safeM]; let nextM = m[Math.min(safeM + 1, m.length - 1)]; let sr = dt/60000; 
 
         let targetSpd = curM.spd; let targetInc = curM.inc;
         
-        if (cS > 45000 && nextM) {
+        if (cS > 45000 && safeM < m.length - 1) {
             let frac = (cS - 45000) / 15000;
             targetSpd = curM.spd * (1 - frac) + nextM.spd * frac;
             targetInc = curM.inc * (1 - frac) + nextM.inc * frac;
         }
 
-        if (RunAcc.hysteresisCap[cM]) { targetSpd = Math.min(targetSpd, RunAcc.hysteresisCap[cM]); }
+        // Execute Hysteresis Cap (persist across recalc)
+        if (RunAcc.hysteresisCap[safeM]) { targetSpd = Math.min(targetSpd, RunAcc.hysteresisCap[safeM]); }
         if (AppState.state.runStatus === 'OVERTIME') { targetSpd = RunAcc.otSpd; targetInc = RunAcc.otInc; }
 
         if (targetSpd >= 7.2 && targetSpd <= 7.6 && targetInc > 8.0 && AppState.state.runStatus !== 'OVERTIME') {
@@ -1673,34 +1779,50 @@ class AppController {
         
         RunAcc.actualSpd = Utils.round(RunAcc.actualSpd); RunAcc.actualInc = Utils.round(RunAcc.actualInc);
 
-        RunAcc.sec += dt/1000; RunAcc.spd += RunAcc.actualSpd * (dt/1000); if(RunAcc.actualSpd > RunAcc.mxS) RunAcc.mxS = RunAcc.actualSpd;
-        RunAcc.inc += RunAcc.actualInc * (dt/1000); if(RunAcc.actualInc > RunAcc.mxI) RunAcc.mxI = RunAcc.actualInc;
-        RunAcc.dKm += RunAcc.actualSpd * (dt / 3600000); 
-
+        // Data Moat (NaN guard)
         let sm = RunAcc.actualSpd * 16.6667; let id = RunAcc.actualInc / 100;
         let RE = pClean.gender === 'F' ? 1.05 : 1.0; if(pClean.smm / pClean.wKG > (pClean.gender==='M' ? 0.4 : 0.35)) RE -= 0.05; 
         let vo2D = (RunAcc.actualSpd <= 7.0 ? (3.5 + 0.1*sm + 1.8*sm*id) : (3.5 + 0.2*sm + 0.9*sm*id)) * RE;
-        if(cM < Math.max(2, Math.floor(m.length*0.05))) vo2D *= 0.9;
+        
+        if (!Number.isFinite(vo2D)) vo2D = 10; // Moat fallback
+        if(safeM < Math.max(2, Math.floor(m.length*0.05))) vo2D *= 0.9;
         
         let effortRatio = vo2D / pClean.vo2; let smoothedTargetPct = effortRatio < 0.6 ? effortRatio : (1.0 - 0.4 * Math.exp(-2.5 * (effortRatio - 0.6)));
         let tHR = pClean.rHR ? pClean.rHR + ((pClean.mHR - pClean.rHR) * smoothedTargetPct) : Math.min(pClean.mHR, 60 + smoothedTargetPct * (pClean.mHR - 60));
+        if (!Number.isFinite(tHR)) tHR = 110;
+
         if (RunAcc.hr === 0) RunAcc.hr = pClean.rHR || 75;
-        RunAcc.hr += (tHR - RunAcc.hr) * (0.1 * dt/1000);
+        let newHr = RunAcc.hr + (tHR - RunAcc.hr) * (0.1 * dt/1000);
+        if (Number.isFinite(newHr)) RunAcc.hr = newHr; else RunAcc.moatCount++;
+        
         if(RunAcc.hr > RunAcc.mxH) RunAcc.mxH = Math.round(RunAcc.hr);
         
         let lacThresh = pClean.vo2 > 60 ? 0.9 : 0.8; let pHR = RunAcc.hr / pClean.mHR;
         if(RunAcc.lac === 0) RunAcc.lac = 1.0;
-        if(pHR < lacThresh - 0.05) { RunAcc.lac += (1.0 - RunAcc.lac) * (0.01 * dt/1000); } 
-        else if(pHR < lacThresh + 0.05) { RunAcc.lac += (2.5 - RunAcc.lac) * (0.005 * dt/1000); } 
-        else { let acidStress = Math.min(1.0, (pHR - (lacThresh + 0.05)) * 5); RunAcc.lac += Math.pow(acidStress, 3) * (0.05 * dt/1000); }
+        let newLac = RunAcc.lac;
+        if(pHR < lacThresh - 0.05) { newLac += (1.0 - RunAcc.lac) * (0.01 * dt/1000); } 
+        else if(pHR < lacThresh + 0.05) { newLac += (2.5 - RunAcc.lac) * (0.005 * dt/1000); } 
+        else { let acidStress = Math.min(1.0, (pHR - (lacThresh + 0.05)) * 5); newLac += Math.pow(acidStress, 3) * (0.05 * dt/1000); }
+        
+        if (Number.isFinite(newLac)) RunAcc.lac = newLac; else RunAcc.moatCount++;
         if(RunAcc.lac > RunAcc.mxL) RunAcc.mxL = RunAcc.lac;
         
+        // Circuit Breaker Reset
+        if (RunAcc.moatCount > 50 && !RunAcc.moatTriggered) {
+            RunAcc.moatTriggered = true; RunAcc.hr = 110; RunAcc.lac = 1.5;
+            NotificationManager.show("生理參數異常，切換至安全基線", true);
+        }
+
+        RunAcc.sec += dt/1000; RunAcc.spd += RunAcc.actualSpd * (dt/1000); if(RunAcc.actualSpd > RunAcc.mxS) RunAcc.mxS = RunAcc.actualSpd;
+        RunAcc.inc += RunAcc.actualInc * (dt/1000); if(RunAcc.actualInc > RunAcc.mxI) RunAcc.mxI = RunAcc.actualInc;
+        RunAcc.dKm += RunAcc.actualSpd * (dt / 3600000); 
+
         let z = pHR < 0.6 ? 1 : (pHR < 0.7 ? 2 : (pHR < 0.8 ? 3 : (pHR < 0.9 ? 4 : 5))); RunAcc.zs[z - 1] += sr;
         
         let rerBase = 0.7 + (pHR * 0.3); let fitnessAdj = (pClean.vo2 - 35) * 0.005 + (pClean.smm / pClean.wKG - 0.35) * 0.5 - (pClean.bf - 15) * 0.002;
         let rer = Utils.clamp(rerBase - fitnessAdj, 0.7, 1.0); let pctCarb = (rer - 0.7) / 0.3; let pctFat = 1.0 - pctCarb;
         let kcalTick = ((vo2D * pClean.wKG * 5) / 1000) * sr;
-        RunAcc.fCal += kcalTick * pctFat; RunAcc.cCal += kcalTick * pctCarb;
+        if(Number.isFinite(kcalTick)) { RunAcc.fCal += kcalTick * pctFat; RunAcc.cCal += kcalTick * pctCarb; }
 
         let isOvertime = AppState.state.runStatus === 'OVERTIME';
         if ((!isOvertime && curM.z <= 3 && pHR > lacThresh + 0.02) || (isOvertime && pHR > lacThresh)) {
@@ -1711,10 +1833,10 @@ class AppController {
                 if (isOvertime) {
                     RunAcc.otSpd = Math.max(4.0, RunAcc.otSpd - 0.5);
                     RunAcc.hrOvershoot = 0; 
-                    VoiceApp.speakText(dStr.bioWarnHr, 2, p.lang==='zh'?'zh-TW':'en-US');
-                } else if (!RunAcc.hysteresisCap[cM]) {
-                    RunAcc.hysteresisCap[cM] = Math.max(AppState.state.hw.minSpd, targetSpd - 1.0);
-                    VoiceApp.speakText(dStr.bioWarnHr, 2, p.lang==='zh'?'zh-TW':'en-US');
+                    VoiceApp.speakText(dStr.bioWarnHr, 1, p.lang==='zh'?'zh-TW':'en-US'); // P1 in overtime
+                } else if (!RunAcc.hysteresisCap[safeM]) {
+                    RunAcc.hysteresisCap[safeM] = Math.max(AppState.state.hw.minSpd, targetSpd - 1.0);
+                    VoiceApp.speakText(dStr.bioWarnHr, 1, p.lang==='zh'?'zh-TW':'en-US'); // P1
                 }
             }
         } else { RunAcc.hrOvershoot = 0; }
@@ -1722,11 +1844,13 @@ class AppController {
         if (isWarping) return;
 
         let rMs = Math.max(0, totMs - ms); let pct = Math.min(100, (ms / totMs) * 100);
-        document.getElementById('topProgressText').textContent = pct.toFixed(1) + '%'; document.getElementById('topProgressBar').style.width = pct.toFixed(1) + '%'; document.getElementById('topRemainingTime').textContent = '-' + Utils.fmtTime(rMs);
+        if (isOvertime) pct = Math.min(100, (RunAcc.dKm / p.tKm) * 100);
+        document.getElementById('topProgressText').textContent = pct.toFixed(1) + '%'; document.getElementById('topProgressBar').style.width = pct.toFixed(1) + '%'; 
+        if(!isOvertime) document.getElementById('topRemainingTime').textContent = '-' + Utils.fmtTime(rMs); else document.getElementById('topRemainingTime').textContent = '+' + Utils.fmtTime(ms - totMs);
         Binder.update('massiveTime', Utils.fmtTime(ms, false));
         
         let elSpd = document.getElementById('runValSpd'); TweenApp.to('runValSpd', isMet?RunAcc.actualSpd:RunAcc.actualSpd/1.609344, v => v.toFixed(1)); 
-        if(RunAcc.hysteresisCap[cM]) elSpd.classList.add('val-capped'); else elSpd.classList.remove('val-capped');
+        if(RunAcc.hysteresisCap[safeM]) elSpd.classList.add('val-capped'); else elSpd.classList.remove('val-capped');
         TweenApp.to('runValInc', RunAcc.actualInc, v => v.toFixed(1));
 
         Binder.updateBatch({ runDist: (isMet?RunAcc.dKm:RunAcc.dKm/1.609344).toFixed(2), runCal: `${Math.floor(RunAcc.fCal+RunAcc.cCal)} kcal`, runHr: Math.round(RunAcc.hr), runLac: RunAcc.lac.toFixed(1), runPace: Utils.getPaceStr(RunAcc.actualSpd, isMet) });
@@ -1741,29 +1865,43 @@ class AppController {
         if (Math.floor(ms/1000) !== Math.floor((ms-dt)/1000)) this.charts.drawAll(); 
         if (oldM !== cM) this.scrollToRow();
 
-        if (AppState.state.runStatus === 'OVERTIME') return;
-        if(!RunAcc.transF[cM]) RunAcc.transF[cM] = { t: false, p: false, autoTab: false, autoTabBack: false };
-        if(cS > 43000 && nextM && !RunAcc.transF[cM].autoTab) {
-            RunAcc.transF[cM].autoTab = true; 
-            if(nextM.phase !== curM.phase) { if(AppState.state.activeTab === 'settings') AppState.state.activeTab = 'matrix'; }
+        if (isOvertime) return;
+        if(!RunAcc.transF[safeM]) RunAcc.transF[safeM] = { t: false, p: false, autoTab: false, autoTabBack: false };
+        
+        if(cS > 43000 && safeM < m.length - 1 && !RunAcc.transF[safeM].autoTab) {
+            RunAcc.transF[safeM].autoTab = true; 
+            if(nextM.phase !== curM.phase) { 
+                let tc1 = document.getElementById('tabContent1'); let tc2 = document.getElementById('tabContent2');
+                // Intent check: is user touching?
+                if (!tc1.matches(':active') && !tc2.matches(':active') && AppState.state.activeTab === 'settings') {
+                    AppState.state.activeTab = 'matrix'; 
+                }
+                // Neon Pulse
+                let nRow = document.getElementById(`min-row-${safeM+1}`);
+                if(nRow) {
+                    if(Math.abs(nextM.spd - curM.spd) >= 0.2) nRow.querySelector('.list-col-spd').classList.add('pulse-spd-active');
+                    if(Math.abs(nextM.inc - curM.inc) >= 0.5) nRow.querySelector('.list-col-inc').classList.add('pulse-inc-active');
+                }
+            }
         }
-        if(cS > 45000 && nextM && !RunAcc.transF[cM].t) {
-            RunAcc.transF[cM].t = true; 
+        if(cS > 45000 && safeM < m.length - 1 && !RunAcc.transF[safeM].t) {
+            RunAcc.transF[safeM].t = true; 
             if(nextM.phase !== curM.phase) {
                 if (cS < 50000) { VoiceApp.speakText(Utils.PRNG.get(p.lang||'en', 'trans', VoiceDB[p.lang||'en'].trans), 3, p.lang==='zh'?'zh-TW':'en-US'); }
                 else {
+                    AppState.state.activeTab = 'settings'; // Force focus back
                     let vS = document.getElementById('runValSpd'); let vI = document.getElementById('runValInc');
                     if(Math.abs(nextM.spd - curM.spd) >= 0.2) { vS.classList.add('flash'); setTimeout(()=>vS.classList.remove('flash'), 1200); }
                     if(Math.abs(nextM.inc - curM.inc) >= 0.5) { vI.classList.add('flash'); setTimeout(()=>vI.classList.remove('flash'), 1200); }
                 }
             }
         }
-        if(cS > 1000 && cS < 5000 && cM > 0 && !RunAcc.transF[cM-1].autoTabBack) {
-            RunAcc.transF[cM-1].autoTabBack = true;
+        if(cS > 1000 && cS < 5000 && safeM > 0 && !RunAcc.transF[safeM-1].autoTabBack) {
+            RunAcc.transF[safeM-1].autoTabBack = true;
             if(AppState.state.activeTab === 'matrix') AppState.state.activeTab = 'settings';
         }
-        if(cS > 25000 && !RunAcc.transF[cM].p) {
-            RunAcc.transF[cM].p = true; VoiceApp.evaluateAndSpeak({ hr: RunAcc.hr, lac: RunAcc.lac, spd: RunAcc.actualSpd, inc: RunAcc.actualInc, phase: curM.phase }, pClean.age, pClean.pMaxLac);
+        if(cS > 25000 && !RunAcc.transF[safeM].p) {
+            RunAcc.transF[safeM].p = true; VoiceApp.evaluateAndSpeak({ hr: RunAcc.hr, lac: RunAcc.lac, spd: RunAcc.actualSpd, inc: RunAcc.actualInc, phase: curM.phase }, pClean.age, pClean.pMaxLac);
         }
     }
 
@@ -1778,6 +1916,8 @@ class AppController {
         
         RunAcc.otSpd = trySpd; RunAcc.otInc = tryInc;
         AppState.state.uiLocked = true;
+        document.getElementById('massiveTime').classList.remove('warn');
+        document.getElementById('topProgressBar').style.background = 'var(--neon-green)';
         VoiceApp.speakText(dStr.otBegin, 1, p.lang==='zh'?'zh-TW':'en-US');
         
         AppState.state.runStatus = 'OVERTIME';
@@ -1796,23 +1936,41 @@ class AppController {
         
         document.getElementById('anaerobicWarning').classList.toggle('show', res.isAnaerobicWarning);
         
-        if(fullReset) this.updateUI();
+        AppState.state.isMatrixDirty = true;
+        
+        if(fullReset) this.updateUIDataOnly();
         if(res.rollbackDist) { setTimeout(() => this.syncDialsToProfile(res.rollbackDist), 100); } 
         else { setTimeout(() => this.syncDialsToProfile(), 100); }
     }
 
-    updateUI() {
-        let p = PhysioEngine.sanitize(AppState.state.profiles[AppState.state.activeP]); let isMet = p.unit !== 'imperial'; let d = i18n[p.lang] || i18n['zh'];
+    renderPreviewList() {
+        let ul = document.getElementById('previewList'); 
+        let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial'; let d = i18n[p.lang] || i18n['zh'];
+        let m = AppState.state.snapshot; let vdb = d.phases;
         
-        let ul = document.getElementById('previewList'); ul.innerHTML = ''; let m = AppState.state.snapshot;
-        let vdb = d.phases;
-        m.forEach((r, i) => {
-            let li = document.createElement('li'); li.id = `min-row-${i}`; li.className = 'pace-grid-row';
-            let isMaxLac = r.lac >= p.pMaxLac; if(isMaxLac) li.classList.add('max-lac-row');
-            li.innerHTML = `<span class="list-col-time">${Utils.fmtTime(i*60000)}</span><span class="list-col-inc">${r.inc.toFixed(1)}%</span><span class="list-col-spd">${(isMet?r.spd:r.spd/1.609344).toFixed(1)}</span><span class="list-col-phase">${vdb[r.phase]||r.phase}</span><span class="list-col-hr" style="${isMaxLac?'color:var(--neon-red);':''}">${r.hr}</span><span class="list-col-lac">${r.lac.toFixed(1)}</span>`;
-            ul.appendChild(li);
-        });
+        if(ul.children.length !== m.length) {
+            ul.innerHTML = '';
+            m.forEach((r, i) => {
+                let li = document.createElement('li'); li.id = `min-row-${i}`; li.className = 'pace-grid-row';
+                let isMaxLac = r.lac >= p.pMaxLac; if(isMaxLac) li.classList.add('max-lac-row');
+                li.innerHTML = `<span class="list-col-time">${Utils.fmtTime(i*60000)}</span><span class="list-col-inc">${r.inc.toFixed(1)}%</span><span class="list-col-spd">${(isMet?r.spd:r.spd/1.609344).toFixed(1)}</span><span class="list-col-phase">${vdb[r.phase]||r.phase}</span><span class="list-col-hr" style="${isMaxLac?'color:var(--neon-red);':''}">${r.hr}</span><span class="list-col-lac">${r.lac.toFixed(1)}</span>`;
+                ul.appendChild(li);
+            });
+        } else {
+            // DOM Patching
+            m.forEach((r, i) => {
+                let li = ul.children[i];
+                let isMaxLac = r.lac >= p.pMaxLac;
+                li.className = 'pace-grid-row'; if(isMaxLac) li.classList.add('max-lac-row');
+                li.innerHTML = `<span class="list-col-time">${Utils.fmtTime(i*60000)}</span><span class="list-col-inc">${r.inc.toFixed(1)}%</span><span class="list-col-spd">${(isMet?r.spd:r.spd/1.609344).toFixed(1)}</span><span class="list-col-phase">${vdb[r.phase]||r.phase}</span><span class="list-col-hr" style="${isMaxLac?'color:var(--neon-red);':''}">${r.hr}</span><span class="list-col-lac">${r.lac.toFixed(1)}</span>`;
+            });
+        }
+        AppState.state.isMatrixDirty = false;
+    }
 
+    updateUIDataOnly() {
+        let p = PhysioEngine.sanitize(AppState.state.profiles[AppState.state.activeP]); let isMet = p.unit !== 'imperial'; let d = i18n[p.lang] || i18n['zh'];
+        let m = AppState.state.snapshot;
         document.getElementById('lblBtnLeft').textContent = AppState.state.activeP.substring(0,8);
         
         let pg = document.getElementById('progGrid'); pg.innerHTML = '';
@@ -1824,6 +1982,8 @@ class AppController {
             if(p.lastProg === idx + 1) { btn.classList.add('selected'); if(AppState.state.runStatus === 'STOPPED') setTimeout(() => { if (pg && btn) pg.scrollTo({ left: btn.offsetLeft - pg.clientWidth / 2 + btn.clientWidth / 2, behavior: 'smooth' }); }, 50); } 
             else { btn.classList.remove('selected'); }
         });
+        
+        if (AppState.state.activeTab === 'matrix') this.renderPreviewList();
         
         let aS=m.reduce((s,x)=>s+x.spd,0)/m.length, aI=m.reduce((s,x)=>s+x.inc,0)/m.length, aH=m.reduce((s,x)=>s+x.hr,0)/m.length, aL=m.reduce((s,x)=>s+x.lac,0)/m.length;
         let totDist = m.reduce((s,x)=>s+x.dist,0);
@@ -1890,6 +2050,7 @@ class AppController {
             let dKm = Utils.round(RunAcc.dKm); let fCal = Utils.round(RunAcc.fCal); let cCal = Utils.round(RunAcc.cCal);
             let avgSpdKm = Utils.round(RunAcc.spd / RunAcc.sec); let avS = RunAcc.spd / RunAcc.sec; let avI = RunAcc.inc / RunAcc.sec; let avH = RunAcc.hr / RunAcc.sec; let avL = RunAcc.lac / RunAcc.sec;
             
+            // Build downsampled matrix for history
             let dsMatrix = []; let step = Math.ceil(AppState.state.matrix.length / 180);
             for(let i=0; i<AppState.state.matrix.length; i+=step) { dsMatrix.push(AppState.state.matrix[i]); }
             
@@ -1904,6 +2065,9 @@ class AppController {
         AppState.state.runStatus = 'STOPPED'; AppState.state.accumMs = 0; AppState.state.activeTab = 'settings';
         sessionStorage.removeItem('runState_v36'); this.recalc(); document.getElementById('silentAudio').pause();
         document.getElementById('topProgressText').textContent = '0%'; document.getElementById('topProgressBar').style.width = '0%'; document.getElementById('topRemainingTime').textContent = '-00:00';
+        
+        // Ensure perfect state reset for next run
+        resetRunAcc();
     }
 
     showSummaryModal(ms, totMs, dKm, fCal, cCal, zArray, m, speak = false, penalty = false) {
@@ -1924,7 +2088,7 @@ class AppController {
             let proFactor = Math.max(1.2, Math.min(2.2, (1.2 + Math.max(0, pClean.smm/pClean.wKG - 0.3) * 4) * ageFactor * bmrFactor));
             let dailyPro = Math.round(pClean.wKG * proFactor + (tCal / 100));
             let postPro = Math.round(Math.min(65, Math.max(20, pClean.wKG * 0.3 * ageFactor + (tCal / 200) * 4)));
-            let postCarb = Math.round(cCal / 4);
+            let postCarb = Math.round(cCal / 4); // Replenish exact carb burned
             
             let strPost = iStr.nutriPost.replace('{p}', postPro).replace('{c}', postCarb); let strDaily = iStr.nutriDaily.replace('{p}', dailyPro);
             nutriHtml = `<div style="margin-top:15px; padding-top:15px; border-top:1px dashed #333; text-align:left;"><strong style="color:var(--neon-yellow);"><svg viewBox="0 0 24 24" class="svg-icon" style="fill:currentColor; width:16px; height:16px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/></svg>${iStr.nutriRx}</strong><br><span style="color:var(--gray-light); font-size:0.95rem; line-height: 1.6;">${strPost}<br>${strDaily}</span></div>`;
