@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>60分鐘全自動計時核心與超慢跑訓練</title>
+    <style>
+        /* 基礎樣式重置 - 無需外部 CSS */
+        body, html { 
+            margin: 0; padding: 0; height: 100vh; overflow: hidden; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            background-color: #1a1a1a; color: #ffffff; 
+            -webkit-tap-highlight-color: transparent;
+        }
+        * { box-sizing: border-box; }
+
+        /* 歡迎頁面 */
+        #start-screen {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh; padding: 20px; text-align: center;
+            position: absolute; top: 0; left: 0; width: 100%;
+            background: #1a1a1a; z-index: 100; transition: opacity 0.5s;
+        }
+        #start-screen h1 { color: #f59e0b; margin-bottom: 10px; font-size: 2rem; }
+        #start-screen p { color: #a3a3a3; font-size: 0.9rem; line-height: 1.6; margin-bottom: 40px; max-width: 400px; }
+        #start-btn {
+            background: #d97706; color: white; border: none; padding: 20px 40px;
+            font-size: 1.5rem; font-weight: bold; border-radius: 50px;
+            box-shadow: 0 10px 20px rgba(217, 119, 6, 0.4); cursor: pointer;
+            transition: transform 0.1s, background 0.2s; display: flex; align-items: center; gap: 10px;
+        }
+        #start-btn:active { transform: scale(0.95); }
+
+        /* 應用主畫面 (雙層版面架構) */
+        #app-screen {
+            display: none; flex-direction: column; height: 100vh; width: 100%;
+            transition: background-color 0.5s;
+        }
+
+        /* 頂部控制列 */
+        .top-bar {
+            position: absolute; top: 0; left: 0; width: 100%; padding: 15px 20px;
+            display: flex; justify-content: space-between; align-items: center; z-index: 20;
+        }
+        .total-time { font-family: monospace; font-size: 1rem; color: rgba(255,255,255,0.7); font-weight: bold; }
+        .controls { display: flex; gap: 10px; }
+        .btn-control {
+            background: rgba(255,255,255,0.15); border: none; color: white;
+            width: 44px; height: 44px; border-radius: 22px; font-size: 1.2rem;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            backdrop-filter: blur(5px);
+        }
+        .btn-control.reset { background: rgba(239, 68, 68, 0.8); }
+        .btn-control:active { transform: scale(0.9); }
+
+        /* 上半部：計時器區 (40vh) */
+        .timer-section {
+            height: 40vh; display: flex; flex-direction: column; justify-content: center; align-items: center;
+            position: relative; flex-shrink: 0; padding-top: 20px;
+        }
+        #time-display {
+            font-size: 6.5rem; font-weight: 800; line-height: 1; margin: 5px 0;
+            font-variant-numeric: tabular-nums; letter-spacing: -2px; transition: color 0.3s;
+        }
+        #phase-name { font-size: 1.4rem; font-weight: bold; text-align: center; padding: 0 15px; }
+        #progress-container {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 8px; background: rgba(0,0,0,0.4);
+        }
+        #progress-bar {
+            height: 100%; width: 100%; background: #f59e0b; transition: width 1s linear, background-color 0.3s;
+        }
+
+        /* 超慢跑節拍器虛擬圓圈動畫 */
+        #ping-circle {
+            position: absolute; width: 220px; height: 220px; border-radius: 50%;
+            border: 4px solid #34d399; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            opacity: 0; pointer-events: none; display: none;
+        }
+        @keyframes ping {
+            0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0.8; }
+            100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
+        }
+        .anim-ping { display: block !important; animation: ping 0.3333s infinite; }
+
+        /* 下半部：資訊與警告區 (60vh) */
+        .info-section {
+            height: 60vh; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px;
+            background: rgba(0,0,0,0.15); box-shadow: inset 0 10px 20px rgba(0,0,0,0.2);
+            padding-bottom: 40px;
+        }
+        .info-card {
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px; padding: 15px; backdrop-filter: blur(10px);
+        }
+        .info-card h3 {
+            margin: 0 0 6px 0; font-size: 0.75rem; color: rgba(255,255,255,0.5);
+            text-transform: uppercase; letter-spacing: 2px;
+        }
+        .info-card p { margin: 0; font-size: 1.05rem; line-height: 1.5; font-weight: 500; }
+        
+        /* 全螢幕強制警告彈窗 (跑馬燈區塊) */
+        .warning-marquee {
+            background-color: rgba(127, 29, 29, 0.9); color: #ffffff;
+            font-size: 1.15rem; font-weight: bold; line-height: 1.5;
+            padding: 18px; border: 2px dashed #f59e0b; border-radius: 12px;
+            margin-top: auto; flex-shrink: 0; position: sticky; bottom: 10px; z-index: 10;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        .warning-header {
+            background: #b91c1c; display: inline-block; padding: 4px 10px;
+            font-size: 0.75rem; border-radius: 4px; margin-bottom: 8px;
+            text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        /* 狀態主題色 */
+        .theme-work { background-color: #1a1a1a; }
+        .theme-rest { background-color: #0F172A; }
+        .theme-run { background-color: #064E3B; }
+        .theme-done { background-color: #78350f; }
+
+        .text-work { color: #f59e0b; }
+        .text-rest { color: #7dd3fc; }
+        .text-run { color: #6ee7b7; }
+        
+        .bg-work { background-color: #f59e0b; }
+        .bg-rest { background-color: #38bdf8; }
+        .bg-run { background-color: #10b981; }
+        .bg-urgent { background-color: #ef4444 !important; }
+        .text-urgent { color: #ef4444 !important; }
+        
+        .paused-opacity { opacity: 0.3; }
+
+        /* 隱藏未使用的欄位 */
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <!-- 歡迎與授權畫面 -->
+    <div id="start-screen">
+        <h1>核心與超慢跑訓練系統</h1>
+        <p>60分鐘全自動計時，包含全程中文語音導引與避坑提示。<br><br>請解除手機靜音模式，並將音量調大。</p>
+        <button id="start-btn" onclick="startTraining()">
+            ▶️ 開始訓練 (解鎖語音)
+        </button>
+    </div>
+
+    <!-- 訓練主畫面 -->
+    <div id="app-screen">
+        <div class="top-bar">
+            <div class="total-time" id="total-time-display">TOTAL 00:00 / 60:00</div>
+            <div class="controls">
+                <button class="btn-control" id="pause-btn" onclick="togglePause()">⏸️</button>
+                <button class="btn-control reset" onclick="resetTraining()">🔄</button>
+            </div>
+        </div>
+
+        <div class="timer-section" id="timer-section">
+            <div id="ping-circle"></div>
+            <div id="time-display">00:00</div>
+            <div id="phase-name" class="text-work">載入中...</div>
+            <div id="progress-container">
+                <div id="progress-bar"></div>
+            </div>
+        </div>
+
+        <div class="info-section" id="info-section">
+            <div class="info-card" id="card-target">
+                <h3>🎯 目標</h3>
+                <p id="text-target"></p>
+            </div>
+            <div class="info-card" id="card-start">
+                <h3>🎬 起始位置</h3>
+                <p id="text-start"></p>
+            </div>
+            <div class="info-card" id="card-end">
+                <h3>🏁 結束位置</h3>
+                <p id="text-end"></p>
+            </div>
+            <div class="warning-marquee" id="card-warning">
+                <div class="warning-header">⚠️ 避坑指南與警告</div>
+                <div id="text-warning"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ----------------------------------------------------
+        // 核心狀態與變數
+        // ----------------------------------------------------
+        let isTraining = false;
+        let isPaused = false;
+        let startTime = 0;
+        let accumulatedTime = 0;
+        let lastTriggeredSecond = -1;
+        let rafId = null;
+        let audioCtx = null;
+        let nextTickTime = 0.0;
+        let timerId = null;
+        let wakeLock = null;
+        let lastPhaseId = '';
+
+        // ----------------------------------------------------
+        // DOM 元素快取
+        // ----------------------------------------------------
+        const elAppScreen = document.getElementById('app-screen');
+        const elStartScreen = document.getElementById('start-screen');
+        const elTimeDisplay = document.getElementById('time-display');
+        const elPhaseName = document.getElementById('phase-name');
+        const elTotalTime = document.getElementById('total-time-display');
+        const elProgressBar = document.getElementById('progress-bar');
+        const elPauseBtn = document.getElementById('pause-btn');
+        const elPingCircle = document.getElementById('ping-circle');
+        
+        const elCardTarget = document.getElementById('card-target');
+        const elTextTarget = document.getElementById('text-target');
+        const elCardStart = document.getElementById('card-start');
+        const elTextStart = document.getElementById('text-start');
+        const elCardEnd = document.getElementById('card-end');
+        const elTextEnd = document.getElementById('text-end');
+        const elCardWarning = document.getElementById('card-warning');
+        const elTextWarning = document.getElementById('text-warning');
+
+        // ----------------------------------------------------
+        // 錯誤2解法：Web Speech API 佇列管理與切碎短句
+        // ----------------------------------------------------
+        function speakSafe(text) {
+            if (!window.speechSynthesis) return;
+            window.speechSynthesis.cancel(); // 清理舊佇列，防止死鎖
+            
+            // 使用標點符號切碎字句
+            const sentences = text.split(/[，。！、]/);
+            sentences.forEach(sentence => {
+                if (sentence.trim() === '') return;
+                const utterance = new SpeechSynthesisUtterance(sentence);
+                utterance.lang = 'zh-TW';
+                utterance.rate = 1.1; // 稍微加快語速
+                window.speechSynthesis.speak(utterance);
+            });
+        }
+
+        // ----------------------------------------------------
+        // 錯誤1防禦：邊緣觸發狀態機與時間軸對照函數
+        // ----------------------------------------------------
+        function formatTime(secs) {
+            if (secs < 0) secs = 0;
+            let m = Math.floor(secs / 60).toString().padStart(2, '0');
+            let s = (secs % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        function getPhase(second) {
+            if (second < 0) {
+                return {
+                    id: 'prep', type: 'rest', name: '⏳ 準備開始', target: '請就定位',
+                    startPos: '準備進入核心重訓', endPos: '', warning: '',
+                    duration: 12, time: 12 + second,
+                    voice: second === -12 ? '準備開始第一個動作，洗衣精俄羅斯轉體。共做二十次，請注意雙腳踩地，千萬不要用雙臂盲目快轉。' : null
+                };
+            }
+            if (second >= 3600) {
+                return { id: 'done', type: 'done', name: '訓練完成！', duration: 0, time: 0, target: '恭喜您完成了60分鐘的核心與超慢跑訓練！' };
+            }
+            if (second >= 1800) {
+                let t = second - 1800;
+                let target, name, warning, voice = null;
+                if (second < 2100) {
+                    name = '7. 赤足超慢跑 (漸進適應期)';
+                    target = '穩定心率，平穩過渡至 Zone 2，開啟 AMPK 燃脂路徑。';
+                    warning = '腳尖離地不可過高，步伐要小如原地踏步，切勿用力彈跳。絕對禁止後腳跟直接重砸地面，防止震動直擊膝蓋與腰椎。';
+                    if (t === 0) voice = "現在開始，赤足超慢跑，漸進適應期。";
+                } else if (second < 3300) {
+                    name = '8. 赤足超慢跑 (核心燃脂期)';
+                    target = '深度驅動 AMPK 訊號，最大化調用體脂肪進行氧化分解。';
+                    warning = '注意汗水引發的打滑風險！跑步過程中膝關節絕對不能鎖死直立，必須像彈簧一樣微彎。若張嘴喘氣請立刻縮小步幅。';
+                    if (second === 2100) voice = "進入核心燃脂期。";
+                } else {
+                    name = '9. 赤足超慢跑 (極致壓榨期)';
+                    target = '維持 Zone 2 恆定心率，完成最後的全身性代謝平衡。';
+                    warning = '最後階段切勿因求快而加快步頻或加大步幅！雙膝維持彈性懸吊，挺胸不駝背，直到計時器歸零。';
+                    if (second === 3300) voice = "進入極致壓榨期，最後五分鐘。";
+                }
+                return {
+                    id: `run-${Math.floor(second/300)}`, type: 'run', name, target, duration: 1800, time: t, warning, voice,
+                    startPos: '步頻：嚴格跟隨 180 BPM 節奏，雙腳極小幅度交替踏步。 著地：前腳掌蹠骨先著地，腳跟隨即輕輕貼地。 下肢：雙膝微彎。',
+                    endPos: '上半身保持挺直，核心維持微幅剛性。雙手手肘自然彎曲，隨步伐前後擺動。 呼吸：嚴格堅持「用鼻子吸、用鼻子呼」的深沉腹式呼吸。'
+                };
+            }
+            if (second >= 1730) {
+                return {
+                    id: 'transition', type: 'transition', name: '🔄 核心重訓 ➔ 超慢跑無縫轉場', duration: 70, time: second - 1730,
+                    warning: '將兩罐洗衣精安全移至瑜珈墊前後外側固定。在瑜珈墊上鋪平吸汗止滑毛巾。雙腳脫鞋赤足站在墊子上。開啟網頁內建或外部的 180 BPM 節拍器訊號。深呼吸，不坐下，維持核心溫熱。',
+                    voice: second === 1730 ? "核心重訓結束！請在七十秒內放下洗衣精，在瑜珈墊上鋪平吸汗毛巾，脫下鞋子，準備開始赤足超慢跑。" : null
+                };
+            }
+
+            let round = Math.floor(second / 440) + 1;
+            let t = second % 440;
+            let isRight = (round === 1 || round === 3);
+
+            const routine = [
+                { start: 0, duration: 40, fn: () => ({
+                    id: `r${round}-e1`, type: 'work', name: '1. 洗衣精俄羅斯轉體', target: '腹內斜肌、腹外斜肌、腹直肌等長收縮',
+                    startPos: '坐在瑜珈墊上，雙腳踩地維持骨盆穩定，上半身微後傾並保持背部打直，雙手於胸前合抱一罐洗衣精把手，肩膀下壓不駝背。',
+                    endPos: '核心發力扭轉整個胸腔（而非只動手臂），眼睛直視洗衣精，將其緩慢帶至右側髖關節旁貼近地面，隨後交替轉向左側。共完成20次。',
+                    warning: '絕對不可懸空雙腳以防腰椎過度受壓。嚴禁使用雙臂盲目快轉，若骨盆跟著左右晃動，洗衣精內液體晃動的離心力會直接扭傷腰椎。',
+                    voice: null, nextIsRest: true
+                })},
+                { start: 40, duration: 30, fn: () => createRest(round, 1, `站姿洗衣精伐木${isRight?'右':'左'}下砍`, '共做十二次，請注意手肘微屈，下砍時雙膝絕對不能內夾。') },
+                { start: 70, duration: 40, fn: () => ({
+                    id: `r${round}-e2`, type: 'work', name: `2. 站姿洗衣精伐木 (${isRight?'右':'左'}下砍)`, target: '腹外斜肌、前鋸肌、深層腹橫肌',
+                    startPos: `雙腳與肩同寬站立並踩穩地面。雙手合握一罐洗衣精把手且手肘微屈，舉至${isRight?'右':'左'}肩膀上方的斜高度，身體微向${isRight?'右':'左'}轉，重心壓在同側腳。`,
+                    endPos: `核心暴發性收緊並帶動胸椎旋轉，像砍樹一樣將洗衣精斜向下拉至對側大腿外側（髖關節旁），雙手不放開把手。共完成12次。`,
+                    warning: '手肘與肩關節絕對不能鎖死直立，防止液體甩動拉傷關節。下砍時雙膝絕對不能內夾，必須轉動後腳骨盆釋放膝關節壓力。',
+                    voice: null, nextIsRest: true
+                })},
+                { start: 110, duration: 30, fn: () => createRest(round, 2, `洗衣精側向屈體${isRight?'右':'左'}側彎`, '共做十五次，請注意只能做純粹的左右鐘擺，嚴禁前傾駝背。') },
+                { start: 140, duration: 45, fn: () => ({
+                    id: `r${round}-e3`, type: 'work', name: `3. 洗衣精側向屈體 (${isRight?'右':'左'}側彎)`, target: `${isRight?'右':'左'}側腰方肌、${isRight?'右':'左'}側腹外斜肌`,
+                    startPos: '雙腳挺直站立並夾緊臀部。雙手各提一罐洗衣精把手自然下垂於身體兩側，挺胸收腹，視線直視正前方。',
+                    endPos: `身體保持正面向前，上半身純粹向${isRight?'右':'左'}側彎，至極限後，用對側腹斜肌發力將身體拉回直立。共完成15次。`,
+                    warning: '嚴禁一邊前傾一邊側彎，這會讓脊椎承受不對稱剪力而導致椎間盤突出。想像前後有兩道牆夾住身體，只能做純粹的左右鐘擺。',
+                    voice: null, nextIsRest: true
+                })},
+                { start: 185, duration: 30, fn: () => createRest(round, 3, "跪姿洗衣精抗旋推", '共做十二次，請注意肩膀必須維持下壓，肚臍死死對準正前方。') },
+                { start: 215, duration: 50, fn: () => ({
+                    id: `r${round}-e4`, type: 'work', name: '4. 跪姿洗衣精抗旋推', target: '腹橫肌等長收縮、腹內外斜肌抗旋轉',
+                    startPos: '採單膝跪地姿勢（呈90度高跪姿），後腳腳尖點地踩穩。雙手合握一罐洗衣精把手，緊貼在胸口正前方，吸氣將肋骨下壓收緊。',
+                    endPos: '保持軀幹完全不晃動，吐氣將洗衣精筆直向前推至手臂伸直（頂峰收縮停留1秒），隨後緩慢收回胸前。共完成12次。',
+                    warning: '手臂伸直且液體晃動時，極易出現聳肩、拱背或塌腰。肩膀必須維持下壓，肚臍死對正前方，若顫抖強烈請縮短前推距離。',
+                    voice: null, nextIsRest: true
+                })},
+                { start: 265, duration: 30, fn: () => createRest(round, 4, `單側手提箱走路${isRight?'右':'左'}手提`, '走四十秒，請注意步伐要小，絕對不能用腰椎往反方向死頂代償。') },
+                { start: 295, duration: 40, fn: () => ({
+                    id: `r${round}-e5`, type: 'work', name: `5. 單側手提箱走路 (${isRight?'右':'左'}手提)`, target: `${isRight?'左':'右'}側腹外斜肌、深層腹橫肌`,
+                    startPos: `身體直立，僅用${isRight?'右':'左'}邊單手提著洗衣精，另一手自然垂下，核心發力對抗單側下墜。`,
+                    endPos: `刻意維持兩側肩膀與雙髖水平、絕對不向提重側傾斜。眼神直視前方，步伐小而穩定地向前行走40秒。`,
+                    warning: '絕對不能用腰椎去頂、或是身體往反方向過度歪斜代償。步伐要小，用核心剛性全面吸收液體的晃動。',
+                    voice: null, nextIsRest: true
+                })},
+                { start: 335, duration: 30, fn: () => createRest(round, 5, "平板支撐洗衣精互換", '共拉動十二次，請注意雙腳掌死死蹬地，確保骨盆始終水平如桌面。') },
+                { start: 365, duration: 45, fn: () => ({
+                    id: `r${round}-e6`, type: 'work', name: '6. 平板支撐洗衣精互換', target: '腹直肌、腹橫肌、腹斜肌、前鋸肌',
+                    startPos: '雙手撐地、雙腳打開略寬於肩的直臂平板支撐姿勢。將一罐洗衣精放在單側外側地面。',
+                    endPos: '維持骨盆高度固定，單手橫跨胸下抓住把手，極度緩慢將其拉到另一側地面安放，左右交替共12次。',
+                    warning: '單手離地時，骨盆最容易大幅度翻轉或屁股上翹代償。這會讓腹肌失去張力並壓迫下背。雙腳掌必須死死蹬地，確保骨盆始終水平如桌面。',
+                    voice: null, nextIsRest: true
+                })},
+                { start: 410, duration: 30, fn: () => createRest(round, 6, round < 4 ? "洗衣精俄羅斯轉體" : "核心重訓結束", round < 4 ? "共做二十次，請注意雙腳踩地，千萬不要用雙臂盲目快轉。" : "準備無縫轉場至超慢跑。") }
+            ];
+
+            for (let r of routine) {
+                if (t >= r.start && t < r.start + r.duration) {
+                    let data = r.fn();
+                    data.duration = r.duration;
+                    data.time = t - r.start;
+                    return data;
+                }
+            }
+        }
+
+        function createRest(round, restIndex, nextName, extraVoice) {
+            return {
+                id: `r${round}-rest${restIndex}`, type: 'rest', name: '⏳ 休息', target: '維持核心熱度，調勻呼吸',
+                startPos: '維持坐姿或站起放鬆，緩慢深呼吸。', endPos: '準備進入下一個動作，調整好抓握位置與姿態。',
+                warning: '不要滑手機，維持核心熱度，倒數結束前必須定位完畢。',
+                voice: `請休息。下一個動作是：${nextName}。${extraVoice}`, nextIsRest: false
+            };
+        }
+
+        // ----------------------------------------------------
+        // UI 更新邏輯
+        // ----------------------------------------------------
+        function updateUI(totalSecs, phase) {
+            elTotalTime.innerText = `TOTAL ${formatTime(totalSecs)} / 60:00`;
+            
+            let timeRemaining = phase.duration > 0 ? phase.duration - phase.time : 0;
+            if (phase.type === 'done') timeRemaining = 0;
+            
+            elTimeDisplay.innerText = phase.type === 'done' ? '完成' : formatTime(timeRemaining);
+            elPhaseName.innerText = phase.name;
+
+            // 進度條
+            let progressPercent = phase.duration > 0 ? ((phase.duration - timeRemaining) / phase.duration) * 100 : 100;
+            elProgressBar.style.width = `${progressPercent}%`;
+
+            // 切換主題色
+            elAppScreen.className = `theme-${phase.type === 'transition' ? 'work' : phase.type}`;
+            elPhaseName.className = `text-${phase.type === 'transition' ? 'work' : phase.type}`;
+            elProgressBar.className = `bg-${phase.type === 'transition' ? 'work' : phase.type}`;
+
+            // 倒數 5 秒內變紅
+            if (timeRemaining <= 5 && phase.type !== 'done') {
+                elTimeDisplay.classList.add('text-urgent');
+                elProgressBar.classList.add('bg-urgent');
+            } else {
+                elTimeDisplay.classList.remove('text-urgent');
+                elProgressBar.classList.remove('bg-urgent');
+            }
+
+            // 更新資訊卡片
+            updateCard(elCardTarget, elTextTarget, phase.target);
+            updateCard(elCardStart, elTextStart, phase.startPos);
+            updateCard(elCardEnd, elTextEnd, phase.endPos);
+            updateCard(elCardWarning, elTextWarning, phase.warning);
+
+            // 節拍器動畫開關 (僅在超慢跑時顯示)
+            if (phase.type === 'run' && !isPaused) {
+                elPingCircle.classList.add('anim-ping');
+            } else {
+                elPingCircle.classList.remove('anim-ping');
+            }
+        }
+
+        function updateCard(cardEl, textEl, textContent) {
+            if (textContent) {
+                cardEl.classList.remove('hidden');
+                textEl.innerText = textContent;
+            } else {
+                cardEl.classList.add('hidden');
+            }
+        }
+
+        // ----------------------------------------------------
+        // 主迴圈 requestAnimationFrame
+        // ----------------------------------------------------
+        function updateLoop() {
+            if (!isTraining || isPaused) return;
+
+            let now = performance.now();
+            let totalPassed = Math.floor(accumulatedTime + (now - startTime) / 1000);
+            if (totalPassed > 3600) totalPassed = 3600;
+
+            if (totalPassed !== lastTriggeredSecond) {
+                lastTriggeredSecond = totalPassed;
+                
+                const currentPhase = getPhase(totalPassed);
+                updateUI(totalPassed, currentPhase);
+
+                // 只觸發一次語音
+                if (currentPhase.id !== lastPhaseId) {
+                    lastPhaseId = currentPhase.id;
+                    if (currentPhase.voice) {
+                        speakSafe(currentPhase.voice);
+                    }
+                }
+
+                // 倒數 3 秒語音 (排除結束與最後幾秒)
+                let timeRemaining = currentPhase.duration - currentPhase.time;
+                if (timeRemaining === 3 && currentPhase.type !== 'done' && totalPassed < 1797) { 
+                    speakSafe("三、二、一，" + (currentPhase.nextIsRest ? "休息" : "開始"));
+                }
+
+                // 超慢跑每 5 分鐘警示
+                if (totalPassed >= 1800 && totalPassed < 3600 && totalPassed % 300 === 0 && totalPassed > 1800) {
+                    speakSafe("超慢跑提醒：請檢查您的呼吸，保持鼻吸鼻呼。如果必須張開嘴巴大口喘氣，代表強度太高了，請立刻縮小步幅，將心率維持在安全的 Zone 2 燃脂區。同時檢查雙膝是否微彎、不可後腳跟重砸地面。");
+                }
+            }
+
+            rafId = requestAnimationFrame(updateLoop);
+        }
+
+        // ----------------------------------------------------
+        // 錯誤3解法：Web Audio API 節拍器時間調度
+        // ----------------------------------------------------
+        function scheduleTick(time, freq = 800) {
+            if (!audioCtx) return;
+            let osc = audioCtx.createOscillator();
+            let gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            osc.frequency.setValueAtTime(freq, time); // 頻率
+            gainNode.gain.setValueAtTime(1, time);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+
+            osc.start(time);
+            osc.stop(time + 0.05);
+        }
+
+        function scheduler() {
+            if (!audioCtx || !isTraining || isPaused) return;
+
+            const scheduleAheadTime = 0.1;
+            const lookahead = 25.0;
+            const currentSec = Math.floor(accumulatedTime + (performance.now() - startTime) / 1000);
+            
+            let tempo = 0;
+            let freq = 800;
+            
+            if (currentSec >= 1800 && currentSec < 3600) {
+                tempo = 180;
+                freq = 800;
+            } else if (currentSec >= 0 && currentSec < 1730) {
+                const phase = getPhase(currentSec);
+                if (phase && phase.type === 'work') {
+                    tempo = 60; // 核心訓練維持 60 BPM (每秒一下) 讓耳去跟節奏
+                    freq = 400; // 稍微低沉一點的音效
+                }
+            }
+
+            if (tempo > 0) {
+                while (nextTickTime < audioCtx.currentTime + scheduleAheadTime) {
+                    scheduleTick(nextTickTime, freq);
+                    nextTickTime += 60.0 / tempo;
+                }
+            } else {
+                nextTickTime = audioCtx.currentTime + 0.1; // 保持調度器對齊未來時間
+            }
+
+            timerId = window.setTimeout(scheduler, lookahead);
+        }
+
+        // ----------------------------------------------------
+        // 錯誤1防禦：防螢幕休眠 Wake Lock API
+        // ----------------------------------------------------
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                }
+            } catch (err) {
+                // Ignore wake lock error caused by Feature-Policy in iframes
+            }
+        }
+
+        // ----------------------------------------------------
+        // 錯誤7解法：網頁隱藏與顯示的 Visibility 監聽
+        // ----------------------------------------------------
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === 'visible' && isTraining && !isPaused) {
+                requestWakeLock();
+            }
+        });
+
+        // ----------------------------------------------------
+        // 控制操作
+        // ----------------------------------------------------
+        function startTraining() {
+            // 初始化 AudioContext (必須由使用者手勢觸發)
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (!audioCtx) audioCtx = new AudioContextClass();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            // 預先啟動一次靜音語音以獲取 iOS 權限
+            if (window.speechSynthesis) {
+                const u = new SpeechSynthesisUtterance('訓練開始');
+                u.volume = 0;
+                window.speechSynthesis.speak(u);
+            }
+
+            requestWakeLock();
+            
+            startTime = performance.now();
+            accumulatedTime = -12;
+            lastTriggeredSecond = -13;
+            lastPhaseId = '';
+            
+            isTraining = true;
+            isPaused = false;
+            
+            elStartScreen.style.opacity = '0';
+            setTimeout(() => {
+                elStartScreen.style.display = 'none';
+                elAppScreen.style.display = 'flex';
+                
+                nextTickTime = audioCtx.currentTime + 0.1;
+                rafId = requestAnimationFrame(updateLoop);
+                scheduler();
+            }, 500);
+        }
+
+        function togglePause() {
+            if (!isPaused) {
+                // 執行暫停 (錯誤5解法：累加封存消逝秒數)
+                isPaused = true;
+                accumulatedTime += (performance.now() - startTime) / 1000;
+                window.speechSynthesis?.cancel();
+                if (wakeLock) {
+                    wakeLock.release().catch(()=>{}).then(()=>wakeLock = null);
+                }
+                elPauseBtn.innerText = '▶️';
+                elTimeDisplay.classList.add('paused-opacity');
+                elPingCircle.classList.remove('anim-ping');
+            } else {
+                // 恢復執行
+                isPaused = false;
+                startTime = performance.now();
+                requestWakeLock();
+                elPauseBtn.innerText = '⏸️';
+                elTimeDisplay.classList.remove('paused-opacity');
+                
+                if (audioCtx) {
+                    if (audioCtx.state === 'suspended') audioCtx.resume();
+                    nextTickTime = audioCtx.currentTime + 0.1;
+                    scheduler();
+                }
+                rafId = requestAnimationFrame(updateLoop);
+            }
+        }
+
+        function resetTraining() {
+            if (confirm("確定要終止並重設訓練嗎？")) {
+                isTraining = false;
+                isPaused = false;
+                window.speechSynthesis?.cancel();
+                cancelAnimationFrame(rafId);
+                clearTimeout(timerId);
+                if (wakeLock) wakeLock.release().catch(()=>{}).then(()=>wakeLock = null);
+                
+                elStartScreen.style.display = 'flex';
+                setTimeout(() => elStartScreen.style.opacity = '1', 10);
+                elAppScreen.style.display = 'none';
+                elPauseBtn.innerText = '⏸️';
+                elTimeDisplay.classList.remove('paused-opacity');
+            }
+        }
+    </script>
+</body>
+</html>
