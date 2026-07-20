@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="format-detection" content="telephone=no">
-    <title>Pro Treadmill OS - Ultimate Edition (v38 - Architectural Integrity)</title>
+    <title>Pro Treadmill OS - Ultimate Edition (v39 - Architectural Integrity)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.85); 
@@ -320,14 +320,17 @@
                     </div>
                     
                     <div class="setup-top-half">
+                        <!-- V39: Fixed layout to match the running tab (Left = Incline, Right = Speed) -->
                         <div class="dial-grid">
                             <div id="dialShield"><svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg></div>
                             <div class="dial-group"><div class="dial-label" id="lblTotalTime"></div><div class="dial-window" id="dw-time"><div class="dial-scroll" id="ds-time"></div></div></div>
                             <div class="dial-group"><div class="dial-label" id="lblTargetKm"></div><div class="dial-window" id="dw-dist"><div class="dial-scroll" id="ds-dist"></div></div></div>
-                            <div class="dial-group"><div class="dial-label" id="lblSetMxS"></div><div class="dial-window" id="dw-mxs"><div class="dial-scroll" id="ds-mxs"></div></div></div>
-                            <div class="dial-group"><div class="dial-label" id="lblSetMnS"></div><div class="dial-window" id="dw-mns"><div class="dial-scroll" id="ds-mns"></div></div></div>
+                            
                             <div class="dial-group"><div class="dial-label" id="lblSetMxI"></div><div class="dial-window" id="dw-mxi"><div class="dial-scroll" id="ds-mxi"></div></div></div>
+                            <div class="dial-group"><div class="dial-label" id="lblSetMxS"></div><div class="dial-window" id="dw-mxs"><div class="dial-scroll" id="ds-mxs"></div></div></div>
+                            
                             <div class="dial-group"><div class="dial-label" id="lblSetMnI"></div><div class="dial-window" id="dw-mni"><div class="dial-scroll" id="ds-mni"></div></div></div>
+                            <div class="dial-group"><div class="dial-label" id="lblSetMnS"></div><div class="dial-window" id="dw-mns"><div class="dial-scroll" id="ds-mns"></div></div></div>
                         </div>
                         <div class="prog-carousel-wrap"><div class="prog-carousel" id="progGrid"></div></div>
                     </div>
@@ -637,7 +640,7 @@
 </div>
 
 <script>
-/** PRO TREADMILL OS (OLYMPIC V38 - ARCHITECTURAL INTEGRITY EDITION) */
+/** PRO TREADMILL OS (OLYMPIC V39 - ARCHITECTURAL INTEGRITY EDITION) */
 
 const i18n = {
     zh: {
@@ -1149,7 +1152,8 @@ class VoiceEngine {
         this.state = 'SPEAKING';
         try {
             let msg = new SpeechSynthesisUtterance(job.txt); 
-            msg.lang = job.lang; msg.rate = 1.0;
+            msg.lang = job.lang; 
+            // V39 PILLAR 4: 解除語速鎖定，完全交由作業系統原生控制，恢復自然語調
             let voices = this.synth.getVoices();
             if (voices.length > 0) {
                 let v = voices.find(x => x.lang.includes(job.lang) && (x.name.includes('Siri') || x.name.includes('Google')));
@@ -1262,10 +1266,11 @@ const TweenApp = new TweenEngine();
 class SwipeDial {
     constructor(id, isFloat, onEnd) {
         this.scrollEl = document.getElementById(id); this.isFloat = isFloat; this.onEnd = onEnd; this.items = []; this.currentVal = 0; this.timer = null;
-        const handle = () => { clearTimeout(this.timer); this.timer = setTimeout(() => this.handleSnap(), 300); };
+        this.isUpdating = false; 
+        const handle = () => { if(this.isUpdating) return; clearTimeout(this.timer); this.timer = setTimeout(() => this.handleSnap(), 300); };
         if ('onscrollend' in window) { this.scrollEl.addEventListener('scrollend', handle); } 
         this.scrollEl.addEventListener('scroll', handle, {passive: true});
-        this.scrollEl.addEventListener('touchstart', () => clearTimeout(this.timer), {passive: true});
+        this.scrollEl.addEventListener('touchstart', () => { if(!this.isUpdating) clearTimeout(this.timer); }, {passive: true});
     }
     build(min, max, step) {
         this.scrollEl.innerHTML = ''; this.items = []; this.min = min; this.max = max; this.step = step;
@@ -1278,6 +1283,7 @@ class SwipeDial {
     setValue(val, forceVisual = false) {
         if(this.items.length===0) return;
         if(!forceVisual && Math.abs(this.currentVal - val) < 0.05) return; 
+        this.isUpdating = true; // LOCK
         val = Utils.clamp(val, this.min, this.max);
         let vs = this.isFloat ? Number(val).toFixed(1) : Math.round(val).toString();
         let target = this.items.find(i => i.dataset.val === vs) || this.items.reduce((prev, curr) => Math.abs(parseFloat(curr.dataset.val) - val) < Math.abs(parseFloat(prev.dataset.val) - val) ? curr : prev);
@@ -1285,10 +1291,10 @@ class SwipeDial {
         let top = target.offsetTop - this.scrollEl.offsetTop;
         this.scrollEl.style.scrollSnapType = 'none'; this.scrollEl.scrollTop = top; 
         this.items.forEach(i => i.classList.remove('active')); target.classList.add('active');
-        setTimeout(() => { this.scrollEl.style.scrollSnapType = 'y mandatory'; }, 10);
+        setTimeout(() => { this.scrollEl.style.scrollSnapType = 'y mandatory'; this.isUpdating = false; }, 100);
     }
     forceSnap() {
-        if(this.items.length===0) return;
+        if(this.items.length===0 || this.isUpdating) return;
         let center = this.scrollEl.scrollTop + this.scrollEl.clientHeight/2;
         let closest = this.items.reduce((p, c) => Math.abs((c.offsetTop - this.scrollEl.offsetTop + c.clientHeight/2) - center) < Math.abs((p.offsetTop - this.scrollEl.offsetTop + p.clientHeight/2) - center) ? c : p);
         this.items.forEach(i => i.classList.remove('active')); closest.classList.add('active');
@@ -1300,7 +1306,8 @@ class SwipeDial {
         setTimeout(() => { this.scrollEl.style.scrollBehavior = 'smooth'; this.scrollEl.style.scrollSnapType = 'y mandatory'; }, 50);
     }
     handleSnap() {
-        if(this.items.length===0) return; let center = this.scrollEl.scrollTop + this.scrollEl.clientHeight/2;
+        if(this.items.length===0 || this.isUpdating) return; 
+        let center = this.scrollEl.scrollTop + this.scrollEl.clientHeight/2;
         let closest = this.items.reduce((p, c) => Math.abs((c.offsetTop - this.scrollEl.offsetTop + c.clientHeight/2) - center) < Math.abs((p.offsetTop - this.scrollEl.offsetTop + p.clientHeight/2) - center) ? c : p);
         this.items.forEach(i => i.classList.remove('active')); closest.classList.add('active');
         let v = parseFloat(closest.dataset.val); if(this.currentVal !== v) { this.currentVal = v; this.onEnd(v); }
@@ -1385,6 +1392,7 @@ class AppController {
     constructor() {
         this.dials = {}; this.adjDials = {}; this.charts = new ChartManager(); this.holdTimer = null; this.pauseTimeout = null;
         this.adjTarget = ''; this.wakeLock = null; this.viewingProfile = null; this.otIdleTimer = null;
+        this._syncing = false; 
         const setVH = () => document.documentElement.style.setProperty('--vh', `${(window.visualViewport ? window.visualViewport.height : window.innerHeight) * 0.01}px`);
         if(window.visualViewport) window.visualViewport.addEventListener('resize', setVH); setVH();
         window.addEventListener('beforeunload', () => { if(AppState.state.runStatus === 'RUNNING' || AppState.state.runStatus === 'OVERTIME' || AppState.state.runStatus === 'RAMPDOWN') this.persistRun(); this.releaseWakeLock(); });
@@ -1397,11 +1405,11 @@ class AppController {
 
     initData() {
         try {
-            let s = null; try { s = JSON.parse(localStorage.getItem('pro_treadmill_v38')); } catch(e){}
+            let s = null; try { s = JSON.parse(localStorage.getItem('pro_treadmill_v39')); } catch(e){}
             if(s && s.profiles && Object.keys(s.profiles).length > 0) { AppState.batch({ activeP: s.activeP || Object.keys(s.profiles)[0], profiles: s.profiles, hw: s.hw }); } 
             else { let p = PhysioEngine.sanitize({ name: 'Runner 1', gender: 'M', unit: 'metric', lang: 'zh', voiceOn: true }); AppState.batch({ activeP: 'Runner 1', profiles: { 'Runner 1': p } }); }
             
-            let r = null; try { r = JSON.parse(sessionStorage.getItem('runState_v38')); } catch(e){} 
+            let r = null; try { r = JSON.parse(sessionStorage.getItem('runState_v39')); } catch(e){} 
             if(r && r.accumMs > 0 && r.snapshot && r.snapshot.length > 0) { 
                 AppState.batch({ runStatus: 'PAUSED', accumMs: r.accumMs, matrix: r.matrix, snapshot: r.snapshot, activeP: r.activeP, runnerToken: Date.now() }); 
                 if(r.acc) { Object.assign(RunAcc, r.acc); }
@@ -1410,8 +1418,8 @@ class AppController {
             } else { this.updateI18n(); this.recalc(); }
         } catch(fatalError) {
             console.error("Boot sequence failed. Executing Hard Reset.", fatalError);
-            localStorage.removeItem('pro_treadmill_v38');
-            sessionStorage.removeItem('runState_v38');
+            localStorage.removeItem('pro_treadmill_v39');
+            sessionStorage.removeItem('runState_v39');
             let p = PhysioEngine.sanitize({ name: 'Runner 1', gender: 'M', unit: 'metric', lang: 'zh', voiceOn: true }); 
             AppState.batch({ activeP: 'Runner 1', profiles: { 'Runner 1': p } });
             this.updateI18n(); this.recalc();
@@ -1421,17 +1429,20 @@ class AppController {
     initDials() {
         const createDial = (id, key, isFloat, isSpd) => {
             return new SwipeDial(id, isFloat, val => {
-                if(AppState.state.runStatus !== 'STOPPED') return;
+                // V39 PILLAR 2: Mutex Lock (防死循環互斥鎖)
+                if (this._syncing || AppState.state.runStatus !== 'STOPPED' || AppState.state.uiLocked) return;
+                
                 let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
                 let v = isSpd ? (isMet ? val : Utils.round(val * 1.609344)) : val;
                 
-                if(key === 'maxSpd' && v < p.minSpd) p.minSpd = v;
-                if(key === 'minSpd' && v > p.maxSpd) p.maxSpd = v;
-                if(key === 'mxInc' && v < p.mnInc) p.mnInc = v;
-                if(key === 'mnInc' && v > p.mxInc) p.mxInc = v;
-                if(key === 'tTime' && v < 20) v = 20;
+                // V39 PILLAR 3: Unidirectional Bounds (單向界線強制對齊)
+                if (key === 'maxSpd') { v = Math.max(v, p.minSpd); p.maxSpd = v; }
+                if (key === 'minSpd') { v = Math.min(v, p.maxSpd); p.minSpd = v; }
+                if (key === 'mxInc') { v = Math.max(v, p.mnInc); p.mxInc = v; }
+                if (key === 'mnInc') { v = Math.min(v, p.mxInc); p.mnInc = v; }
+                if (key === 'tTime') { v = Math.max(20, v); p.tTime = v; }
+                if (key === 'tKm') { p.tKm = isMet ? v : Utils.round(v * 1.609344); }
                 
-                p[key] = key === 'tKm' ? (isMet ? val : Utils.round(val * 1.609344)) : v; 
                 this.saveData(); this.recalc();
             });
         };
@@ -1442,12 +1453,23 @@ class AppController {
     }
 
     syncDialsToProfile(rollbackDist = null) {
+        this._syncing = true; // 上鎖，防止 SwipeDial onEnd 回傳引發連鎖反應
+        
         let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
         this.dials.time.build(20, 180, 5); this.dials.time.setValue(p.tTime, true);
-        this.dials.mxs.build(isMet?1.0:0.6, isMet?25.0:15.5, 0.1); this.dials.mxs.setValue(isMet ? p.maxSpd : p.maxSpd / 1.609344, true);
-        this.dials.mns.build(0.0, isMet?20.0:12.4, 0.1); this.dials.mns.setValue(isMet ? p.minSpd : p.minSpd / 1.609344, true);
-        this.dials.mxi.build(0.0, 20.0, 0.5); this.dials.mxi.setValue(p.mxInc, true);
-        this.dials.mni.build(0.0, 10.0, 0.5); this.dials.mni.setValue(p.mnInc, true);
+        
+        // V39 PILLAR 3: 動態物理極限限制陣列，滾輪永遠無法突破對立的設定值
+        this.dials.mxs.build(isMet ? Math.max(1.0, p.minSpd) : Math.max(0.6, p.minSpd/1.609344), isMet?25.0:15.5, 0.1); 
+        this.dials.mxs.setValue(isMet ? p.maxSpd : p.maxSpd / 1.609344, true);
+        
+        this.dials.mns.build(0.0, isMet ? p.maxSpd : p.maxSpd/1.609344, 0.1); 
+        this.dials.mns.setValue(isMet ? p.minSpd : p.minSpd / 1.609344, true);
+        
+        this.dials.mxi.build(p.mnInc, 20.0, 0.5); 
+        this.dials.mxi.setValue(p.mxInc, true);
+        
+        this.dials.mni.build(0.0, p.mxInc, 0.5); 
+        this.dials.mni.setValue(p.mnInc, true);
 
         let safeMnS = Math.max(p.minSpd, Math.max(AppState.state.hw.minSpd, 1.0));
         let physicalMin = (p.tTime / 60) * safeMnS; let physicalMax = (p.tTime / 60) * HUMAN_MAX_KPH;
@@ -1462,6 +1484,9 @@ class AppController {
         let finalVal = Utils.clamp(currDialVal, minDial, maxDial);
         if (finalVal !== currDialVal) { p.tKm = isMet ? finalVal : Utils.round(finalVal * 1.609344); this.saveData(); }
         this.dials.dist.setValue(finalVal, true);
+
+        // 解除互斥鎖，容許 300 毫秒的安全緩衝，讓原生的 snap 滾動事件安靜結束
+        setTimeout(() => { this._syncing = false; }, 300);
     }
 
     updateI18n() {
@@ -2069,6 +2094,8 @@ class AppController {
         let m = AppState.state.snapshot; let vdb = d.phases;
         if (!m || m.length === 0) return;
         
+        // V38 PILLAR 3: Idempotent Rendering.
+        // 無條件暴力清空與重建，徹底根絕 UI 殘留或空白 Bug
         ul.innerHTML = '';
         m.forEach((r, i) => {
             let li = document.createElement('li'); li.id = `min-row-${i}`; li.className = 'pace-grid-row';
@@ -2116,7 +2143,6 @@ class AppController {
             sz4: `${d.zones[3]} ${Math.floor(m.reduce((s,x)=>s+(x.z===4?1:0),0))}${d.min}`, 
             sz5: `${d.zones[4]} ${Math.floor(m.reduce((s,x)=>s+(x.z===5?1:0),0))}${d.min}`
         });
-        
         this.charts.drawAll();
     }
 
@@ -2162,11 +2188,11 @@ class AppController {
         });
     }
 
-    saveData() { try { localStorage.setItem('pro_treadmill_v38', JSON.stringify({ activeP: AppState.state.activeP, profiles: AppState.state.profiles, hw: AppState.state.hw })); } catch(e){} }
+    saveData() { try { localStorage.setItem('pro_treadmill_v39', JSON.stringify({ activeP: AppState.state.activeP, profiles: AppState.state.profiles, hw: AppState.state.hw })); } catch(e){} }
     
     persistRun() { 
         if (AppState.state.accumMs > 0) {
-            sessionStorage.setItem('runState_v38', JSON.stringify({ 
+            sessionStorage.setItem('runState_v39', JSON.stringify({ 
                 activeP: AppState.state.activeP, 
                 accumMs: AppState.state.accumMs, 
                 matrix: AppState.state.matrix, 
@@ -2174,7 +2200,7 @@ class AppController {
                 acc: RunAcc 
             })); 
         } else {
-            sessionStorage.removeItem('runState_v38'); 
+            sessionStorage.removeItem('runState_v39'); 
         }
     }
     
@@ -2201,7 +2227,7 @@ class AppController {
         } else { NotificationManager.show(d.shortWorkout, true); }
         
         AppState.state.runStatus = 'STOPPED'; AppState.state.accumMs = 0; AppState.state.activeTab = 'settings';
-        sessionStorage.removeItem('runState_v38'); this.recalc(); document.getElementById('silentAudio').pause();
+        sessionStorage.removeItem('runState_v39'); this.recalc(); document.getElementById('silentAudio').pause();
         document.getElementById('topProgressText').textContent = '0%'; document.getElementById('topProgressBar').style.width = '0%'; document.getElementById('topRemainingTime').textContent = '-00:00';
         
         resetRunAcc(); 
