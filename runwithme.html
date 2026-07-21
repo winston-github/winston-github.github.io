@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="format-detection" content="telephone=no">
-    <title>Pro Treadmill OS - Ultimate Edition (v41 - Ultramarathon Precision)</title>
+    <title>Pro Treadmill OS - Ultimate Edition (v41.5 - Industrial Precision)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.85); 
@@ -34,13 +34,15 @@
         .tab-btn.active { color: var(--text-main); }
         .tab-indicator { position: absolute; bottom: 0; height: 3px; background: var(--text-main); width: 50%; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); border-radius: 3px 3px 0 0;}
         
-        .progress-row { display: none; height: 44px; align-items: center; padding: 0 15px; width: 100%; background: var(--bg-card); border-bottom: 1px solid var(--border-color); animation: slideDown 0.3s ease-out; }
+        /* 點擊進度條可以修改時間 */
+        .progress-row { display: none; height: 44px; align-items: center; padding: 0 15px; width: 100%; background: var(--bg-card); border-bottom: 1px solid var(--border-color); animation: slideDown 0.3s ease-out; cursor: pointer;}
+        .progress-row:active { background: #1a1a1a; }
         .progress-row.show { display: flex; }
         @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-        .prg-text { font-size: 1.05rem; font-weight: 800; color: var(--neon-green); margin-right: 12px; width: 50px; text-align: right; }
-        .prg-track { flex: 1; height: 6px; background: #000; border-radius: 3px; overflow: hidden; border: 1px solid #333; position: relative; }
-        .prg-fill { width: 0%; height: 100%; background: var(--neon-green); box-shadow: 0 0 10px rgba(50,215,75,0.6); transition: width 0.3s linear; }
-        .prg-rem { font-size: 1.1rem; font-weight: 800; color: #FFF; margin-left: 12px; font-variant-numeric: tabular-nums; width: 65px; }
+        .prg-text { font-size: 1.05rem; font-weight: 800; color: var(--neon-green); margin-right: 12px; width: 50px; text-align: right; pointer-events: none;}
+        .prg-track { flex: 1; height: 6px; background: #000; border-radius: 3px; overflow: hidden; border: 1px solid #333; position: relative; pointer-events: none;}
+        .prg-fill { width: 0%; height: 100%; background: var(--neon-green); box-shadow: 0 0 10px rgba(50,215,75,0.6); transition: width 0.3s linear; pointer-events: none;}
+        .prg-rem { font-size: 1.1rem; font-weight: 800; color: #FFF; margin-left: 12px; font-variant-numeric: tabular-nums; width: 65px; pointer-events: none;}
 
         #content-wrapper { flex: 1 1 auto; overflow: hidden; position: relative; width: 100%; }
         .views-slider { display: flex; width: 200%; height: 100%; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); will-change: transform; }
@@ -50,23 +52,19 @@
         .view-section.active { display: flex; animation: fadeIn 0.15s ease-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-        .setup-top-half { flex: none; display: flex; flex-direction: column; gap: 15px; }
-        .dial-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 15px; position: relative; }
-        
-        #dialShield { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10; border-radius: 12px; display: none; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
-        #dialShield.show { display: flex; }
-        #dialShield svg { width: 32px; height: 32px; fill: var(--gray-light); }
+        /* Setup Controls Lockout */
+        #setup-controls-container { flex: none; display: flex; flex-direction: column; gap: 15px; transition: max-height 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.3s ease; overflow: hidden; max-height: 800px; opacity: 1; }
+        .run-mode #setup-controls-container { max-height: 0; opacity: 0; margin-bottom: 0; gap: 0; pointer-events: none; }
 
+        .dial-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 15px; position: relative; }
         .dial-group { display: flex; flex-direction: column; align-items: center; background: var(--bg-card); border-radius: 12px; padding: 10px 4px; border: 1px solid var(--border-color); position: relative;}
         .dial-label { font-size: 0.8rem; font-weight: 600; color: var(--gray-light); margin-bottom: 8px; letter-spacing: 0.5px; text-align: center; width: 100%;}
         
         .dial-window { height: 36px; width: 80%; position: relative; overflow: hidden; background: #000; border-radius: 8px; border: 1px solid #333;}
         .dial-scroll { height: 100%; overflow-y: scroll; scroll-snap-type: y mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; scroll-behavior: smooth;}
-        .dial-scroll.locked { overflow-y: hidden; }
         .dial-scroll::-webkit-scrollbar { display: none; }
         .dial-item { height: 36px; display: flex; justify-content: center; align-items: center; font-size: 1.3rem; font-weight: 900; color: var(--text-main); scroll-snap-align: center; cursor: pointer; transition: color 0.1s;}
         .dial-item.active { color: var(--text-main); text-shadow: 0 0 10px rgba(255,255,255,0.3); }
-        .dial-item.dim { color: #444; }
 
         .prog-carousel-wrap { width: 100%; position: relative; }
         .prog-carousel { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding-bottom: 5px; }
@@ -76,7 +74,16 @@
         .prog-card .p-desc { font-size: 0.75rem; color: var(--gray); font-weight: 500; line-height: 1.3; }
         .prog-card.selected { border-color: var(--neon-green); background: #1a221a; box-shadow: 0 0 8px rgba(50,215,75,0.15); }
 
-        .chart-card { flex: none; height: max-content; min-height: 250px; display: flex; flex-direction: column; background: var(--bg-card); border-radius: 12px; padding: 12px; border: 1px solid var(--border-color); position: relative;}
+        /* Optimization Slider */
+        .opt-wrap { background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .opt-header { display: flex; justify-content: space-between; align-items: center; }
+        .opt-title { font-size: 0.9rem; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 6px;}
+        .opt-title svg { width: 18px; height: 18px; fill: var(--neon-green); }
+        .opt-val { font-size: 0.9rem; font-weight: 900; color: var(--neon-green); font-variant-numeric: tabular-nums;}
+        .opt-slider { -webkit-appearance: none; width: 100%; height: 6px; background: #333; border-radius: 3px; outline: none; }
+        .opt-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: var(--neon-green); cursor: pointer; border: 3px solid #000; box-shadow: 0 0 8px rgba(50,215,75,0.5); }
+
+        .chart-card { flex: 1; min-height: 250px; display: flex; flex-direction: column; background: var(--bg-card); border-radius: 12px; padding: 12px; border: 1px solid var(--border-color); position: relative; transition: min-height 0.4s ease;}
         
         .hud-grid { width: 100%; display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr; align-items: center; text-align: center; margin-bottom: 8px; font-size: clamp(0.7rem, 3.5vw, 0.95rem); row-gap: 6px;}
         .hud-grid span { font-weight: 900; }
@@ -102,8 +109,9 @@
         .est-zones { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 15px; font-size: 0.8rem; font-variant-numeric: tabular-nums; text-align: left; }
         
         /* Run Screen */
-        .massive-time { font-size: clamp(4.5rem, 20vw, 6rem); font-weight: 900; line-height: 1; text-align: center; letter-spacing: -1px; padding: 5px 0 15px 0; color: #FFFFFF; font-variant-numeric: tabular-nums;}
-        .massive-time.warn { color: var(--neon-yellow); }
+        .massive-time { font-size: clamp(4.5rem, 20vw, 6rem); font-weight: 900; line-height: 1; text-align: center; letter-spacing: -1px; padding: 5px 0 15px 0; color: #FFFFFF; font-variant-numeric: tabular-nums; cursor: pointer; transition: opacity 0.2s;}
+        .massive-time:active { opacity: 0.7; }
+        
         .run-primary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; flex: none; }
         .run-val-box { position: relative; display: flex; flex-direction: column; align-items: center; background: var(--bg-card); padding: 20px 0; border-radius: 16px; border: 1px solid var(--border-color); overflow: hidden; cursor: pointer; transition: transform 0.1s;}
         .run-val-box:active { transform: scale(0.96); background: #1a1a1a; }
@@ -137,10 +145,6 @@
 
         /* Footer Controls */
         #footer { flex: 0 0 auto; background: var(--bg-dark); border-top: 1px solid var(--border-color); padding: 15px 20px calc(15px + var(--safe-bottom)) 20px; z-index: var(--z-footer); position: relative; }
-        
-        #footerShield { position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); z-index: 20; display: none; align-items: center; justify-content: center; backdrop-filter: blur(2px); color: var(--neon-yellow); font-weight: 800; }
-        #footerShield.show { display: flex; }
-        #footerShield svg { width: 24px; height: 24px; fill: currentColor; margin-right: 8px; animation: spin 2s linear infinite; }
 
         .bottom-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
         
@@ -164,7 +168,7 @@
         #historyModal { z-index: var(--z-hist); background: rgba(12,12,12,0.98); backdrop-filter: none; }
         #summaryModal { z-index: var(--z-sum); }
         #adjModal { z-index: var(--z-adj); }
-        #overtimeModal { z-index: var(--z-ot); background: rgba(0,0,0,0.95); backdrop-filter: blur(10px); }
+        #timeModal { z-index: var(--z-adj); }
 
         .modal-box { background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 20px; width: 92%; max-width: 440px; max-height: 90%; display: flex; flex-direction: column; transform: scale(0.95); transition: transform 0.2s ease; box-shadow: 0 10px 40px rgba(0,0,0,0.8);}
         .modal-overlay.show .modal-box { transform: scale(1); }
@@ -185,14 +189,6 @@
         .btn-modal:disabled { opacity: 0.4; cursor: not-allowed; }
         .btn-save { background: var(--text-main); color: #000; }
         .btn-ghost { background: transparent; color: var(--gray-light); border: 1px solid #444; }
-
-        #overtimeModal .modal-box { border-color: var(--neon-yellow); box-shadow: 0 0 30px rgba(255, 214, 10, 0.2); align-items: center; text-align: center; padding: 30px 20px; }
-        .ot-icon { width: 64px; height: 64px; fill: var(--neon-yellow); margin-bottom: 20px; }
-        .ot-title { font-size: 1.4rem; font-weight: 900; color: #FFF; margin-bottom: 10px; }
-        .ot-desc { font-size: 0.95rem; color: var(--gray-light); line-height: 1.5; margin-bottom: 25px; }
-        .ot-btn-row { display: flex; gap: 15px; width: 100%; }
-        .btn-ot-no { background: #222; color: #FFF; }
-        .btn-ot-yes { background: var(--neon-yellow); color: #000; }
 
         .runner-selector-wrap { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 15px; margin-bottom: 15px; border-bottom: 1px solid #222; scrollbar-width: none; }
         .runner-selector-wrap::-webkit-scrollbar { display: none; }
@@ -262,11 +258,9 @@
         @keyframes pulse-speed { 0% { background: transparent; color: var(--neon-green); } 50% { background: var(--neon-green); color: #000; font-weight: 900; box-shadow: 0 0 10px var(--neon-green);} 100% { background: transparent; color: var(--neon-green); } }
         @keyframes pulse-inc { 0% { background: transparent; color: var(--neon-yellow); } 50% { background: var(--neon-yellow); color: #000; font-weight: 900; box-shadow: 0 0 10px var(--neon-yellow);} 100% { background: transparent; color: var(--neon-yellow); } }
         @keyframes flash-text { 0% { color:#FFF; text-shadow: none; } 50% { color:var(--neon-red); text-shadow: 0 0 20px var(--neon-red); } 100% { color:#FFF; text-shadow: none; } }
-        @keyframes warn-flash { 0% { color:#FFF; } 50% { color:var(--neon-yellow); text-shadow: 0 0 20px var(--neon-yellow); } 100% { color:#FFF; } }
         .pulse-spd-active { animation: pulse-speed 0.8s infinite; padding: 2px 0;}
         .pulse-inc-active { animation: pulse-inc 0.8s infinite; padding: 2px 0;}
         .run-big-val.flash { animation: flash-text 0.4s 3; }
-        .run-big-val.warn-flash { animation: warn-flash 1s infinite; }
         .val-capped { color: var(--neon-red) !important; position: relative; }
         .val-capped::after { content: '*'; position: absolute; top: -5px; right: -8px; font-size: 0.8rem; }
     </style>
@@ -283,7 +277,7 @@
             <button class="tab-btn" data-action="tab-matrix" id="tabMatrix"></button>
             <div class="tab-indicator" id="tabIndicator"></div>
         </div>
-        <div class="progress-row" id="runProgressRow">
+        <div class="progress-row" id="runProgressRow" data-action="open-adj-time">
             <div id="topProgressText" class="prg-text">0%</div>
             <div class="prg-track"><div id="topProgressBar" class="prg-fill"></div></div>
             <div id="topRemainingTime" class="prg-rem">-00:00</div>
@@ -296,9 +290,9 @@
             <div class="tab-content" id="tabContent1">
                 <!-- SETUP VIEW -->
                 <div id="setup-view" class="view-section active">
-                    <div class="setup-top-half">
+                    
+                    <div id="setup-controls-container">
                         <div class="dial-grid">
-                            <div id="dialShield"><svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg></div>
                             <div class="dial-group"><div class="dial-label" id="lblTotalTime"></div><div class="dial-window" id="dw-time"><div class="dial-scroll" id="ds-time"></div></div></div>
                             <div class="dial-group"><div class="dial-label" id="lblTargetKm"></div><div class="dial-window" id="dw-dist"><div class="dial-scroll" id="ds-dist"></div></div></div>
                             
@@ -308,6 +302,15 @@
                             <div class="dial-group"><div class="dial-label" id="lblSetMnI"></div><div class="dial-window" id="dw-mni"><div class="dial-scroll" id="ds-mni"></div></div></div>
                             <div class="dial-group"><div class="dial-label" id="lblSetMnS"></div><div class="dial-window" id="dw-mns"><div class="dial-scroll" id="ds-mns"></div></div></div>
                         </div>
+
+                        <div class="opt-wrap" id="optSliderWrap">
+                            <div class="opt-header">
+                                <span class="opt-title" id="lblOptTitle"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg> 最佳化：增肌減脂</span>
+                                <span class="opt-val" id="lblOptValue">0%</span>
+                            </div>
+                            <input type="range" class="opt-slider" id="optSlider" min="0" max="100" value="0">
+                        </div>
+
                         <div class="prog-carousel-wrap"><div class="prog-carousel" id="progGrid"></div></div>
                     </div>
 
@@ -336,7 +339,7 @@
 
                 <!-- RUN VIEW -->
                 <div id="run-view" class="view-section">
-                    <div class="massive-time" data-bind="massiveTime" id="massiveTime">00:00</div>
+                    <div class="massive-time" data-bind="massiveTime" id="massiveTime" data-action="open-adj-time">00:00</div>
                     
                     <div class="run-primary-grid">
                         <div class="run-val-box" data-action="open-adj-inc">
@@ -392,10 +395,6 @@
     </main>
 
     <footer id="footer">
-        <div id="footerShield">
-            <svg viewBox="0 0 24 24"><path d="M12 4V2C6.48 2 2 6.48 2 12h2c0-4.41 3.59-8 8-8zm0 16c-4.41 0-8-3.59-8-8H2c0 5.52 4.48 10 10 10v-2zm8-8c0-4.41-3.59-8-8-8v2c4.41 0 8 3.59 8 8h2z"/></svg>
-            <span id="lblFooterLock"></span>
-        </div>
         <div class="bottom-controls">
             <button id="btnLeft" class="btn-ctrl btn-runner" data-action="open-runner">
                 <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
@@ -415,25 +414,6 @@
             </button>
         </div>
     </footer>
-
-    <!-- Overtime Modal -->
-    <div id="overtimeModal" class="modal-overlay" data-no-close>
-        <div class="modal-box">
-            <svg class="ot-icon" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4-2.37V7z"/></svg>
-            <div class="ot-title" id="lblOtTitle"></div>
-            <div class="ot-desc" id="lblOtDesc"></div>
-            <div class="ot-btn-row">
-                <button class="btn-modal btn-ot-no" data-action="reject-ot">
-                    <svg class="svg-icon" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-                    <span id="lblOtNo">結束</span>
-                </button>
-                <button class="btn-modal btn-ot-yes" data-action="accept-ot">
-                    <svg class="svg-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                    <span id="lblOtYes">繼續</span>
-                </button>
-            </div>
-        </div>
-    </div>
 
     <!-- Runner Profile Modal -->
     <div id="runnerModal" class="modal-overlay" data-action="overlay-close">
@@ -578,7 +558,7 @@
         </div>
     </div>
     
-    <!-- Adjustment Modal -->
+    <!-- Speed/Inc Adjustment Modal -->
     <div id="adjModal" class="modal-overlay" data-action="overlay-close">
         <div class="modal-box" data-no-close style="width: auto; padding: 25px;">
             <div class="modal-title" style="justify-content:center; border:none; padding-bottom:5px;" id="lblAdjTitle"></div>
@@ -607,6 +587,35 @@
         </div>
     </div>
 
+    <!-- Time Adjustment Modal -->
+    <div id="timeModal" class="modal-overlay" data-action="overlay-close">
+        <div class="modal-box" data-no-close style="width: auto; padding: 25px;">
+            <div class="modal-title" style="justify-content:center; border:none; padding-bottom:5px;" id="lblTimeTitle"></div>
+            <div class="adj-wrap">
+                <div class="adj-box">
+                    <button class="adj-btn" data-action="time-minus" data-target="th">-</button>
+                    <div class="adj-dial-wrap">
+                        <div class="dial-label" id="lblTimeH"></div>
+                        <div class="dial-window" id="dw-adj-th" style="width:100%;"><div class="dial-scroll" id="ds-adj-th"></div></div>
+                    </div>
+                    <button class="adj-btn" data-action="time-plus" data-target="th">+</button>
+                </div>
+                <div class="adj-box">
+                    <button class="adj-btn" data-action="time-minus" data-target="tm">-</button>
+                    <div class="adj-dial-wrap">
+                        <div class="dial-label" id="lblTimeM"></div>
+                        <div class="dial-window" id="dw-adj-tm" style="width:100%;"><div class="dial-scroll" id="ds-adj-tm"></div></div>
+                    </div>
+                    <button class="adj-btn" data-action="time-plus" data-target="tm">+</button>
+                </div>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button class="btn-modal btn-ghost" data-action="close-time" id="btnTimeCancel"></button>
+                <button class="btn-modal btn-save" style="background:var(--neon-green);" data-action="save-time" id="btnTimeSave"></button>
+            </div>
+        </div>
+    </div>
+
     <div id="topNotification">
         <div class="notif-content">
             <svg class="svg-icon" viewBox="0 0 24 24" id="notifIcon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
@@ -617,7 +626,7 @@
 </div>
 
 <script>
-/** PRO TREADMILL OS (OLYMPIC V41 - ULTRAMARATHON PRECISION) */
+/** PRO TREADMILL OS (OLYMPIC V41.5 - INDUSTRIAL PRECISION) */
 
 const i18n = {
     zh: {
@@ -636,7 +645,7 @@ const i18n = {
         langZh: "中文", langEn: "EN", voiceOn: "語音 ON", voiceOff: "關閉", met: "公制", imp: "英制", male: "男", female: "女", lblSex: "跑者性別 (影響卡路里)",
         histTitle: "歷史紀錄", noHist: "尚無訓練紀錄", clearAsk: "確認清空所有歷史紀錄？此操作無法復原。",
         zones: ["Zone 1 (恢復):", "Zone 2 (燃脂):", "Zone 3 (節奏):", "Zone 4 (乳酸):", "Zone 5 (無氧):"], min: "分",
-        phases: { warmup: "暖身", steep: "爬坡", sprint: "衝刺", recovery: "恢復", exhaust: "力竭", cooldown: "緩和" },
+        phases: { warmup: "暖身", steep: "爬坡", sprint: "衝刺", recovery: "恢復", steady: "巡航", exhaust: "力竭", cooldown: "緩和" },
         prog: {
             p1: ["高效燃脂王", "最大化 Zone 2 搭配精準高強度，後燃極大化。"], p2: ["有氧耐力底層", "經典巡航，鍛鍊脂肪氧化。"],
             p3: ["標準穩健型", "黃金平衡，低皮質醇留肌訊號。"], p4: ["1:1 法特萊克", "快慢交替，隨機刺激心肺系統。"],
@@ -656,28 +665,21 @@ const i18n = {
             p9: "強化後燃型。長時間維持乳酸閾值，刺激生長激素分泌以突破平台期。",
             p10: "奧林匹克決賽。這是無情的變速與爬坡綜合體，展現您的菁英實力吧。"
         },
-        warnHw: "已達機台物理極限", warnCrash: "已從異常中斷恢復進度", warnSave: "資料已儲存",
-        errStorageFull: "儲存空間異常，已啟用緊急備援",
-        adjSpd: "速度校準", adjInc: "坡度校準",
+        warnSave: "資料已儲存", shortWorkout: "訓練時間過短，紀錄已作廢",
+        adjSpd: "速度校準", adjInc: "坡度校準", adjTime: "總時間校準", hr: "小時", mn: "分鐘",
         sumTitle: "訓練總結與營養建議", btnSumClose: "完成",
         nutriMissing: "填寫「體脂肪」與「骨骼肌」解鎖精準營養",
         nutriRx: "【 運動營養建議 】", nutriPost: "跑後修復: 蛋白質 {p}g + 碳水 {c}g", nutriDaily: "全日建議蛋白質總量: {p}g 維持肌肉",
-        shortWorkout: "訓練時間過短，紀錄已作廢",
         actualDist: "實際里程", estDist: "預估里程: ", 
         introDist: "預估總里程 {d}，消耗 {k} 大卡。", 
         unitKm: "公里", unitMi: "英里", unitAge: "歲",
         transMsg: "準備起跑。目標速度 {s}，坡度 {i}。",
         resumeAudio: "繼續訓練。",
-        warnCheating: "警告：過度中斷破壞了持續性的脂肪氧化環境，本次訓練效果已降級。",
-        lblFooterLock: "系統自動控制中",
-        otTitle: "時間已達，里程未滿", otDesc: "目標里程尚未達成。為保護您的心率與關節，已為您規劃安全的 Zone 2 燃脂延展賽。是否繼續跑完剩餘里程？",
-        otDynamicDesc: "時間已達，目標里程尚未達成。因生理負荷累積，後半段有氧配速預估將退化至 {pace}/km，補滿剩餘的 {dist} 單位還需約 {mins} 分鐘。是否進入延展賽？",
-        otNo: "結束", otYes: "繼續",
         lblFat: "脂肪消耗", lblCarb: "碳水消耗",
         bioWarnHr: "偵測到心率偏高，系統已微調極限，確保處於安全區間。",
-        otBegin: "延長賽啟動，將以最安全的燃脂區間為您完成剩餘里程。",
-        otRamp: "原定時間結束，里程未達標。正在為您安全降速，請準備確認是否進入延長賽。",
-        autoPause: "系統因背景休眠已自動暫停，請確認安全後繼續。"
+        optTitle: "最佳化：增肌減脂", optDone: "最佳化完成：最高速已調整為 {s}",
+        errTimeShort: "設定時間不可低於已跑時間加一分鐘",
+        lblFooterLock: "安全鎖定中"
     },
     en: {
         tab1: "Setup", tab2: "Pace",
@@ -695,7 +697,7 @@ const i18n = {
         langZh: "中文", langEn: "EN", voiceOn: "Voice ON", voiceOff: "OFF", met: "Metric", imp: "Imperial", male: "M", female: "F", lblSex: "Runner Sex (Impacts Calorie Math)",
         histTitle: "History", noHist: "No workout history yet.", clearAsk: "Clear all history? This cannot be undone.",
         zones: ["Zone 1 (Recovery):", "Zone 2 (Fat Burn):", "Zone 3 (Tempo):", "Zone 4 (Threshold):", "Zone 5 (Anaerobic):"], min: "m",
-        phases: { warmup: "Warmup", steep: "Steep", sprint: "Sprint", recovery: "Recovery", exhaust: "Exhaust", cooldown: "Cool" },
+        phases: { warmup: "Warmup", steep: "Steep", sprint: "Sprint", recovery: "Recovery", steady: "Steady", exhaust: "Exhaust", cooldown: "Cool" },
         prog: {
             p1: ["Fat-Burning King", "Max Zone 2 with precise high intensity for EPOC."], 
             p2: ["Aerobic Base", "Classic steady cruise to maximize fat oxidation."],
@@ -720,28 +722,21 @@ const i18n = {
             p9: "Post-Burn Amplifier. Sustained lactate accumulation to trigger powerful metabolic hormones.",
             p10: "Olympic Final. Relentless speed and steep climbs. Show your elite strength."
         },
-        warnHw: "Hardware Limit Reached", warnCrash: "Recovered from unexpected crash", warnSave: "Profile Saved",
-        errStorageFull: "Storage error. Emergency backup enabled.",
-        adjSpd: "Speed Calibration", adjInc: "Incline Calibration",
+        warnSave: "Profile Saved", shortWorkout: "Workout too short, discarded.",
+        adjSpd: "Speed Calibration", adjInc: "Incline Calibration", adjTime: "Time Calibration", hr: "Hours", mn: "Minutes",
         sumTitle: "Summary & Nutrition", btnSumClose: "Done",
         nutriMissing: "Fill Body Fat & SMM to unlock precise nutrition.",
         nutriRx: "[ Nutrition Suggestion ]", nutriPost: "Post-run: Protein {p}g + Carbs {c}g", nutriDaily: "Daily Protein: {p}g to maintain muscle.",
-        shortWorkout: "Workout too short, discarded.",
         actualDist: "Actual Dist", estDist: "Est. Dist: ", 
         introDist: "Estimated total distance {d}, burning {k} calories.",
         unitKm: "kilometers", unitMi: "miles", unitAge: "yrs",
         transMsg: "Preparing to start. Target speed {s}, incline {i}.",
         resumeAudio: "Resuming workout.",
-        warnCheating: "Warning: Excessive pauses disrupted the continuous fat-oxidation environment. Workout effectiveness degraded.",
-        lblFooterLock: "System taking control",
-        otTitle: "Time's Up, Distance Not Met", otDesc: "Your target distance hasn't been reached. To protect your joints, we've planned a safe Zone 2 Overtime. Continue to finish the distance?",
-        otDynamicDesc: "Target not met. Due to cumulative load, your aerobic pace degrades to {pace}/km. The remaining {dist} requires approx {mins} mins. Start Overtime?",
-        otNo: "End", otYes: "Continue",
         lblFat: "Fat Cal", lblCarb: "Carb Cal",
         bioWarnHr: "High heart rate detected. Speed ceiling has been adjusted to ensure you stay in a safe zone.",
-        otBegin: "Overtime initiated. We will complete the remaining distance at a safe fat-burning pace.",
-        otRamp: "Scheduled time is up, but distance is incomplete. Safely ramping down speed. Please prepare to confirm overtime.",
-        autoPause: "System auto-paused due to background sleep. Resume when safe."
+        optTitle: "Fat-Burn / Muscle Maximize", optDone: "Optimization Complete: Max Spd set to {s}",
+        errTimeShort: "Time cannot be less than elapsed + 1 minute.",
+        lblFooterLock: "Safety Lockout Active"
     }
 };
 
@@ -842,14 +837,11 @@ const AppState = new ReactiveState({
 });
 
 const RunAcc = { 
-    sec: 0, 
-    sumSpd: 0, sumInc: 0, sumHr: 0, sumLac: 0,
+    sec: 0, sumSpd: 0, sumInc: 0, sumHr: 0, sumLac: 0,
     curSpd: 0, curInc: 0, curHr: 0, curLac: 0,
     mxS: 0, mxI: 0, mxH: 0, mxL: 0, 
     dKm: 0, fCal: 0, cCal: 0, zs: [0,0,0,0,0], 
-    transF: {}, hrOvershoot: 0, deadzoneTimer: 0, hysteresisCap: {}, 
-    pauseCount: 0, lastPauseMs: 0, pausePenalty: false, otSpd: 4.0, otInc: 0.0, rampdownMs: 0,
-    moatCount: 0, moatTriggered: false, otMessage: ''
+    transF: {}, moatCount: 0, moatTriggered: false
 };
 
 const resetRunAcc = () => {
@@ -858,9 +850,7 @@ const resetRunAcc = () => {
         curSpd: 0, curInc: 0, curHr: 0, curLac: 0,
         mxS: 0, mxI: 0, mxH: 0, mxL: 0, 
         dKm: 0, fCal: 0, cCal: 0, zs: [0,0,0,0,0], 
-        transF: {}, hrOvershoot: 0, deadzoneTimer: 0, hysteresisCap: {}, 
-        pauseCount: 0, lastPauseMs: 0, pausePenalty: false, otSpd: 4.0, otInc: 0.0, rampdownMs: 0,
-        moatCount: 0, moatTriggered: false, otMessage: ''
+        transF: {}, moatCount: 0, moatTriggered: false
     });
 };
 
@@ -872,10 +862,9 @@ class PhysioEngine {
         let defBF = m.gender === 'M' ? 18 : 26;
         let bf = Utils.clamp(m.bf || (sKG > 0 ? Math.max(5, 100 - (sKG/wKG*100) - (m.gender==='M'?20:15)) : defBF), 3, 50);
         let smm = sKG || (wKG * (1 - bf/100) * (m.gender==='M'?0.45:0.38));
-        
         let ecw = Utils.clamp(m.ecw || 0.375, 0.300, 0.450);
-        let mHR = m.customMHR || Math.max(130, 208 - 0.7 * (m.age||35)); 
         
+        let mHR = m.customMHR || Math.max(130, 208 - 0.7 * (m.age||35)); 
         let rHR = m.customRHR || 60; 
         if (!m.customRHR && m.customRHR !== 0) {
             let isFit = false;
@@ -948,28 +937,6 @@ class PhysioEngine {
             }
         }
 
-        let bestDist = 0;
-        for(let i=0; i<T; i++) {
-            let norm = env[i];
-            let spd = safeMnS + (allowedMxS - safeMnS) * norm;
-            
-            let inc = safeMnI;
-            if (i >= wT && i < T - cT) {
-                if (p.lastProg === 5 || p.lastProg === 6 || p.lastProg === 10) {
-                    inc = safeMnI + (allowedMxI - safeMnI) * (0.5 + 0.5*Math.sin(i * 0.5));
-                }
-                if (spd < 6.5) { inc = allowedMxI; } 
-            }
-            
-            spd = Utils.clamp(spd, safeMnS, allowedMxS);
-            inc = Utils.clamp(inc, safeMnI, allowedMxI);
-            
-            if (i === 0 || i === T - 1) { inc = safeMnI; if(i===0) spd = safeMnS; }
-            
-            m_raw.push({ spd, inc });
-            bestDist += spd / 60;
-        }
-
         let cHR = p.rHR + 10; let cLac = 1.0;
         let HRR = p.mHR - p.rHR;
         let RE = p.gender === 'F' ? 1.05 : 1.0; if(p.smm / p.wKG > (p.gender==='M' ? 0.4 : 0.35)) RE -= 0.05; 
@@ -977,17 +944,23 @@ class PhysioEngine {
         let fCal = 0, cCal = 0;
         
         for(let i=0; i<T; i++) {
-            let spd = m_raw[i].spd; let inc = m_raw[i].inc;
+            let spd = safeMnS + (allowedMxS - safeMnS) * env[i];
+            let inc = safeMnI;
+            if (i >= wT && i < T - cT) {
+                if (p.lastProg === 5 || p.lastProg === 6 || p.lastProg === 10) { inc = safeMnI + (allowedMxI - safeMnI) * (0.5 + 0.5*Math.sin(i * 0.5)); }
+                if (spd < 6.5) { inc = allowedMxI; } 
+            }
+            spd = Utils.clamp(spd, safeMnS, allowedMxS); inc = Utils.clamp(inc, safeMnI, allowedMxI);
+            if (i === 0 || i === T - 1) { inc = safeMnI; if(i===0) spd = safeMnS; }
+
             let sm = spd * 16.6667; let id = inc / 100;
             let vo2D = (spd <= 7.0 ? (3.5 + 0.1*sm + 1.8*sm*id) : (3.5 + 0.2*sm + 0.9*sm*id)) * RE;
             if (i < wT) vo2D *= 0.9; 
             
             let effortRatio = vo2D / p.vo2; 
             let smoothedTargetPct = effortRatio < 0.6 ? effortRatio : (1.0 - 0.4 * Math.exp(-2.5 * (effortRatio - 0.6)));
-
             let tHR = p.rHR + (HRR * smoothedTargetPct);
             cHR += (tHR - cHR) * 0.4; 
-            
             let hrIntensity = (cHR - p.rHR) / HRR;
 
             if(hrIntensity < lacThresh - 0.05) { cLac += (1.0 - cLac) * 0.2; } 
@@ -997,31 +970,24 @@ class PhysioEngine {
             
             let z = hrIntensity < 0.6 ? 1 : (hrIntensity < 0.7 ? 2 : (hrIntensity < 0.8 ? 3 : (hrIntensity < 0.9 ? 4 : 5)));
             
-            let rerBase = 0.7 + (hrIntensity * 0.3);
-            let fitnessAdj = (p.vo2 - 35) * 0.005 + (p.smm / p.wKG - 0.35) * 0.5 - (p.bf - 15) * 0.002;
-            let rer = Utils.clamp(rerBase - fitnessAdj, 0.7, 1.0);
-            let pctCarb = (rer - 0.7) / 0.3; let pctFat = 1.0 - pctCarb;
-            
-            let kcalMin = (vo2D * p.wKG * 5) / 1000;
-            fCal += kcalMin * pctFat; cCal += kcalMin * pctCarb;
-            
-            let phase = i < wT ? 'warmup' : i >= T-cT ? 'cooldown' : ((spd - safeMnS)/(allowedMxS - safeMnS || 1)) > 0.8 ? 'sprint' : inc > safeMnI + 4 ? 'steep' : 'recovery';
+            let phase = i < wT ? 'warmup' : i >= T-cT ? 'cooldown' : ((spd - safeMnS)/(allowedMxS - safeMnS || 1)) > 0.8 ? 'sprint' : inc > safeMnI + 4 ? 'steep' : 'steady';
             
             let safeHR = Number.isFinite(cHR) ? Math.round(cHR) : 110;
             let safeLac = Number.isFinite(cLac) ? Utils.round(cLac) : 1.5;
             let safeZ = Number.isFinite(z) ? z : 2;
 
-            m_raw[i] = { spd: Utils.round(spd), inc: Utils.round(inc), m:i+1, dist: spd/60, hr: safeHR, lac: safeLac, z: safeZ, phase, fCal: kcalMin*pctFat, cCal: kcalMin*pctCarb, cal: kcalMin };
+            let rerBase = 0.7 + (hrIntensity * 0.3); let fitnessAdj = (p.vo2 - 35) * 0.005 + (p.smm / p.wKG - 0.35) * 0.5 - (p.bf - 15) * 0.002;
+            let rer = Utils.clamp(rerBase - fitnessAdj, 0.7, 1.0); let pctCarb = (rer - 0.7) / 0.3; let pctFat = 1.0 - pctCarb;
+            let kcalMin = (vo2D * p.wKG * 5) / 1000;
+            
+            m_raw.push({ spd: Utils.round(spd), inc: Utils.round(inc), m:i+1, dist: spd/60, hr: safeHR, lac: safeLac, z: safeZ, phase, fCal: kcalMin*pctFat, cCal: kcalMin*pctCarb, cal: kcalMin });
         }
-
         return { matrix: m_raw, newMaxSpd: allowedMxS, newTime: T };
     }
 }
 
 class VoiceEngine {
-    constructor() {
-        this.synth = window.speechSynthesis; this.q = []; this.state = 'IDLE'; this.timer = null; this.keepAlive = null; this.wd = null;
-    }
+    constructor() { this.synth = window.speechSynthesis; this.q = []; this.state = 'IDLE'; this.timer = null; this.keepAlive = null; this.wd = null; this.muted = false; }
     unlock() { 
         if(this.synth) { 
             let u = new SpeechSynthesisUtterance(''); u.volume = 0; this.synth.speak(u); 
@@ -1030,26 +996,14 @@ class VoiceEngine {
         } 
     }
     speakText(txt, pri, langCode) {
-        if (!this.synth || AppState.state.runStatus === 'PAUSED') return;
+        if (!this.synth || AppState.state.runStatus === 'PAUSED' || this.muted) return;
         let p = AppState.state.profiles[AppState.state.activeP]; if(!p || !p.voiceOn) return;
-        
-        if (document.visibilityState === 'hidden') {
-            if (pri <= 2) NotificationManager.show(txt, pri === 1);
-            return;
-        }
-        
-        if (pri === 1) { 
-            this.synth.cancel(); 
-            this.q = this.q.filter(job => job.pri >= 2); 
-            clearTimeout(this.timer); clearTimeout(this.wd); this.state = 'IDLE'; 
-        }
-        
-        this.q.push({ txt: txt, raw: txt, pri, lang: langCode, ts: Date.now() }); 
-        this.q.sort((a,b) => a.pri - b.pri); 
-        this._process();
+        if (document.visibilityState === 'hidden') { if (pri <= 2) NotificationManager.show(txt, pri === 1); return; }
+        if (pri === 1) { this.synth.cancel(); this.q = this.q.filter(job => job.pri >= 2); clearTimeout(this.timer); clearTimeout(this.wd); this.state = 'IDLE'; }
+        this.q.push({ txt: txt, raw: txt, pri, lang: langCode, ts: Date.now() }); this.q.sort((a,b) => a.pri - b.pri); this._process();
     }
     evaluateAndSpeak(metrics, age, personalMaxLac) {
-        if (AppState.state.runStatus === 'PRE_FLIGHT') return; 
+        if (AppState.state.runStatus === 'PRE_FLIGHT' || this.muted) return; 
         let p = AppState.state.profiles[AppState.state.activeP]; if(!p || !p.voiceOn) return;
         let lang = p.lang || 'en'; let db = VoiceDB[lang]; if (!db) return;
         
@@ -1060,74 +1014,27 @@ class VoiceEngine {
         if (lacPct > 1.0 && db.warn_lac) { this.speakText(Utils.PRNG.get(lang, 'warn_lac', db.warn_lac), 1, lang === 'zh' ? 'zh-TW' : 'en-US'); return; }
 
         let arr = null; let key = ''; let rand = Math.random();
-
-        if (metrics.phase === 'warmup') {
-            if (rand < 0.5 && db.phy_warm) { arr = db.phy_warm; key = 'phy_warm'; } else { arr = db.val_low; key = 'val_low'; }
-        } else if (metrics.phase === 'steep') {
-            if (metrics.inc < 2) {
-                if (rand < 0.5 && db.bio_flat) { arr = db.bio_flat; key = 'bio_flat'; } else { arr = db.val_mid; key = 'val_mid'; }
-            } else {
-                if (rand < 0.6 && db.bio_steep) { arr = db.bio_steep; key = 'bio_steep'; } else { arr = db.val_mid; key = 'val_mid'; }
-            }
-        } else if (metrics.phase === 'recovery' || metrics.phase === 'cooldown') {
-            if (rand < 0.5 && db.phy_rec) { arr = db.phy_rec; key = 'phy_rec'; } else { arr = db.val_rec; key = 'val_rec'; }
-        } else if (metrics.phase === 'sprint' || metrics.phase === 'exhaust') {
-            if (hrPct > 0.90) { 
-                if (rand < 0.4 && db.phy_ana) { arr = db.phy_ana; key = 'phy_ana'; }
-                else if (rand < 0.7 && db.psy_over) { arr = db.psy_over; key = 'psy_over'; }
-                else { arr = db.val_high; key = 'val_high'; }
-            } else { 
-                if (rand < 0.5 && db.psy_micro) { arr = db.psy_micro; key = 'psy_micro'; }
-                else { arr = db.val_mid; key = 'val_mid'; }
-            }
-        } else {
-            if (hrPct < 0.70) { 
-                if (rand < 0.3 && db.bio_flat) { arr = db.bio_flat; key = 'bio_flat'; }
-                else if (rand < 0.6 && db.phy_aero) { arr = db.phy_aero; key = 'phy_aero'; }
-                else { arr = db.val_low; key = 'val_low'; }
-            } else if (hrPct <= 0.90) { 
-                if (rand < 0.3 && db.psy_focus) { arr = db.psy_focus; key = 'psy_focus'; }
-                else { arr = db.val_mid; key = 'val_mid'; }
-            } else { 
-                if (rand < 0.3 && db.psy_over) { arr = db.psy_over; key = 'psy_over'; }
-                else { arr = db.val_high; key = 'val_high'; }
-            }
-        }
+        if (metrics.phase === 'warmup') { if (rand < 0.5 && db.phy_warm) { arr = db.phy_warm; key = 'phy_warm'; } else { arr = db.val_low; key = 'val_low'; } } 
+        else if (metrics.phase === 'steep') { if (metrics.inc < 2) { if (rand < 0.5 && db.bio_flat) { arr = db.bio_flat; key = 'bio_flat'; } else { arr = db.val_mid; key = 'val_mid'; } } else { if (rand < 0.6 && db.bio_steep) { arr = db.bio_steep; key = 'bio_steep'; } else { arr = db.val_mid; key = 'val_mid'; } } } 
+        else if (metrics.phase === 'recovery' || metrics.phase === 'cooldown') { if (rand < 0.5 && db.phy_rec) { arr = db.phy_rec; key = 'phy_rec'; } else { arr = db.val_rec; key = 'val_rec'; } } 
+        else if (metrics.phase === 'sprint' || metrics.phase === 'exhaust') { if (hrPct > 0.90) { if (rand < 0.4 && db.phy_ana) { arr = db.phy_ana; key = 'phy_ana'; } else if (rand < 0.7 && db.psy_over) { arr = db.psy_over; key = 'psy_over'; } else { arr = db.val_high; key = 'val_high'; } } else { if (rand < 0.5 && db.psy_micro) { arr = db.psy_micro; key = 'psy_micro'; } else { arr = db.val_mid; key = 'val_mid'; } } } 
+        else { if (hrPct < 0.70) { if (rand < 0.3 && db.bio_flat) { arr = db.bio_flat; key = 'bio_flat'; } else if (rand < 0.6 && db.phy_aero) { arr = db.phy_aero; key = 'phy_aero'; } else { arr = db.val_low; key = 'val_low'; } } else if (hrPct <= 0.90) { if (rand < 0.3 && db.psy_focus) { arr = db.psy_focus; key = 'psy_focus'; } else { arr = db.val_mid; key = 'val_mid'; } } else { if (rand < 0.3 && db.psy_over) { arr = db.psy_over; key = 'psy_over'; } else { arr = db.val_high; key = 'val_high'; } } }
         if (arr && arr.length > 0) this.speakText(Utils.PRNG.get(lang, key, arr), 3, lang === 'zh' ? 'zh-TW' : 'en-US');
     }
     _process() {
-        if (this.state !== 'IDLE' || this.q.length === 0) return;
+        if (this.state !== 'IDLE' || this.q.length === 0 || this.muted) return;
         let job = this.q.shift();
-        
         if (Date.now() - job.ts > 5000 && job.pri > 1) { this._process(); return; }
-
         this.state = 'SPEAKING';
         try {
-            let msg = new SpeechSynthesisUtterance(job.txt); 
-            msg.lang = job.lang;
-            msg.rate = 1.15;
-            
-            let voices = this.synth.getVoices();
-            if (voices.length > 0) {
-                let v = voices.find(x => x.lang.includes(job.lang) && (x.name.includes('Siri') || x.name.includes('Google')));
-                if(v) msg.voice = v;
-            }
-            
-            this.wd = setTimeout(() => { 
-                this.synth.cancel(); this.state = 'IDLE'; 
-                let u = new SpeechSynthesisUtterance(''); u.volume = 0; this.synth.speak(u); 
-                this._process(); 
-            }, 10000); 
-            
-            msg.onend = () => { clearTimeout(this.wd); this._finish(); };
-            msg.onerror = () => { clearTimeout(this.wd); this._finish(); };
+            let msg = new SpeechSynthesisUtterance(job.txt); msg.lang = job.lang; msg.rate = 1.15;
+            let voices = this.synth.getVoices(); if (voices.length > 0) { let v = voices.find(x => x.lang.includes(job.lang) && (x.name.includes('Siri') || x.name.includes('Google'))); if(v) msg.voice = v; }
+            this.wd = setTimeout(() => { this.synth.cancel(); this.state = 'IDLE'; let u = new SpeechSynthesisUtterance(''); u.volume = 0; this.synth.speak(u); this._process(); }, 10000); 
+            msg.onend = () => { clearTimeout(this.wd); this._finish(); }; msg.onerror = () => { clearTimeout(this.wd); this._finish(); };
             this.synth.speak(msg);
         } catch(e) { clearTimeout(this.wd); this._finish(); }
     }
-    _finish() {
-        this.state = 'COOLDOWN';
-        this.timer = setTimeout(() => { this.state = 'IDLE'; this._process(); }, 500); 
-    }
+    _finish() { this.state = 'COOLDOWN'; this.timer = setTimeout(() => { this.state = 'IDLE'; this._process(); }, 500); }
     clear() { this.q = []; if (this.synth) this.synth.cancel(); clearTimeout(this.timer); clearTimeout(this.wd); this.state = 'IDLE'; }
     hardReset() { this.clear(); if(this.synth) this.synth.cancel(); }
 }
@@ -1135,81 +1042,25 @@ const VoiceApp = new VoiceEngine();
 
 const DB = {
     db: null,
-    init: async () => {
-        return new Promise((res, rej) => {
-            let req = indexedDB.open('ProTreadmillDB_Ultimate', 4);
-            req.onupgradeneeded = e => { 
-                let d = e.target.result; 
-                if(!d.objectStoreNames.contains('history')) d.createObjectStore('history', {keyPath: 'id', autoIncrement: true}); 
-            };
-            req.onsuccess = e => { DB.db = e.target.result; res(); }; req.onerror = rej;
-        });
-    },
-    saveHist: async (data) => {
-        if(!DB.db) { DB._fallbackSave(data); return; }
-        return new Promise((res) => {
-            try {
-                let tx = DB.db.transaction('history', 'readwrite'); let st = tx.objectStore('history');
-                st.add(data);
-                st.getAll().onsuccess = e => {
-                    let runnerHists = e.target.result.filter(x => x.runnerName === data.runnerName).sort((a,b)=>a.date - b.date);
-                    if(runnerHists.length > 100) { let dTx = DB.db.transaction('history', 'readwrite'); runnerHists.slice(0, runnerHists.length - 100).forEach(x => dTx.objectStore('history').delete(x.id)); }
-                };
-                tx.oncomplete = res; tx.onerror = () => { DB._fallbackSave(data); res(); };
-            } catch(e) { DB._fallbackSave(data); res(); }
-        });
-    },
-    renameRunnerHistory: async (oldName, newName) => {
-        if(!DB.db) return;
-        return new Promise(res => {
-            try {
-                let tx = DB.db.transaction('history', 'readwrite');
-                let st = tx.objectStore('history');
-                st.getAll().onsuccess = e => {
-                    let records = e.target.result;
-                    records.forEach(r => {
-                        if(r.runnerName === oldName) {
-                            r.runnerName = newName;
-                            st.put(r);
-                        }
-                    });
-                };
-                tx.oncomplete = res;
-                tx.onerror = res;
-            } catch (err) { res(); }
-        });
-    },
+    init: async () => { return new Promise((res, rej) => { let req = indexedDB.open('ProTreadmillDB_Ultimate', 5); req.onupgradeneeded = e => { let d = e.target.result; if(!d.objectStoreNames.contains('history')) d.createObjectStore('history', {keyPath: 'id', autoIncrement: true}); }; req.onsuccess = e => { DB.db = e.target.result; res(); }; req.onerror = rej; }); },
+    saveHist: async (data) => { if(!DB.db) { DB._fallbackSave(data); return; } return new Promise((res) => { try { let tx = DB.db.transaction('history', 'readwrite'); let st = tx.objectStore('history'); st.add(data); st.getAll().onsuccess = e => { let runnerHists = e.target.result.filter(x => x.runnerName === data.runnerName).sort((a,b)=>a.date - b.date); if(runnerHists.length > 100) { let dTx = DB.db.transaction('history', 'readwrite'); runnerHists.slice(0, runnerHists.length - 100).forEach(x => dTx.objectStore('history').delete(x.id)); } }; tx.oncomplete = res; tx.onerror = () => { DB._fallbackSave(data); res(); }; } catch(e) { DB._fallbackSave(data); res(); } }); },
+    renameRunnerHistory: async (oldName, newName) => { if(!DB.db) return; return new Promise(res => { try { let tx = DB.db.transaction('history', 'readwrite'); let st = tx.objectStore('history'); st.getAll().onsuccess = e => { let records = e.target.result; records.forEach(r => { if(r.runnerName === oldName) { r.runnerName = newName; st.put(r); } }); }; tx.oncomplete = res; tx.onerror = res; } catch (err) { res(); } }); },
     _fallbackSave: (data) => { try { localStorage.setItem('ProTreadmill_FallbackHist', JSON.stringify(data)); } catch(e){} },
-    getHist: async (runnerName) => {
-        return new Promise((res) => {
-            if(!DB.db) { try { let fb = JSON.parse(localStorage.getItem('ProTreadmill_FallbackHist')); return res(fb && fb.runnerName === runnerName ? [fb] : []); } catch(e){ return res([]); } }
-            let tx = DB.db.transaction('history', 'readonly'); let st = tx.objectStore('history');
-            let req = st.getAll(); req.onsuccess = e => res(e.target.result.filter(x => x.runnerName === runnerName).sort((a,b) => b.id - a.id)); req.onerror = () => res([]);
-        });
-    },
+    getHist: async (runnerName) => { return new Promise((res) => { if(!DB.db) { try { let fb = JSON.parse(localStorage.getItem('ProTreadmill_FallbackHist')); return res(fb && fb.runnerName === runnerName ? [fb] : []); } catch(e){ return res([]); } } let tx = DB.db.transaction('history', 'readonly'); let st = tx.objectStore('history'); let req = st.getAll(); req.onsuccess = e => res(e.target.result.filter(x => x.runnerName === runnerName).sort((a,b) => b.id - a.id)); req.onerror = () => res([]); }); },
     clearHist: async (runnerName) => { if(DB.db) return new Promise(res => { let tx = DB.db.transaction('history', 'readwrite'); let st = tx.objectStore('history'); st.getAll().onsuccess = e => { e.target.result.filter(x => x.runnerName === runnerName).forEach(x => st.delete(x.id)); res(); }; }); }
 };
 
 let BgWorker;
-try {
-    const workerCode = `let t=null, l=0, r=false; self.onmessage=e=>{ if(e.data==='START'){ if(!r){r=true; l=performance.now(); t=setInterval(()=>{ let n=performance.now(); self.postMessage({dt: n-l}); l=n; }, 1000);} } else if(e.data==='STOP'){ r=false; clearInterval(t); } };`;
-    BgWorker = new Worker(URL.createObjectURL(new Blob([workerCode], {type: 'application/javascript'})));
-} catch(e) {
-    BgWorker = { postMessage: function(d) { if(d==='START'){ if(!this.t){ this.l=performance.now(); this.t=setInterval(()=>{ let n=performance.now(); if(this.onmessage) this.onmessage({data:{dt:n-this.l}}); this.l=n; }, 1000); } } else if(d==='STOP'){ clearInterval(this.t); this.t=null; } } };
-}
+try { const workerCode = `let t=null, l=0, r=false; self.onmessage=e=>{ if(e.data==='START'){ if(!r){r=true; l=performance.now(); t=setInterval(()=>{ let n=performance.now(); self.postMessage({dt: n-l}); l=n; }, 1000);} } else if(e.data==='STOP'){ r=false; clearInterval(t); } };`; BgWorker = new Worker(URL.createObjectURL(new Blob([workerCode], {type: 'application/javascript'}))); } 
+catch(e) { BgWorker = { postMessage: function(d) { if(d==='START'){ if(!this.t){ this.l=performance.now(); this.t=setInterval(()=>{ let n=performance.now(); if(this.onmessage) this.onmessage({data:{dt:n-this.l}}); this.l=n; }, 1000); } } else if(d==='STOP'){ clearInterval(this.t); this.t=null; } } }; }
 
-class UIBinder {
-    constructor() { this.els = new Map(); document.querySelectorAll('[data-bind]').forEach(el => { let k = el.dataset.bind; if(!this.els.has(k)) this.els.set(k, []); this.els.get(k).push(el); }); }
-    update(k, v) { if(this.els.has(k)) this.els.get(k).forEach(el => { if(el.textContent !== String(v)) el.textContent = v; }); }
-    updateBatch(obj) { Object.entries(obj).forEach(([k,v]) => this.update(k, v)); }
-}
+class UIBinder { constructor() { this.els = new Map(); document.querySelectorAll('[data-bind]').forEach(el => { let k = el.dataset.bind; if(!this.els.has(k)) this.els.set(k, []); this.els.get(k).push(el); }); } update(k, v) { if(this.els.has(k)) this.els.get(k).forEach(el => { if(el.textContent !== String(v)) el.textContent = v; }); } updateBatch(obj) { Object.entries(obj).forEach(([k,v]) => this.update(k, v)); } }
 const Binder = new UIBinder();
 
 const NotificationManager = {
     timer: null,
     show: (msg, isError = false) => {
-        document.getElementById('notifContent').textContent = msg;
-        let p = document.getElementById('topNotification'); let b = document.getElementById('notifBar'); let icon = document.getElementById('notifIcon');
+        document.getElementById('notifContent').textContent = msg; let p = document.getElementById('topNotification'); let b = document.getElementById('notifBar'); let icon = document.getElementById('notifIcon');
         if (isError) { p.style.border = '1px solid var(--neon-red)'; b.style.background = 'var(--neon-red)'; icon.style.fill = 'var(--neon-red)'; icon.innerHTML = '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>'; } 
         else { p.style.border = '1px solid #444'; b.style.background = 'var(--text-main)'; icon.style.fill = 'currentColor'; icon.innerHTML = '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>'; }
         p.classList.add('show'); b.style.transition = 'none'; b.style.transform = 'scaleX(1)'; void b.offsetWidth; b.style.transition = 'transform 3000ms linear'; b.style.transform = 'scaleX(0)';
@@ -1220,17 +1071,11 @@ const NotificationManager = {
 class TweenEngine {
     constructor() { this.active = {}; }
     to(id, targetVal, formatFn) {
-        if(this.active[id]) cancelAnimationFrame(this.active[id].req);
-        let el = document.getElementById(id); if(!el) return;
-        let startVal = parseFloat(el.dataset.raw) || parseFloat(el.textContent) || 0;
-        let diff = targetVal - startVal;
+        if(this.active[id]) cancelAnimationFrame(this.active[id].req); let el = document.getElementById(id); if(!el) return;
+        let startVal = parseFloat(el.dataset.raw) || parseFloat(el.textContent) || 0; let diff = targetVal - startVal;
         if(Math.abs(diff) < 0.01) { el.textContent = formatFn(targetVal); el.dataset.raw = targetVal; return; }
         let startTs = performance.now(); let duration = 800;
-        const step = (ts) => {
-            let prog = Math.min(1, (ts - startTs) / duration); let ease = 1 - Math.pow(1 - prog, 3); let cur = startVal + diff * ease;
-            el.textContent = formatFn(cur); el.dataset.raw = cur;
-            if(prog < 1) { this.active[id].req = requestAnimationFrame(step); } else { delete this.active[id]; }
-        };
+        const step = (ts) => { let prog = Math.min(1, (ts - startTs) / duration); let ease = 1 - Math.pow(1 - prog, 3); let cur = startVal + diff * ease; el.textContent = formatFn(cur); el.dataset.raw = cur; if(prog < 1) { this.active[id].req = requestAnimationFrame(step); } else { delete this.active[id]; } };
         this.active[id] = { req: requestAnimationFrame(step) };
     }
 }
@@ -1238,72 +1083,37 @@ const TweenApp = new TweenEngine();
 
 class SwipeDial {
     constructor(id, isFloat, onEnd) {
-        this.scrollEl = document.getElementById(id); this.isFloat = isFloat; this.onEnd = onEnd; this.items = []; this.currentVal = 0; this.timer = null;
-        this.isUpdating = false; 
+        this.scrollEl = document.getElementById(id); this.isFloat = isFloat; this.onEnd = onEnd; this.items = []; this.currentVal = 0; this.timer = null; this.isUpdating = false; 
         const handle = () => { if(this.isUpdating) return; clearTimeout(this.timer); this.timer = setTimeout(() => this.handleSnap(), 300); };
-        if ('onscrollend' in window) { this.scrollEl.addEventListener('scrollend', handle); } 
-        this.scrollEl.addEventListener('scroll', handle, {passive: true});
-        this.scrollEl.addEventListener('touchstart', () => { if(!this.isUpdating) clearTimeout(this.timer); }, {passive: true});
+        if ('onscrollend' in window) { this.scrollEl.addEventListener('scrollend', handle); } this.scrollEl.addEventListener('scroll', handle, {passive: true}); this.scrollEl.addEventListener('touchstart', () => { if(!this.isUpdating) clearTimeout(this.timer); }, {passive: true});
     }
     build(min, max, step) {
         this.scrollEl.innerHTML = ''; this.items = []; this.min = min; this.max = max; this.step = step;
-        for(let v = max; v >= min - 0.0001; v -= step) {
-            let d = document.createElement('div'); d.className = 'dial-item';
-            let vs = this.isFloat ? Number(v).toFixed(1) : Math.round(v).toString(); d.dataset.val = vs; d.textContent = vs;
-            this.scrollEl.appendChild(d); this.items.push(d);
-        }
+        for(let v = max; v >= min - 0.0001; v -= step) { let d = document.createElement('div'); d.className = 'dial-item'; let vs = this.isFloat ? Number(v).toFixed(1) : Math.round(v).toString(); d.dataset.val = vs; d.textContent = vs; this.scrollEl.appendChild(d); this.items.push(d); }
     }
     setValue(val, forceVisual = false) {
-        if(this.items.length===0) return;
-        if(!forceVisual && Math.abs(this.currentVal - val) < 0.05) return; 
-        this.isUpdating = true; 
-        val = Utils.clamp(val, this.min, this.max);
-        let vs = this.isFloat ? Number(val).toFixed(1) : Math.round(val).toString();
-        
-        let targetIndex = this.items.findIndex(i => i.dataset.val === vs);
-        if (targetIndex === -1) {
-            targetIndex = this.items.reduce((bestIdx, curr, idx) => Math.abs(parseFloat(curr.dataset.val) - val) < Math.abs(parseFloat(this.items[bestIdx].dataset.val) - val) ? idx : bestIdx, 0);
-        }
-        let target = this.items[targetIndex];
-        this.currentVal = parseFloat(target.dataset.val);
-        
-        let top = targetIndex * 36;
-        this.scrollEl.style.scrollSnapType = 'none'; this.scrollEl.scrollTop = top; 
-        this.items.forEach(i => i.classList.remove('active')); target.classList.add('active');
+        if(this.items.length===0) return; if(!forceVisual && Math.abs(this.currentVal - val) < 0.05) return; 
+        this.isUpdating = true; val = Utils.clamp(val, this.min, this.max); let vs = this.isFloat ? Number(val).toFixed(1) : Math.round(val).toString();
+        let targetIndex = this.items.findIndex(i => i.dataset.val === vs); if (targetIndex === -1) { targetIndex = this.items.reduce((bestIdx, curr, idx) => Math.abs(parseFloat(curr.dataset.val) - val) < Math.abs(parseFloat(this.items[bestIdx].dataset.val) - val) ? idx : bestIdx, 0); }
+        let target = this.items[targetIndex]; this.currentVal = parseFloat(target.dataset.val);
+        let top = targetIndex * 36; this.scrollEl.style.scrollSnapType = 'none'; this.scrollEl.scrollTop = top; this.items.forEach(i => i.classList.remove('active')); target.classList.add('active');
         setTimeout(() => { this.scrollEl.style.scrollSnapType = 'y mandatory'; this.isUpdating = false; }, 100);
     }
     forceSnap() {
-        if(this.items.length===0 || this.isUpdating) return;
-        let idx = Math.round(this.scrollEl.scrollTop / 36);
-        idx = Utils.clamp(idx, 0, this.items.length - 1);
-        let closest = this.items[idx];
-        
-        this.items.forEach(i => i.classList.remove('active')); closest.classList.add('active');
-        let v = parseFloat(closest.dataset.val);
-        if(this.currentVal !== v) { this.currentVal = v; this.onEnd(v); }
-        this.scrollEl.style.scrollSnapType = 'none';
-        this.scrollEl.style.scrollBehavior = 'auto'; 
-        this.scrollEl.scrollTop = idx * 36;
-        setTimeout(() => { this.scrollEl.style.scrollBehavior = 'smooth'; this.scrollEl.style.scrollSnapType = 'y mandatory'; }, 50);
+        if(this.items.length===0 || this.isUpdating) return; let idx = Math.round(this.scrollEl.scrollTop / 36); idx = Utils.clamp(idx, 0, this.items.length - 1); let closest = this.items[idx];
+        this.items.forEach(i => i.classList.remove('active')); closest.classList.add('active'); let v = parseFloat(closest.dataset.val); if(this.currentVal !== v) { this.currentVal = v; this.onEnd(v); }
+        this.scrollEl.style.scrollSnapType = 'none'; this.scrollEl.style.scrollBehavior = 'auto'; this.scrollEl.scrollTop = idx * 36; setTimeout(() => { this.scrollEl.style.scrollBehavior = 'smooth'; this.scrollEl.style.scrollSnapType = 'y mandatory'; }, 50);
     }
     handleSnap() {
-        if(this.items.length===0 || this.isUpdating) return; 
-        let idx = Math.round(this.scrollEl.scrollTop / 36);
-        idx = Utils.clamp(idx, 0, this.items.length - 1);
-        let closest = this.items[idx];
-        
-        this.items.forEach(i => i.classList.remove('active')); closest.classList.add('active');
-        let v = parseFloat(closest.dataset.val); if(this.currentVal !== v) { this.currentVal = v; this.onEnd(v); }
+        if(this.items.length===0 || this.isUpdating) return; let idx = Math.round(this.scrollEl.scrollTop / 36); idx = Utils.clamp(idx, 0, this.items.length - 1); let closest = this.items[idx];
+        this.items.forEach(i => i.classList.remove('active')); closest.classList.add('active'); let v = parseFloat(closest.dataset.val); if(this.currentVal !== v) { this.currentVal = v; this.onEnd(v); }
     }
 }
 
 class ChartManager {
     constructor() {
-        this.ctxS = document.getElementById('sChart').getContext('2d', {alpha: false});
-        this.ctxR = document.getElementById('rChart').getContext('2d', {alpha: false});
-        this.ctxSum = document.getElementById('sumChart').getContext('2d', {alpha: false});
-        this.hovTimeIdx = -1;
-        this.autoHoverActive = true; this.hoverTimeout = null;
+        this.ctxS = document.getElementById('sChart').getContext('2d', {alpha: false}); this.ctxR = document.getElementById('rChart').getContext('2d', {alpha: false}); this.ctxSum = document.getElementById('sumChart').getContext('2d', {alpha: false});
+        this.hovTimeIdx = -1; this.autoHoverActive = true; this.hoverTimeout = null;
         const RO = new ResizeObserver(() => { this.teardown(); requestAnimationFrame(() => { this.drawAll(); if(document.getElementById('summaryModal').classList.contains('show')) this.drawSummary(this.sumM, this.sumCr); }); });
         RO.observe(document.getElementById('sChartWrap')); RO.observe(document.getElementById('rChartWrap')); RO.observe(document.getElementById('sumChartWrap'));
         this.bindEvents('s', document.getElementById('sChartWrap')); this.bindEvents('r', document.getElementById('rChartWrap')); this.bindEvents('sum', document.getElementById('sumChartWrap'));
@@ -1316,77 +1126,48 @@ class ChartManager {
         let p = AppState.state.profiles[AppState.state.activeP]; if (prefix === 'sum' && window.App && window.App.viewingProfile) p = window.App.viewingProfile;
         let m = custM || AppState.state.snapshot; if(!m || !m.length || c.parentElement.clientWidth === 0) return;
         
-        let drawM = m;
-        if (m.length > 300) {
-            let step = Math.ceil(m.length / 300);
-            drawM = m.filter((_, i) => i % step === 0 || i === m.length - 1);
-        }
+        let drawM = m; if (m.length > 300) { let step = Math.ceil(m.length / 300); drawM = m.filter((_, i) => i % step === 0 || i === m.length - 1); }
 
         let dpr = window.devicePixelRatio || 1; c.width = c.parentElement.clientWidth * dpr; c.height = c.parentElement.clientHeight * dpr; ctx.scale(dpr, dpr);
-        let W = c.width/dpr; let H = c.height/dpr; ctx.clearRect(0,0,W,H);
-        let isMet = p.unit !== 'imperial'; let mxS = Math.max(10, AppState.state.hw.maxSpd * 1.1);
+        let W = c.width/dpr; let H = c.height/dpr; ctx.clearRect(0,0,W,H); let isMet = p.unit !== 'imperial'; let mxS = Math.max(10, AppState.state.hw.maxSpd * 1.1);
         ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]); [0.25, 0.5, 0.75].forEach(r => { ctx.beginPath(); ctx.moveTo(0, H*r); ctx.lineTo(W, H*r); ctx.stroke(); }); ctx.setLineDash([]);
         let getX = i => (i/(Math.max(1, drawM.length-1)))*W; let getY = (v, max, min=0) => H - ((v-min)/(max-min))*H;
-        let totMs = m.length * 60000; let cr = custCr !== null ? custCr : ((AppState.state.runStatus !== 'STOPPED' && prefix === 'r') ? AppState.state.accumMs/Math.max(1, totMs) : 1.0);
+        let cr = custCr !== null ? custCr : ((AppState.state.runStatus !== 'STOPPED' && prefix === 'r') ? Math.min(1.0, AppState.state.accumMs/Math.max(1, m.length*60000)) : 1.0);
         let drawLine = (fn, col, w, isDash=false) => { ctx.beginPath(); ctx.moveTo(getX(0), fn(drawM[0])); for(let i=1; i<drawM.length; i++) ctx.lineTo(getX(i), fn(drawM[i])); ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineJoin = 'round'; if(isDash) ctx.setLineDash([6,4]); else ctx.setLineDash([]); ctx.stroke(); }
         
-        let rBase = p.customRHR ? p.customRHR : 60;
-        let pMHR = p.customMHR || 220;
+        let rBase = p.customRHR ? p.customRHR : 60; let pMHR = p.customMHR || 220;
         drawLine(r => getY(r.hr, pMHR, rBase), 'rgba(10, 132, 255, 0.8)', 2); drawLine(r => getY(r.lac, 18, 0), 'rgba(255, 69, 58, 0.9)', 2, true); drawLine(r => getY(r.inc, 15, 0), 'rgba(255, 214, 10, 0.8)', 2); drawLine(r => getY(r.spd, mxS, 0), '#32D74B', 3);
         if (cr < 1.0) { ctx.fillStyle = 'rgba(0, 0, 0, 0.65)'; ctx.fillRect(W*cr, 0, W*(1-cr), H); }
     }
     
     updateHovData(px) {
-        if (this.hovTimeIdx === -1) return;
-        let row = document.getElementById(px+'HovRow');
+        if (this.hovTimeIdx === -1) return; let row = document.getElementById(px+'HovRow');
         if(row && row.classList.contains('show')) { 
             let isMet = AppState.state.profiles[AppState.state.activeP].unit !== 'imperial';
-            
             if (px === 'r' && this.autoHoverActive && AppState.state.runStatus !== 'STOPPED') {
-                Binder.updateBatch({
-                    [`${px}HovMin`]: Utils.fmtTime(AppState.state.accumMs),
-                    [`${px}HovSpd`]: (isMet ? RunAcc.curSpd : RunAcc.curSpd/1.609344).toFixed(1),
-                    [`${px}HovInc`]: RunAcc.curInc.toFixed(1),
-                    [`${px}HovHr`]: Math.round(RunAcc.curHr),
-                    [`${px}HovLac`]: RunAcc.curLac.toFixed(1)
-                });
-                return;
+                Binder.updateBatch({ [`${px}HovMin`]: Utils.fmtTime(AppState.state.accumMs), [`${px}HovSpd`]: (isMet ? RunAcc.curSpd : RunAcc.curSpd/1.609344).toFixed(1), [`${px}HovInc`]: RunAcc.curInc.toFixed(1), [`${px}HovHr`]: Math.round(RunAcc.curHr), [`${px}HovLac`]: RunAcc.curLac.toFixed(1) }); return;
             }
-
             let m = (px === 'sum' && this.sumM) ? this.sumM : AppState.state.snapshot; if(!m || !m.length) return;
-            let fIdx = this.hovTimeIdx;
-            let cIdx = Math.min(Math.ceil(fIdx), m.length - 1); let f = Math.floor(fIdx); let frac = fIdx - f;
+            let fIdx = this.hovTimeIdx; let cIdx = Math.min(Math.ceil(fIdx), m.length - 1); let f = Math.floor(fIdx); let frac = fIdx - f;
             let iSpd = m[f].spd*(1-frac) + m[cIdx].spd*frac; let iInc = m[f].inc*(1-frac) + m[cIdx].inc*frac;
-            
             Binder.updateBatch({ [`${px}HovMin`]: Utils.fmtTime(fIdx * 60000), [`${px}HovSpd`]: (isMet?iSpd:iSpd/1.609344).toFixed(1), [`${px}HovInc`]: iInc.toFixed(1), [`${px}HovHr`]: Math.round(m[f].hr*(1-frac) + m[cIdx].hr*frac), [`${px}HovLac`]: (m[f].lac*(1-frac) + m[cIdx].lac*frac).toFixed(1) });
         }
     }
 
     triggerAutoHover(px, pct) {
-        if (px !== 'r' || !this.autoHoverActive) return;
-        let m = AppState.state.snapshot; if(!m || !m.length) return;
-        this.hovTimeIdx = pct * (m.length - 1); 
-        let ch = document.getElementById('rCrosshair');
-        if(ch) { ch.style.display = 'block'; ch.style.left = `${pct*100}%`; }
-        let row = document.getElementById('rHovRow'); if(row) row.classList.add('show');
-        this.updateHovData('r');
+        if (px !== 'r' || !this.autoHoverActive) return; let m = AppState.state.snapshot; if(!m || !m.length) return;
+        this.hovTimeIdx = pct * (m.length - 1); let ch = document.getElementById('rCrosshair');
+        if(ch) { ch.style.display = 'block'; ch.style.left = `${pct*100}%`; } let row = document.getElementById('rHovRow'); if(row) row.classList.add('show'); this.updateHovData('r');
     }
 
     bindEvents(px, wrap) {
         const move = e => {
-            if (px === 'r') { this.autoHoverActive = false; clearTimeout(this.hoverTimeout); }
-            let m = (px === 'sum' && this.sumM) ? this.sumM : AppState.state.snapshot; if(!m || !m.length) return;
-            e.preventDefault(); let r = wrap.getBoundingClientRect(); let x = Utils.clamp((e.touches ? e.touches[0].clientX : e.clientX) - r.left, 0, r.width);
-            let fIdx = (x / r.width) * (m.length - 1); 
-            this.hovTimeIdx = fIdx;
-            let ch = document.getElementById(`${px}Crosshair`); if(ch) { ch.style.display = 'block'; ch.style.left = `${(fIdx/(Math.max(1, m.length-1)))*100}%`; }
-            let row = document.getElementById(px+'HovRow'); if(row) row.classList.add('show');
-            this.updateHovData(px);
+            if (px === 'r') { this.autoHoverActive = false; clearTimeout(this.hoverTimeout); } let m = (px === 'sum' && this.sumM) ? this.sumM : AppState.state.snapshot; if(!m || !m.length) return;
+            e.preventDefault(); let r = wrap.getBoundingClientRect(); let x = Utils.clamp((e.touches ? e.touches[0].clientX : e.clientX) - r.left, 0, r.width); let fIdx = (x / r.width) * (m.length - 1); 
+            this.hovTimeIdx = fIdx; let ch = document.getElementById(`${px}Crosshair`); if(ch) { ch.style.display = 'block'; ch.style.left = `${(fIdx/(Math.max(1, m.length-1)))*100}%`; }
+            let row = document.getElementById(px+'HovRow'); if(row) row.classList.add('show'); this.updateHovData(px);
         };
-        const leave = () => { 
-            if (px === 'r') this.hoverTimeout = setTimeout(() => { this.autoHoverActive = true; }, 3000);
-            this.hovTimeIdx = -1; let ch=document.getElementById(`${px}Crosshair`); if(ch) ch.style.display='none'; let row=document.getElementById(`${px}HovRow`); if(row) row.classList.remove('show'); 
-        };
+        const leave = () => { if (px === 'r') this.hoverTimeout = setTimeout(() => { this.autoHoverActive = true; }, 3000); this.hovTimeIdx = -1; let ch=document.getElementById(`${px}Crosshair`); if(ch) ch.style.display='none'; let row=document.getElementById(`${px}HovRow`); if(row) row.classList.remove('show'); };
         wrap.addEventListener('mousemove', move); wrap.addEventListener('touchmove', move, {passive:false}); wrap.addEventListener('mouseleave', leave); wrap.addEventListener('touchend', leave); wrap.addEventListener('touchcancel', leave);
     }
 }
@@ -1394,12 +1175,15 @@ class ChartManager {
 class AppController {
     constructor() {
         this.dials = {}; this.adjDials = {}; this.charts = new ChartManager(); this.holdTimer = null; this.pauseTimeout = null;
-        this.adjTarget = ''; this.wakeLock = null; this.viewingProfile = null; this.otIdleTimer = null;
-        this._syncing = false; 
+        this.adjTarget = ''; this.wakeLock = null; this.viewingProfile = null; this._syncing = false; 
+        
+        // Opt Slider State
+        this.optBaseMatrix = []; this.optTargetMatrix = []; this.optFinalSpd = null;
+
         const setVH = () => document.documentElement.style.setProperty('--vh', `${(window.visualViewport ? window.visualViewport.height : window.innerHeight) * 0.01}px`);
         if(window.visualViewport) window.visualViewport.addEventListener('resize', setVH); setVH();
-        window.addEventListener('beforeunload', () => { if(AppState.state.runStatus === 'RUNNING' || AppState.state.runStatus === 'OVERTIME' || AppState.state.runStatus === 'RAMPDOWN') this.persistRun(); this.releaseWakeLock(); });
-        document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && (AppState.state.runStatus === 'RUNNING' || AppState.state.runStatus === 'OVERTIME')) this.requestWakeLock(); });
+        window.addEventListener('beforeunload', () => { if(AppState.state.runStatus === 'RUNNING') this.persistRun(); this.releaseWakeLock(); });
+        document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && AppState.state.runStatus === 'RUNNING') this.requestWakeLock(); });
         DB.init().catch(e => console.warn('IDB', e)).finally(() => { this.initDials(); this.initData(); this.bindEvents(); this.setupSubscribers(); });
     }
 
@@ -1408,11 +1192,11 @@ class AppController {
 
     initData() {
         try {
-            let s = null; try { s = JSON.parse(localStorage.getItem('pro_treadmill_v41')); } catch(e){}
+            let s = null; try { s = JSON.parse(localStorage.getItem('pro_treadmill_v41_5')); } catch(e){}
             if(s && s.profiles && Object.keys(s.profiles).length > 0) { AppState.batch({ activeP: s.activeP || Object.keys(s.profiles)[0], profiles: s.profiles, hw: s.hw }); } 
             else { let p = PhysioEngine.sanitize({ name: 'Runner 1', gender: 'M', unit: 'metric', lang: 'zh', voiceOn: true }); AppState.batch({ activeP: 'Runner 1', profiles: { 'Runner 1': p } }); }
             
-            let r = null; try { r = JSON.parse(sessionStorage.getItem('runState_v41')); } catch(e){} 
+            let r = null; try { r = JSON.parse(sessionStorage.getItem('runState_v41_5')); } catch(e){} 
             if(r && r.accumMs > 0 && r.snapshot && r.snapshot.length > 0) { 
                 let restoredStatus = r.runStatus || 'PAUSED';
                 let dtGap = Date.now() - (r.lastTimestamp || Date.now());
@@ -1420,17 +1204,16 @@ class AppController {
                 AppState.batch({ runStatus: restoredStatus, accumMs: r.accumMs, matrix: r.matrix, snapshot: r.snapshot, activeP: r.activeP, runnerToken: Date.now() }); 
                 if(r.acc) { Object.assign(RunAcc, r.acc); }
                 
-                if ((restoredStatus === 'RUNNING' || restoredStatus === 'OVERTIME') && dtGap > 0 && dtGap < 86400000) {
-                    this.logicTick(dtGap);
+                if (restoredStatus === 'RUNNING' && dtGap > 0 && dtGap < 86400000) {
+                    this.logicTick(dtGap); // Catch-up mechanism
                 }
                 
-                NotificationManager.show((i18n[AppState.state.profiles[AppState.state.activeP].lang]||i18n['zh']).warnCrash);
                 this.updateI18n(); this.updateUIDataOnly();
+                // Silent Restore (No warning banner)
             } else { this.updateI18n(); this.recalc(); }
         } catch(fatalError) {
             console.error("Boot sequence failed. Executing Hard Reset.", fatalError);
-            localStorage.removeItem('pro_treadmill_v41');
-            sessionStorage.removeItem('runState_v41');
+            localStorage.removeItem('pro_treadmill_v41_5'); sessionStorage.removeItem('runState_v41_5');
             let p = PhysioEngine.sanitize({ name: 'Runner 1', gender: 'M', unit: 'metric', lang: 'zh', voiceOn: true }); 
             AppState.batch({ activeP: 'Runner 1', profiles: { 'Runner 1': p } });
             this.updateI18n(); this.recalc();
@@ -1441,7 +1224,6 @@ class AppController {
         const createDial = (id, key, isFloat, isSpd) => {
             return new SwipeDial(id, isFloat, val => {
                 if (this._syncing || AppState.state.runStatus !== 'STOPPED' || AppState.state.uiLocked) return;
-                
                 let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
                 let v = isSpd ? (isMet ? val : Utils.round(val * 1.609344)) : val;
                 
@@ -1458,45 +1240,29 @@ class AppController {
         this.dials.time = createDial('ds-time', 'tTime', false, false); this.dials.dist = createDial('ds-dist', 'tKm', true, true);
         this.dials.mxs = createDial('ds-mxs', 'maxSpd', true, true); this.dials.mns = createDial('ds-mns', 'minSpd', true, true);
         this.dials.mxi = createDial('ds-mxi', 'mxInc', true, false); this.dials.mni = createDial('ds-mni', 'mnInc', true, false);
+        
         this.adjDials.max = new SwipeDial('ds-adj-max', true, () => {}); this.adjDials.min = new SwipeDial('ds-adj-min', true, () => {});
+        this.adjDials.timeH = new SwipeDial('ds-adj-th', false, () => {}); this.adjDials.timeM = new SwipeDial('ds-adj-tm', false, () => {});
     }
 
     syncDialsToProfile(rollbackDist = null) {
-        this._syncing = true; 
-        
-        let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
+        this._syncing = true; let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
         this.dials.time.build(20, 180, 5); this.dials.time.setValue(p.tTime, true);
-        
-        this.dials.mxs.build(isMet ? Math.max(1.0, p.minSpd) : Math.max(0.6, p.minSpd/1.609344), isMet?25.0:15.5, 0.1); 
-        this.dials.mxs.setValue(isMet ? p.maxSpd : p.maxSpd / 1.609344, true);
-        
-        this.dials.mns.build(0.0, isMet ? p.maxSpd : p.maxSpd/1.609344, 0.1); 
-        this.dials.mns.setValue(isMet ? p.minSpd : p.minSpd / 1.609344, true);
-        
-        this.dials.mxi.build(p.mnInc, 20.0, 0.5); 
-        this.dials.mxi.setValue(p.mxInc, true);
-        
-        this.dials.mni.build(0.0, p.mxInc, 0.5); 
-        this.dials.mni.setValue(p.mnInc, true);
+        this.dials.mxs.build(isMet ? Math.max(1.0, p.minSpd) : Math.max(0.6, p.minSpd/1.609344), isMet?25.0:15.5, 0.1); this.dials.mxs.setValue(isMet ? p.maxSpd : p.maxSpd / 1.609344, true);
+        this.dials.mns.build(0.0, isMet ? p.maxSpd : p.maxSpd/1.609344, 0.1); this.dials.mns.setValue(isMet ? p.minSpd : p.minSpd / 1.609344, true);
+        this.dials.mxi.build(p.mnInc, 20.0, 0.5); this.dials.mxi.setValue(p.mxInc, true);
+        this.dials.mni.build(0.0, p.mxInc, 0.5); this.dials.mni.setValue(p.mnInc, true);
 
-        let minDial = 1.0;
-        let maxDial = 100.0;
-        
-        this.dials.dist.build(minDial, maxDial, 0.1);
-        
+        let minDial = 1.0; let maxDial = 100.0; this.dials.dist.build(minDial, maxDial, 0.1);
         if (rollbackDist !== null) { p.tKm = rollbackDist; this.saveData(); }
-        let currDialVal = isMet ? p.tKm : p.tKm / 1.609344;
-        let finalVal = Utils.clamp(currDialVal, minDial, maxDial);
+        let currDialVal = isMet ? p.tKm : p.tKm / 1.609344; let finalVal = Utils.clamp(currDialVal, minDial, maxDial);
         if (finalVal !== currDialVal) { p.tKm = isMet ? finalVal : Utils.round(finalVal * 1.609344); this.saveData(); }
         this.dials.dist.setValue(finalVal, true);
-
         setTimeout(() => { this._syncing = false; }, 300);
     }
 
     updateI18n() {
-        let p = AppState.state.profiles[AppState.state.activeP]; let d = i18n[p.lang] || i18n['zh'];
-        let isMet = p.unit !== 'imperial';
-
+        let p = AppState.state.profiles[AppState.state.activeP]; let d = i18n[p.lang] || i18n['zh']; let isMet = p.unit !== 'imperial';
         document.getElementById('htmlRoot').lang = p.lang === 'zh' ? 'zh-TW' : 'en';
         document.getElementById('tabSettings').textContent = d.tab1; document.getElementById('tabMatrix').textContent = d.tab2;
         ['tim','km','mxI','mxS','mnI','mnS'].forEach(k => { let key = k; if(!isMet && (k==='mxS'||k==='mnS')) key += 'Imp'; document.getElementById(`lbl${k==='tim'?'TotalTime':k==='km'?'TargetKm':`Set${k.charAt(0).toUpperCase()+k.slice(1)}`}`).textContent = d[key]; });
@@ -1509,13 +1275,9 @@ class AppController {
         document.getElementById('lblRmTitle').textContent = d.rmTitle; document.getElementById('lblRmName').textContent = d.rmName; document.getElementById('lblRmPhysio').textContent = d.rmPhy;
         document.getElementById('lblAge').textContent = d.rmAge; document.getElementById('lblWgt').textContent = d.rmWgt; document.getElementById('lblAdvTitle').textContent = d.rmAdv;
         ['RHR','MHR','SMM','BF','VO2','ECW'].forEach(k => { let el = document.getElementById(`lbl${k}`); if(el) el.textContent = d[`r${k}`] || d[k.toLowerCase()] || d[k]; });
-        document.getElementById('lblHwTitle').textContent = d.hwTitle;
-        ['MxS','MnS','MxI','MnI'].forEach(k => document.getElementById(`lblHw${k}`).textContent = d[`h${k}`]);
+        document.getElementById('lblHwTitle').textContent = d.hwTitle; ['MxS','MnS','MxI','MnI'].forEach(k => document.getElementById(`lblHw${k}`).textContent = d[`h${k}`]);
         document.getElementById('lblRmPref').textContent = d.rmPref; document.getElementById('btnRmCancel').textContent = d.btnCancel; document.getElementById('btnRmSave').textContent = d.btnSave;
-        document.getElementById('lblHistTitle').textContent = d.histTitle;
-        document.getElementById('lblFooterLock').textContent = d.lblFooterLock;
-        document.getElementById('lblOtTitle').textContent = d.otTitle;
-        document.getElementById('lblOtNo').textContent = d.otNo; document.getElementById('lblOtYes').textContent = d.otYes;
+        document.getElementById('lblHistTitle').textContent = d.histTitle; document.getElementById('lblFooterLock').textContent = d.lblFooterLock;
         document.getElementById('btnLangZh').textContent = d.langZh; document.getElementById('btnLangEn').textContent = d.langEn;
         document.getElementById('btnVoiceOn').textContent = d.voiceOn; document.getElementById('btnVoiceOff').textContent = d.voiceOff;
         document.getElementById('btnUnitMet').textContent = d.met; document.getElementById('btnUnitImp').textContent = d.imp;
@@ -1524,61 +1286,37 @@ class AppController {
         document.getElementById('lblSumTitle').textContent = d.sumTitle; document.getElementById('btnSumClose').textContent = d.btnSumClose;
         document.getElementById('lblEstKcal').textContent = d.estKcal; document.getElementById('lblRunCal').textContent = d.estKcal;
         document.getElementById('lblEstDist').textContent = d.estDist; document.getElementById('lblRunEstDist').textContent = d.estDist;
-
+        
         document.getElementById('unitRunSpd').textContent = isMet ? 'kph' : 'mph'; document.getElementById('unitRunDist').textContent = isMet ? 'km' : 'mi'; document.getElementById('unitRunPace').textContent = isMet ? '/km' : '/mi';
         document.getElementById('unitAge').textContent = d.unitAge || '';
+        document.getElementById('unitWgt').textContent = isMet ? 'kg' : 'lbs'; document.getElementById('unitSmm').textContent = isMet ? 'kg' : 'lbs';
+        document.getElementById('unitMxS2').textContent = isMet ? 'kph' : 'mph'; document.getElementById('unitMnS2').textContent = isMet ? 'kph' : 'mph';
         
-        let lblM = isMet ? 'kg' : 'lbs';
-        let lblS = isMet ? 'kph' : 'mph';
-        document.getElementById('unitWgt').textContent = lblM;
-        document.getElementById('unitSmm').textContent = lblM;
-        document.getElementById('unitMxS2').textContent = lblS;
-        document.getElementById('unitMnS2').textContent = lblS;
+        let optTitleNode = document.getElementById('lblOptTitle');
+        if (optTitleNode) optTitleNode.innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg> ${d.optTitle || "Fat-Burn / Muscle Maximize"}`;
     }
 
-    forceEvictModals() {
-        document.querySelectorAll('.modal-overlay.show').forEach(m => { if (m.id !== 'overtimeModal') m.classList.remove('show'); });
-        AppState.state.activeTab = 'settings';
-    }
+    openModal(id) { document.querySelectorAll('.modal-overlay.show').forEach(el => el.classList.remove('show')); document.getElementById(id).classList.add('show'); }
+    forceEvictModals() { document.querySelectorAll('.modal-overlay.show').forEach(m => m.classList.remove('show')); AppState.state.activeTab = 'settings'; }
 
     bindEvents() {
         document.body.addEventListener('click', e => {
             if (AppState.state.uiLocked && !e.target.closest('.modal-overlay')) { e.stopPropagation(); return; }
-            if (AppState.state.runStatus === 'RAMPDOWN' || AppState.state.runStatus === 'PRE_FLIGHT') {
-                if (!e.target.closest('[data-action="ask-end"]') && !e.target.closest('#overtimeModal')) { e.stopPropagation(); return; }
-            }
 
             if(e.target.classList.contains('modal-overlay')) {
                 e.stopPropagation(); let overlays = Array.from(document.querySelectorAll('.modal-overlay.show')).sort((a,b)=>parseInt(getComputedStyle(b).zIndex) - parseInt(getComputedStyle(a).zIndex));
                 if(overlays.length > 0) { overlays[0].classList.remove('show'); if(overlays[0].id === 'summaryModal' || overlays[0].id === 'historyModal') this.viewingProfile = null; } return;
             }
             const t = e.target.closest('[data-action]'); if (!t) return; const a = t.dataset.action; 
-            let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
+            let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial'; let dStr = i18n[p.lang] || i18n['zh'];
             
-            if(a === 'tab-settings') { 
-                if(AppState.state.runStatus === 'RAMPDOWN' || AppState.state.runStatus === 'PRE_FLIGHT') return;
-                AppState.state.activeTab = 'settings'; this.charts.teardown(); 
-            }
-            else if(a === 'tab-matrix') { 
-                if(AppState.state.runStatus === 'RAMPDOWN' || AppState.state.runStatus === 'PRE_FLIGHT') return;
-                AppState.state.activeTab = 'matrix'; this.charts.teardown(); 
-            }
-            else if(a === 'select-prog' && AppState.state.runStatus === 'STOPPED') { p.lastProg = parseInt(t.dataset.pid); this.saveData(); this.recalc(); }
-            else if(a === 'pause') { 
-                if(AppState.state.runStatus === 'RAMPDOWN' || AppState.state.runStatus === 'PRE_FLIGHT') return;
-                AppState.state.runStatus = 'PAUSED'; this.persistRun(); 
-                RunAcc.pauseCount++; RunAcc.lastPauseMs = Date.now();
-            }
-            else if(a === 'open-runner') this.openRunnerModal();
+            if(a === 'tab-settings') { AppState.state.activeTab = 'settings'; this.charts.teardown(); }
+            else if(a === 'tab-matrix') { AppState.state.activeTab = 'matrix'; this.charts.teardown(); }
+            else if(a === 'select-prog' && AppState.state.runStatus === 'STOPPED') { p.lastProg = parseInt(t.dataset.pid); this.saveData(); this.recalc(); document.getElementById('optSlider').value = 0; document.getElementById('lblOptValue').textContent = "0%"; }
+            else if(a === 'pause') { AppState.state.runStatus = 'PAUSED'; this.persistRun(); RunAcc.pauseCount++; RunAcc.lastPauseMs = Date.now(); }
+            else if(a === 'open-runner') { this.charts.teardown(); this.renderRunnerSelector(); this.populateRunnerForm(AppState.state.profiles[AppState.state.activeP]); this.openModal('runnerModal'); }
             else if(a === 'close-runner') { document.getElementById('runnerModal').classList.remove('show'); this.charts.teardown(); }
-            else if(a === 'save-runner') {
-                if(!this.validateRunnerForm()) { 
-                    let wrap = document.getElementById('runnerModal').querySelector('.modal-box');
-                    wrap.style.transition = 'transform 0.1s'; wrap.style.transform = 'scale(1.02)'; setTimeout(()=>wrap.style.transform = 'scale(1)', 100);
-                    return; 
-                }
-                this.saveRunnerModal();
-            }
+            else if(a === 'save-runner') { if(!this.validateRunnerForm()) return; this.saveRunnerModal(); }
             else if(a === 'delete-runner') this.deleteRunner();
             else if(a === 'switch-runner') this.switchRunner(t.dataset.name);
             else if(a === 'add-runner-mode') { document.getElementById('runnerSelectorRow').querySelectorAll('.runner-tag').forEach(x=>x.classList.remove('active')); t.classList.add('active'); this.clearRunnerForm(); document.getElementById('btnRmDelete').disabled = true; this.validateRunnerForm(); }
@@ -1586,57 +1324,76 @@ class AppController {
             else if(a === 'close-history') { document.getElementById('historyModal').classList.remove('show'); this.viewingProfile = null; }
             else if(a === 'clear-history') { if(confirm((i18n[p.lang]||i18n['zh']).clearAsk)) { let fR = document.getElementById('histRunnerSelect').value; DB.clearHist(fR).then(()=>this.openHistory()); } }
             else if(a === 'close-summary' || (a === 'close-summary-overlay' && e.target.id === 'summaryModal')) { document.getElementById('summaryModal').classList.remove('show'); this.charts.sumM = null; this.viewingProfile = null; }
-            else if(a === 'overlay-close') { if(e.target.id === 'adjModal') document.getElementById('adjModal').classList.remove('show'); else if(e.target.id === 'historyModal') { document.getElementById('historyModal').classList.remove('show'); this.viewingProfile = null; } }
+            else if(a === 'overlay-close') { if(e.target.id === 'adjModal') document.getElementById('adjModal').classList.remove('show'); else if(e.target.id === 'historyModal') { document.getElementById('historyModal').classList.remove('show'); this.viewingProfile = null; } else if(e.target.id === 'timeModal') { document.getElementById('timeModal').classList.remove('show'); } }
             else if(a === 'toggle-accordion') { t.classList.toggle('open'); document.getElementById(t.dataset.target).classList.toggle('show'); }
             
             else if(a === 'open-adj-spd' || a === 'open-adj-inc') {
-                if(AppState.state.runStatus !== 'RUNNING' && AppState.state.runStatus !== 'PAUSED' && AppState.state.runStatus !== 'OVERTIME') return;
+                if(AppState.state.runStatus !== 'RUNNING' && AppState.state.runStatus !== 'PAUSED') return;
                 this.charts.teardown(); let isS = a === 'open-adj-spd'; this.adjTarget = isS ? 'spd' : 'inc';
-                let dStr = i18n[p.lang] || i18n['zh']; document.getElementById('lblAdjTitle').textContent = isS ? dStr.adjSpd : dStr.adjInc;
+                document.getElementById('lblAdjTitle').textContent = isS ? dStr.adjSpd : dStr.adjInc;
                 document.getElementById('lblAdjMax').textContent = isS ? (isMet ? dStr.mxS : dStr.mxSImp) : dStr.mxI; document.getElementById('lblAdjMin').textContent = isS ? (isMet ? dStr.mnS : dStr.mnSImp) : dStr.mnI;
                 document.getElementById('btnAdjCancel').textContent = dStr.btnCancel; document.getElementById('btnAdjSave').textContent = dStr.btnSave;
                 this.adjDials.max.build(isS?0.0:0.0, isS?(isMet?25.0:15.5):20.0, isS?0.1:0.5); this.adjDials.min.build(isS?0.0:0.0, isS?(isMet?20.0:12.4):15.0, isS?0.1:0.5);
                 this.adjDials.max.setValue(isS ? (isMet?p.maxSpd:p.maxSpd/1.609344) : p.mxInc, true); this.adjDials.min.setValue(isS ? (isMet?p.minSpd:p.minSpd/1.609344) : p.mnInc, true);
-                document.getElementById('adjModal').classList.add('show');
+                this.openModal('adjModal');
             }
             else if(a === 'close-adj') { document.getElementById('adjModal').classList.remove('show'); }
             else if(a === 'save-adj') {
-                let mx = this.adjDials.max.currentVal; let mn = this.adjDials.min.currentVal; if(mx < mn) { let t=mx; mx=mn; mn=t; }
+                if(AppState.state.runStatus === 'STOPPED') return;
+                let mx = this.adjDials.max.currentVal; let mn = this.adjDials.min.currentVal; if(mx < mn) { let tmp=mx; mx=mn; mn=tmp; }
                 let isS = this.adjTarget === 'spd';
-                if(isS) { p.maxSpd = isMet?mx:Utils.round(mx*1.609344); p.minSpd = isMet?mn:Utils.round(mn*1.609344); } else { p.mxInc = mx; p.mnInc = mn; }
-                this.saveData(); this.recalc(false); document.getElementById('adjModal').classList.remove('show');
-                
-                let dStr = i18n[p.lang] || i18n['zh'];
+                let spdVal = isS ? (isMet?mx:Utils.round(mx*1.609344)) : null;
+                let incVal = !isS ? mx : null;
+                this.performMatrixSplicing(null, spdVal, incVal);
+                document.getElementById('adjModal').classList.remove('show');
                 VoiceApp.speakText(dStr.trans[2], 2, p.lang==='zh'?'zh-TW':'en-US');
                 let elSpd = document.getElementById('runValSpd'); let elInc = document.getElementById('runValInc');
-                if(isS) { elSpd.classList.add('warn-flash'); setTimeout(()=>elSpd.classList.remove('warn-flash'), 10000); }
-                else { elInc.classList.add('warn-flash'); setTimeout(()=>elInc.classList.remove('warn-flash'), 10000); }
+                if(isS) { elSpd.classList.add('warn-flash'); setTimeout(()=>elSpd.classList.remove('warn-flash'), 5000); } else { elInc.classList.add('warn-flash'); setTimeout(()=>elInc.classList.remove('warn-flash'), 5000); }
             }
             else if(a === 'adj-plus' || a === 'adj-minus') {
-                let dType = t.dataset.target === 'adj-max' ? this.adjDials.max : this.adjDials.min;
-                let isS = this.adjTarget === 'spd'; let step = isS ? 0.1 : 0.5; if(a === 'adj-minus') step *= -1;
+                let isTime = t.dataset.target === 'th' || t.dataset.target === 'tm';
+                let dType; if(isTime) { dType = t.dataset.target === 'th' ? this.adjDials.timeH : this.adjDials.timeM; } else { dType = t.dataset.target === 'adj-max' ? this.adjDials.max : this.adjDials.min; }
+                let step = isTime ? 1 : (this.adjTarget === 'spd' ? 0.1 : 0.5); if(a.includes('minus')) step *= -1;
                 dType.setValue(dType.currentVal + step);
+            }
+            else if(a === 'open-adj-time') {
+                if(AppState.state.runStatus !== 'RUNNING' && AppState.state.runStatus !== 'PAUSED') return;
+                let curMins = p.tTime; let cM = Math.floor(AppState.state.accumMs / 60000); let minLimit = cM + 1;
+                if (minLimit > 300) return; // Unrealistic
+                this.charts.teardown();
+                document.getElementById('lblTimeTitle').textContent = dStr.adjTime; document.getElementById('lblTimeH').textContent = dStr.hr; document.getElementById('lblTimeM').textContent = dStr.mn;
+                document.getElementById('btnTimeCancel').textContent = dStr.btnCancel; document.getElementById('btnTimeSave').textContent = dStr.btnSave;
+                this.adjDials.timeH.build(0, 5, 1); this.adjDials.timeM.build(0, 59, 1);
+                this.adjDials.timeH.setValue(Math.floor(curMins / 60), true); this.adjDials.timeM.setValue(curMins % 60, true);
+                this.openModal('timeModal');
+            }
+            else if(a === 'close-time') { document.getElementById('timeModal').classList.remove('show'); }
+            else if(a === 'save-time') {
+                if(AppState.state.runStatus === 'STOPPED') return;
+                let tm = this.adjDials.timeH.currentVal * 60 + this.adjDials.timeM.currentVal;
+                let elapsedMins = AppState.state.accumMs / 60000;
+                
+                if (elapsedMins >= tm) {
+                    this.forceEvictModals(); this.endWorkout(); return;
+                }
+                
+                if (tm < Math.floor(elapsedMins) + 1) { NotificationManager.show(dStr.errTimeShort, true); return; }
+                
+                this.performMatrixSplicing(tm, null, null);
+                document.getElementById('timeModal').classList.remove('show');
             }
             else if(a === 'open-hist-detail') {
                 let idx = parseInt(t.dataset.idx); let runnerName = document.getElementById('histRunnerSelect').value;
-                DB.getHist(runnerName).then(data => {
-                    let d = data[idx]; if(!d) return; this.viewingProfile = AppState.state.profiles[d.runnerName] || AppState.state.profiles[AppState.state.activeP];
-                    this.showSummaryModal(d.ms, d.totMs || (d.matrix.length * 60000), d.distKm, d.fCal, d.cCal, d.actualAvg, d.actualMax, d.z, d.matrix, false, d.pausePenalty, d.otMessage);
-                });
+                DB.getHist(runnerName).then(data => { let d = data[idx]; if(!d) return; this.viewingProfile = AppState.state.profiles[d.runnerName] || AppState.state.profiles[AppState.state.activeP]; this.showSummaryModal(d.ms, d.totMs || (d.matrix.length * 60000), d.distKm, d.fCal, d.cCal, d.actualAvg, d.actualMax, d.z, d.matrix, false, d.pausePenalty); });
             }
-            else if(a === 'reject-ot') { clearTimeout(this.otIdleTimer); document.getElementById('overtimeModal').classList.remove('show'); this.endWorkout(); }
-            else if(a === 'accept-ot') { clearTimeout(this.otIdleTimer); document.getElementById('overtimeModal').classList.remove('show'); this.startOvertime(); }
         });
         
         const btnStart = document.getElementById('btnRight');
         btnStart.addEventListener('pointerup', async () => {
             if (AppState.state.uiLocked) return;
             if(screen.orientation && screen.orientation.lock) screen.orientation.lock('portrait').catch(()=>{});
-            
-            document.getElementById('silentAudio').play().catch(()=>{}); 
-            let u = new SpeechSynthesisUtterance(''); u.volume = 0; window.speechSynthesis.speak(u);
-            VoiceApp.unlock(); 
-            this.requestWakeLock(); this.charts.teardown();
+            document.getElementById('silentAudio').play().catch(()=>{}); let u = new SpeechSynthesisUtterance(''); u.volume = 0; window.speechSynthesis.speak(u);
+            VoiceApp.unlock(); this.requestWakeLock(); this.charts.teardown();
             
             if (AppState.state.runStatus === 'RUNNING' || AppState.state.runStatus === 'PRE_FLIGHT') return;
             let p = AppState.state.profiles[AppState.state.activeP]; let dStr = i18n[p.lang] || i18n['zh']; let isMet = p.unit !== 'imperial';
@@ -1647,13 +1404,9 @@ class AppController {
                 VoiceApp.speakText(dStr.resumeAudio, 3, p.lang==='zh'?'zh-TW':'en-US');
                 AppState.state.runStatus = 'RUNNING'; AppState.state.activeTab = 'settings';
             } else {
-                AppState.state.runStatus = 'PRE_FLIGHT';
-                AppState.state.uiLocked = true;
+                AppState.state.runStatus = 'PRE_FLIGHT'; AppState.state.uiLocked = true;
                 
-                this.dials.time.forceSnap(); this.dials.dist.forceSnap();
-                this.dials.mxs.forceSnap(); this.dials.mns.forceSnap();
-                this.dials.mxi.forceSnap(); this.dials.mni.forceSnap();
-
+                this.dials.time.forceSnap(); this.dials.dist.forceSnap(); this.dials.mxs.forceSnap(); this.dials.mns.forceSnap(); this.dials.mxi.forceSnap(); this.dials.mni.forceSnap();
                 await new Promise(r => setTimeout(r, 400));
                 if (AppState.state.runStatus !== 'PRE_FLIGHT') return; 
 
@@ -1665,8 +1418,7 @@ class AppController {
                 let initTrans = dStr.transMsg.replace('{s}', (isMet?AppState.state.snapshot[0].spd:AppState.state.snapshot[0].spd/1.609344).toFixed(1)).replace('{i}', AppState.state.snapshot[0].inc.toFixed(1));
                 VoiceApp.speakText(initTrans, 3, p.lang==='zh'?'zh-TW':'en-US');
                 
-                AppState.state.uiLocked = false;
-                AppState.state.runStatus = 'RUNNING'; AppState.state.activeTab = 'settings';
+                AppState.state.uiLocked = false; AppState.state.runStatus = 'RUNNING'; AppState.state.activeTab = 'settings';
                 BgWorker.postMessage('START');
             }
         });
@@ -1679,12 +1431,8 @@ class AppController {
         let rmForm = document.getElementById('runnerModal');
         rmForm.addEventListener('input', (e) => {
             this.validateRunnerForm();
-            if (e.target.id === 'rmRHR') {
-                e.target.dataset.manual = e.target.value !== '' ? 'true' : 'false';
-            }
-            if (['rmSMM', 'rmBF', 'rmECW', 'btnSexM', 'btnSexF', 'btnUnitMet', 'btnUnitImp'].includes(e.target.id) || e.target.closest('.seg-btn')) {
-                this.autoFillRHR();
-            }
+            if (e.target.id === 'rmRHR') { e.target.dataset.manual = e.target.value !== '' ? 'true' : 'false'; }
+            if (['rmSMM', 'rmBF', 'rmECW', 'btnSexM', 'btnSexF', 'btnUnitMet', 'btnUnitImp'].includes(e.target.id) || e.target.closest('.seg-btn')) { this.autoFillRHR(); }
         });
 
         document.querySelectorAll('.segmented-control').forEach(c => {
@@ -1696,174 +1444,122 @@ class AppController {
                 if(c.id === 'segLang' || c.id === 'segUnit') { 
                     let isUnit = c.id === 'segUnit';
                     if(isUnit) {
-                        this.syncFormToProfile();
-                        AppState.state.profiles[AppState.state.activeP].unit = b.dataset.val;
-                        this.saveData();
-                        this.populateRunnerForm(AppState.state.profiles[AppState.state.activeP]);
-                    } else {
-                        AppState.state.profiles[AppState.state.activeP].lang = b.dataset.val;
-                        this.saveData();
-                        VoiceApp.hardReset(); 
-                    }
-                    this.updateI18n(); 
-                    this.updateUIDataOnly(); 
-                    this.charts.drawAll();
+                        this.syncFormToProfile(); AppState.state.profiles[AppState.state.activeP].unit = b.dataset.val; this.saveData(); this.populateRunnerForm(AppState.state.profiles[AppState.state.activeP]);
+                    } else { AppState.state.profiles[AppState.state.activeP].lang = b.dataset.val; this.saveData(); VoiceApp.hardReset(); }
+                    this.updateI18n(); this.updateUIDataOnly(); this.charts.drawAll();
                 }
                 this.autoFillRHR();
             });
         });
         
+        let slider = document.getElementById('optSlider');
+        slider.addEventListener('touchstart', () => this.startOptimization(), {passive: true});
+        slider.addEventListener('mousedown', () => this.startOptimization(), {passive: true});
+        slider.addEventListener('input', e => {
+            if(AppState.state.runStatus !== 'STOPPED') return;
+            let val = parseInt(e.target.value); document.getElementById('lblOptValue').textContent = val + '%';
+            if (this.optTargetMatrix && this.optBaseMatrix) this.onOptSliderInput(val / 100);
+        });
+        slider.addEventListener('change', e => {
+            if(AppState.state.runStatus !== 'STOPPED') return;
+            let val = parseInt(e.target.value);
+            if (val > 50 && this.optFinalSpd !== null) {
+                let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
+                p.maxSpd = Math.max(p.minSpd + 1.0, this.optFinalSpd); this.saveData();
+                let dStr = i18n[p.lang] || i18n['zh']; NotificationManager.show(dStr.optDone.replace('{s}', (isMet?p.maxSpd:p.maxSpd/1.609344).toFixed(1)), false);
+            }
+            this.recalc(true); slider.value = 0; document.getElementById('lblOptValue').textContent = '0%';
+        });
+
         document.getElementById('histRunnerSelect').addEventListener('change', () => this.openHistory());
-        BgWorker.onmessage = e => { if (AppState.state.runStatus === 'RUNNING' || AppState.state.runStatus === 'RAMPDOWN' || AppState.state.runStatus === 'OVERTIME') { this.logicTick(e.data.dt); } };
+        BgWorker.onmessage = e => { if (AppState.state.runStatus === 'RUNNING') { this.logicTick(e.data.dt); } };
     }
 
     autoFillRHR() {
-        let rhrEl = document.getElementById('rmRHR');
-        if (rhrEl.dataset.manual === 'true') return; 
-
-        let isMet = document.querySelector('#segUnit .seg-btn.active').dataset.val === 'metric';
-        let sex = document.querySelector('#segSex .seg-btn.active').dataset.val;
-        let smmRaw = parseFloat(document.getElementById('rmSMM').value) || 0;
-        let smmKg = isMet ? smmRaw : smmRaw / 2.20462; 
-        let bf = parseFloat(document.getElementById('rmBF').value) || 0;
-        let ecw = parseFloat(document.getElementById('rmECW').value) || 0.375;
-
+        let rhrEl = document.getElementById('rmRHR'); if (rhrEl.dataset.manual === 'true') return; 
+        let isMet = document.querySelector('#segUnit .seg-btn.active').dataset.val === 'metric'; let sex = document.querySelector('#segSex .seg-btn.active').dataset.val;
+        let smmRaw = parseFloat(document.getElementById('rmSMM').value) || 0; let smmKg = isMet ? smmRaw : smmRaw / 2.20462; 
+        let bf = parseFloat(document.getElementById('rmBF').value) || 0; let ecw = parseFloat(document.getElementById('rmECW').value) || 0.375;
         let isFit = false;
-        if (smmKg > 0 && bf > 0) {
-            if (sex === 'M' && smmKg >= 32 && bf <= 18) isFit = true;
-            if (sex === 'F' && smmKg >= 24 && bf <= 23) isFit = true;
-        }
-
-        let targetRHR = 70;
-        if (isFit && ecw >= 0.360 && ecw <= 0.380) targetRHR = 55;
-
+        if (smmKg > 0 && bf > 0) { if (sex === 'M' && smmKg >= 32 && bf <= 18) isFit = true; if (sex === 'F' && smmKg >= 24 && bf <= 23) isFit = true; }
+        let targetRHR = 70; if (isFit && ecw >= 0.360 && ecw <= 0.380) targetRHR = 55;
         rhrEl.value = targetRHR;
     }
 
     validateRunnerForm() {
-        let name = document.getElementById('rmName').value.trim(); 
-        let isNew = document.querySelector('.runner-tag.add-new').classList.contains('active');
-        let isValid = true;
+        let name = document.getElementById('rmName').value.trim(); let isNew = document.querySelector('.runner-tag.add-new').classList.contains('active'); let isValid = true;
         if (!name) isValid = false;
-        if (isNew && AppState.state.profiles[name]) {
-            document.getElementById('nameInputWrap').classList.add('error'); document.getElementById('nameErrorMsg').classList.add('show'); isValid = false;
-        } else {
-            document.getElementById('nameInputWrap').classList.remove('error'); document.getElementById('nameErrorMsg').classList.remove('show');
-        }
-        document.getElementById('btnRmSave').disabled = !isValid;
-        return isValid;
+        if (isNew && AppState.state.profiles[name]) { document.getElementById('nameInputWrap').classList.add('error'); document.getElementById('nameErrorMsg').classList.add('show'); isValid = false; } else { document.getElementById('nameInputWrap').classList.remove('error'); document.getElementById('nameErrorMsg').classList.remove('show'); }
+        document.getElementById('btnRmSave').disabled = !isValid; return isValid;
     }
 
     switchRunner(name) {
-        if(!AppState.state.profiles[name]) return;
-        AppState.state.runnerToken = Date.now(); let t = AppState.state.runnerToken;
+        if(!AppState.state.profiles[name]) return; AppState.state.runnerToken = Date.now(); let t = AppState.state.runnerToken;
         VoiceApp.hardReset(); this.charts.teardown(); AppState.state.activeP = name; this.saveData();
         requestAnimationFrame(() => { if(AppState.state.runnerToken !== t) return; this.updateI18n(); this.recalc(); this.renderRunnerSelector(); this.populateRunnerForm(AppState.state.profiles[name]); });
     }
 
     deleteRunner() {
-        let keys = Object.keys(AppState.state.profiles); if(keys.length <= 1) return;
-        let cName = document.querySelector('.runner-tag.active').dataset.name; if(!cName) return;
+        let keys = Object.keys(AppState.state.profiles); if(keys.length <= 1) return; let cName = document.querySelector('.runner-tag.active').dataset.name; if(!cName) return;
         VoiceApp.hardReset(); delete AppState.state.profiles[cName]; let nextRunner = Object.keys(AppState.state.profiles)[0];
         if (AppState.state.activeP === cName) AppState.state.activeP = nextRunner; this.saveData(); this.switchRunner(AppState.state.activeP);
     }
 
     clearRunnerForm() {
         let p = AppState.state.profiles[AppState.state.activeP]; let d = i18n[p.lang] || i18n['zh']; document.getElementById('rmName').value = ''; document.getElementById('lblNameError').textContent = d.errNameExist;
-        ['rmAge','rmWeight','rmSMM','rmBF','rmRHR','rmMHR','rmECW','rmVO2'].forEach(id => {
-            let el = document.getElementById(id);
-            if (el) el.value = '';
-            if (id === 'rmRHR') el.dataset.manual = 'false';
-        });
-        this.autoFillRHR();
+        ['rmAge','rmWeight','rmSMM','rmBF','rmRHR','rmMHR','rmECW','rmVO2'].forEach(id => { let el = document.getElementById(id); if (el) el.value = ''; if (id === 'rmRHR') el.dataset.manual = 'false'; }); this.autoFillRHR();
     }
 
     syncFormToProfile() {
-        let p = AppState.state.profiles[AppState.state.activeP];
-        let isMet = p.unit !== 'imperial';
-        const getV = (id, f) => (parseFloat(document.getElementById(id).value)||0) * f;
-        
-        p.weight = getV('rmWeight', isMet ? 1 : 1/2.20462); 
-        p.smm = getV('rmSMM', isMet ? 1 : 1/2.20462); 
-        p.bf = parseFloat(document.getElementById('rmBF').value) || null;
-        p.ecw = parseFloat(document.getElementById('rmECW').value) || null;
-        p.customRHR = parseFloat(document.getElementById('rmRHR').value) || null; 
-        p.customMHR = parseFloat(document.getElementById('rmMHR').value) || null; 
-        p.customVO2 = parseFloat(document.getElementById('rmVO2').value) || null;
-        
-        AppState.state.hw.maxSpd = getV('hwMxS', isMet ? 1 : 1.609344); 
-        AppState.state.hw.minSpd = getV('hwMnS', isMet ? 1 : 1.609344); 
-        AppState.state.hw.maxInc = parseFloat(document.getElementById('hwMxI').value) || 15; 
-        AppState.state.hw.minInc = parseFloat(document.getElementById('hwMnI').value) || 0;
+        let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial'; const getV = (id, f) => (parseFloat(document.getElementById(id).value)||0) * f;
+        p.weight = getV('rmWeight', isMet ? 1 : 1/2.20462); p.smm = getV('rmSMM', isMet ? 1 : 1/2.20462); p.bf = parseFloat(document.getElementById('rmBF').value) || null; p.ecw = parseFloat(document.getElementById('rmECW').value) || null; p.customRHR = parseFloat(document.getElementById('rmRHR').value) || null; p.customMHR = parseFloat(document.getElementById('rmMHR').value) || null; p.customVO2 = parseFloat(document.getElementById('rmVO2').value) || null;
+        AppState.state.hw.maxSpd = getV('hwMxS', isMet ? 1 : 1.609344); AppState.state.hw.minSpd = getV('hwMnS', isMet ? 1 : 1.609344); AppState.state.hw.maxInc = parseFloat(document.getElementById('hwMxI').value) || 15; AppState.state.hw.minInc = parseFloat(document.getElementById('hwMnI').value) || 0;
     }
 
     populateRunnerForm(p) {
-        let isMet = p.unit !== 'imperial'; let hw = AppState.state.hw;
-        const setV = (id, v) => { let el=document.getElementById(id); if(el) el.value = (v!==null&&v!==undefined&&!isNaN(v)) ? Number(v).toFixed(3).replace(/\.?0+$/,'') : ''; };
+        let isMet = p.unit !== 'imperial'; let hw = AppState.state.hw; const setV = (id, v) => { let el=document.getElementById(id); if(el) el.value = (v!==null&&v!==undefined&&!isNaN(v)) ? Number(v).toFixed(3).replace(/\.?0+$/,'') : ''; };
         document.getElementById('rmName').value = p.name;
-        setV('rmAge', p.age); setV('rmWeight', isMet?p.weight:p.weight*2.20462); setV('rmSMM', isMet?p.smm:p.smm*2.20462); setV('rmBF', p.bf);
-        setV('rmECW', p.ecw || 0.375);
-        setV('rmRHR', p.customRHR); 
+        setV('rmAge', p.age); setV('rmWeight', isMet?p.weight:p.weight*2.20462); setV('rmSMM', isMet?p.smm:p.smm*2.20462); setV('rmBF', p.bf); setV('rmECW', p.ecw || 0.375); setV('rmRHR', p.customRHR); 
         let rhrEl = document.getElementById('rmRHR'); if(rhrEl) rhrEl.dataset.manual = p.customRHR ? 'true' : 'false';
-        setV('rmMHR', p.customMHR); setV('rmVO2', p.customVO2);
-        setV('hwMxS', isMet?hw.maxSpd:hw.maxSpd/1.609344); setV('hwMnS', isMet?hw.minSpd:hw.minSpd/1.609344); setV('hwMxI', hw.maxInc); setV('hwMnI', hw.minInc);
+        setV('rmMHR', p.customMHR); setV('rmVO2', p.customVO2); setV('hwMxS', isMet?hw.maxSpd:hw.maxSpd/1.609344); setV('hwMnS', isMet?hw.minSpd:hw.minSpd/1.609344); setV('hwMxI', hw.maxInc); setV('hwMnI', hw.minInc);
         const setS = (id, v) => { let c=document.getElementById(id); c.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active')); let b=c.querySelector(`[data-val="${v}"]`); if(b) { b.classList.add('active'); c.querySelector('.seg-indicator').style.left= b.dataset.idx === '0' ? '4px' : 'calc(50% + 0px)'; } };
-        setS('segLang', p.lang||'zh'); setS('segVoice', p.voiceOn?'on':'off'); setS('segUnit', p.unit); setS('segSex', p.gender);
-        this.validateRunnerForm();
+        setS('segLang', p.lang||'zh'); setS('segVoice', p.voiceOn?'on':'off'); setS('segUnit', p.unit); setS('segSex', p.gender); this.validateRunnerForm();
     }
 
     renderRunnerSelector() {
         let wrap = document.getElementById('runnerSelectorRow'); wrap.innerHTML = ''; let d = i18n[AppState.state.profiles[AppState.state.activeP].lang] || i18n['zh'];
         Object.keys(AppState.state.profiles).forEach(k => { let t = document.createElement('div'); t.className = `runner-tag ${k===AppState.state.activeP ? 'active':''}`; t.textContent = k; t.dataset.action = 'switch-runner'; t.dataset.name = k; wrap.appendChild(t); });
-        let add = document.createElement('div'); add.className = 'runner-tag add-new'; add.textContent = d.btnAdd; add.dataset.action = 'add-runner-mode'; wrap.appendChild(add);
-        this.validateRunnerForm();
+        let add = document.createElement('div'); add.className = 'runner-tag add-new'; add.textContent = d.btnAdd; add.dataset.action = 'add-runner-mode'; wrap.appendChild(add); this.validateRunnerForm();
     }
 
-    applyPulseAnimation(rowIndex, doSpd, doInc) {
-        let nRow = document.getElementById(`min-row-${rowIndex}`);
-        if(nRow) {
-            if(doSpd) nRow.querySelector('.list-col-spd').classList.add('pulse-spd-active');
-            if(doInc) nRow.querySelector('.list-col-inc').classList.add('pulse-inc-active');
-        }
-    }
+    applyPulseAnimation(rowIndex, doSpd, doInc) { let nRow = document.getElementById(`min-row-${rowIndex}`); if(nRow) { if(doSpd) nRow.querySelector('.list-col-spd').classList.add('pulse-spd-active'); if(doInc) nRow.querySelector('.list-col-inc').classList.add('pulse-inc-active'); } }
 
     scrollToRow() {
-        let cM = Math.floor(AppState.state.accumMs / 60000);
-        let ul = document.getElementById('previewList');
-        if(!ul) return;
+        let cM = Math.floor(AppState.state.accumMs / 60000); let ul = document.getElementById('previewList'); if(!ul) return;
         Array.from(ul.children).forEach((li, idx) => { 
-            if(idx === cM) {
-                li.classList.add('active-row');
-                if(AppState.state.activeTab === 'matrix') { let tc2 = document.getElementById('tabContent2'); if(tc2) tc2.scrollTo({ top: li.offsetTop - tc2.clientHeight / 2 + li.clientHeight / 2, behavior: 'smooth' }); }
-            } else {
-                li.classList.remove('active-row'); 
-                let s = li.querySelector('.list-col-spd'); if(s) s.classList.remove('pulse-spd-active'); 
-                let i = li.querySelector('.list-col-inc'); if(i) i.classList.remove('pulse-inc-active');
-            }
+            if(idx === cM) { li.classList.add('active-row'); if(AppState.state.activeTab === 'matrix') { let tc2 = document.getElementById('tabContent2'); if(tc2) tc2.scrollTo({ top: li.offsetTop - tc2.clientHeight / 2 + li.clientHeight / 2, behavior: 'smooth' }); } } 
+            else { li.classList.remove('active-row'); let s = li.querySelector('.list-col-spd'); if(s) s.classList.remove('pulse-spd-active'); let i = li.querySelector('.list-col-inc'); if(i) i.classList.remove('pulse-inc-active'); }
         });
     }
 
     setupSubscribers() {
         AppState.subscribe('runStatus', s => {
-            let R = (s === 'RUNNING' || s === 'OVERTIME'); let S = s === 'STOPPED'; let D = s === 'RAMPDOWN';
+            let R = (s === 'RUNNING'); let S = s === 'STOPPED';
             this.charts.teardown();
-            document.getElementById('btnLeft').className = `btn-ctrl btn-runner ${(!S && !D && s !== 'PRE_FLIGHT') ? 'btn-hide' : ''}`;
-            document.getElementById('btnRight').className = `btn-ctrl btn-start ${(R || D || s === 'PRE_FLIGHT') ? 'btn-hide' : ''}`;
-            document.getElementById('btnPause').className = `btn-ctrl btn-pause ${(!R || D || s === 'PRE_FLIGHT') ? 'btn-hide' : ''}`;
+            document.getElementById('btnLeft').className = `btn-ctrl btn-runner ${(!S && s !== 'PRE_FLIGHT') ? 'btn-hide' : ''}`;
+            document.getElementById('btnRight').className = `btn-ctrl btn-start ${(R || s === 'PRE_FLIGHT') ? 'btn-hide' : ''}`;
+            document.getElementById('btnPause').className = `btn-ctrl btn-pause ${(!R || s === 'PRE_FLIGHT') ? 'btn-hide' : ''}`;
             document.getElementById('btnAskEnd').className = `btn-ctrl btn-end ${S || s === 'PRE_FLIGHT' ? 'btn-hide' : ''}`;
             let d = i18n[AppState.state.profiles[AppState.state.activeP].lang] || i18n['zh'];
             document.getElementById('lblBtnRight').textContent = (s === 'PAUSED' && AppState.state.accumMs > 0) ? d.btnResume : d.btnStart;
             
             document.getElementById('setup-view').classList.toggle('active', S); document.getElementById('run-view').classList.toggle('active', !S); document.getElementById('runProgressRow').classList.toggle('show', !S);
+            
+            let htmlRoot = document.getElementById('htmlRoot');
+            if (S) { htmlRoot.classList.remove('run-mode'); } else { htmlRoot.classList.add('run-mode'); }
 
-            if (R || D) { 
-                BgWorker.postMessage('START'); clearTimeout(this.pauseTimeout); 
-                this.scrollToRow(); 
-            } 
-            else if (s === 'PAUSED' || S) { 
-                BgWorker.postMessage('STOP'); VoiceApp.clear(); this.releaseWakeLock(); 
-                if(s === 'PAUSED') this.pauseTimeout = setTimeout(()=>this.endWorkout(), 3600000); else clearTimeout(this.pauseTimeout); 
-            }
+            if (R) { BgWorker.postMessage('START'); clearTimeout(this.pauseTimeout); this.scrollToRow(); } 
+            else if (s === 'PAUSED' || S) { BgWorker.postMessage('STOP'); VoiceApp.clear(); this.releaseWakeLock(); if(s === 'PAUSED') this.pauseTimeout = setTimeout(()=>this.endWorkout(), 3600000); else clearTimeout(this.pauseTimeout); }
         });
 
         AppState.subscribe('matrix', () => { this.renderPreviewList(); });
@@ -1871,133 +1567,105 @@ class AppController {
         AppState.subscribe('activeTab', t => {
             let isS = t === 'settings'; document.getElementById('tabSettings').classList.toggle('active', isS); document.getElementById('tabMatrix').classList.toggle('active', !isS);
             document.getElementById('tabIndicator').style.transform = isS ? 'translateX(0)' : 'translateX(100%)'; document.getElementById('viewsSlider').style.transform = isS ? 'translateX(0)' : 'translateX(-50%)';
-            if(!isS) { 
-                this.renderPreviewList(); 
-                this.scrollToRow(); 
-            }
+            if(!isS) { this.renderPreviewList(); this.scrollToRow(); }
         });
 
-        AppState.subscribe('uiLocked', locked => {
-            document.getElementById('dialShield').classList.toggle('show', locked);
-            document.getElementById('footerShield').classList.toggle('show', locked);
+        AppState.subscribe('uiLocked', locked => { document.getElementById('dialShield').classList.toggle('show', locked); document.getElementById('footerShield').classList.toggle('show', locked); });
+    }
+
+    startOptimization() {
+        if(AppState.state.runStatus !== 'STOPPED') return;
+        let p = AppState.state.profiles[AppState.state.activeP]; let hw = AppState.state.hw;
+        this.optBaseMatrix = JSON.parse(JSON.stringify(AppState.state.snapshot));
+        let low = p.minSpd; let high = Math.min(p.maxSpd + 2.0, hw.maxSpd); let bestSpd = p.maxSpd; let bestZ2 = -1;
+        let testP = JSON.parse(JSON.stringify(p));
+
+        for (let i = 0; i < 10; i++) {
+            let mid = (low + high) / 2; testP.maxSpd = mid; let res = PhysioEngine.solveBlueprint(testP, hw);
+            let z2Mins = res.matrix.filter(x => x.z === 2 || x.z === 3).length; let z5Mins = res.matrix.filter(x => x.z === 5).length;
+            let score = z2Mins - z5Mins * 5; 
+            if (score > bestZ2) { bestZ2 = score; bestSpd = mid; this.optTargetMatrix = res.matrix; }
+            let z1Mins = res.matrix.filter(x => x.z === 1).length;
+            if (z5Mins > 0) { high = mid; } else if (z1Mins > z2Mins) { low = mid; } else { break; }
+        }
+        if (!this.optTargetMatrix || this.optTargetMatrix.length === 0) this.optTargetMatrix = this.optBaseMatrix;
+        this.optFinalSpd = bestSpd;
+    }
+
+    onOptSliderInput(val) {
+        let m = AppState.state.snapshot;
+        for (let i=0; i<m.length; i++) {
+            if(!this.optBaseMatrix[i] || !this.optTargetMatrix[i]) continue;
+            m[i].spd = this.optBaseMatrix[i].spd * (1 - val) + this.optTargetMatrix[i].spd * val;
+            m[i].inc = this.optBaseMatrix[i].inc * (1 - val) + this.optTargetMatrix[i].inc * val;
+            m[i].hr = this.optBaseMatrix[i].hr * (1 - val) + this.optTargetMatrix[i].hr * val;
+            m[i].lac = this.optBaseMatrix[i].lac * (1 - val) + this.optTargetMatrix[i].lac * val;
+            m[i].z = val > 0.5 ? this.optTargetMatrix[i].z : this.optBaseMatrix[i].z;
+        }
+        this.charts.drawAll();
+        
+        // Update stats HUD instantly
+        let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial'; let d = i18n[p.lang] || i18n['zh'];
+        let aS=m.reduce((s,x)=>s+x.spd,0)/m.length, aI=m.reduce((s,x)=>s+x.inc,0)/m.length, aH=m.reduce((s,x)=>s+x.hr,0)/m.length, aL=m.reduce((s,x)=>s+x.lac,0)/m.length; let totDist = m.reduce((s,x)=>s+x.dist,0);
+        Binder.updateBatch({ 
+            sAvgSpd: (isMet?aS:aS/1.609344).toFixed(1), sAvgInc: aI.toFixed(1), sAvgHr: Math.round(aH), sAvgLac: aL.toFixed(1),
+            sEstKcal: `${Math.round(m.reduce((s,x)=>s+x.cal,0))} kcal`, sEstDist: `${(isMet?totDist:totDist/1.609344).toFixed(2)} ${isMet?'km':'mi'}`,
+            sz1: `${d.zones[0]} ${Math.floor(m.reduce((s,x)=>s+(x.z===1?1:0),0))}${d.min}`, sz2: `${d.zones[1]} ${Math.floor(m.reduce((s,x)=>s+(x.z===2?1:0),0))}${d.min}`, sz3: `${d.zones[2]} ${Math.floor(m.reduce((s,x)=>s+(x.z===3?1:0),0))}${d.min}`, sz4: `${d.zones[3]} ${Math.floor(m.reduce((s,x)=>s+(x.z===4?1:0),0))}${d.min}`, sz5: `${d.zones[4]} ${Math.floor(m.reduce((s,x)=>s+(x.z===5?1:0),0))}${d.min}`
         });
     }
 
-    updateOtEstimation() {
-        let p = AppState.state.profiles[AppState.state.activeP];
-        let dStr = i18n[p.lang] || i18n['zh'];
-        let isMet = p.unit !== 'imperial';
+    performMatrixSplicing(newTime, newSpdKph = null, newInc = null) {
+        let p = AppState.state.profiles[AppState.state.activeP]; let cM = Math.floor(AppState.state.accumMs / 60000);
+        let historical = AppState.state.snapshot.slice(0, cM + 1);
         
-        let avgSpd = RunAcc.sumSpd / Math.max(1, RunAcc.sec);
-        let avgInc = RunAcc.sumInc / Math.max(1, RunAcc.sec);
-        let basePace = 60 / Math.max(0.1, avgSpd); 
-        let incDegrade = avgInc * 0.04;
-        
-        let fatiguePace = basePace * (1 + incDegrade);
-        let remainKm = Math.max(0, p.tKm - RunAcc.dKm);
-        let estMins = remainKm * fatiguePace;
+        if (newTime !== null) p.tTime = newTime;
+        if (newSpdKph !== null) p.maxSpd = Math.max(p.minSpd, newSpdKph);
+        if (newInc !== null) p.mxInc = Math.max(p.mnInc, newInc);
 
-        let paceToDisp = isMet ? fatiguePace : fatiguePace * 1.609344;
-        let pM = Math.floor(paceToDisp); let pS = Math.floor((paceToDisp - pM) * 60);
-        let paceStrText = `${pM}:${String(pS).padStart(2,'0')}`;
-        let distDisp = isMet ? remainKm : remainKm / 1.609344;
+        let res = PhysioEngine.solveBlueprint(p, AppState.state.hw); let futureM = res.matrix;
+        for (let i = 0; i <= cM; i++) { if (futureM[i] && historical[i]) { futureM[i] = { ...historical[i] }; } }
+        if (newSpdKph !== null || newInc !== null) { for (let i = cM + 1; i < futureM.length; i++) { if (newSpdKph !== null) futureM[i].spd = newSpdKph; if (newInc !== null) futureM[i].inc = newInc; } }
         
-        let otMsg = dStr.otDynamicDesc.replace('{pace}', paceStrText).replace('{dist}', distDisp.toFixed(2)).replace('{mins}', Math.ceil(estMins));
-        RunAcc.otMessage = otMsg;
-
-        let descEl = document.getElementById('lblOtDesc');
-        if (descEl) descEl.textContent = otMsg;
+        AppState.state.snapshot = futureM; this.saveData(); this.charts.drawAll(); this.renderPreviewList();
     }
 
     logicTick(dt) {
         if (AppState.state.runStatus === 'STOPPED' || AppState.state.runStatus === 'PAUSED' || AppState.state.runStatus === 'PRE_FLIGHT') return;
 
-        let remainingDt = dt;
-        let isWarping = dt > 2000; 
+        let remainingDt = dt; let isWarping = dt > 2000; 
+        if (isWarping) VoiceApp.muted = true;
 
         while (remainingDt > 0) {
-            let stepDt = Math.min(1000, remainingDt);
-            remainingDt -= stepDt;
+            if (AppState.state.runStatus !== 'RUNNING') break; 
 
-            let ms = AppState.state.accumMs; 
-            let p = AppState.state.profiles[AppState.state.activeP];
-            let totMs = p.tTime * 60000;
+            let stepDt = Math.min(1000, remainingDt); remainingDt -= stepDt;
+            let ms = AppState.state.accumMs; let p = AppState.state.profiles[AppState.state.activeP]; let totMs = p.tTime * 60000;
             
             this._processPhysicsTick(stepDt, isWarping); 
             
-            if (AppState.state.runStatus === 'RUNNING' && ms >= totMs) {
-                if (RunAcc.dKm < p.tKm - 0.05) {
-                    this.forceEvictModals();
-                    AppState.state.uiLocked = true;
-                    AppState.state.runStatus = 'RAMPDOWN';
-                    RunAcc.rampdownMs = 0;
-                    
-                    this.updateOtEstimation();
-                    let dStr = i18n[p.lang] || i18n['zh'];
-                    
-                    document.getElementById('massiveTime').classList.add('warn');
-                    document.getElementById('topProgressBar').style.background = 'var(--neon-yellow)';
-                    VoiceApp.speakText(dStr.otRamp, 1, p.lang==='zh'?'zh-TW':'en-US');
-                    break; 
-                } else { 
-                    this.endWorkout(); 
-                    break; 
-                }
+            if (AppState.state.runStatus === 'RUNNING' && AppState.state.accumMs >= totMs) {
+                this.forceEvictModals(); this.endWorkout(); break; 
             }
         }
-
-        let ms = AppState.state.accumMs;
-        let p = AppState.state.profiles[AppState.state.activeP];
-        let totMs = p.tTime * 60000;
         
-        if ((AppState.state.runStatus === 'RUNNING' || AppState.state.runStatus === 'OVERTIME')) {
+        if (isWarping) VoiceApp.muted = false;
+
+        let ms = AppState.state.accumMs; let totMs = AppState.state.profiles[AppState.state.activeP].tTime * 60000;
+        if (AppState.state.runStatus === 'RUNNING') {
             if (this.charts.autoHoverActive && AppState.state.activeTab === 'settings') {
-                let pct = AppState.state.runStatus === 'OVERTIME' ? Math.min(1.0, RunAcc.dKm / p.tKm) : ms / totMs;
-                this.charts.triggerAutoHover('r', pct);
+                let pct = ms / totMs; this.charts.triggerAutoHover('r', pct);
             }
         }
     }
 
     _processPhysicsTick(dt, isWarping) {
         let m = AppState.state.snapshot; let ms = AppState.state.accumMs; let oldM = Math.floor(ms/60000);
-        
-        let p = AppState.state.profiles[AppState.state.activeP]; let pClean = PhysioEngine.sanitize(p); 
-        let isMet = p.unit !== 'imperial';
-        
+        let p = AppState.state.profiles[AppState.state.activeP]; let pClean = PhysioEngine.sanitize(p); let isMet = p.unit !== 'imperial';
         if (!m || m.length === 0) return;
-
-        if (AppState.state.runStatus === 'RAMPDOWN') {
-            RunAcc.rampdownMs += dt;
-            let targetSpd = Math.max(4.0, AppState.state.hw.minSpd); let targetInc = AppState.state.hw.minInc;
-            RunAcc.curSpd += Math.sign(targetSpd - RunAcc.curSpd) * Math.min(Math.abs(targetSpd - RunAcc.curSpd), (0.2 * dt/1000));
-            RunAcc.curInc += Math.sign(targetInc - RunAcc.curInc) * Math.min(Math.abs(targetInc - RunAcc.curInc), (0.5 * dt/1000));
-            RunAcc.curSpd = Utils.clamp(RunAcc.curSpd, targetSpd, HUMAN_MAX_KPH); RunAcc.curInc = Math.max(targetInc, RunAcc.curInc);
-            
-            if (!isWarping) {
-                TweenApp.to('runValSpd', isMet?RunAcc.curSpd:RunAcc.curSpd/1.609344, v => v.toFixed(1)); 
-                TweenApp.to('runValInc', RunAcc.curInc, v => v.toFixed(1));
-            }
-            
-            if (RunAcc.rampdownMs > 60000) { 
-                document.getElementById('overtimeModal').classList.add('show'); BgWorker.postMessage('STOP'); 
-                clearTimeout(this.otIdleTimer);
-                this.otIdleTimer = setTimeout(() => { document.getElementById('overtimeModal').classList.remove('show'); this.endWorkout(); }, 180000);
-            }
-            return;
-        }
 
         AppState.state.accumMs += dt; ms += dt;
         let cM = Math.floor(ms/60000); let cS = ms%60000;
         
-        if (AppState.state.runStatus === 'OVERTIME') {
-            if (cM >= AppState.state.snapshot.length) {
-                let lastM = AppState.state.snapshot[AppState.state.snapshot.length - 1];
-                AppState.state.snapshot.push({ ...lastM, m: cM + 1, spd: RunAcc.otSpd, inc: RunAcc.otInc, z: 2, phase: 'recovery', hr: RunAcc.curHr, lac: RunAcc.curLac });
-                if (!isWarping) { this.charts.drawAll(); this.renderPreviewList(); }
-            }
-            if (RunAcc.dKm >= p.tKm) { AppState.state.uiLocked = false; this.endWorkout(); return; }
-        }
-
         let safeM = Math.min(cM, m.length - 1);
         let curM = m[safeM]; let nextM = m[Math.min(safeM + 1, m.length - 1)]; let sr = dt/60000; 
 
@@ -2005,18 +1673,10 @@ class AppController {
         
         if (cS > 45000 && safeM < m.length - 1) {
             let frac = (cS - 45000) / 15000;
-            targetSpd = curM.spd * (1 - frac) + nextM.spd * frac;
-            targetInc = curM.inc * (1 - frac) + nextM.inc * frac;
+            targetSpd = curM.spd * (1 - frac) + nextM.spd * frac; targetInc = curM.inc * (1 - frac) + nextM.inc * frac;
         }
 
         if (RunAcc.hysteresisCap[safeM]) { targetSpd = Math.min(targetSpd, RunAcc.hysteresisCap[safeM]); }
-        if (AppState.state.runStatus === 'OVERTIME') { targetSpd = RunAcc.otSpd; targetInc = RunAcc.otInc; }
-
-        if (targetSpd >= 7.2 && targetSpd <= 7.6 && targetInc > 8.0 && AppState.state.runStatus !== 'OVERTIME') {
-            RunAcc.deadzoneTimer += dt/1000;
-            if (RunAcc.deadzoneTimer > 300) { targetSpd = 6.5; } 
-        } else { RunAcc.deadzoneTimer = 0; }
-
         if (RunAcc.curSpd === 0) RunAcc.curSpd = targetSpd;
         RunAcc.curSpd += Math.sign(targetSpd - RunAcc.curSpd) * Math.min(Math.abs(targetSpd - RunAcc.curSpd), (0.2 * dt/1000));
         RunAcc.curInc += Math.sign(targetInc - RunAcc.curInc) * Math.min(Math.abs(targetInc - RunAcc.curInc), (0.5 * dt/1000));
@@ -2028,65 +1688,44 @@ class AppController {
         let RE = pClean.gender === 'F' ? 1.05 : 1.0; if(pClean.smm / pClean.wKG > (pClean.gender==='M' ? 0.4 : 0.35)) RE -= 0.05; 
         
         let vo2D = (RunAcc.curSpd <= 7.0 ? (3.5 + 0.1*sm + 1.8*sm*id) : (3.5 + 0.2*sm + 0.9*sm*id)) * RE;
+        if (!Number.isFinite(vo2D)) vo2D = 10; if(safeM < Math.max(2, Math.floor(m.length*0.05))) vo2D *= 0.9;
         
-        if (!Number.isFinite(vo2D)) vo2D = 10; 
-        if(safeM < Math.max(2, Math.floor(m.length*0.05))) vo2D *= 0.9;
-        
-        let HRR = pClean.mHR - pClean.rHR;
-        let effortRatio = vo2D / pClean.vo2; let smoothedTargetPct = effortRatio < 0.6 ? effortRatio : (1.0 - 0.4 * Math.exp(-2.5 * (effortRatio - 0.6)));
-        let tHR = pClean.rHR + (HRR * smoothedTargetPct);
-        if (!Number.isFinite(tHR)) tHR = 110;
+        let HRR = pClean.mHR - pClean.rHR; let effortRatio = vo2D / pClean.vo2; let smoothedTargetPct = effortRatio < 0.6 ? effortRatio : (1.0 - 0.4 * Math.exp(-2.5 * (effortRatio - 0.6)));
+        let tHR = pClean.rHR + (HRR * smoothedTargetPct); if (!Number.isFinite(tHR)) tHR = 110;
 
         if (RunAcc.curHr === 0) RunAcc.curHr = pClean.rHR || 75;
         let newHr = RunAcc.curHr + (tHR - RunAcc.curHr) * (0.1 * dt/1000);
         if (Number.isFinite(newHr)) RunAcc.curHr = newHr; else RunAcc.moatCount++;
         
-        if(RunAcc.curHr > RunAcc.mxH) RunAcc.mxH = Math.round(RunAcc.curHr);
-        curM.hr = Math.round(RunAcc.curHr);
+        if(RunAcc.curHr > RunAcc.mxH) RunAcc.mxH = Math.round(RunAcc.curHr); curM.hr = Math.round(RunAcc.curHr);
         
-        let lacThresh = pClean.vo2 > 60 ? 0.9 : 0.8; 
-        let hrIntensity = (RunAcc.curHr - pClean.rHR) / HRR;
+        let lacThresh = pClean.vo2 > 60 ? 0.9 : 0.8; let hrIntensity = (RunAcc.curHr - pClean.rHR) / HRR;
         
-        if(RunAcc.curLac === 0) RunAcc.curLac = 1.0;
-        let newLac = RunAcc.curLac;
+        if(RunAcc.curLac === 0) RunAcc.curLac = 1.0; let newLac = RunAcc.curLac;
         if(hrIntensity < lacThresh - 0.05) { newLac += (1.0 - RunAcc.curLac) * (0.01 * dt/1000); } 
         else if(hrIntensity < lacThresh + 0.05) { newLac += (2.5 - RunAcc.curLac) * (0.005 * dt/1000); } 
         else { let acidStress = Math.min(1.0, (hrIntensity - (lacThresh + 0.05)) * 5); newLac += Math.pow(acidStress, 3) * (0.05 * dt/1000); }
         
         if (Number.isFinite(newLac)) RunAcc.curLac = newLac; else RunAcc.moatCount++;
-        if(RunAcc.curLac > RunAcc.mxL) RunAcc.mxL = RunAcc.curLac;
-        curM.lac = Utils.round(RunAcc.curLac);
+        if(RunAcc.curLac > RunAcc.mxL) RunAcc.mxL = RunAcc.curLac; curM.lac = Utils.round(RunAcc.curLac);
         
-        if (RunAcc.moatCount > 50 && !RunAcc.moatTriggered) {
-            RunAcc.moatTriggered = true; RunAcc.curHr = 110; RunAcc.curLac = 1.5;
-            NotificationManager.show(p.lang === 'zh' ? "生理參數異常，切換至安全基線" : "Physiological anomaly detected, reverting to baseline", true);
-        }
+        if (RunAcc.moatCount > 50 && !RunAcc.moatTriggered) { RunAcc.moatTriggered = true; RunAcc.curHr = 110; RunAcc.curLac = 1.5; NotificationManager.show(p.lang === 'zh' ? "生理參數異常，切換至安全基線" : "Physiological anomaly detected, reverting to baseline", true); }
 
-        RunAcc.sec += dt/1000; 
-        RunAcc.sumSpd += RunAcc.curSpd * (dt/1000); if(RunAcc.curSpd > RunAcc.mxS) RunAcc.mxS = RunAcc.curSpd;
+        RunAcc.sec += dt/1000; RunAcc.sumSpd += RunAcc.curSpd * (dt/1000); if(RunAcc.curSpd > RunAcc.mxS) RunAcc.mxS = RunAcc.curSpd;
         RunAcc.sumInc += RunAcc.curInc * (dt/1000); if(RunAcc.curInc > RunAcc.mxI) RunAcc.mxI = RunAcc.curInc;
-        RunAcc.sumHr += RunAcc.curHr * (dt/1000);
-        RunAcc.sumLac += RunAcc.curLac * (dt/1000);
-        RunAcc.dKm += RunAcc.curSpd * (dt / 3600000); 
+        RunAcc.sumHr += RunAcc.curHr * (dt/1000); RunAcc.sumLac += RunAcc.curLac * (dt/1000); RunAcc.dKm += RunAcc.curSpd * (dt / 3600000); 
 
-        let z = hrIntensity < 0.6 ? 1 : (hrIntensity < 0.7 ? 2 : (hrIntensity < 0.8 ? 3 : (hrIntensity < 0.9 ? 4 : 5))); 
-        RunAcc.zs[z - 1] += sr;
-        
+        let z = hrIntensity < 0.6 ? 1 : (hrIntensity < 0.7 ? 2 : (hrIntensity < 0.8 ? 3 : (hrIntensity < 0.9 ? 4 : 5))); RunAcc.zs[z - 1] += sr;
         let rerBase = 0.7 + (hrIntensity * 0.3); let fitnessAdj = (pClean.vo2 - 35) * 0.005 + (pClean.smm / pClean.wKG - 0.35) * 0.5 - (pClean.bf - 15) * 0.002;
         let rer = Utils.clamp(rerBase - fitnessAdj, 0.7, 1.0); let pctCarb = (rer - 0.7) / 0.3; let pctFat = 1.0 - pctCarb;
         let kcalTick = ((vo2D * pClean.wKG * 5) / 1000) * sr;
         if(Number.isFinite(kcalTick)) { RunAcc.fCal += kcalTick * pctFat; RunAcc.cCal += kcalTick * pctCarb; curM.cal = kcalTick; curM.fCal = kcalTick*pctFat; curM.cCal = kcalTick*pctCarb;}
 
-        let isOvertime = AppState.state.runStatus === 'OVERTIME';
-        if ((!isOvertime && curM.z <= 3 && hrIntensity > lacThresh + 0.02) || (isOvertime && hrIntensity > lacThresh)) {
+        if (curM.z <= 3 && hrIntensity > lacThresh + 0.02) {
             RunAcc.hrOvershoot += dt/1000;
-            let limitTime = isOvertime ? 30 : 60;
-            if (RunAcc.hrOvershoot > limitTime) {
+            if (RunAcc.hrOvershoot > 60) {
                 let dStr = i18n[p.lang] || i18n['zh'];
-                if (isOvertime) {
-                    RunAcc.otSpd = Math.max(4.0, RunAcc.otSpd - 0.5); RunAcc.hrOvershoot = 0; 
-                    if (!isWarping) VoiceApp.speakText(dStr.bioWarnHr, 1, p.lang==='zh'?'zh-TW':'en-US'); 
-                } else if (!RunAcc.hysteresisCap[safeM]) {
+                if (!RunAcc.hysteresisCap[safeM]) {
                     RunAcc.hysteresisCap[safeM] = Math.max(AppState.state.hw.minSpd, targetSpd - 1.0);
                     if (!isWarping) VoiceApp.speakText(dStr.bioWarnHr, 1, p.lang==='zh'?'zh-TW':'en-US'); 
                 }
@@ -2094,20 +1733,17 @@ class AppController {
         } else { RunAcc.hrOvershoot = 0; }
 
         if (isWarping) {
-            if (!isOvertime) {
-                if(!RunAcc.transF[safeM]) RunAcc.transF[safeM] = { t: false, p: false, autoTab: false, autoTabBack: false, pulsing: false };
-                RunAcc.transF[safeM].autoTab = true; 
-                RunAcc.transF[safeM].t = true; 
-                RunAcc.transF[safeM].p = true;
-            }
+            if(!RunAcc.transF[safeM]) RunAcc.transF[safeM] = { t: false, p: false, autoTab: false, autoTabBack: false, pulsing: false };
+            RunAcc.transF[safeM].autoTab = true; 
+            RunAcc.transF[safeM].t = true; 
+            RunAcc.transF[safeM].p = true;
             return; 
         }
 
         let totMs = AppState.state.profiles[AppState.state.activeP].tTime * 60000;
         let rMs = Math.max(0, totMs - ms); let pct = Math.min(100, (ms / Math.max(1, totMs)) * 100);
-        if (isOvertime) pct = Math.min(100, (RunAcc.dKm / p.tKm) * 100);
         document.getElementById('topProgressText').textContent = pct.toFixed(1) + '%'; document.getElementById('topProgressBar').style.width = pct.toFixed(1) + '%'; 
-        if(!isOvertime) document.getElementById('topRemainingTime').textContent = '-' + Utils.fmtTime(rMs); else document.getElementById('topRemainingTime').textContent = '+' + Utils.fmtTime(ms - totMs);
+        document.getElementById('topRemainingTime').textContent = '-' + Utils.fmtTime(rMs); 
         Binder.update('massiveTime', Utils.fmtTime(ms, false));
         
         let elSpd = document.getElementById('runValSpd'); TweenApp.to('runValSpd', isMet?RunAcc.curSpd:RunAcc.curSpd/1.609344, v => v.toFixed(1)); 
@@ -2127,33 +1763,39 @@ class AppController {
         if (Math.floor(ms/1000) !== Math.floor((ms-dt)/1000)) this.charts.drawAll(); 
         if (oldM !== cM) this.scrollToRow();
 
-        if (isOvertime) return;
         if(!RunAcc.transF[safeM]) RunAcc.transF[safeM] = { t: false, p: false, autoTab: false, autoTabBack: false, pulsing: false };
         
         let spdDiff = Math.abs(nextM.spd - curM.spd); let incDiff = Math.abs(nextM.inc - curM.inc);
-        let isIntensityChanged = nextM.phase !== curM.phase || spdDiff >= 0.2 || incDiff >= 0.5;
+        
+        // 視覺靜默微調：只要差距大於等於 0.1 即啟動呼吸燈動畫
+        let isVisuallyChanged = spdDiff >= 0.1 || incDiff >= 0.1;
+        // 聽覺與強烈警告：速度落差 > 1.0 或 坡度落差 > 2.0，或進入全新階段
+        let isAcousticChanged = nextM.phase !== curM.phase || spdDiff >= 1.0 || incDiff >= 2.0;
 
         if(cS > 43000 && safeM < m.length - 1 && !RunAcc.transF[safeM].autoTab) {
             RunAcc.transF[safeM].autoTab = true; 
-            if(isIntensityChanged) { 
+            if(isVisuallyChanged) { 
                 AppState.state.activeTab = 'matrix'; 
                 RunAcc.transF[safeM].pulsing = true; 
-                this.applyPulseAnimation(safeM + 1, spdDiff >= 0.2, incDiff >= 0.5);
+                this.applyPulseAnimation(safeM + 1, spdDiff >= 0.1, incDiff >= 0.1);
             }
         }
         
         if(cS > 45000 && safeM < m.length - 1 && !RunAcc.transF[safeM].t) {
             RunAcc.transF[safeM].t = true; 
-            if(isIntensityChanged) {
+            if(isAcousticChanged) {
                 if (cS < 50000) { 
                     VoiceApp.speakText(Utils.PRNG.get(p.lang||'en', 'trans', VoiceDB[p.lang||'en'].trans), 3, p.lang==='zh'?'zh-TW':'en-US'); 
                 } else {
                     AppState.state.activeTab = 'settings'; 
                     let vS = document.getElementById('runValSpd'); let vI = document.getElementById('runValInc');
-                    if(spdDiff >= 0.2) { vS.classList.add('flash'); setTimeout(()=>vS.classList.remove('flash'), 1200); }
-                    if(incDiff >= 0.5) { vI.classList.add('flash'); setTimeout(()=>vI.classList.remove('flash'), 1200); }
+                    if(spdDiff >= 1.0) { vS.classList.add('flash'); setTimeout(()=>vS.classList.remove('flash'), 1200); }
+                    if(incDiff >= 2.0) { vI.classList.add('flash'); setTimeout(()=>vI.classList.remove('flash'), 1200); }
                     RunAcc.transF[safeM].pulsing = false; 
                 }
+            } else if (isVisuallyChanged && cS >= 50000) {
+                AppState.state.activeTab = 'settings'; 
+                RunAcc.transF[safeM].pulsing = false; 
             }
         }
 
@@ -2168,25 +1810,6 @@ class AppController {
         }
     }
 
-    startOvertime() {
-        let p = AppState.state.profiles[AppState.state.activeP]; let hw = AppState.state.hw;
-        let dStr = i18n[p.lang] || i18n['zh'];
-        
-        let targetHR = p.mHR ? p.mHR * 0.65 : 120;
-        let trySpd = 8.0; let tryInc = hw.minInc;
-        if (trySpd > hw.maxSpd) { trySpd = hw.maxSpd; tryInc = Math.min(hw.maxInc, 5.0); }
-        if (trySpd >= 7.2 && trySpd <= 7.6) { trySpd = 7.8; } 
-        
-        RunAcc.otSpd = trySpd; RunAcc.otInc = tryInc;
-        AppState.state.uiLocked = true;
-        document.getElementById('massiveTime').classList.remove('warn');
-        document.getElementById('topProgressBar').style.background = 'var(--neon-green)';
-        VoiceApp.speakText(dStr.otBegin, 1, p.lang==='zh'?'zh-TW':'en-US');
-        
-        AppState.state.runStatus = 'OVERTIME';
-        BgWorker.postMessage('START');
-    }
-
     recalc(fullReset = true) {
         let p = AppState.state.profiles[AppState.state.activeP]; let hw = AppState.state.hw;
         let res = PhysioEngine.solveBlueprint(p, hw);
@@ -2198,8 +1821,7 @@ class AppController {
         AppState.batch({ matrix: res.matrix, snapshot: JSON.parse(JSON.stringify(res.matrix)) });
         
         if(fullReset) this.updateUIDataOnly();
-        if(res.rollbackDist) { setTimeout(() => this.syncDialsToProfile(res.rollbackDist), 100); } 
-        else { setTimeout(() => this.syncDialsToProfile(), 100); }
+        setTimeout(() => this.syncDialsToProfile(), 100);
     }
 
     renderPreviewList() {
@@ -2222,7 +1844,7 @@ class AppController {
         if (RunAcc.transF[cM] && RunAcc.transF[cM].pulsing) {
             let spdDiff = Math.abs((AppState.state.snapshot[cM+1]?.spd || 0) - AppState.state.snapshot[cM].spd);
             let incDiff = Math.abs((AppState.state.snapshot[cM+1]?.inc || 0) - AppState.state.snapshot[cM].inc);
-            this.applyPulseAnimation(cM + 1, spdDiff >= 0.2, incDiff >= 0.5);
+            this.applyPulseAnimation(cM + 1, spdDiff >= 0.1, incDiff >= 0.1);
         }
     }
 
@@ -2260,7 +1882,7 @@ class AppController {
         this.charts.drawAll();
     }
 
-    openRunnerModal() { this.charts.teardown(); this.renderRunnerSelector(); this.populateRunnerForm(AppState.state.profiles[AppState.state.activeP]); document.getElementById('runnerModal').classList.add('show'); }
+    openRunnerModal() { this.charts.teardown(); this.renderRunnerSelector(); this.populateRunnerForm(AppState.state.profiles[AppState.state.activeP]); this.openModal('runnerModal'); }
 
     saveRunnerModal() {
         let name = document.getElementById('rmName').value.trim(); if(!name) return;
@@ -2293,7 +1915,7 @@ class AppController {
         Object.keys(AppState.state.profiles).forEach(k => { let o = document.createElement('option'); o.value = k; o.textContent = k; sel.appendChild(o); }); 
         sel.value = AppState.state.activeP;
         
-        let fetchTarget = sel.value; hc.innerHTML = '<div class="loader-spinner"></div>'; document.getElementById('historyModal').classList.add('show');
+        let fetchTarget = sel.value; hc.innerHTML = '<div class="loader-spinner"></div>'; this.openModal('historyModal');
 
         DB.getHist(fetchTarget).then(data => {
             if(sel.value !== fetchTarget) return; hc.innerHTML = '';
@@ -2311,11 +1933,11 @@ class AppController {
         });
     }
 
-    saveData() { try { localStorage.setItem('pro_treadmill_v41', JSON.stringify({ activeP: AppState.state.activeP, profiles: AppState.state.profiles, hw: AppState.state.hw })); } catch(e){} }
+    saveData() { try { localStorage.setItem('pro_treadmill_v41_5', JSON.stringify({ activeP: AppState.state.activeP, profiles: AppState.state.profiles, hw: AppState.state.hw })); } catch(e){} }
     
     persistRun() { 
         if (AppState.state.accumMs > 0) {
-            sessionStorage.setItem('runState_v41', JSON.stringify({ 
+            sessionStorage.setItem('runState_v41_5', JSON.stringify({ 
                 runStatus: AppState.state.runStatus,
                 lastTimestamp: Date.now(),
                 activeP: AppState.state.activeP, 
@@ -2325,13 +1947,16 @@ class AppController {
                 acc: RunAcc 
             })); 
         } else {
-            sessionStorage.removeItem('runState_v41'); 
+            sessionStorage.removeItem('runState_v41_5'); 
         }
     }
     
     endWorkout() {
         let ms = AppState.state.accumMs; AppState.state.uiLocked = false;
         let p = AppState.state.profiles[AppState.state.activeP]; let d = i18n[p.lang] || i18n['zh'];
+        
+        sessionStorage.removeItem('runState_v41_5'); 
+
         if(RunAcc.sec >= 10 && ms >= 10000) {
             let dKm = Utils.round(RunAcc.dKm); let fCal = Utils.round(RunAcc.fCal); let cCal = Utils.round(RunAcc.cCal);
             let avgSpdKm = Utils.round(RunAcc.sumSpd / Math.max(1, RunAcc.sec)); 
@@ -2341,30 +1966,28 @@ class AppController {
             let histObj = { 
                 runnerName: AppState.state.activeP, date: Date.now(), ms, totMs: AppState.state.snapshot.length * 60000, 
                 distKm: dKm, fCal, cCal, avgSpdKm, z: RunAcc.zs, matrix: AppState.state.snapshot, pausePenalty: RunAcc.pausePenalty,
-                actualAvg: { spd: avS, inc: avI, hr: avH, lac: avL }, actualMax: { spd: RunAcc.mxS, inc: RunAcc.mxI, hr: RunAcc.mxH, lac: RunAcc.mxL },
-                otMessage: RunAcc.otMessage
+                actualAvg: { spd: avS, inc: avI, hr: avH, lac: avL }, actualMax: { spd: RunAcc.mxS, inc: RunAcc.mxI, hr: RunAcc.mxH, lac: RunAcc.mxL }
             };
             DB.saveHist(histObj);
             
-            this.showSummaryModal(ms, histObj.totMs, dKm, fCal, cCal, histObj.actualAvg, histObj.actualMax, RunAcc.zs, AppState.state.snapshot, true, RunAcc.pausePenalty, histObj.otMessage);
+            this.showSummaryModal(ms, histObj.totMs, dKm, fCal, cCal, histObj.actualAvg, histObj.actualMax, RunAcc.zs, AppState.state.snapshot, true, RunAcc.pausePenalty);
         } else { NotificationManager.show(d.shortWorkout, true); }
         
         AppState.state.runStatus = 'STOPPED'; AppState.state.accumMs = 0; AppState.state.activeTab = 'settings';
-        sessionStorage.removeItem('runState_v41'); this.recalc(); document.getElementById('silentAudio').pause();
+        this.recalc(); document.getElementById('silentAudio').pause();
         document.getElementById('topProgressText').textContent = '0%'; document.getElementById('topProgressBar').style.width = '0%'; document.getElementById('topRemainingTime').textContent = '-00:00';
-        
+        document.getElementById('optSlider').value = 0; document.getElementById('lblOptValue').textContent = "0%";
         resetRunAcc(); 
     }
 
-    showSummaryModal(ms, totMs, dKm, fCal, cCal, aAvg, aMax, zArray, m, speak = false, penalty = false, otMessage = '') {
+    showSummaryModal(ms, totMs, dKm, fCal, cCal, aAvg, aMax, zArray, m, speak = false, penalty = false) {
         this.charts.teardown();
         let op = AppState.state.profiles[AppState.state.activeP]; let isMet = op.unit !== 'imperial'; let iStr = i18n[op.lang] || i18n['zh'];
         let pClean = PhysioEngine.sanitize(this.viewingProfile || op);
         
         let tStr = Utils.fmtTime(ms); let distDisp = isMet ? dKm : dKm / 1.609344;
         let avgSpdKm = aAvg ? aAvg.spd : (dKm / (Math.max(1, ms)/3600000)); let spdDisp = isMet ? avgSpdKm : avgSpdKm / 1.609344;
-        let tCal = fCal + cCal;
-        let fPct = (fCal / Math.max(1, tCal)) * 100; let cPct = 100 - fPct;
+        let tCal = fCal + cCal; let fPct = (fCal / Math.max(1, tCal)) * 100; let cPct = 100 - fPct;
         
         let nutriHtml = "";
         if (!pClean.bf || !pClean.smm) { nutriHtml = `<div style="text-align:center; padding-top:15px; margin-top:15px; border-top:1px solid #333; color:var(--gray); font-weight:700;"><svg viewBox="0 0 24 24" class="svg-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>${iStr.nutriMissing}</div>`; } 
@@ -2373,16 +1996,13 @@ class AppController {
             let bmr = 370 + 21.6 * (pClean.wKG * (1 - pClean.bf/100)); let bmrFactor = Math.max(0.7, Math.min(1.5, (bmr / (pClean.wKG * 24))));
             let proFactor = Math.max(1.2, Math.min(2.2, (1.2 + Math.max(0, pClean.smm/pClean.wKG - 0.3) * 4) * ageFactor * bmrFactor));
             let dailyPro = Math.round(pClean.wKG * proFactor + (tCal / 100));
-            let postPro = Math.round(Math.min(65, Math.max(20, pClean.wKG * 0.3 * ageFactor + (tCal / 200) * 4)));
-            let postCarb = Math.round(cCal / 4); 
+            let postPro = Math.round(Math.min(65, Math.max(20, pClean.wKG * 0.3 * ageFactor + (tCal / 200) * 4))); let postCarb = Math.round(cCal / 4); 
             
             let strPost = iStr.nutriPost.replace('{p}', postPro).replace('{c}', postCarb); let strDaily = iStr.nutriDaily.replace('{p}', dailyPro);
             nutriHtml = `<div style="margin-top:15px; padding-top:15px; border-top:1px dashed #333; text-align:left;"><strong style="color:var(--neon-yellow);"><svg viewBox="0 0 24 24" class="svg-icon" style="fill:currentColor; width:16px; height:16px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/></svg>${iStr.nutriRx}</strong><br><span style="color:var(--gray-light); font-size:0.95rem; line-height: 1.6;">${strPost}<br>${strDaily}</span></div>`;
         }
         
         let penaltyHtml = penalty ? `<div style="margin-top:10px; padding:10px; background:rgba(255,69,58,0.1); border-radius:8px; border:1px solid rgba(255,69,58,0.3); color:var(--neon-red); font-size:0.85rem; line-height:1.4; font-weight:600;"><svg viewBox="0 0 24 24" class="svg-icon"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>${iStr.warnCheating}</div>` : '';
-        
-        let otHtml = otMessage ? `<div style="margin-top:10px; padding:10px; background:rgba(255,214,10,0.1); border-radius:8px; border:1px solid rgba(255,214,10,0.3); color:var(--neon-yellow); font-size:0.85rem; line-height:1.4; font-weight:600;"><svg viewBox="0 0 24 24" class="svg-icon" style="fill:currentColor; width:16px; height:16px;"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8zm0 18c-3.87 0-7-3.13-7-7 0-3.18 2.71-6.58 7-10.51 4.29 3.93 7 7.33 7 10.51 0 3.87-3.13 7-7 7z"/></svg>${otMessage}</div>` : '';
 
         let html = `
             <div style="display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid #222; font-size:1.05rem; color:var(--gray-light);"><span>${iStr.tim.split('(')[0]}</span><span style="color:var(--text-main); font-weight:bold; font-variant-numeric:tabular-nums;">${tStr}</span></div>
@@ -2391,10 +2011,7 @@ class AppController {
             
             <div style="margin-top:15px; padding-bottom:5px;">
                 <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span style="color:var(--gray-light); font-weight:700;">Total kcal</span><span style="color:#FFF; font-weight:800;">${Math.round(tCal)} kcal</span></div>
-                <div class="fc-bar-wrap">
-                    <div class="fc-bar-fat" style="width:${fPct}%;"></div>
-                    <div class="fc-bar-carb" style="width:${cPct}%;"></div>
-                </div>
+                <div class="fc-bar-wrap"><div class="fc-bar-fat" style="width:${fPct}%;"></div><div class="fc-bar-carb" style="width:${cPct}%;"></div></div>
                 <div class="fc-labels">
                     <div class="fc-label-fat"><svg class="fc-icon" viewBox="0 0 24 24"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8zM7.83 14c.37 0 .67.26.74.62 1.09 5.92 6.21 6.33 6.57.41.05.7.44.65.85-.05.41-.44.7-.85.65-.68-.07-6.53-.98-7.85-8.08-.07-.39.19-.75.58-.82.13-.02.26.04.4.21z"/></svg>${iStr.lblFat} ${Math.round(fCal)}</div>
                     <div class="fc-label-carb"><svg class="fc-icon" viewBox="0 0 24 24"><path d="M20 9.86v-1.6c0-1.25-.83-2.33-2.05-2.58l-5-1.02c-.31-.06-.63-.06-.94 0l-5 1.02C5.83 5.93 5 7.01 5 8.26v1.6c0 .64.29 1.22.76 1.6l4.24 3.39v4.29c0 .55.45 1 1 1h2c.55 0 1-.45 1-1v-4.29l4.24-3.39c.47-.38.76-.96.76-1.6z"/></svg>${iStr.lblCarb} ${Math.round(cCal)}</div>
@@ -2402,15 +2019,12 @@ class AppController {
             </div>
 
             <div class="est-zones" style="margin-top:15px; padding-top:15px; border-top:1px solid #222;">
-                <span class="c-z1">${iStr.zones[0]} ${Math.floor(zArray[0])}${iStr.min}</span>
-                <span class="c-z2">${iStr.zones[1]} ${Math.floor(zArray[1])}${iStr.min}</span>
-                <span class="c-z3">${iStr.zones[2]} ${Math.floor(zArray[2])}${iStr.min}</span>
-                <span class="c-z4">${iStr.zones[3]} ${Math.floor(zArray[3])}${iStr.min}</span>
+                <span class="c-z1">${iStr.zones[0]} ${Math.floor(zArray[0])}${iStr.min}</span><span class="c-z2">${iStr.zones[1]} ${Math.floor(zArray[1])}${iStr.min}</span>
+                <span class="c-z3">${iStr.zones[2]} ${Math.floor(zArray[2])}${iStr.min}</span><span class="c-z4">${iStr.zones[3]} ${Math.floor(zArray[3])}${iStr.min}</span>
                 <span class="c-z5">${iStr.zones[4]} ${Math.floor(zArray[4])}${iStr.min}</span>
             </div>
             ${nutriHtml}
             ${penaltyHtml}
-            ${otHtml}
         `;
         document.getElementById('summaryContent').innerHTML = html;
         
@@ -2421,7 +2035,7 @@ class AppController {
             });
         }
         
-        document.getElementById('summaryModal').classList.add('show');
+        this.openModal('summaryModal');
         
         let cr = Math.min(1.0, ms / Math.max(1, totMs));
         this.charts.sumM = m; this.charts.drawSummary(m, cr);
