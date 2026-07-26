@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="format-detection" content="telephone=no">
-    <title>Pro Treadmill OS - Ultimate Edition (v46)</title>
+    <title>Pro Treadmill OS - Ultimate Edition (v47)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.85); 
@@ -23,6 +23,11 @@
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", Roboto, Helvetica, sans-serif; 
             height: calc(var(--vh, 1vh) * 100); display: flex; flex-direction: column; overflow: hidden; overscroll-behavior: none;
             -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+        }
+        
+        /* Allow text selection for specific elements */
+        input, textarea, .modal-content-scroll, #summaryContent, .est-bottom-row { 
+            -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; 
         }
 
         #splashScreen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-dark); z-index: var(--z-splash); display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.4s ease; }
@@ -45,7 +50,6 @@
         .prg-fill { width: 0%; height: 100%; background: var(--neon-green); box-shadow: 0 0 10px rgba(50,215,75,0.6); transition: width 0.3s linear; pointer-events: none;}
         .prg-rem { font-size: 1.1rem; font-weight: 800; color: #FFF; margin-left: 12px; width: 65px; pointer-events: none;}
 
-        /* Neon pulsing for header */
         .pulse-warn-header { animation: pulse-header 1s infinite; }
         @keyframes pulse-header { 0% { box-shadow: inset 0 0 0px var(--neon-yellow); } 50% { box-shadow: inset 0 0 15px var(--neon-yellow); } 100% { box-shadow: inset 0 0 0px var(--neon-yellow); } }
 
@@ -110,7 +114,6 @@
         
         .hud-hov { visibility: hidden; opacity: 0; position: absolute; top: 5px; left: 5px; right: 5px; background: rgba(0,0,0,0.9); border: 1px solid #444; z-index: 10; border-radius: 8px; padding: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); transition: opacity 0.1s; pointer-events: none;}
         .hud-hov.show { visibility: visible; opacity: 1; }
-        /* 嚴格五等分置中對齊 */
         .hud-hov-grid { display: grid; grid-template-columns: repeat(5, 1fr); text-align: center; align-items: center; font-size: clamp(0.7rem, 3.5vw, 0.95rem); font-weight: 900; justify-items: center; width: 100%; }
         
         .val-spd { color: var(--neon-green); } .val-inc { color: var(--neon-yellow); } .val-hr { color: var(--neon-blue); } .val-lac { color: var(--neon-red); }
@@ -127,8 +130,7 @@
         .massive-time { font-size: clamp(4rem, 18vw, 6rem); font-weight: 900; line-height: 1; text-align: center; letter-spacing: -1px; padding: 15px 0; color: #FFFFFF; cursor: pointer; transition: opacity 0.2s; position: relative; z-index: 10;}
         .massive-time:active { opacity: 0.7; }
         
-        .run-primary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; flex: none; position: relative; }
-        /* 嚴格的 Flexbox 劃分防重疊 */
+        .run-primary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; flex: none; position: relative; z-index: 3; }
         .run-val-box { position: relative; display: flex; flex-direction: column; justify-content: space-between; align-items: center; background: var(--bg-card); height: 160px; border-radius: 16px; border: 1px solid var(--border-color); overflow: hidden; }
         
         .overlay-btn { width: 100%; flex: 0 0 45px; display: flex; justify-content: center; align-items: center; background: rgba(255,255,255,0.02); z-index: 5; transition: background 0.1s; touch-action: none; cursor: pointer;}
@@ -148,19 +150,14 @@
         .r-s-val { font-size: clamp(1.1rem, 4.5vw, 1.4rem); font-weight: 900; color: #FFFFFF; display: flex; align-items: baseline;}
         .r-s-lbl { font-size: 0.7rem; color: var(--gray); font-weight: 700; margin-top: 6px; white-space: nowrap; }
 
-        /* Floating Controls in Run View moved to massive-time-container */
-        .run-float-btn { position: absolute; width: 44px; height: 44px; border-radius: 22px; background: rgba(30,30,30,0.8); border: 1px solid #444; display: flex; justify-content: center; align-items: center; cursor: pointer; z-index: 20; backdrop-filter: blur(4px); outline: none; transition: all 0.2s; }
+        .run-float-btn { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 22px; background: rgba(30,30,30,0.8); border: 1px solid #444; display: flex; justify-content: center; align-items: center; cursor: pointer; z-index: 20; backdrop-filter: blur(4px); outline: none; transition: all 0.2s; }
         .run-float-btn svg { width: 22px; height: 22px; fill: var(--text-main); }
-        .run-float-btn:active { transform: scale(0.9); }
+        .run-float-btn:active { transform: translateY(-50%) scale(0.9); }
         #btnBailOut { left: 15px; }
         #btnBailOut.active { background: var(--neon-yellow); border-color: var(--neon-yellow); }
         #btnBailOut.active svg { fill: #000; }
         #btnVoiceToggle { right: 15px; }
         #btnVoiceToggle.minimal svg { fill: var(--gray); }
-
-        /* Full Screen Pause Catch */
-        #pauseOverlayCatch { position: absolute; top:0; left:0; width:100%; height:100%; z-index: 2; display: none; }
-        .run-mode #pauseOverlayCatch { display: block; }
 
         /* Matrix / Tab 2 */
         #tabContent2 { overflow-y: auto; scrollbar-width: none; scroll-behavior: smooth; }
@@ -199,11 +196,6 @@
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-overlay); display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: auto; transition: opacity 0.2s ease; backdrop-filter: blur(5px); transform: translateZ(0); visibility: hidden;}
         .modal-overlay.show { opacity: 1; visibility: visible; }
         
-        #runnerModal { z-index: var(--z-modal); }
-        #historyModal { z-index: var(--z-modal); background: rgba(12,12,12,0.98); backdrop-filter: none; }
-        #summaryModal { z-index: var(--z-modal); }
-        #timeModal { z-index: var(--z-modal); }
-
         .modal-box { background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 20px; width: 92%; max-width: 440px; max-height: 90%; display: flex; flex-direction: column; transform: scale(0.95); transition: transform 0.2s ease; box-shadow: 0 10px 40px rgba(0,0,0,0.8);}
         .modal-overlay.show .modal-box { transform: scale(1); }
         
@@ -312,7 +304,6 @@
         .pulse-inc-active { color: var(--neon-yellow); font-weight: 900; text-shadow: 0 0 10px var(--neon-yellow); transition: all 0.3s; background: rgba(255,214,10,0.15);}
         .run-big-val.flash { animation: flash-text 0.4s 3; }
         @keyframes flash-text { 0% { color:#FFF; text-shadow: none; } 50% { color:var(--text-main); text-shadow: 0 0 20px var(--text-main); } 100% { color:#FFF; text-shadow: none; } }
-        .cap-warn-icon { position: absolute; top: 15px; right: 15px; width: 20px; height: 20px; fill: var(--neon-red); display: none; animation: pulse 1s infinite; pointer-events: none;}
     </style>
 </head>
 <body>
@@ -366,22 +357,21 @@
                             </div>
                         </div>
 
-                        <!-- Global Offset Panel for Setup View -->
                         <div class="global-offset-panel">
                             <div class="offset-ctrl">
                                 <span class="offset-title" id="lblOffsetSpd">速度偏移</span>
                                 <div class="offset-buttons">
-                                    <button class="offset-btn" data-action="btn-spd-down">-</button>
+                                    <button class="offset-btn" data-action="offset-spd-minus">-</button>
                                     <span class="offset-val" data-bind="uiSpdOff">0.0</span>
-                                    <button class="offset-btn" data-action="btn-spd-up">+</button>
+                                    <button class="offset-btn" data-action="offset-spd-plus">+</button>
                                 </div>
                             </div>
                             <div class="offset-ctrl">
                                 <span class="offset-title" id="lblOffsetInc">坡度偏移</span>
                                 <div class="offset-buttons">
-                                    <button class="offset-btn" data-action="btn-inc-down">-</button>
+                                    <button class="offset-btn" data-action="offset-inc-minus">-</button>
                                     <span class="offset-val" data-bind="uiIncOff">0.0</span>
-                                    <button class="offset-btn" data-action="btn-inc-up">+</button>
+                                    <button class="offset-btn" data-action="offset-inc-plus">+</button>
                                 </div>
                             </div>
                         </div>
@@ -405,20 +395,19 @@
                             </div>
                             <div class="crosshair" id="sCrosshair"></div>
                         </div>
-                        <div class="est-bottom-row">
-                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblEstDistTitle" data-bind="lblDistTitle">預估里程</span><span style="color:var(--text-main);" data-bind="sEstDist">--</span></div>
-                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblEstElevTitle" data-bind="lblElevTitle">預估爬升</span><span style="color:var(--text-main);" data-bind="sEstElev">--</span></div>
-                            <div style="display:flex; justify-content:space-between;"><span id="lblEstKcalTitle" data-bind="lblKcalTitle">預估消耗</span><span style="color:var(--neon-green);" data-bind="sEstKcal">--</span></div>
+                        <div class="est-bottom-row" id="sEstStatsBlock">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblEstDistTitle">預估里程</span><span style="color:var(--text-main);" data-bind="sEstDist">--</span></div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblEstElevTitle">預估爬升</span><span style="color:var(--text-main);" data-bind="sEstElev">--</span></div>
+                            <div style="display:flex; justify-content:space-between;"><span id="lblEstKcalTitle">預估消耗</span><span style="color:var(--neon-green);" data-bind="sEstKcal">--</span></div>
                             <div class="est-zones" style="margin-top:4px;">
-                                <span class="c-z1" data-bind="sz1">Z1 0m</span><span class="c-z2" data-bind="sz2">Z2 0m</span><span class="c-z3" data-bind="sz3">Z3 0m</span><span class="c-z4" data-bind="sz4">Z4 0m</span><span class="c-z5" data-bind="sz5">Z5 0m</span>
+                                <span class="c-z1" data-bind="sEstz1">Z1 0m</span><span class="c-z2" data-bind="sEstz2">Z2 0m</span><span class="c-z3" data-bind="sEstz3">Z3 0m</span><span class="c-z4" data-bind="sEstz4">Z4 0m</span><span class="c-z5" data-bind="sEstz5">Z5 0m</span>
                             </div>
+                            <div id="sEstNutri"></div>
                         </div>
                     </div>
                 </div>
 
                 <div id="run-view" class="view-section">
-                    <div id="pauseOverlayCatch" data-action="pause-catch"></div>
-                    
                     <div class="massive-time-container">
                         <button class="run-float-btn" id="btnBailOut" data-action="toggle-bailout"><svg viewBox="0 0 24 24"><path d="M12 2L1 21h22M12 6l7.53 13H4.47M11 10v4h2v-4m-2 6v2h2v-2"/></svg></button>
                         <div class="massive-time" data-bind="massiveTime" id="massiveTime" data-action="open-adj-time">00:00</div>
@@ -428,7 +417,6 @@
                     <div class="run-primary-grid">
                         <div class="run-val-box">
                             <div class="overlay-btn top" data-action="btn-inc-up"><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg></div>
-                            <svg viewBox="0 0 24 24" class="cap-warn-icon" id="warnCapInc"><path d="M12 2L1 21h22M12 6l7.53 13H4.47M11 10v4h2v-4m-2 6v2h2v-2"/></svg>
                             <div class="run-val-center">
                                 <div class="run-big-val inc" id="runValInc">0.0</div>
                                 <div class="run-lbl"><span id="lblRunInc">坡度</span><span class="run-unit">%</span></div>
@@ -437,7 +425,6 @@
                         </div>
                         <div class="run-val-box">
                             <div class="overlay-btn top" data-action="btn-spd-up"><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg></div>
-                            <svg viewBox="0 0 24 24" class="cap-warn-icon" id="warnCapSpd"><path d="M12 2L1 21h22M12 6l7.53 13H4.47M11 10v4h2v-4m-2 6v2h2v-2"/></svg>
                             <div class="run-val-center">
                                 <div class="run-big-val spd" id="runValSpd">0.0</div>
                                 <div class="run-lbl"><span id="lblRunSpd">速度</span><span class="run-unit" id="unitRunSpd"></span></div>
@@ -465,6 +452,15 @@
                                 <div class="hud-hov-grid"><span class="lbl" data-bind="rHovMin">--:--</span><span class="val-inc" data-bind="rHovInc">--</span><span class="val-spd" data-bind="rHovSpd">--</span><span class="val-hr" data-bind="rHovHr">--</span><span class="val-lac" data-bind="rHovLac">--</span></div>
                             </div>
                             <div class="crosshair" id="rCrosshair"></div>
+                        </div>
+                        <div class="est-bottom-row" id="rActStatsBlock" style="margin-top:10px; padding-top:10px;">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblActDistTitle">實際里程</span><span style="color:var(--text-main);" data-bind="rActDist">--</span></div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblActElevTitle">實際爬升</span><span style="color:var(--text-main);" data-bind="rActElev">--</span></div>
+                            <div style="display:flex; justify-content:space-between;"><span id="lblActKcalTitle">實際消耗</span><span style="color:var(--neon-green);" data-bind="rActKcal">--</span></div>
+                            <div class="est-zones" style="margin-top:4px;">
+                                <span class="c-z1" data-bind="rActz1">Z1 0m</span><span class="c-z2" data-bind="rActz2">Z2 0m</span><span class="c-z3" data-bind="rActz3">Z3 0m</span><span class="c-z4" data-bind="rActz4">Z4 0m</span><span class="c-z5" data-bind="rActz5">Z5 0m</span>
+                            </div>
+                            <div id="rActNutri"></div>
                         </div>
                     </div>
                 </div>
@@ -525,8 +521,8 @@
                 <div class="rm-group">
                     <label class="rm-label" id="lblRmPhysio">Physiology</label>
                     <div class="param-grid">
-                        <div class="param-item readonly" data-action="open-numpad" data-target="rmAge"><label id="lblAge">Age</label><input type="text" id="rmAge" readonly tabindex="-1"><span class="unit" id="unitAge"></span></div>
-                        <div class="param-item readonly" data-action="open-numpad" data-target="rmWeight" data-decimal="true"><label id="lblWgt">Weight</label><input type="text" id="rmWeight" readonly tabindex="-1"><span class="unit" id="unitWgt"></span></div>
+                        <div class="param-item readonly" data-action="open-numpad" data-target="rmAge" data-title="Age"><label id="lblAge">Age</label><input type="text" id="rmAge" readonly tabindex="-1"><span class="unit" id="unitAge"></span></div>
+                        <div class="param-item readonly" data-action="open-numpad" data-target="rmWeight" data-decimal="true" data-title="Weight"><label id="lblWgt">Weight</label><input type="text" id="rmWeight" readonly tabindex="-1"><span class="unit" id="unitWgt"></span></div>
                     </div>
                 </div>
 
@@ -537,17 +533,17 @@
                     </div>
                     <div class="accordion-content" id="advSettings">
                         <div class="param-grid" style="margin-bottom: 15px;">
-                            <div class="param-item readonly" style="border-color:var(--neon-blue);" data-action="open-numpad" data-target="rmMxS" data-decimal="true"><label id="lblBaseMxS" style="color:var(--text-main);">課表基準-最高速</label><input type="text" id="rmMxS" readonly tabindex="-1"><span class="unit" id="unitBaseMxS"></span></div>
-                            <div class="param-item readonly" style="border-color:var(--neon-yellow);" data-action="open-numpad" data-target="rmMxI" data-decimal="true"><label id="lblBaseMxI" style="color:var(--text-main);">課表基準-最高坡</label><input type="text" id="rmMxI" readonly tabindex="-1"><span class="unit">%</span></div>
-                            <div class="param-item readonly" data-action="open-numpad" data-target="rmMnS" data-decimal="true"><label id="lblBaseMnS">課表基準-最低速</label><input type="text" id="rmMnS" readonly tabindex="-1"><span class="unit" id="unitBaseMnS"></span></div>
-                            <div class="param-item readonly" data-action="open-numpad" data-target="rmMnI" data-decimal="true"><label id="lblBaseMnI">課表基準-最低坡</label><input type="text" id="rmMnI" readonly tabindex="-1"><span class="unit">%</span></div>
+                            <div class="param-item readonly" style="border-color:var(--neon-blue);" data-action="open-numpad" data-target="rmMxS" data-decimal="true" data-title="Base Max Spd"><label id="lblBaseMxS" style="color:var(--text-main);">課表基準-最高速</label><input type="text" id="rmMxS" readonly tabindex="-1"><span class="unit" id="unitBaseMxS"></span></div>
+                            <div class="param-item readonly" style="border-color:var(--neon-yellow);" data-action="open-numpad" data-target="rmMxI" data-decimal="true" data-title="Base Max Inc"><label id="lblBaseMxI" style="color:var(--text-main);">課表基準-最高坡</label><input type="text" id="rmMxI" readonly tabindex="-1"><span class="unit">%</span></div>
+                            <div class="param-item readonly" data-action="open-numpad" data-target="rmMnS" data-decimal="true" data-title="Base Min Spd"><label id="lblBaseMnS">課表基準-最低速</label><input type="text" id="rmMnS" readonly tabindex="-1"><span class="unit" id="unitBaseMnS"></span></div>
+                            <div class="param-item readonly" data-action="open-numpad" data-target="rmMnI" data-decimal="true" data-title="Base Min Inc"><label id="lblBaseMnI">課表基準-最低坡</label><input type="text" id="rmMnI" readonly tabindex="-1"><span class="unit">%</span></div>
 
-                            <div class="param-item readonly" data-action="open-numpad" data-target="rmRHR"><label id="lblRHR">Resting HR</label><input type="text" id="rmRHR" placeholder="Auto" data-manual="false" readonly tabindex="-1"><span class="unit">bpm</span></div>
-                            <div class="param-item readonly" data-action="open-numpad" data-target="rmMHR"><label id="lblMHR">Max HR</label><input type="text" id="rmMHR" placeholder="Auto" readonly tabindex="-1"><span class="unit">bpm</span></div>
-                            <div class="param-item readonly" data-action="open-numpad" data-target="rmSMM" data-decimal="true"><label id="lblSMM">SMM</label><input type="text" id="rmSMM" readonly tabindex="-1"><span class="unit" id="unitSmm"></span></div>
-                            <div class="param-item readonly" data-action="open-numpad" data-target="rmBF" data-decimal="true"><label id="lblBF">Body Fat</label><input type="text" id="rmBF" placeholder="Auto" readonly tabindex="-1"><span class="unit">%</span></div>
-                            <div class="param-item readonly" data-action="open-numpad" data-target="rmECW" data-decimal="true"><label id="lblECW">ECW</label><input type="text" id="rmECW" placeholder="0.375" readonly tabindex="-1"><span class="unit"></span></div>
-                            <div class="param-item readonly" data-action="open-numpad" data-target="rmVO2" data-decimal="true"><label id="lblVO2">VO2</label><input type="text" id="rmVO2" placeholder="Auto" readonly tabindex="-1"><span class="unit">ml/kg</span></div>
+                            <div class="param-item readonly" data-action="open-numpad" data-target="rmRHR" data-title="Resting HR"><label id="lblRHR">Resting HR</label><input type="text" id="rmRHR" placeholder="Auto" data-manual="false" readonly tabindex="-1"><span class="unit">bpm</span></div>
+                            <div class="param-item readonly" data-action="open-numpad" data-target="rmMHR" data-title="Max HR"><label id="lblMHR">Max HR</label><input type="text" id="rmMHR" placeholder="Auto" readonly tabindex="-1"><span class="unit">bpm</span></div>
+                            <div class="param-item readonly" data-action="open-numpad" data-target="rmSMM" data-decimal="true" data-title="SMM"><label id="lblSMM">SMM</label><input type="text" id="rmSMM" readonly tabindex="-1"><span class="unit" id="unitSmm"></span></div>
+                            <div class="param-item readonly" data-action="open-numpad" data-target="rmBF" data-decimal="true" data-title="Body Fat"><label id="lblBF">Body Fat</label><input type="text" id="rmBF" placeholder="Auto" readonly tabindex="-1"><span class="unit">%</span></div>
+                            <div class="param-item readonly" data-action="open-numpad" data-target="rmECW" data-decimal="true" data-title="ECW"><label id="lblECW">ECW</label><input type="text" id="rmECW" placeholder="0.375" readonly tabindex="-1"><span class="unit"></span></div>
+                            <div class="param-item readonly" data-action="open-numpad" data-target="rmVO2" data-decimal="true" data-title="VO2Max"><label id="lblVO2">VO2</label><input type="text" id="rmVO2" placeholder="Auto" readonly tabindex="-1"><span class="unit">ml/kg</span></div>
                         </div>
                     </div>
                 </div>
@@ -559,10 +555,10 @@
                     </div>
                     <div class="accordion-content" id="hwSettings">
                         <div class="param-grid" style="background: #111; padding: 12px; border-radius: 12px; border: 1px solid #333;">
-                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMxS" data-decimal="true"><label id="lblHwMxS" style="color:var(--neon-red);">機台硬體-最高速</label><input type="text" id="hwMxS" readonly tabindex="-1"><span class="unit" id="unitMxS2"></span></div>
-                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMnS" data-decimal="true"><label id="lblHwMnS">機台硬體-最低速</label><input type="text" id="hwMnS" readonly tabindex="-1"><span class="unit" id="unitMnS2"></span></div>
-                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMxI" data-decimal="true"><label id="lblHwMxI" style="color:var(--neon-red);">機台硬體-最高坡</label><input type="text" id="hwMxI" readonly tabindex="-1"><span class="unit">%</span></div>
-                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMnI" data-decimal="true"><label id="lblHwMnI">機台硬體-最低坡</label><input type="text" id="hwMnI" readonly tabindex="-1"><span class="unit">%</span></div>
+                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMxS" data-decimal="true" data-title="HW Max Spd"><label id="lblHwMxS" style="color:var(--neon-red);">機台硬體-最高速</label><input type="text" id="hwMxS" readonly tabindex="-1"><span class="unit" id="unitMxS2"></span></div>
+                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMnS" data-decimal="true" data-title="HW Min Spd"><label id="lblHwMnS">機台硬體-最低速</label><input type="text" id="hwMnS" readonly tabindex="-1"><span class="unit" id="unitMnS2"></span></div>
+                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMxI" data-decimal="true" data-title="HW Max Inc"><label id="lblHwMxI" style="color:var(--neon-red);">機台硬體-最高坡</label><input type="text" id="hwMxI" readonly tabindex="-1"><span class="unit">%</span></div>
+                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMnI" data-decimal="true" data-title="HW Min Inc"><label id="lblHwMnI">機台硬體-最低坡</label><input type="text" id="hwMnI" readonly tabindex="-1"><span class="unit">%</span></div>
                         </div>
                     </div>
                 </div>
@@ -616,7 +612,7 @@
         </div>
     </div>
 
-    <div id="summaryModal" class="modal-overlay" data-action="close-summary-overlay">
+    <div id="summaryModal" class="modal-overlay" data-action="overlay-close">
         <div class="modal-box" data-no-close style="max-height:95%; max-width:600px; width:95%;">
             <div class="modal-header">
                 <div class="modal-title" style="color:var(--neon-blue);" id="lblSumTitle">訓練總結與營養建議</div>
@@ -638,13 +634,27 @@
                 </div>
             </div>
 
-            <div class="modal-content-scroll" id="summaryContent" style="padding-top:10px;"></div>
-            
-            <div id="sumCalibrationWrap" style="padding:15px; border-top:1px solid #333; display:none;">
-                <label id="lblCalib" style="font-size:0.85rem; color:var(--gray-light); margin-bottom:8px; display:block;">校準真實跑步機里程</label>
-                <div style="display:flex; gap:10px;">
-                    <div class="input-wrapper param-item readonly" data-action="open-numpad" data-target="inpCalibDist" data-decimal="true" style="flex:1;"><input type="text" id="inpCalibDist" placeholder="0.00" readonly tabindex="-1"></div>
-                    <button class="btn-modal btn-ghost" id="btnApplyCalib" data-action="apply-calib" style="flex:0 0 auto; width:80px; padding:0; border-color:var(--neon-green); color:var(--neon-green);">Apply</button>
+            <div class="modal-content-scroll" id="summaryContent" style="padding-top:10px;">
+                <div style="display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid #222; font-size:1.05rem; color:var(--gray-light);"><span>Total Time</span><span style="color:var(--text-main); font-weight:bold; font-variant-numeric:tabular-nums;" id="sumTimeDisp">--:--</span></div>
+                <div class="est-bottom-row" id="sumStatsBlock" style="border:none; margin-top:0; padding-top:10px;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblSumDistTitle">總里程</span><span style="color:var(--text-main);" data-bind="sumDist">--</span></div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblSumElevTitle">總爬升</span><span style="color:var(--text-main);" data-bind="sumElev">--</span></div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblSumAvgPaceTitle">平均配速</span><span style="color:var(--neon-green);" data-bind="sumAvgPace">--</span></div>
+                    <div style="display:flex; justify-content:space-between;"><span id="lblSumKcalTitle">總消耗</span><span style="color:var(--neon-green);" data-bind="sumKcal">--</span></div>
+                    
+                    <div style="margin-top:15px; padding-bottom:5px;">
+                        <div class="fc-bar-wrap"><div class="fc-bar-fat" id="sumFatBar" style="width:50%;"></div><div class="fc-bar-carb" id="sumCarbBar" style="width:50%;"></div></div>
+                        <div class="fc-labels">
+                            <div class="fc-label-fat"><svg class="fc-icon" viewBox="0 0 24 24"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8zM7.83 14c.37 0 .67.26.74.62 1.09 5.92 6.21 6.33 6.57.41.05.7.44.65.85-.05.41-.44.7-.85.65-.68-.07-6.53-.98-7.85-8.08-.07-.39.19-.75.58-.82.13-.02.26.04.4.21z"/></svg><span id="sumLblFat">Fat Cal</span> <span data-bind="sumFatCal">0</span></div>
+                            <div class="fc-label-carb"><svg class="fc-icon" viewBox="0 0 24 24"><path d="M20 9.86v-1.6c0-1.25-.83-2.33-2.05-2.58l-5-1.02c-.31-.06-.63-.06-.94 0l-5 1.02C5.83 5.93 5 7.01 5 8.26v1.6c0 .64.29 1.22.76 1.6l4.24 3.39v4.29c0 .55.45 1 1 1h2c.55 0 1-.45 1-1v-4.29l4.24-3.39c.47-.38.76-.96.76-1.6z"/></svg><span id="sumLblCarb">Carb Cal</span> <span data-bind="sumCarbCal">0</span></div>
+                        </div>
+                    </div>
+
+                    <div class="est-zones" style="margin-top:15px; padding-top:15px; border-top:1px solid #222;">
+                        <span class="c-z1" data-bind="sumz1">Z1 0m</span><span class="c-z2" data-bind="sumz2">Z2 0m</span><span class="c-z3" data-bind="sumz3">Z3 0m</span><span class="c-z4" data-bind="sumz4">Z4 0m</span><span class="c-z5" data-bind="sumz5">Z5 0m</span>
+                    </div>
+                    <div id="sumNutri"></div>
+                    <div id="sumPenaltyHtml"></div>
                 </div>
             </div>
 
@@ -700,7 +710,7 @@
 </div>
 
 <script>
-/** PRO TREADMILL OS (ULTIMATE EDITION v46) */
+/** PRO TREADMILL OS (ULTIMATE EDITION v47) */
 
 const i18n = {
     zh: {
@@ -708,7 +718,7 @@ const i18n = {
         tim: "總時間 (MIN)", km: "總目標 (KM)", 
         lblBaseMxS: "課表基準-最高速", lblBaseMnS: "課表基準-最低速", lblBaseMxI: "課表基準-最高坡", lblBaseMnI: "課表基準-最低坡",
         hud1: "Phase", hud2: "Inc", hud3: "Spd", hud4: "HR", hud5: "Lac",
-        avg: "AVG", max: "MAX", estKcal: "預估消耗: ", actKcal: "實際消耗: ", estDist: "預估里程: ", actDist: "已完成: ", estElev: "預估爬升: ", actElev: "實際爬升: ",
+        avg: "AVG", max: "MAX", estKcal: "預估消耗: ", actKcal: "實際消耗: ", estDist: "預估里程: ", actDist: "實際里程: ", estElev: "預估爬升: ", actElev: "實際爬升: ",
         rInc: "坡度", rSpd: "速度", rDist: "里程", rPace: "配速", rHr: "心率", rLac: "乳酸", rElev: "爬升",
         thTime: "時間", thInc: "坡度", thSpd: "速度", thPhase: "階段", thHr: "心率", thLac: "乳酸",
         btnLeft: "跑者", btnStart: "開始", btnResume: "繼續", btnHold: "長按/滑動 結束", btnPause: "暫停",
@@ -759,13 +769,14 @@ const i18n = {
         },
         warnSave: "資料已儲存", shortWorkout: "訓練時間過短，紀錄已作廢",
         adjTime: "總時間校準", hr: "小時", mn: "分鐘",
-        sumTitle: "訓練總結與營養建議", btnSumClose: "完成", lblCalib: "校準真實跑步機里程",
+        sumTitle: "訓練總結與營養建議", btnSumClose: "完成",
         nutriMissing: "填寫「體脂肪」與「骨骼肌」解鎖精準營養",
         nutriRx: "【 運動營養建議 】", nutriPost: "跑後修復: 蛋白質 {p}g + 碳水 {c}g", nutriDaily: "全日建議蛋白質總量: {p}g 維持肌肉",
-        actualDist: "實際里程", estDist: "預估里程: ", actDist: "已完成: ",
+        actualDist: "實際里程",
         unitKm: "公里", unitMi: "英里", unitAge: "歲",
         transMsgStart: "開始訓練。初始目標速度 {s}，坡度 {i}。",
-        transMsgPre: "準備切換，目標速度 {s}，坡度 {i}。",
+        spdSame: "速度不變", spdUp: "速度調升為 {v}", spdDown: "速度調降為 {v}",
+        incSame: "坡度不變", incUp: "坡度調升為 {v}", incDown: "坡度調降為 {v}",
         resumeAudio: "繼續訓練。",
         lblFat: "脂肪消耗", lblCarb: "碳水消耗", lblTotDist: "總跑量", lblMonDist: "本月跑量", lblTotCal: "總燃燒",
         bioWarnHr: "心率突破安全紅線！已自動限制最高配速並強迫拉長吐氣。",
@@ -781,7 +792,7 @@ const i18n = {
         tim: "TIME (MIN)", km: "TARGET (KM)", 
         lblBaseMxS: "Base Max Spd", lblBaseMnS: "Base Min Spd", lblBaseMxI: "Base Max Inc", lblBaseMnI: "Base Min Inc",
         hud1: "Phase", hud2: "Inc", hud3: "Spd", hud4: "HR", hud5: "Lac",
-        avg: "AVG", max: "MAX", estKcal: "Est. Kcal: ", actKcal: "Actual Kcal: ", estDist: "Est. Dist: ", actDist: "Completed: ", estElev: "Est. Elev: ", actElev: "Actual Elev: ",
+        avg: "AVG", max: "MAX", estKcal: "Est. Kcal: ", actKcal: "Actual Kcal: ", estDist: "Est. Dist: ", actDist: "Actual Dist: ", estElev: "Est. Elev: ", actElev: "Actual Elev: ",
         rInc: "INCLINE", rSpd: "SPEED", rDist: "DIST", rPace: "PACE", rHr: "HR", rLac: "LAC", rElev: "ELEV",
         thTime: "Time", thInc: "Inc", thSpd: "Spd", thPhase: "Phase", thHr: "HR", thLac: "Lac",
         btnLeft: "Runner", btnStart: "Start", btnResume: "Resume", btnHold: "Hold/Swipe End", btnPause: "Pause",
@@ -842,13 +853,14 @@ const i18n = {
         },
         warnSave: "Profile Saved", shortWorkout: "Workout too short, discarded.",
         adjTime: "Time Calibration", hr: "Hours", mn: "Minutes",
-        sumTitle: "Summary & Nutrition", btnSumClose: "Done", lblCalib: "Calibrate Actual Machine Distance",
+        sumTitle: "Summary & Nutrition", btnSumClose: "Done",
         nutriMissing: "Fill Body Fat & SMM to unlock precise nutrition.",
         nutriRx: "[ Nutrition Suggestion ]", nutriPost: "Post-run: Protein {p}g + Carbs {c}g", nutriDaily: "Daily Protein: {p}g to maintain muscle.",
-        actualDist: "Actual Dist", estDist: "Est. Dist: ", actDist: "Completed: ",
+        actualDist: "Actual Dist",
         unitKm: "km", unitMi: "mi", unitAge: "yrs",
         transMsgStart: "Starting workout. Initial target speed {s}, incline {i}.",
-        transMsgPre: "Transitioning. Target speed {s}, incline {i}.",
+        spdSame: "Speed unchanged", spdUp: "Speed increased to {v}", spdDown: "Speed decreased to {v}",
+        incSame: "Incline unchanged", incUp: "Incline increased to {v}", incDown: "Incline decreased to {v}",
         resumeAudio: "Resuming workout.",
         lblFat: "Fat Cal", lblCarb: "Carb Cal", lblTotDist: "Total Dist", lblMonDist: "Month Dist", lblTotCal: "Total Burn",
         bioWarnHr: "Heart rate over safety line. Pace capped. Watch your breathing.",
@@ -870,7 +882,7 @@ const VoiceDB = {
         bio_flat: ["縮短觸地時間！跑帶是高溫的，啟動伸展收縮循環！","步頻拉高到180，減少髕骨股骨關節高達15%的衝擊壓力。","腳掌落在重心正下方，避免強大的煞車反作用力！","腳步放輕！安靜落地代表緩衝與肌肉剛性完美。","收緊下腹橫肌，骨盆中立，避免腰椎承受壓力！","利用前腳掌與中足過渡，把反作用力轉為向前的純粹動能。","手肘鎖定90度向後擺動！胸椎旋轉神經連結到雙腿。","放鬆小腿肚！主要的推進動力應該來自你的臀大肌與大腿後側動力鍊。","保持腳踝的彈性，充分利用阿基里斯腱的免費回彈力省力。","整體微前傾，讓重力成為前進的推手，而非對抗的阻力。","下巴微收，平視前方，維持頸椎中立與氣管暢通。","絕對不左右搖晃！多餘橫向位移都在浪費寶貴的 ATP。","腳趾不要抓地！放鬆足底筋膜讓它自然伸展緩衝。","膝蓋微彎，絕對不要在落地時鎖死膝關節！","想像腿是一個完美的圓，推蹬、折疊、下踩。","把你的核心當作懸吊系統，過濾掉所有震動。","雙手擺動的軌跡不要超過身體中線，減少旋轉阻力。","腳跟輕輕吻過履帶就好，主要靠前中足支撐。","保持上身挺拔，想像你在水面上飄過一樣輕盈。","雙眼直視前方，維持頸椎的完美弧度，不要壓迫氣管。","每一次著地都是一次精準的物理學計算，保持重心穩定。","啟動你的筋膜網路，讓彈性位能幫您省下寶貴的肌肉力量。","把腳步縮小，用高步頻去切割距離，這樣對膝蓋最友善。","感受前足的扒地感，把反作用力完全轉換為推進向量。","想像你的腿是一組強大的活塞，直上直下，毫無遲疑。","腳踝關節保持適度的剛性，這是能量回饋的關鍵秘密。","肩膀不准聳起！把多餘的能量全部導向你的下肢。","雙臂的擺動要俐落，帶動骨盆進行微小但致命的推進旋轉。","維持這個完美的軀幹前傾角，讓地心引力帶你飛翔。"],
         bio_steep: ["從腳踝作支點，整體前傾對抗陡坡，改變重心向量！","絕不能坐著跑！髖關節完全伸展，強迫臀大肌發力！","爬坡嚴禁跨大步！縮小步幅，大幅提高步頻！","看前方三公尺，低頭看腳會壓迫頸椎並干擾平衡。","前腳掌著地，腳跟微懸，利用小腿與阿基里斯腱彈簧效應。","大腿後側燃燒？很好，這在強化你薄弱的後側動力鍊！","核心全面繃緊！彎腰駝背會壓迫橫膈膜導致缺氧。","手臂用力向後擺！上半身強勢動能能省下20%的腿力。","抬高膝蓋，增加髖屈肌參與，征服真實的陡峭高山！","絕對不要抓扶手！強迫軀幹核心去平衡重力拉扯！","重心壓在前腳掌，推蹬要感受到地面扎實的反饋。","坡度越陡身體越要穩定，不讓上半身產生無效的扭轉。","小步快頻！像忍者一樣輕巧而快速地向上切入！","不要把力氣浪費在向上跳，所有的力氣都要向前推！","想像屁股後面有一根彈簧，把你整個人往坡頂射出去！","每一次踩踏都要有侵略性，把坡度吃下去！","雙手擺動的幅度加大，用肩膀的力量帶動你的大腿！","克服重力的秘訣就是高步頻，讓腳底像裝了馬達一樣！","這是對抗地心引力的純粹戰爭，把重力當成鍛鍊的工具。","提高你的膝蓋抬升角度，強迫髂腰肌參與這場爬坡盛宴。","小腿後側酸痛是必然的，這是在鍛造你阿基里斯腱的韌性。","用強烈的手臂擺動去抵銷重力矩，上半身絕不能鬆懈。","緊咬住這個坡度，每一次推蹬都在強化你的心臟容積。","把坡度想像成階梯，不要滑行，而是每一步都穩穩踩上台階。","背部肌群全面啟動！用豎脊肌鎖死你的抗重力結構。","大口把空氣吸進腹部，對抗上坡造成的胸腔壓迫感。","每一次髖部的推展都要做到極致，這是啟動臀大肌的唯一解。","把自己當成一頭攀岩的雪豹，充滿侵略性地吞噬這個陡坡。"],
         bio_gen: ["肩膀下沉，遠離耳朵！你不需要用上斜方肌來跑步。","打開胸腔！駝背會減少20%肺活量，挺起胸膛！","雙手不緊握，想像手裡握著蝴蝶，過度握拳引發神經緊繃。","放鬆眉心跟下巴！跑步不用臉部肌肉，能量留給下肢。","脊椎一節節往上延伸，想像頭頂有線把你往上拉。","兩步一吸兩步一呼，建立穩定韻律，換氣效率極大化。","鼻子深吸，嘴巴用力吐，肺泡底部廢氣徹底排空。","掃描全身一次，把不必要的代償性緊繃感全部釋放。","維持上半身安靜，核心是超級避震器與動力傳導樞紐。","腳尖朝向正前方，避免外八內八造成的扭轉應力。","把你的骨盆想像成一個裝滿水的碗，不要讓水灑出來。","手掌放鬆，大拇指輕觸食指，消除上肢所有的阻力。","把呼吸的重點放在『吐氣』，用力吐空才能吸進更多新鮮氧氣。","聽自己的腳步聲，越不對稱代表你正在用代償姿勢跑步。","保持眼球放鬆，注視前方一個定點，減少大腦的資訊處理量。","把面部肌肉徹底放鬆，任何猙獰的表情都在浪費氧氣。","頸椎保持中立，這是所有神經傳導的超級高速公路。","收束你的肋骨，不要讓核心的力量從腹部發散出去。","雙手像鐘擺一樣規律，這是幫助大腦穩定節奏的最佳提示。","保持冷靜的頭腦，不要讓身體的不適感影響了姿勢的正確性。","想像頭頂有一股氣流將你往上托，卸除下肢的沉重感。","將骨盆微幅前傾，找到那個不用費力就能自然前進的甜蜜點。","讓手指的輕觸來建立神經的安定感，拒絕任何握拳的衝動。","放空你的視線，用周邊視覺去感知空間，大幅節省腦力消耗。","核心不是死硬的木板，而是充滿彈性的避震彈簧，運用它。"],
-        phy_warm: ["關節分泌滑液，微血管床擴張，安全潤滑開來。","低強度安全喚醒慢肌纖維，提高肌肉溫度預防撕裂傷。","血液正從內臟轉移到四肢，交感神經溫和啟動。","深呼吸，氧氣送進腹部，穩定副交感神經防心率過早飆升。","提升血漿容積，促使體溫調節中樞提前運作。","高爾基腱器官正適應肌肉張力，神經連結逐漸熱絡。","增加肌肉黏彈性，讓接下來每一步更流暢安全。","肌凝蛋白正在預熱，橫橋循環準備啟動。","打開微血管的閘門，讓帶氧血液暢通無阻。","滑囊膜正在釋放潤滑液，你的關節活動度正在最大化。","肌肉裡的肌質網正在預先釋放鈣離子，為收縮做準備。","這是喚醒中樞神經的最優頻率，讓大腦準備迎接高壓。","血液正在緩慢重新分配，從消化系統轉移到運動皮層。","深層核心肌群正在啟動，為即將到來的衝擊力做好防護機制。","結締組織正在吸收熱能，你的筋膜網路即將全面展開。","神經突觸正在進行熱機放電，運動單元的徵召越來越順暢。","心臟正在溫和地調整搏出量，讓每一次跳動都精準到位。"],
+        phy_warm: ["關節分泌滑液，微血管床擴張，安全潤滑開來。","低強度安全喚醒慢肌纖維，提高肌肉溫度預防撕裂傷。","血液正從內臟轉移到四肢，交感神經溫和啟動。","深呼吸，氧氣送進腹部，穩定副交感神經防心率過早飆升。","提升血漿容積，促使體溫調節中樞提前運作。","高爾基腱器官正適應肌肉張力，神經連結逐漸熱絡。","增加肌肉黏彈性，讓接下來每一步更流暢安全。","肌凝蛋白正在預熱，橫橋循環準備啟動。","打開微血管的閘門，讓帶氧血液暢通無阻。","滑囊膜正在釋放潤滑液，你的關節活動度正在最大化。","肌肉裡的肌質網正在預先釋放鈣離子，為收縮做準備。","這是喚醒中樞神經的最優頻率，讓大腦準備迎接高壓。","血液正在緩慢重新分配，從消化系統轉移到運動皮層。","深層核心肌群正在啟動，為即初到來的衝擊力做好防護機制。","結締組織正在吸收熱能，你的筋膜網路即將全面展開。","神經突觸正在進行熱機放電，運動單元的徵召越來越順暢。","心臟正在溫和地調整搏出量，讓每一次跳動都精準到位。"],
         phy_aero: ["肝臟與肌肉進行 Beta 氧化，將脂肪轉為游離脂肪酸燃料。","慢肌纖維合成粒線體並增加微血管，打造耐力銀行。","心室舒張末期容積增加，每跳打出比平常多30%的血液。","有氧酶活性倍增，同速度下將消耗更少的肝醣。","波耳效應啟動，血紅素加速釋放氧氣給飢渴細胞。","訓練肌肉的抗疲勞度，次最大耗氧量巡航對馬拉松至關重要。","呼吸交換率顯示你正依賴脂肪代謝，最純粹的有氧底層。","肺泡氣體交換效率達巔峰，心肺系統運轉極度完美。","能量路徑正在被大量活化，全面提升你的耐力基因。","這正是增加慢縮肌內肌紅蛋白濃度的完美狀態。","你的心臟正在經歷離心性肥大，左心室的容積正在擴張。","這種配速能大幅促進毛細血管新生，讓每一條肌纖維都充滿氧氣。","脂肪分解酶正在全速運轉，把你身上的脂肪轉化為純粹的推力。","你的肌肉細胞正在增加脂肪酸結合蛋白的數量，燃脂效率飆升！","這是提升有氧代謝酶濃度的黃金區間，保持這份穩定。","有氧系統正在將乳酸當作燃料重新回收，效率極高。","你現在就像是一台混合動力車，完美平衡了糖與脂肪的燃燒。","持續這份壓力，你的微血管床正在像樹枝一樣瘋狂生長。","細胞內的粒線體工廠正在瘋狂擴建，這是你未來的體能基石。","葡萄糖與游離脂肪酸在細胞內完美共舞，輸出極度穩定。","感受這份純粹的有氧做功，你的心肌正在變得更加強韌有力。"],
         phy_ana: ["乳酸是燃料不是敵人！肝臟正透過柯氏循環把它轉回葡萄糖！","跨越臨界點，強迫身體適應強酸環境下的收縮！","快縮肌全面啟動！榨乾肌肉裡高能磷酸與儲備肌醣原！","交感神經放電，兒茶酚胺大量分泌，逼出最大攝氧極限！","氫離子濃度飆升，這股酸痛是刺激肌肉生長變強的最強信號！","無氧系統超載運轉，乳酸閾值大幅右移，極速將突破天際！","高壓引發微小肌肉損傷，今晚深度睡眠將把它們修復更粗壯！","肺部通氣量達極限，呼吸肌群承受巨大壓力，挺住考驗！","神經肌肉接合處正瘋狂釋放化學物質，撐住這高頻率！","你的極速快肌正在燃燒殆盡，這是爆發力的絕對關鍵！","血液中的重碳酸鹽正在拼命緩衝酸鹼值，用呼吸來幫助它！","無氧醣解正在產生大量的代謝物，這是你突破瓶頸的代價！","感受肌纖維的強力收縮，這是在召喚你最深處的運動單元！","你的無氧做功能力正在以指數級別上升，忍受這短暫的地獄！","神經元的放電頻率已經到達巔峰，這是真正的爆發力訓練。","無氧代謝正在摧毀舊的肌肉結構，為更強大的纖維騰出空間。","乳酸脫氫酶正在滿載運作，這份痛苦將化為你明天的極速。","榨乾所有的肝醣儲備，逼迫身體在恢復期引發超量補償！","這種缺氧的灼燒感，正是刺激生長激素大量爆發的唯一途徑！","你的無氧動力正在刷新歷史紀錄，把這些乳酸全部吃下去！","這是在對抗細胞內的劇烈酸鹼失衡，你的緩衝能力正在進化！"],
         phy_rec: ["深呼吸啟動迷走神經，提高副交感張力，後燃效應持續大量燃脂。","小腿肌肉幫浦加速靜脈回流，迅速排除堆積的代謝廢物。","剛產生的乳酸正被心臟與慢肌纖維氧化，當作超級燃料回收。","走動讓血液循環，防靜脈血液滯留，心率安全且平滑地降下。","腦內啡與多巴胺在突觸間瘋狂釋放，無與倫比的跑者高潮！","體溫中樞慢慢關閉排汗，肌肉發炎正被身體修復機制接管。","動態恢復比完全靜止更能減輕明天的延遲性肌肉痠痛。","這就是償還氧債的階段，大口把氧氣還給耗竭的細胞。","讓交感神經慢慢退出，你的身體正在記錄剛才高強度的神經印記。","白血球正在前往受損的微小肌纖維，開始進行最強的修復工程。","巨噬細胞正在清理肌肉微細損傷的碎片，恢復機制全開。","神經遞質正在重新平衡，享受這份歷經劫難後的極致平靜。","運動後過量耗氧正在發生，你即使停下也還在燃燒卡路里。","血管舒張效應帶來了大量的養分，受損的肌肉正在貪婪吸收。","乳酸鹽正在被快速轉運出細胞，你的血液酸鹼值正在回歸完美中性。","感受心搏徐緩的美妙，你的心臟在證明它的強大恢復力。"],
@@ -878,8 +890,7 @@ const VoiceDB = {
         psy_micro: ["不想還有多少分鐘！撐過眼前十秒，十秒鐘你絕對做得到！","痛苦路程切成五等份，現在只征服眼前這一小段，踩下去！","只要不按停止鍵你就是贏家！配速掉一點也沒關係，繼續動！","跟我倒數五秒，五四三二一，你看，又成功撐過地獄時刻！","把大目標丟進垃圾桶，唯一目標只有眼前的下一個十步！","別看時間！那會摧毀意志，看著前方，專注吸進的每一口氣！","只要撐過這一個坡！過坡我們再說，咬緊牙關把它吃下來！","告訴自己再撐三步就好，然後再騙自己三步，就這樣熬過去！","只要你還在履帶上，每一秒你都在擊敗過去的自己！","不要去想明天會多痠痛，我只要你把這一分鐘跑完！","撐過這一次的呼吸循環，只要一次！然後我們再來下一次！","把專注力縮小到這三步之內，不要讓未來壓垮現在的你。","再跑十公尺就好，對，就是這種自我欺騙帶遇到極限！","時間是虛無的，唯有你腳下踩出的這一步是絕對真實的。","忘掉里程！忘掉配速！你現在的任務就是不讓這台機器停下！","把剩下的時間切成五秒一局的微型遊戲，贏下眼前的這一局！","現在看手錶只會剝奪你的勇氣，看著前方，你是無畏的挑戰者！","每一次落地都在累積勝利的籌碼，不要在最後關頭掀牌認輸！"],
         psy_over: ["科學證明大腦說不行，肌肉其實還有百分之三十儲備電力！","痛苦是防止受傷的保護謊言，告訴大腦我很安全我做主，跑！","擁抱不適感！頂尖選手的蛻變，全發生在想放棄的瞬間！","意志力絕對比跑步機馬達堅強。打破大腦限制器，釋放野性！","這就是重塑自我的高溫火爐，不經過鍛打怎麼可能成為鋼鐵？","感覺像快死了？但你不會死！跨越恐懼邊界將迎來新生！","記住為什麼站在這裡！把質疑聲音踩在腳下，用實力輾壓過去！","當痛苦離開身體的時候，就是軟弱離開身體的時候！","你的極限遠比你大腦設定的底線還要遙遠，去觸碰它！","真正的突破，永遠發生在你覺得自己絕對辦不到的那一秒！","人類的基因是在大草原上獵殺獵物演化來的，喚醒你的原始本能！","痛苦是一道門，推開它，背後就是你夢寐以求的強大自我。","別讓潛意識裡的舒適圈綁架你，暴力地撕碎大腦的警告！","這是對靈魂強度的最高測試，向整個世界證明你的硬度！","大腦會說謊，但數據不會！你的身體完全有能力繼續，給我衝！","在放棄的懸崖邊緣跳舞吧！跨越這道界線，你將再也不平庸！","不要對妥協讓步！今天在這裡低頭，明天就會在人生中低頭！","你是掌控這具軀殼的暴君，命令你的肌肉繼續收縮，絕對服從！"],
         warn_hr: ["警告！心率突破安全紅線！請強迫拉長吐氣！若胸悶請立刻暫停！","心跳接近機體極限！心臟負荷極高，專注深吐氣，安全第一！"],
-        warn_lac: ["氫離子大量堆積，絕不憋氣！氧氣是你現在唯一的解藥！","乳酸濃度瘋狂飆升！肌肉正在哀嚎，用深層的腹式呼吸去代謝它！"],
-        trans: ["準備切換狀態，履帶將平滑過渡至新目標，請穩住步伐。","即將進入下一階段，強度即將調整，請深呼吸準備。","注意！即將改變訓練節奏，平滑過渡中。","準備迎接下一個挑戰，即將變換阻力與速度。","預告切換：即將平滑調整至新配速，穩住你的核心！"]
+        warn_lac: ["氫離子大量堆積，絕不憋氣！氧氣是你現在唯一的解藥！","乳酸濃度瘋狂飆升！肌肉正在哀嚎，用深層的腹式呼吸去代謝它！"]
     },
     en: {
         val_low: ["Breathing is effortless. Perfect aerobic foundation.","Footsteps light and crisp. Keep this calm grace.","RPE is below 4. Excellent cruise control.","Blood lactate at resting baseline. Highly efficient system.","No braking forces. Mechanical efficiency is peaking."],
@@ -897,8 +908,7 @@ const VoiceDB = {
         psy_micro: ["Just survive the next 10 seconds!","Don't look at the clock! Look forward!","One step at a time! Keep moving!","You are beating your past self right now!","Just make it over this hill!","Don't hit pause, you can do this!","Divide the pain into tiny chunks.","Every step is a victory, don't fold!"],
         psy_over: ["Your body has 30% reserve power!","Break through the wall! Don't turn back!","This is where elite athletes are forged!","Do not surrender to the false fatigue!","Embrace the suffering, it means progress!","Prove to yourself how tough you are!","Crush the doubts in your head!","You are absolutely unstoppable!"],
         warn_hr: ["Alert! Heart rate over safety limit! Force deep exhales!","Red zone HR! Massive cardiac load, breathe!"],
-        warn_lac: ["Acid flooding! Do not hold your breath. O2 is the cure!","Lactate spiking! Breathe deep to buffer the acid!"],
-        trans: ["Preparing for the next phase. Smooth transition incoming.","Transition incoming. Intensity will adjust smoothly.","Attention! Rhythm changing, smoothly shifting intensity.","Incoming challenge. Preparing for new pace and incline.","Upcoming change: Smoothly adjusting to new targets. Hold your core!"]
+        warn_lac: ["Acid flooding! Do not hold your breath. O2 is the cure!","Lactate spiking! Breathe deep to buffer the acid!"]
     }
 };
 
@@ -1062,75 +1072,81 @@ class PhysioEngine {
         let RE = p.gender === 'F' ? 1.05 : 1.0; if(p.smm / p.wKG > (p.gender==='M' ? 0.4 : 0.35)) RE -= 0.05; 
         let lacThresh = p.vo2 > 60 ? 0.9 : 0.8; 
         
+        if (startMinute > 0 && existingMatrix && existingMatrix[startMinute - 1]) {
+            cHR = existingMatrix[startMinute - 1].hr;
+            cLac = existingMatrix[startMinute - 1].lac;
+        }
+
         for(let i=0; i<T; i++) {
             let spd = p.minSpd, inc = p.mnInc;
             
             if (i < startMinute && existingMatrix && existingMatrix[i]) {
-                spd = existingMatrix[i].rawSpd || existingMatrix[i].spd; inc = existingMatrix[i].rawInc || existingMatrix[i].inc;
-            } else {
-                if (p.lastProg >= 11) {
-                    let pct = 0;
-                    if (startMinute > 0) {
-                        let remainingTime = Math.max(1, T - startMinute); let passedPct = startMinute / T * 100;
-                        pct = passedPct + ((i - startMinute) / remainingTime) * (100 - passedPct);
-                    } else { pct = (i / Math.max(1, T - 1)) * 100; }
-                    let state = this.getHardcodedState(p.lastProg, pct);
-                    spd = state.s; inc = state.i;
-                } else {
-                    let ratios = this.getGoldenRatios(p.lastProg);
-                    let wT = Math.max(1, Math.floor(T * ratios[0])); let cT = Math.max(1, Math.floor(T * ratios[4])); 
-                    if (wT + cT >= T) { wT = Math.max(1, Math.floor(T * 0.1)); cT = Math.max(1, Math.floor(T * 0.1)); }
-                    let mT = T - wT - cT; let prog = (i >= wT && i < T - cT) ? (i - wT) / mT : 0;
-                    let safeMnS = p.minSpd; let safeMnI = p.mnInc;
+                m_raw.push(JSON.parse(JSON.stringify(existingMatrix[i])));
+                continue;
+            }
 
-                    if (p.lastProg === 0) {
-                        if (i < wT) { spd = safeMnS + (p.maxSpd - safeMnS) * (i/wT)*0.3; } 
-                        else if (i >= T - cT) { spd = safeMnS + (p.maxSpd - safeMnS) * 0.3 * (1 - (i - (T-cT))/cT); } 
-                        else {
-                            let isZ5 = (prog >= 0.8 && prog <= 0.9);
-                            if (isZ5) { inc = Math.max(8.0, p.mxInc); spd = Utils.clamp(6.0, safeMnS, p.maxSpd); } 
-                            else { inc = safeMnI; spd = safeMnS + (p.maxSpd - safeMnS) * 0.6; let targetHrPct = (cHR - p.rHR) / HRR; if (targetHrPct > 0.70) spd = Math.max(safeMnS, spd - 2.0); }
-                        }
-                    } else {
-                        let env = 0;
-                        if (i < wT) env = (i/wT) * 0.3; 
-                        else if (i >= T - cT) env = 0.3 * (1 - (i - (T-cT))/cT); 
-                        else {
-                            switch(p.lastProg) {
-                                case 1: env = (prog % 0.2 < 0.05) ? 1.0 : (prog % 0.2 < 0.1 ? 0.8 : 0.4); break;
-                                case 2: env = 0.4; break;
-                                case 3: env = (prog < 0.2 || prog > 0.8) ? 0.4 : 0.6; break;
-                                case 4: env = (Math.floor(prog * 20) % 2 === 0) ? 0.9 : 0.3; break;
-                                case 5: env = 0.7; break;
-                                case 6: env = 0.5; break; 
-                                case 7: env = (Math.floor(prog * 10) % 2 === 0) ? 0.95 : 0.2; break;
-                                case 8: env = (Math.floor(prog * 10) % 2 === 0) ? 1.0 : 0.1; break;
-                                case 9: env = 0.8; break;
-                                case 10: env = (Math.floor(prog * 15) % 3 === 0) ? 1.0 : 0.5; break;
-                            }
-                        }
-                        spd = safeMnS + (p.maxSpd - safeMnS) * env;
-                        if (i >= wT && i < T - cT) {
-                            if (p.lastProg === 5 || p.lastProg === 6 || p.lastProg === 10) inc = safeMnI + (p.mxInc - safeMnI) * (0.5 + 0.5*Math.sin(i * 0.5));
-                            if (spd < 6.5) inc = p.mxInc; 
+            if (p.lastProg >= 11) {
+                let pct = (i / Math.max(1, T - 1)) * 100;
+                let state = this.getHardcodedState(p.lastProg, pct);
+                spd = state.s; inc = state.i;
+            } else {
+                let ratios = this.getGoldenRatios(p.lastProg);
+                let wT = Math.max(1, Math.floor(T * ratios[0])); let cT = Math.max(1, Math.floor(T * ratios[4])); 
+                if (wT + cT >= T) { wT = Math.max(1, Math.floor(T * 0.1)); cT = Math.max(1, Math.floor(T * 0.1)); }
+                let mT = T - wT - cT; let prog = (i >= wT && i < T - cT) ? (i - wT) / mT : 0;
+                let safeMnS = p.minSpd; let safeMnI = p.mnInc;
+
+                if (p.lastProg === 0) {
+                    if (i < wT) { spd = safeMnS + (p.maxSpd - safeMnS) * (i/wT)*0.3; } 
+                    else if (i >= T - cT) { spd = safeMnS + (p.maxSpd - safeMnS) * 0.3 * (1 - (i - (T-cT))/cT); } 
+                    else {
+                        let isZ5 = (prog >= 0.8 && prog <= 0.9);
+                        if (isZ5) { inc = Math.max(8.0, p.mxInc); spd = Utils.clamp(6.0, safeMnS, p.maxSpd); } 
+                        else { inc = safeMnI; spd = safeMnS + (p.maxSpd - safeMnS) * 0.6; let targetHrPct = (cHR - p.rHR) / HRR; if (targetHrPct > 0.70) spd = Math.max(safeMnS, spd - 2.0); }
+                    }
+                } else {
+                    let env = 0;
+                    if (i < wT) env = (i/wT) * 0.3; 
+                    else if (i >= T - cT) env = 0.3 * (1 - (i - (T-cT))/cT); 
+                    else {
+                        switch(p.lastProg) {
+                            case 1: env = (prog % 0.2 < 0.05) ? 1.0 : (prog % 0.2 < 0.1 ? 0.8 : 0.4); break;
+                            case 2: env = 0.4; break;
+                            case 3: env = (prog < 0.2 || prog > 0.8) ? 0.4 : 0.6; break;
+                            case 4: env = (Math.floor(prog * 20) % 2 === 0) ? 0.9 : 0.3; break;
+                            case 5: env = 0.7; break;
+                            case 6: env = 0.5; break; 
+                            case 7: env = (Math.floor(prog * 10) % 2 === 0) ? 0.95 : 0.2; break;
+                            case 8: env = (Math.floor(prog * 10) % 2 === 0) ? 1.0 : 0.1; break;
+                            case 9: env = 0.8; break;
+                            case 10: env = (Math.floor(prog * 15) % 3 === 0) ? 1.0 : 0.5; break;
                         }
                     }
-                    if (i === 0 || i === T - 1) { inc = safeMnI; if(i===0) spd = safeMnS; }
+                    spd = safeMnS + (p.maxSpd - safeMnS) * env;
+                    if (i >= wT && i < T - cT) {
+                        if (p.lastProg === 5 || p.lastProg === 6 || p.lastProg === 10) inc = safeMnI + (p.mxInc - safeMnI) * (0.5 + 0.5*Math.sin(i * 0.5));
+                        if (spd < 6.5) inc = p.mxInc; 
+                    }
                 }
-
-                // Apply Global Offsets
-                spd += (p.spdOffset || 0); inc += (p.incOffset || 0);
+                if (i === 0 || i === T - 1) { inc = safeMnI; if(i===0) spd = safeMnS; }
             }
+
+            // Apply Global Offsets (Clamped to ±5.0 to prevent extreme destruction)
+            let sOff = Utils.clamp(p.spdOffset || 0, -5.0, 5.0);
+            let iOff = Utils.clamp(p.incOffset || 0, -5.0, 5.0);
+            spd += sOff; inc += iOff;
 
             let phase = i < 3 ? 'warmup' : i >= T-3 ? 'cooldown' : spd > 12 ? 'sprint' : inc > 4 ? 'steep' : 'steady';
             if (p.lastProg >= 11) phase = 'base';
             m_raw.push({ spd, inc: Utils.roundInc(inc), m:i+1, phase, rawSpd: spd, rawInc: inc });
         }
 
-        let maxReq = Math.max(...m_raw.map(m => m.rawSpd));
+        let futureM = m_raw.slice(startMinute);
+        let maxReq = futureM.length > 0 ? Math.max(...futureM.map(m => m.rawSpd)) : 0;
         let baseProtect = Math.min(6.0, hw.maxSpd);
         
-        m_raw.forEach((m, i) => {
+        for(let i = startMinute; i < m_raw.length; i++) {
+            let m = m_raw[i];
             if (m.spd < hw.minSpd) m.spd = hw.minSpd;
             if (m.spd > hw.maxSpd) {
                 if (m.spd > baseProtect && maxReq > baseProtect) {
@@ -1144,7 +1160,6 @@ class PhysioEngine {
             m.inc = Utils.roundInc(m.inc);
             m.spd = Utils.round(m.spd);
 
-            // Time skip compensation inside solver for accurate initial prediction
             let sm = m.spd * 16.6667; let id = m.inc / 100;
             let vo2D = (m.spd <= 7.0 ? (3.5 + 0.1*sm + 1.8*sm*id) : (3.5 + 0.2*sm + 0.9*sm*id)) * RE;
             if (m.m < 4) vo2D *= 0.9; 
@@ -1170,43 +1185,64 @@ class PhysioEngine {
             let kcalMin = (vo2D * p.wKG * 5) / 1000;
             m.fCal = kcalMin*pctFat; m.cCal = kcalMin*pctCarb; m.cal = kcalMin;
             m.dist = m.spd / 60;
-        });
+        }
 
         return { matrix: m_raw, newTime: T };
     }
 
     static simulatePhysics(matrix, hw) {
-        let dist = 0; let elev = 0; let cal = 0; let cS = 0; let cI = 0;
+        let dist = 0; let elev = 0; let fCal = 0; let cCal = 0; let cS = 0; let cI = 0; let zs = [0,0,0,0,0];
         matrix.forEach(m => {
             for(let sec = 0; sec < 60; sec++) {
                 if (cS === 0) cS = m.spd;
                 cS += Math.sign(m.spd - cS) * Math.min(Math.abs(m.spd - cS), 0.2);
                 cI += Math.sign(m.inc - cI) * Math.min(Math.abs(m.inc - cI), 0.5);
-                dist += cS / 3600; elev += (cS / 3.6) * (cI / 100); cal += m.cal / 60;
+                dist += cS / 3600; elev += (cS / 3.6) * (cI / 100); 
+                fCal += m.fCal / 60; cCal += m.cCal / 60;
             }
+            zs[m.z - 1] += 1;
         });
-        return { dist, elev, cal };
+        return { dist, elev, fCal, cCal, cal: fCal + cCal, zs };
     }
 }
 
 class VoiceEngine {
-    constructor() { this.synth = window.speechSynthesis; this.q = []; this.state = 'IDLE'; this.wd = null; this.muted = false; }
+    constructor() { 
+        this.synth = window.speechSynthesis; this.q = []; this.state = 'IDLE'; this.wd = null; this.muted = false; 
+        this.NumDictZh = ["零","一","二","三","四","五","六","七","八","九","十","十一","十二","十三","十四","十五","十六","十七","十八","十九","二十","二十一","二十二","二十三","二十四","二十五","二十六","二十七","二十八","二十九","三十"];
+        this.NumDictEn = ["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen","twenty","twenty one","twenty two","twenty three","twenty four","twenty five","twenty six","twenty seven","twenty eight","twenty nine","thirty"];
+    }
     unlock() { if(this.synth) { let u = new SpeechSynthesisUtterance(''); u.volume = 0; this.synth.speak(u); } }
     
+    numToSpeech(v, lang) {
+        let isZh = lang === 'zh'; let valStr = v.toFixed(1); let [intStr, decStr] = valStr.split('.'); let intNum = parseInt(intStr);
+        let intText = intStr; if (intNum >= 0 && intNum <= 30) intText = isZh ? this.NumDictZh[intNum] : this.NumDictEn[intNum];
+        if (decStr === '0') return intText;
+        if (decStr === '5') return isZh ? `${intText}點五` : `${intText} point five`;
+        return valStr; // Fallback
+    }
+
+    buildTransMsg(dStr, curM, nextM, isMet, lang) {
+        let spdChanged = Math.abs(nextM.spd - curM.spd) >= 0.1; let incChanged = Math.abs(nextM.inc - curM.inc) >= 0.1;
+        if (!spdChanged && !incChanged) return null;
+        let sVal = this.numToSpeech(isMet ? nextM.spd : nextM.spd/1.609344, lang);
+        let iVal = this.numToSpeech(nextM.inc, lang);
+        let spdPart = !spdChanged ? dStr.spdSame : (nextM.spd > curM.spd ? dStr.spdUp.replace('{v}', sVal) : dStr.spdDown.replace('{v}', sVal));
+        let incPart = !incChanged ? dStr.incSame : (nextM.inc > curM.inc ? dStr.incUp.replace('{v}', iVal) : dStr.incDown.replace('{v}', iVal));
+        return `${incPart}，${spdPart}`;
+    }
+
     speakText(txt, pri, langCode, cb = null) {
         if (!this.synth || AppState.state.runStatus === 'PAUSED' || AppState.state.runStatus === 'STOPPED' || this.muted) { if(cb) cb(); return; }
         let p = AppState.state.profiles[AppState.state.activeP]; if(!p || p.voiceOn === false) { if(cb) cb(); return; }
         if (document.visibilityState === 'hidden') { if (pri <= 2) NotificationManager.show(txt, pri === 1); if(cb) cb(); return; }
         
         if (AppState.state.minimalVoice && pri > 2) { if(cb) cb(); return; }
-
         if (pri === 1) { this.synth.cancel(); this.q = []; clearTimeout(this.wd); this.state = 'IDLE'; }
         
         let chunks = txt.match(/[^,。！？.!?]+[,。！？.!?]*/g) || [txt];
         let idBase = Date.now();
-        chunks.forEach((c, idx) => {
-            if(c.trim()) this.q.push({ txt: c.trim(), pri, lang: langCode, ts: idBase, cb: (idx === chunks.length - 1) ? cb : null });
-        });
+        chunks.forEach((c, idx) => { if(c.trim()) this.q.push({ txt: c.trim(), pri, lang: langCode, ts: idBase, cb: (idx === chunks.length - 1) ? cb : null }); });
         this.q.sort((a,b) => a.pri - b.pri); 
         if (this.state === 'IDLE') this._process();
     }
@@ -1215,16 +1251,12 @@ class VoiceEngine {
         if (this.state !== 'IDLE' || this.q.length === 0) return;
         let job = this.q.shift();
         
-        if (Date.now() - job.ts > 15000 && job.pri > 1) { 
-            if(job.cb) job.cb();
-            this._process(); return; 
-        }
+        if (Date.now() - job.ts > 15000 && job.pri > 1) { if(job.cb) job.cb(); this._process(); return; }
         
         this.state = 'SPEAKING';
         try {
             let msg = new SpeechSynthesisUtterance(job.txt); msg.lang = job.lang; msg.rate = 1.15;
             let voices = this.synth.getVoices(); if (voices.length > 0) { let v = voices.find(x => x.lang.includes(job.lang) && (x.name.includes('Siri') || x.name.includes('Google'))); if(v) msg.voice = v; }
-            
             const finish = () => { clearTimeout(this.wd); this.state = 'IDLE'; if(job.cb) job.cb(); setTimeout(() => this._process(), 100); };
             this.wd = setTimeout(() => { this.synth.cancel(); finish(); }, 12000); 
             msg.onend = finish; msg.onerror = finish;
@@ -1234,12 +1266,11 @@ class VoiceEngine {
     
     evaluateAndSpeak(data, age, maxLac) {
         let p = AppState.state.profiles[AppState.state.activeP]; if(!p || p.voiceOn === false || AppState.state.minimalVoice) return;
-        let cLang = p.lang; let isMet = p.unit !== 'imperial';
+        let cLang = p.lang; 
         if (data.hr > p.mHR - 5) { this.speakText(Utils.PRNG.get(cLang, 'warn_hr', VoiceDB[cLang].warn_hr), 1, cLang==='zh'?'zh-TW':'en-US'); return; }
         if (data.lac > maxLac - 2.0) { this.speakText(Utils.PRNG.get(cLang, 'warn_lac', VoiceDB[cLang].warn_lac), 1, cLang==='zh'?'zh-TW':'en-US'); return; }
         
-        let rand = Math.random();
-        let arr = []; let key = '';
+        let rand = Math.random(); let arr = []; let key = '';
         if (rand < 0.20) {
             if (data.phase === 'warmup' || data.phase === 'cooldown' || data.hr < p.rHR + (p.mHR-p.rHR)*0.6) { arr = VoiceDB[cLang].val_low; key='val_low'; }
             else if (data.hr < p.rHR + (p.mHR-p.rHR)*0.85) { arr = VoiceDB[cLang].val_mid; key='val_mid'; }
@@ -1259,9 +1290,7 @@ class VoiceEngine {
             else { arr = VoiceDB[cLang].psy_focus; key = 'psy_focus'; }
         }
 
-        if (arr && arr.length > 0) {
-            this.speakText(Utils.PRNG.get(cLang, key, arr), 3, cLang==='zh'?'zh-TW':'en-US');
-        }
+        if (arr && arr.length > 0) this.speakText(Utils.PRNG.get(cLang, key, arr), 3, cLang==='zh'?'zh-TW':'en-US');
     }
 
     clear() { this.q = []; if (this.synth) this.synth.cancel(); clearTimeout(this.wd); this.state = 'IDLE'; }
@@ -1270,7 +1299,7 @@ const VoiceApp = new VoiceEngine();
 
 const DB = {
     db: null,
-    init: async () => { return new Promise((res, rej) => { let req = indexedDB.open('ProTreadmillDB_U46', 1); req.onupgradeneeded = e => { let d = e.target.result; if(!d.objectStoreNames.contains('history')) d.createObjectStore('history', {keyPath: 'id', autoIncrement: true}); }; req.onsuccess = e => { DB.db = e.target.result; res(); }; req.onerror = rej; }); },
+    init: async () => { return new Promise((res, rej) => { let req = indexedDB.open('ProTreadmillDB_U47', 1); req.onupgradeneeded = e => { let d = e.target.result; if(!d.objectStoreNames.contains('history')) d.createObjectStore('history', {keyPath: 'id', autoIncrement: true}); }; req.onsuccess = e => { DB.db = e.target.result; res(); }; req.onerror = rej; }); },
     saveHist: async (data) => { if(!DB.db) return; return new Promise((res) => { try { let tx = DB.db.transaction('history', 'readwrite'); let st = tx.objectStore('history'); st.add(data); st.getAll().onsuccess = e => { let runnerHists = e.target.result.filter(x => x.runnerName === data.runnerName).sort((a,b)=>a.date - b.date); if(runnerHists.length > 500) { let dTx = DB.db.transaction('history', 'readwrite'); runnerHists.slice(0, runnerHists.length - 500).forEach(x => dTx.objectStore('history').delete(x.id)); } if(runnerHists.length > 100) { let cTx = DB.db.transaction('history', 'readwrite'); let toCompress = runnerHists.slice(0, runnerHists.length - 100); toCompress.forEach(x => { if(x.matrix) { x.matrix = []; cTx.objectStore('history').put(x); } }); } }; tx.oncomplete = res; tx.onerror = res; } catch(e) { res(); } }); },
     renameRunnerHistory: async (oldName, newName) => { if(!DB.db) return; return new Promise(res => { try { let tx = DB.db.transaction('history', 'readwrite'); let st = tx.objectStore('history'); st.getAll().onsuccess = e => { e.target.result.forEach(r => { if(r.runnerName === oldName) { r.runnerName = newName; st.put(r); } }); }; tx.oncomplete = res; tx.onerror = res; } catch (err) { res(); } }); },
     getHist: async (runnerName) => { return new Promise((res) => { if(!DB.db) return res([]); let tx = DB.db.transaction('history', 'readonly'); let st = tx.objectStore('history'); st.getAll().onsuccess = e => res(e.target.result.filter(x => x.runnerName === runnerName).sort((a,b) => b.id - a.id)); }); },
@@ -1447,6 +1476,7 @@ class ChartManager {
 class AppController {
     constructor() {
         this.dials = {}; this.adjDials = {}; this.charts = new ChartManager(); 
+        this.modalStack = [];
         this.holdTimer = null; this.isHolding = false; this.swipeStartX = 0; this.swipeStartY = 0;
         this.viewingProfile = null; this._syncing = false; 
         this.lastInteraction = 0;
@@ -1467,7 +1497,7 @@ class AppController {
     initData() {
         let needsRecalc = true;
         try {
-            let s = null; try { s = JSON.parse(localStorage.getItem('pro_treadmill_v46')); } catch(e){}
+            let s = null; try { s = JSON.parse(localStorage.getItem('pro_treadmill_v47')); } catch(e){}
             if(s && s.profiles && Object.keys(s.profiles).length > 0) { 
                 AppState.batch({ activeP: s.activeP || Object.keys(s.profiles)[0], profiles: s.profiles, hw: s.hw }); 
             } else { 
@@ -1478,7 +1508,7 @@ class AppController {
             
             this.setupSubscribers();
 
-            let r = null; try { r = JSON.parse(sessionStorage.getItem('runState_v46')); } catch(e){} 
+            let r = null; try { r = JSON.parse(sessionStorage.getItem('runState_v47')); } catch(e){} 
             if(r && r.accumMs > 0 && r.snapshot && r.snapshot.length > 0) { 
                 let restoredStatus = r.runStatus || 'PAUSED';
                 let dtGap = Date.now() - (r.lastTimestamp || Date.now());
@@ -1545,7 +1575,7 @@ class AppController {
         document.getElementById('btnUnitMet').textContent = d.met; document.getElementById('btnUnitImp').textContent = d.imp;
         document.getElementById('btnSexM').textContent = d.male; document.getElementById('btnSexF').textContent = d.female;
         document.getElementById('lblSexDesc').textContent = d.lblSex;
-        document.getElementById('lblSumTitle').textContent = d.sumTitle; document.getElementById('btnSumClose').textContent = d.btnSumClose; document.getElementById('lblCalib').textContent = d.lblCalib;
+        document.getElementById('lblSumTitle').textContent = d.sumTitle; document.getElementById('btnSumClose').textContent = d.btnSumClose;
         
         document.getElementById('unitRunSpd').textContent = isMet ? 'kph' : 'mph'; document.getElementById('unitRunDist').textContent = isMet ? 'km' : 'mi';
         document.getElementById('unitRunElev').textContent = isMet ? 'm' : 'ft'; document.getElementById('unitAge').textContent = d.unitAge || '';
@@ -1554,12 +1584,36 @@ class AppController {
         document.getElementById('unitBaseMxS').textContent = isMet ? 'kph' : 'mph'; document.getElementById('unitBaseMnS').textContent = isMet ? 'kph' : 'mph';
     }
 
-    openModal(id) { document.querySelectorAll('.modal-overlay.show').forEach(el => el.classList.remove('show')); document.getElementById(id).classList.add('show'); }
-    forceEvictModals() { document.querySelectorAll('.modal-overlay.show').forEach(m => m.classList.remove('show')); AppState.state.activeTab = 'settings'; Numpad.close(); }
+    openModal(id) {
+        const el = document.getElementById(id);
+        if(!el) return;
+        el.classList.add('show');
+        this.modalStack = this.modalStack.filter(x => x !== id);
+        this.modalStack.push(id);
+        el.style.zIndex = 9000 + this.modalStack.length;
+    }
+
+    closeModal(id) {
+        const el = document.getElementById(id);
+        if(el) el.classList.remove('show');
+        this.modalStack = this.modalStack.filter(x => x !== id);
+    }
+
+    closeTopModal() {
+        const topId = this.modalStack[this.modalStack.length - 1];
+        if (!topId) return;
+        this.closeModal(topId);
+        if (topId === 'summaryModal' || topId === 'historyModal') this.viewingProfile = null;
+    }
+
+    forceEvictModals() { 
+        [...this.modalStack].forEach(id => this.closeModal(id));
+        AppState.state.activeTab = 'settings'; Numpad.close(); 
+    }
 
     bindEvents() {
         document.body.addEventListener('click', e => {
-            if(e.target.classList.contains('modal-overlay')) { e.stopPropagation(); let overlays = Array.from(document.querySelectorAll('.modal-overlay.show')).sort((a,b)=>parseInt(getComputedStyle(b).zIndex) - parseInt(getComputedStyle(a).zIndex)); if(overlays.length > 0) { overlays[0].classList.remove('show'); if(overlays[0].id === 'summaryModal' || overlays[0].id === 'historyModal') this.viewingProfile = null; } return; }
+            if(e.target.classList.contains('modal-overlay')) { e.stopPropagation(); this.closeTopModal(); return; }
             const t = e.target.closest('[data-action]'); if (!t) return; const a = t.dataset.action; 
             let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial'; let dStr = i18n[p.lang] || i18n['zh'];
             
@@ -1576,31 +1630,25 @@ class AppController {
                 if(!p.catMemory) p.catMemory = {}; p.catMemory[p.lastCat] = pid;
                 p.spdOffset = 0; p.incOffset = 0; this.saveData(); this.recalc(); 
             }
-            else if(a === 'pause' || a === 'pause-catch') { 
+            else if(a === 'pause') { 
                 if(AppState.state.runStatus === 'RUNNING') { 
                     AppState.state.runStatus = 'PAUSED'; 
                     RunAcc.pauseCount++; RunAcc.lastPauseMs = Date.now();
+                    this.updateStatsBlock('rAct', AppState.state.accumMs, true); // Force accurate flush
                     this.persistRun(); 
                 }
             }
             else if(a === 'open-runner') { this.charts.teardown(); this.renderRunnerSelector(); this.populateRunnerForm(AppState.state.profiles[AppState.state.activeP]); this.openModal('runnerModal'); }
-            else if(a === 'close-runner') { document.getElementById('runnerModal').classList.remove('show'); this.charts.teardown(); }
+            else if(a === 'close-runner') { this.closeModal('runnerModal'); this.charts.teardown(); }
             else if(a === 'save-runner') { if(!this.validateRunnerForm()) return; this.saveRunnerModal(); }
             else if(a === 'delete-runner') this.deleteRunner();
             else if(a === 'switch-runner') this.switchRunner(t.dataset.name);
             else if(a === 'add-runner-mode') { document.getElementById('runnerSelectorRow').querySelectorAll('.runner-tag').forEach(x=>x.classList.remove('active')); t.classList.add('active'); this.clearRunnerForm(); document.getElementById('btnRmDelete').disabled = true; this.validateRunnerForm(); }
             else if(a === 'open-history') this.openHistory();
-            else if(a === 'close-history') { document.getElementById('historyModal').classList.remove('show'); this.viewingProfile = null; }
+            else if(a === 'close-history') { this.closeModal('historyModal'); this.viewingProfile = null; }
             else if(a === 'clear-history') { if(confirm(dStr.clearAsk)) { let fR = document.getElementById('histRunnerSelect').value; DB.clearHist(fR).then(()=>this.openHistory()); } }
-            else if(a === 'close-summary' || (a === 'close-summary-overlay' && e.target.id === 'summaryModal')) { document.getElementById('summaryModal').classList.remove('show'); this.charts.sumM = null; this.viewingProfile = null; document.getElementById('sumCalibrationWrap').style.display='none'; }
-            else if(a === 'apply-calib') {
-                let actualDist = parseFloat(document.getElementById('inpCalibDist').value) || 0; if(actualDist <= 0) return;
-                let actualKm = isMet ? actualDist : actualDist * 1.609344;
-                DB.getHist(AppState.state.activeP).then(data => {
-                    let latest = data[0]; if(latest) { latest.distKm = actualKm; DB.saveHist(latest).then(()=> { document.getElementById('btnApplyCalib').textContent = 'OK'; setTimeout(()=>document.getElementById('sumCalibrationWrap').style.display='none', 1000); }); }
-                });
-            }
-            else if(a === 'overlay-close') { if(e.target.id === 'historyModal') { document.getElementById('historyModal').classList.remove('show'); this.viewingProfile = null; } else if(e.target.id === 'timeModal') { document.getElementById('timeModal').classList.remove('show'); } }
+            else if(a === 'close-summary' || (a === 'close-summary-overlay' && e.target.id === 'summaryModal')) { this.closeModal('summaryModal'); this.charts.sumM = null; this.viewingProfile = null; }
+            else if(a === 'overlay-close') { if(e.target.id === 'historyModal') { this.closeModal('historyModal'); this.viewingProfile = null; } else if(e.target.id === 'timeModal') { this.closeModal('timeModal'); } }
             else if(a === 'toggle-accordion') { t.classList.toggle('open'); document.getElementById(t.dataset.target).classList.toggle('show'); }
             
             else if(a === 'dial-up' || a === 'dial-down') {
@@ -1619,16 +1667,19 @@ class AppController {
                 this.adjDials.timeH.setValue(Math.floor(curMins / 60), true); this.adjDials.timeM.setValue(curMins % 60, true);
                 this.openModal('timeModal');
             }
-            else if(a === 'close-time') { document.getElementById('timeModal').classList.remove('show'); }
+            else if(a === 'close-time') { this.closeModal('timeModal'); }
             else if(a === 'save-time') {
                 if(AppState.state.runStatus === 'STOPPED') return;
                 let tm = this.adjDials.timeH.currentVal * 60 + this.adjDials.timeM.currentVal;
                 let elapsedMins = AppState.state.accumMs / 60000; let minLimit = Math.floor(elapsedMins) + 1;
                 if (tm < minLimit) { NotificationManager.show(dStr.errTimeShort, true); return; }
-                p.tTime = tm; this.saveData(); this.performMatrixSplicing(); document.getElementById('timeModal').classList.remove('show');
+                p.tTime = tm; this.saveData(); this.performMatrixSplicing(); this.closeModal('timeModal');
             }
             else if(a === 'open-numpad') {
-                let inputEl = document.getElementById(t.dataset.target); let title = t.querySelector('label').textContent; let isDec = t.dataset.decimal === 'true';
+                let inputEl = document.getElementById(t.dataset.target); 
+                let labelEl = t.querySelector('label');
+                let title = t.dataset.title || (labelEl ? labelEl.textContent : 'Input');
+                let isDec = t.dataset.decimal === 'true';
                 Numpad.open(inputEl, title, isDec);
             }
             else if(a === 'toggle-bailout') {
@@ -1654,12 +1705,13 @@ class AppController {
                 });
             }
             else if(a === 'offset-spd-minus' || a === 'offset-spd-plus' || a === 'offset-inc-minus' || a === 'offset-inc-plus' || a === 'btn-spd-up' || a === 'btn-spd-down' || a === 'btn-inc-up' || a === 'btn-inc-down') {
-                if (AppState.state.runStatus === 'STOPPED' && (a.includes('btn-'))) return;
+                if (AppState.state.runStatus === 'STOPPED' && a.includes('btn-')) return;
                 if(AppState.state.isBailOut) { AppState.state.isBailOut = false; document.getElementById('btnBailOut').classList.remove('active'); }
                 
                 let isSpd = a.includes('spd'); let isUp = a.includes('plus') || a.includes('up');
                 let step = isSpd ? (isMet ? 0.1 : Utils.round(0.1 * 1.609344)) : 0.5;
-                if(isSpd) { p.spdOffset += (isUp ? step : -step); } else { p.incOffset += (isUp ? step : -step); }
+                if(isSpd) { p.spdOffset += (isUp ? step : -step); p.spdOffset = Utils.clamp(p.spdOffset, -5.0, 5.0); } 
+                else { p.incOffset += (isUp ? step : -step); p.incOffset = Utils.clamp(p.incOffset, -5.0, 5.0); }
                 this.saveData(); this.recalc(AppState.state.runStatus === 'STOPPED');
                 if (AppState.state.runStatus !== 'STOPPED') this.performMatrixSplicing();
             }
@@ -1667,19 +1719,22 @@ class AppController {
 
         const setupRepeater = (actionName) => {
             document.querySelectorAll(`[data-action="${actionName}"]`).forEach(btn => {
-                let tRef = null; let speed = 300; let isUp = actionName.includes('-up') || actionName.includes('-plus'); let isSpd = actionName.includes('spd');
+                let tRef = null; let speed = 300; let firedByRepeat = false; let isUp = actionName.includes('-up') || actionName.includes('-plus'); let isSpd = actionName.includes('spd');
                 const exec = () => {
+                    firedByRepeat = true;
                     if (AppState.state.runStatus === 'STOPPED' && actionName.includes('btn-')) return;
                     let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
                     if(AppState.state.isBailOut) { AppState.state.isBailOut = false; document.getElementById('btnBailOut').classList.remove('active'); }
                     let step = isSpd ? (isMet ? 0.1 : Utils.round(0.1 * 1.609344)) : 0.5;
-                    if(isSpd) p.spdOffset += (isUp ? step : -step); else p.incOffset += (isUp ? step : -step);
+                    if(isSpd) { p.spdOffset += (isUp ? step : -step); p.spdOffset = Utils.clamp(p.spdOffset, -5.0, 5.0); } 
+                    else { p.incOffset += (isUp ? step : -step); p.incOffset = Utils.clamp(p.incOffset, -5.0, 5.0); }
                     this.saveData(); 
                     if(AppState.state.runStatus === 'STOPPED') this.recalc(true); else this.performMatrixSplicing();
                 };
-                const start = (e) => { e.preventDefault(); tRef = setTimeout(function repeat() { exec(); speed = Math.max(100, speed - 20); tRef = setTimeout(repeat, speed); }, speed); };
+                const start = (e) => { e.preventDefault(); firedByRepeat = false; tRef = setTimeout(function repeat() { exec(); speed = Math.max(100, speed - 20); tRef = setTimeout(repeat, speed); }, speed); };
                 const stop = () => { clearTimeout(tRef); speed = 300; };
                 btn.addEventListener('pointerdown', start); btn.addEventListener('pointerup', stop); btn.addEventListener('pointerleave', stop); btn.addEventListener('touchcancel', stop);
+                btn.addEventListener('click', (e) => { if(firedByRepeat) { e.stopPropagation(); firedByRepeat = false; } }, true);
             });
         };
         setupRepeater('btn-spd-up'); setupRepeater('btn-spd-down'); setupRepeater('btn-inc-up'); setupRepeater('btn-inc-down');
@@ -1712,7 +1767,7 @@ class AppController {
 
                 resetRunAcc(); AppState.state.isBailOut = false; document.getElementById('btnBailOut').classList.remove('active');
                 let startM = AppState.state.snapshot[0];
-                let initTrans = dStr.transMsgStart.replace('{s}', (isMet?startM.spd:startM.spd/1.609344).toFixed(1)).replace('{i}', startM.inc.toFixed(1));
+                let initTrans = dStr.transMsgStart.replace('{s}', VoiceApp.numToSpeech(isMet?startM.spd:startM.spd/1.609344, p.lang)).replace('{i}', VoiceApp.numToSpeech(startM.inc, p.lang));
                 let combinedMsg = dStr.intro[`p${p.lastProg}`] + " " + initTrans;
                 
                 TweenApp.to('runValSpd', isMet?startM.spd:startM.spd/1.609344, v => v.toFixed(1), true); TweenApp.to('runValInc', startM.inc, v => v.toFixed(1), true);
@@ -1721,7 +1776,6 @@ class AppController {
             }
         });
 
-        // Hold & Swipe End fusion
         const btnEnd = document.getElementById('btnAskEnd');
         btnEnd.addEventListener('touchstart', e => {
            if(AppState.state.runStatus === 'STOPPED' || AppState.state.runStatus === 'PRE_FLIGHT') return;
@@ -1824,7 +1878,7 @@ class AppController {
     renderRunnerSelector() {
         let wrap = document.getElementById('runnerSelectorRow'); wrap.innerHTML = ''; let d = i18n[AppState.state.profiles[AppState.state.activeP].lang] || i18n['zh'];
         Object.keys(AppState.state.profiles).forEach(k => { let t = document.createElement('div'); t.className = `runner-tag ${k===AppState.state.activeP ? 'active':''}`; t.textContent = k; t.dataset.action = 'switch-runner'; t.dataset.name = k; wrap.appendChild(t); });
-        let add = document.createElement('div'); add.className = 'runner-tag add-new'; add.textContent = d.btnAdd; add.dataset.action = 'add-runner-mode'; wrap.appendChild(add); this.validateRunnerForm();
+        let add = document.createElement('div'); add.className = 'runner-tag add-new'; add.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" style="fill:currentColor;"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><span style="margin-left:4px;">+</span>'; add.dataset.action = 'add-runner-mode'; wrap.appendChild(add); this.validateRunnerForm();
     }
 
     applyPulseAnimation(rowIndex, doSpd, doInc) { let nRow = document.getElementById(`min-row-${rowIndex}`); if(nRow) { if(doSpd) nRow.querySelector('.list-col-spd').classList.add('pulse-spd-active'); if(doInc) nRow.querySelector('.list-col-inc').classList.add('pulse-inc-active'); } }
@@ -1853,8 +1907,6 @@ class AppController {
             
             let htmlRoot = document.getElementById('htmlRoot');
             if (S) { htmlRoot.classList.remove('run-mode'); } else { htmlRoot.classList.add('run-mode'); }
-
-            Binder.update('lblDistTitle', S ? d.estDist : d.actDist); Binder.update('lblKcalTitle', S ? d.estKcal : d.actKcal); Binder.update('lblElevTitle', S ? d.estElev : d.actElev);
 
             if (R) { BgWorker.postMessage('START'); } 
             else if (s === 'PAUSED' || S) { BgWorker.postMessage('STOP'); VoiceApp.clear(); }
@@ -1908,8 +1960,6 @@ class AppController {
         
         RunAcc.fCal += (curM.fCal / 60) * elapsedSec; RunAcc.cCal += (curM.cCal / 60) * elapsedSec;
 
-        // Skip zs tracking logic here because macroSimulate jumps time and interpolating Z1-Z5 purely linearily introduces huge errors over big jumps.
-        // It's acceptable to ignore zone times during long sleep, or approximate it to the final zone. We will just add the whole elapsed time to the current zone.
         let HRR = pClean.mHR - pClean.rHR; let hrIntensity = (RunAcc.curHr - pClean.rHR) / HRR;
         let z = hrIntensity < 0.6 ? 1 : (hrIntensity < 0.7 ? 2 : (hrIntensity < 0.8 ? 3 : (hrIntensity < 0.9 ? 4 : 5)));
         RunAcc.zs[z - 1] += (dt / 60000);
@@ -1987,10 +2037,7 @@ class AppController {
         Binder.update('massiveTime', Utils.fmtTime(ms, false));
         
         let eElev = isMet ? RunAcc.dElev : RunAcc.dElev * 3.28084;
-        Binder.updateBatch({ runDist: (isMet?RunAcc.dKm:RunAcc.dKm/1.609344).toFixed(2), runElev: Math.round(eElev), runCal: `${Math.floor(RunAcc.fCal+RunAcc.cCal)} kcal`, runHr: Math.round(RunAcc.curHr), runLac: RunAcc.curLac.toFixed(1), runPace: Utils.getPaceStr(RunAcc.curSpd, isMet) });
-        
-        let iStr = i18n[p.lang] || i18n['zh'];
-        [1,2,3,4,5].forEach(i => { Binder.update(`rz${i}`, `${iStr.zones[i-1]} ${Math.floor(RunAcc.zs[i-1]||0)}${iStr.min}`); });
+        Binder.updateBatch({ runDist: (isMet?RunAcc.dKm:RunAcc.dKm/1.609344).toFixed(2), runElev: Math.round(eElev), runHr: Math.round(RunAcc.curHr), runLac: RunAcc.curLac.toFixed(1) });
         
         let avS = RunAcc.sumSpd / Math.max(1, RunAcc.sec); let avI = RunAcc.sumInc / Math.max(1, RunAcc.sec); 
         let avH = RunAcc.sumHr / Math.max(1, RunAcc.sec); let avL = RunAcc.sumLac / Math.max(1, RunAcc.sec);
@@ -2003,27 +2050,21 @@ class AppController {
         
         if (!RunAcc.transF[safeM]) RunAcc.transF[safeM] = { autoTab: false, warned: false, pulsing: false };
         
-        // 45 秒預警與全域霓虹燈
         if (cS >= 45000 && safeM < m.length - 1 && isVisuallyChanged && !RunAcc.transF[safeM].warned && !AppState.state.isBailOut) {
             RunAcc.transF[safeM].warned = true;
-            let transMsg = dStr.transMsgPre.replace('{s}', (isMet?nextM.spd:nextM.spd/1.609344).toFixed(1)).replace('{i}', nextM.inc.toFixed(1));
-            VoiceApp.speakText(transMsg, 2, p.lang==='zh'?'zh-TW':'en-US');
+            let transMsg = VoiceApp.buildTransMsg(dStr, curM, nextM, isMet, p.lang);
+            if (transMsg) VoiceApp.speakText(transMsg, 2, p.lang==='zh'?'zh-TW':'en-US');
             
-            // Check interaction
             let userInteracting = (Date.now() - this.lastInteraction) < 5000;
-            
             if (!userInteracting) {
-                // Not interacting -> Force Switch & flash list
                 AppState.state.activeTab = 'matrix'; 
                 RunAcc.transF[safeM].pulsing = true;
                 this.applyPulseAnimation(safeM + 1, Math.abs(nextM.spd - curM.spd) >= 0.1, Math.abs(nextM.inc - curM.inc) >= 0.1);
             } else {
-                // Interacting -> Flash Header instead
                 document.getElementById('header').classList.add('pulse-warn-header');
             }
         }
 
-        // 55-60秒歸位
         if (cS >= 55000 && RunAcc.transF[safeM].warned && !RunAcc.transF[safeM].autoTab) {
             RunAcc.transF[safeM].autoTab = true;
             document.getElementById('header').classList.remove('pulse-warn-header');
@@ -2037,12 +2078,65 @@ class AppController {
             document.getElementById('header').classList.remove('pulse-warn-header');
             if(!AppState.state.isBailOut) { TweenApp.to('runValSpd', isMet?curM.spd:curM.spd/1.609344, v => v.toFixed(1), true); TweenApp.to('runValInc', curM.inc, v => v.toFixed(1), true); }
             this.scrollToRow();
+            // 每分鐘跨越時更新下方的實際數據面板
+            this.updateStatsBlock('rAct', ms, false);
         }
 
         if(Math.floor(ms/30000) !== Math.floor((ms-dt)/30000)) { VoiceApp.evaluateAndSpeak({ hr: RunAcc.curHr, lac: RunAcc.curLac, spd: targetSpd, inc: targetInc, phase: curM.phase }, pClean.age, pClean.pMaxLac); }
+    }
 
-        document.getElementById('warnCapSpd').style.display = (targetSpd !== curM.rawSpd) ? 'block' : 'none';
-        document.getElementById('warnCapInc').style.display = (targetInc !== curM.rawInc) ? 'block' : 'none';
+    computeRunStats(matrix, accumMs, isActual) {
+        let stats = { distKm: 0, elevM: 0, fCal: 0, cCal: 0, zs: [0,0,0,0,0], totalKcal: 0 };
+        if (isActual) {
+            stats.distKm = RunAcc.dKm; stats.elevM = RunAcc.dElev; stats.fCal = RunAcc.fCal; stats.cCal = RunAcc.cCal; stats.zs = [...RunAcc.zs]; stats.totalKcal = stats.fCal + stats.cCal;
+        } else {
+            let sim = PhysioEngine.simulatePhysics(matrix, AppState.state.hw);
+            stats.distKm = sim.dist; stats.elevM = sim.elev; stats.fCal = sim.fCal; stats.cCal = sim.cCal; stats.zs = sim.zs; stats.totalKcal = sim.cal;
+        }
+        return stats;
+    }
+
+    renderStatsBlock(prefix, stats, profile, opts = {}) {
+        let d = i18n[profile.lang] || i18n['zh']; let isMet = profile.unit !== 'imperial';
+        Binder.updateBatch({
+            [`${prefix}Dist`]: `${(isMet ? stats.distKm : stats.distKm/1.609344).toFixed(2)} ${isMet?'km':'mi'}`,
+            [`${prefix}Elev`]: `${Math.round(isMet ? stats.elevM : stats.elevM*3.28084)} ${isMet?'m':'ft'}`,
+            [`${prefix}Kcal`]: `${Math.round(stats.totalKcal)} kcal`,
+            [`${prefix}z1`]: `${d.zones[0]} ${Math.floor(stats.zs[0])}${d.min}`,
+            [`${prefix}z2`]: `${d.zones[1]} ${Math.floor(stats.zs[1])}${d.min}`,
+            [`${prefix}z3`]: `${d.zones[2]} ${Math.floor(stats.zs[2])}${d.min}`,
+            [`${prefix}z4`]: `${d.zones[3]} ${Math.floor(stats.zs[3])}${d.min}`,
+            [`${prefix}z5`]: `${d.zones[4]} ${Math.floor(stats.zs[4])}${d.min}`
+        });
+
+        if (prefix === 'sum') {
+            let avgSpdKm = stats.distKm / Math.max(1, (AppState.state.accumMs / 3600000));
+            Binder.update('sumAvgPace', Utils.getPaceStr(avgSpdKm, isMet));
+            let fPct = (stats.fCal / Math.max(1, stats.totalKcal)) * 100;
+            document.getElementById('sumFatBar').style.width = `${fPct}%`; document.getElementById('sumCarbBar').style.width = `${100 - fPct}%`;
+            Binder.updateBatch({ sumFatCal: Math.round(stats.fCal), sumCarbCal: Math.round(stats.cCal) });
+        }
+
+        if (opts.showNutrition) {
+            let container = document.getElementById(`${prefix}Nutri`); if(!container) return;
+            if (!profile.bf || !profile.smm) {
+                container.innerHTML = `<div style="text-align:center; padding-top:15px; margin-top:15px; border-top:1px solid #333; color:var(--gray); font-weight:700;"><svg viewBox="0 0 24 24" class="svg-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>${d.nutriMissing}</div>`;
+            } else {
+                let ageFactor = profile.age > 50 ? 1.1 : (profile.age > 40 ? 1.05 : 1.0);
+                let bmr = 370 + 21.6 * (profile.wKG * (1 - profile.bf/100)); let bmrFactor = Math.max(0.7, Math.min(1.5, (bmr / (profile.wKG * 24))));
+                let proFactor = Math.max(1.2, Math.min(2.2, (1.2 + Math.max(0, profile.smm/profile.wKG - 0.3) * 4) * ageFactor * bmrFactor));
+                let dailyPro = Math.round(profile.wKG * proFactor + (stats.totalKcal / 100));
+                let postPro = Math.round(Math.min(65, Math.max(20, profile.wKG * 0.3 * ageFactor + (stats.totalKcal / 200) * 4))); let postCarb = Math.round(stats.cCal / 4); 
+                let strPost = d.nutriPost.replace('{p}', postPro).replace('{c}', postCarb); let strDaily = d.nutriDaily.replace('{p}', dailyPro);
+                container.innerHTML = `<div style="margin-top:15px; padding-top:15px; border-top:1px dashed #333; text-align:left;"><strong style="color:var(--neon-yellow);"><svg viewBox="0 0 24 24" class="svg-icon" style="fill:currentColor; width:16px; height:16px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/></svg>${d.nutriRx}</strong><br><span style="color:var(--gray-light); font-size:0.95rem; line-height: 1.6;">${strPost}<br>${strDaily}</span></div>`;
+            }
+        }
+    }
+
+    updateStatsBlock(prefix, accumMs, isActual) {
+        let p = PhysioEngine.sanitize(AppState.state.profiles[AppState.state.activeP]);
+        let stats = this.computeRunStats(AppState.state.snapshot, accumMs, isActual);
+        this.renderStatsBlock(prefix, stats, p, { showNutrition: prefix !== 'rAct' });
     }
 
     recalc(fullReset = true) {
@@ -2102,20 +2196,12 @@ class AppController {
         
         if (!m || m.length === 0) return;
         let aS=m.reduce((s,x)=>s+x.spd,0)/m.length, aI=m.reduce((s,x)=>s+x.inc,0)/m.length, aH=m.reduce((s,x)=>s+x.hr,0)/m.length, aL=m.reduce((s,x)=>s+x.lac,0)/m.length;
-        
-        let remainM = m.slice(Math.floor(AppState.state.accumMs/60000));
-        let sim = PhysioEngine.simulatePhysics(remainM, AppState.state.hw);
-        let dynDist = RunAcc.dKm + sim.dist; let dynElev = RunAcc.dElev + sim.elev; let dynCal = RunAcc.fCal + RunAcc.cCal + sim.cal;
-        
-        let eElev = isMet ? dynElev : dynElev * 3.28084;
         Binder.updateBatch({ 
             sAvgSpd: (isMet?aS:aS/1.609344).toFixed(1), sAvgInc: aI.toFixed(1), sAvgHr: Math.round(aH), sAvgLac: aL.toFixed(1),
-            sMaxSpd: (isMet?Math.max(...m.map(x=>x.spd)):Math.max(...m.map(x=>x.spd))/1.609344).toFixed(1), sMaxInc: Math.max(...m.map(x=>x.inc)).toFixed(1), sMaxHr: Math.max(...m.map(x=>x.hr)), sMaxLac: Math.max(...m.map(x=>x.lac)).toFixed(1),
-            sEstKcal: `${Math.round(dynCal)} kcal`, 
-            sEstDist: `${(isMet?dynDist:dynDist/1.609344).toFixed(2)} ${isMet?'km':'mi'}`, sEstElev: `${Math.round(eElev)} ${isMet?'m':'ft'}`,
-            sz1: `${d.zones[0]} ${Math.floor(m.reduce((s,x)=>s+(x.z===1?1:0),0))}${d.min}`, sz2: `${d.zones[1]} ${Math.floor(m.reduce((s,x)=>s+(x.z===2?1:0),0))}${d.min}`, 
-            sz3: `${d.zones[2]} ${Math.floor(m.reduce((s,x)=>s+(x.z===3?1:0),0))}${d.min}`, sz4: `${d.zones[3]} ${Math.floor(m.reduce((s,x)=>s+(x.z===4?1:0),0))}${d.min}`, sz5: `${d.zones[4]} ${Math.floor(m.reduce((s,x)=>s+(x.z===5?1:0),0))}${d.min}`
+            sMaxSpd: (isMet?Math.max(...m.map(x=>x.spd)):Math.max(...m.map(x=>x.spd))/1.609344).toFixed(1), sMaxInc: Math.max(...m.map(x=>x.inc)).toFixed(1), sMaxHr: Math.max(...m.map(x=>x.hr)), sMaxLac: Math.max(...m.map(x=>x.lac)).toFixed(1)
         });
+        
+        this.updateStatsBlock('sEst', 0, false);
         this.charts.drawAll();
     }
 
@@ -2141,7 +2227,7 @@ class AppController {
         
         if (!isNew && name !== AppState.state.activeP) { DB.renameRunnerHistory(AppState.state.activeP, name); delete AppState.state.profiles[AppState.state.activeP]; }
         AppState.state.activeP = name; AppState.state.profiles[name] = p; this.saveData(); 
-        this.updateI18n(); this.recalc(); document.getElementById('runnerModal').classList.remove('show'); NotificationManager.show((i18n[p.lang] || i18n['zh']).warnSave, false);
+        this.updateI18n(); this.recalc(); this.closeModal('runnerModal'); NotificationManager.show((i18n[p.lang] || i18n['zh']).warnSave, false);
     }
 
     openHistory() {
@@ -2180,19 +2266,20 @@ class AppController {
         });
     }
 
-    saveData() { try { localStorage.setItem('pro_treadmill_v46', JSON.stringify({ activeP: AppState.state.activeP, profiles: AppState.state.profiles, hw: AppState.state.hw, schemaVersion: 1 })); } catch(e){} }
+    saveData() { try { localStorage.setItem('pro_treadmill_v47', JSON.stringify({ activeP: AppState.state.activeP, profiles: AppState.state.profiles, hw: AppState.state.hw, schemaVersion: 1 })); } catch(e){} }
     
     persistRun() { 
         if (AppState.state.accumMs > 0) {
-            sessionStorage.setItem('runState_v46', JSON.stringify({ runStatus: AppState.state.runStatus, lastTimestamp: Date.now(), activeP: AppState.state.activeP, accumMs: AppState.state.accumMs, matrix: AppState.state.matrix, snapshot: AppState.state.snapshot, acc: RunAcc, isBailOut: AppState.state.isBailOut, minimalVoice: AppState.state.minimalVoice })); 
-        } else { sessionStorage.removeItem('runState_v46'); }
+            sessionStorage.setItem('runState_v47', JSON.stringify({ runStatus: AppState.state.runStatus, lastTimestamp: Date.now(), activeP: AppState.state.activeP, accumMs: AppState.state.accumMs, matrix: AppState.state.matrix, snapshot: AppState.state.snapshot, acc: RunAcc, isBailOut: AppState.state.isBailOut, minimalVoice: AppState.state.minimalVoice })); 
+        } else { sessionStorage.removeItem('runState_v47'); }
     }
     
     endWorkout() {
         let ms = AppState.state.accumMs; AppState.state.uiLocked = false;
         let p = AppState.state.profiles[AppState.state.activeP]; let d = i18n[p.lang] || i18n['zh'];
         
-        sessionStorage.removeItem('runState_v46'); 
+        sessionStorage.removeItem('runState_v47'); 
+        this.updateStatsBlock('rAct', ms, true); // Force final high-precision flush
 
         if(RunAcc.sec >= 10 && ms >= 10000) {
             let dKm = Utils.round(RunAcc.dKm); let fCal = Utils.round(RunAcc.fCal); let cCal = Utils.round(RunAcc.cCal); let dElev = Utils.round(RunAcc.dElev);
@@ -2221,59 +2308,20 @@ class AppController {
         let op = AppState.state.profiles[AppState.state.activeP]; let isMet = op.unit !== 'imperial'; let iStr = i18n[op.lang] || i18n['zh'];
         let pClean = PhysioEngine.sanitize(this.viewingProfile || op);
         
-        let tStr = Utils.fmtTime(ms); let distDisp = isMet ? dKm : dKm / 1.609344; let elevDisp = isMet ? elevM : elevM * 3.28084;
-        let avgSpdKm = aAvg ? aAvg.spd : (dKm / (Math.max(1, ms)/3600000)); let spdDisp = isMet ? avgSpdKm : avgSpdKm / 1.609344;
-        let tCal = fCal + cCal; let fPct = (fCal / Math.max(1, tCal)) * 100; let cPct = 100 - fPct;
+        let stats = { distKm: dKm, elevM: elevM, fCal: fCal, cCal: cCal, zs: zArray, totalKcal: fCal + cCal };
+        this.renderStatsBlock('sum', stats, pClean, { showNutrition: true });
         
-        let nutriHtml = "";
-        if (!pClean.bf || !pClean.smm) { nutriHtml = `<div style="text-align:center; padding-top:15px; margin-top:15px; border-top:1px solid #333; color:var(--gray); font-weight:700;"><svg viewBox="0 0 24 24" class="svg-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>${iStr.nutriMissing}</div>`; } 
-        else {
-            let ageFactor = pClean.age > 50 ? 1.1 : (pClean.age > 40 ? 1.05 : 1.0);
-            let bmr = 370 + 21.6 * (pClean.wKG * (1 - pClean.bf/100)); let bmrFactor = Math.max(0.7, Math.min(1.5, (bmr / (pClean.wKG * 24))));
-            let proFactor = Math.max(1.2, Math.min(2.2, (1.2 + Math.max(0, pClean.smm/pClean.wKG - 0.3) * 4) * ageFactor * bmrFactor));
-            let dailyPro = Math.round(pClean.wKG * proFactor + (tCal / 100));
-            let postPro = Math.round(Math.min(65, Math.max(20, pClean.wKG * 0.3 * ageFactor + (tCal / 200) * 4))); let postCarb = Math.round(cCal / 4); 
-            
-            let strPost = iStr.nutriPost.replace('{p}', postPro).replace('{c}', postCarb); let strDaily = iStr.nutriDaily.replace('{p}', dailyPro);
-            nutriHtml = `<div style="margin-top:15px; padding-top:15px; border-top:1px dashed #333; text-align:left;"><strong style="color:var(--neon-yellow);"><svg viewBox="0 0 24 24" class="svg-icon" style="fill:currentColor; width:16px; height:16px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/></svg>${iStr.nutriRx}</strong><br><span style="color:var(--gray-light); font-size:0.95rem; line-height: 1.6;">${strPost}<br>${strDaily}</span></div>`;
-        }
-
+        document.getElementById('sumTimeDisp').textContent = Utils.fmtTime(ms);
+        
         let penaltyHtml = penalty ? `<div style="margin-top:10px; padding:10px; background:rgba(255,69,58,0.1); border-radius:8px; border:1px solid rgba(255,69,58,0.3); color:var(--neon-red); font-size:0.85rem; line-height:1.4; font-weight:600;"><svg viewBox="0 0 24 24" class="svg-icon"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>${iStr.warnCheating}</div>` : '';
+        document.getElementById('sumPenaltyHtml').innerHTML = penaltyHtml;
 
-        let html = `
-            <div style="display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid #222; font-size:1.05rem; color:var(--gray-light);"><span>${iStr.tim.split('(')[0]}</span><span style="color:var(--text-main); font-weight:bold; font-variant-numeric:tabular-nums;">${tStr}</span></div>
-            <div style="display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid #222; font-size:1.05rem; color:var(--gray-light);"><span>${iStr.actualDist}</span><span style="color:var(--text-main); font-weight:bold; font-variant-numeric:tabular-nums;">${distDisp.toFixed(2)} ${isMet?'km':'mi'}</span></div>
-            <div style="display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid #222; font-size:1.05rem; color:var(--gray-light);"><span>${iStr.rElev}</span><span style="color:var(--text-main); font-weight:bold; font-variant-numeric:tabular-nums;">${Math.round(elevDisp)} ${isMet?'m':'ft'}</span></div>
-            <div style="display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid #222; font-size:1.05rem; color:var(--gray-light);"><span>${iStr.avg}</span><span style="color:var(--neon-green); font-weight:bold; font-variant-numeric:tabular-nums;">${spdDisp.toFixed(1)} ${isMet?'kph':'mph'}</span></div>
-            
-            <div style="margin-top:15px; padding-bottom:5px;">
-                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span style="color:var(--gray-light); font-weight:700;">Total</span><span style="color:#FFF; font-weight:800;">${Math.round(tCal)} kcal</span></div>
-                <div class="fc-bar-wrap"><div class="fc-bar-fat" style="width:${fPct}%;"></div><div class="fc-bar-carb" style="width:${cPct}%;"></div></div>
-                <div class="fc-labels">
-                    <div class="fc-label-fat"><svg class="fc-icon" viewBox="0 0 24 24"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8zM7.83 14c.37 0 .67.26.74.62 1.09 5.92 6.21 6.33 6.57.41.05.7.44.65.85-.05.41-.44.7-.85.65-.68-.07-6.53-.98-7.85-8.08-.07-.39.19-.75.58-.82.13-.02.26.04.4.21z"/></svg>${iStr.lblFat} ${Math.round(fCal)}</div>
-                    <div class="fc-label-carb"><svg class="fc-icon" viewBox="0 0 24 24"><path d="M20 9.86v-1.6c0-1.25-.83-2.33-2.05-2.58l-5-1.02c-.31-.06-.63-.06-.94 0l-5 1.02C5.83 5.93 5 7.01 5 8.26v1.6c0 .64.29 1.22.76 1.6l4.24 3.39v4.29c0 .55.45 1 1 1h2c.55 0 1-.45 1-1v-4.29l4.24-3.39c.47-.38.76-.96.76-1.6z"/></svg>${iStr.lblCarb} ${Math.round(cCal)}</div>
-                </div>
-            </div>
-
-            <div class="est-zones" style="margin-top:15px; padding-top:15px; border-top:1px solid #222;">
-                <span class="c-z1">${iStr.zones[0]} ${Math.floor(zArray[0])}${iStr.min}</span><span class="c-z2">${iStr.zones[1]} ${Math.floor(zArray[1])}${iStr.min}</span>
-                <span class="c-z3">${iStr.zones[2]} ${Math.floor(zArray[2])}${iStr.min}</span><span class="c-z4">${iStr.zones[3]} ${Math.floor(zArray[3])}${iStr.min}</span>
-                <span class="c-z5">${iStr.zones[4]} ${Math.floor(zArray[4])}${iStr.min}</span>
-            </div>
-            ${nutriHtml}
-            ${penaltyHtml}
-        `;
-        document.getElementById('summaryContent').innerHTML = html;
-        
         if(aAvg && aMax) {
             Binder.updateBatch({ 
                 sumAvgSpd: (isMet?aAvg.spd:aAvg.spd/1.609344).toFixed(1), sumAvgInc: aAvg.inc.toFixed(1), sumAvgHr: Math.round(aAvg.hr), sumAvgLac: aAvg.lac.toFixed(1),
                 sumMaxSpd: (isMet?aMax.spd:aMax.spd/1.609344).toFixed(1), sumMaxInc: aMax.inc.toFixed(1), sumMaxHr: Math.round(aMax.hr), sumMaxLac: aMax.lac.toFixed(1) 
             });
         }
-        
-        let cw = document.getElementById('sumCalibrationWrap'); let ci = document.getElementById('inpCalibDist'); let cb = document.getElementById('btnApplyCalib');
-        if(!this.viewingProfile) { cw.style.display = 'block'; ci.value = distDisp.toFixed(2); cb.textContent = 'Apply'; } else { cw.style.display = 'none'; }
         
         this.openModal('summaryModal');
         
