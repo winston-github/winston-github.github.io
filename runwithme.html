@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="format-detection" content="telephone=no">
-    <title>Pro Treadmill OS - Ultimate Edition (v45)</title>
+    <title>Pro Treadmill OS - Ultimate Edition (v46)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.85); 
@@ -43,7 +43,11 @@
         .prg-text { font-size: 1.05rem; font-weight: 800; color: var(--neon-green); margin-right: 12px; width: 50px; text-align: right; pointer-events: none;}
         .prg-track { flex: 1; height: 6px; background: #000; border-radius: 3px; overflow: hidden; border: 1px solid #333; position: relative; pointer-events: none;}
         .prg-fill { width: 0%; height: 100%; background: var(--neon-green); box-shadow: 0 0 10px rgba(50,215,75,0.6); transition: width 0.3s linear; pointer-events: none;}
-        .prg-rem { font-size: 1.1rem; font-weight: 800; color: #FFF; margin-left: 12px; font-variant-numeric: tabular-nums; width: 65px; pointer-events: none;}
+        .prg-rem { font-size: 1.1rem; font-weight: 800; color: #FFF; margin-left: 12px; width: 65px; pointer-events: none;}
+
+        /* Neon pulsing for header */
+        .pulse-warn-header { animation: pulse-header 1s infinite; }
+        @keyframes pulse-header { 0% { box-shadow: inset 0 0 0px var(--neon-yellow); } 50% { box-shadow: inset 0 0 15px var(--neon-yellow); } 100% { box-shadow: inset 0 0 0px var(--neon-yellow); } }
 
         #content-wrapper { flex: 1 1 auto; overflow: hidden; position: relative; width: 100%; }
         .views-slider { display: flex; width: 200%; height: 100%; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); will-change: transform; position: absolute; top:0; bottom:0;}
@@ -70,8 +74,14 @@
         .dial-scroll::-webkit-scrollbar { display: none; }
         .dial-item { height: 36px; display: flex; justify-content: center; align-items: center; font-size: 1.3rem; font-weight: 900; color: var(--text-main); scroll-snap-align: center; cursor: pointer; transition: color 0.1s;}
         .dial-item.active { color: var(--text-main); text-shadow: 0 0 10px rgba(255,255,255,0.3); }
-        .dial-group.locked { opacity: 0.4; pointer-events: none; border-color: #333; }
-        .dial-group.locked .dial-window { background: #111; }
+
+        .global-offset-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 12px; align-items: center; text-align: center; }
+        .offset-ctrl { display: flex; flex-direction: column; gap: 6px; }
+        .offset-title { font-size: 0.75rem; color: var(--gray); font-weight: 700; letter-spacing: 0.5px; }
+        .offset-buttons { display: flex; justify-content: space-between; align-items: center; background: #000; border-radius: 8px; border: 1px solid #222; padding: 4px; }
+        .offset-btn { flex: 0 0 40px; height: 36px; background: #222; border: none; border-radius: 6px; color: #FFF; font-size: 1.2rem; font-weight: 900; cursor: pointer; outline: none; }
+        .offset-btn:active { background: #444; }
+        .offset-val { font-size: 1.1rem; font-weight: 800; color: var(--text-main); width: 45px; }
 
         .category-tabs { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; padding-bottom: 5px; margin-bottom: 5px; }
         .category-tabs::-webkit-scrollbar { display: none; }
@@ -100,8 +110,8 @@
         
         .hud-hov { visibility: hidden; opacity: 0; position: absolute; top: 5px; left: 5px; right: 5px; background: rgba(0,0,0,0.9); border: 1px solid #444; z-index: 10; border-radius: 8px; padding: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); transition: opacity 0.1s; pointer-events: none;}
         .hud-hov.show { visibility: visible; opacity: 1; }
-        .hud-hov-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr 1.2fr 1fr; text-align: center; align-items: center; font-size: clamp(0.7rem, 3.5vw, 0.95rem); font-weight: 900;}
-        .hud-hov-grid .lbl { text-align: left; padding-left: 2px; color: #FFF; font-size: 0.8rem; }
+        /* 嚴格五等分置中對齊 */
+        .hud-hov-grid { display: grid; grid-template-columns: repeat(5, 1fr); text-align: center; align-items: center; font-size: clamp(0.7rem, 3.5vw, 0.95rem); font-weight: 900; justify-items: center; width: 100%; }
         
         .val-spd { color: var(--neon-green); } .val-inc { color: var(--neon-yellow); } .val-hr { color: var(--neon-blue); } .val-lac { color: var(--neon-red); }
 
@@ -110,42 +120,42 @@
         .crosshair { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.4); pointer-events: none; display: none; z-index: 5;}
         
         .est-bottom-row { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #222; font-size: 0.85rem; font-weight: 700; color: var(--gray-light); }
-        .est-zones { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 15px; font-size: 0.8rem; font-variant-numeric: tabular-nums; text-align: left; }
+        .est-zones { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 15px; font-size: 0.8rem; text-align: left; }
         
         /* Run Screen */
-        .massive-time { font-size: clamp(4.5rem, 20vw, 6rem); font-weight: 900; line-height: 1; text-align: center; letter-spacing: -1px; padding: 5px 0 15px 0; color: #FFFFFF; font-variant-numeric: tabular-nums; cursor: pointer; transition: opacity 0.2s; position: relative; z-index: 10;}
+        .massive-time-container { position: relative; display: flex; justify-content: center; align-items: center; width: 100%; }
+        .massive-time { font-size: clamp(4rem, 18vw, 6rem); font-weight: 900; line-height: 1; text-align: center; letter-spacing: -1px; padding: 15px 0; color: #FFFFFF; cursor: pointer; transition: opacity 0.2s; position: relative; z-index: 10;}
         .massive-time:active { opacity: 0.7; }
         
         .run-primary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; flex: none; position: relative; }
-        .run-val-box { position: relative; display: flex; flex-direction: column; align-items: center; background: var(--bg-card); padding: 25px 0; border-radius: 16px; border: 1px solid var(--border-color); overflow: hidden; cursor: pointer;}
+        /* 嚴格的 Flexbox 劃分防重疊 */
+        .run-val-box { position: relative; display: flex; flex-direction: column; justify-content: space-between; align-items: center; background: var(--bg-card); height: 160px; border-radius: 16px; border: 1px solid var(--border-color); overflow: hidden; }
         
-        /* Transparent Overlay Buttons for Run Screen */
-        .overlay-btn { position: absolute; left: 0; width: 100%; height: 50%; display: flex; justify-content: center; align-items: center; background: rgba(255,255,255,0); z-index: 5; transition: background 0.1s; touch-action: none;}
-        .overlay-btn.top { top: 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .overlay-btn.bottom { bottom: 0; border-top: 1px solid rgba(255,255,255,0.05); }
-        .overlay-btn:active { background: rgba(255,255,255,0.1); }
-        .overlay-btn svg { width: 32px; height: 32px; fill: rgba(255,255,255,0.2); transition: fill 0.1s; pointer-events: none;}
-        .overlay-btn:active svg { fill: rgba(255,255,255,0.8); }
+        .overlay-btn { width: 100%; flex: 0 0 45px; display: flex; justify-content: center; align-items: center; background: rgba(255,255,255,0.02); z-index: 5; transition: background 0.1s; touch-action: none; cursor: pointer;}
+        .overlay-btn.top { border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .overlay-btn.bottom { border-top: 1px solid rgba(255,255,255,0.05); }
+        .overlay-btn:active { background: rgba(255,255,255,0.15); }
+        .overlay-btn svg { width: 32px; height: 32px; fill: rgba(255,255,255,0.3); pointer-events: none;}
+        .overlay-btn:active svg { fill: rgba(255,255,255,0.9); }
 
-        .run-big-val { font-size: clamp(3.5rem, 14vw, 4.8rem); font-weight: 900; line-height: 1; letter-spacing: -1px; color: #FFFFFF; pointer-events: none; transition: color 0.2s, text-shadow 0.2s; font-variant-numeric: tabular-nums; position: relative; z-index: 2;}
-        .run-lbl { font-size: 0.85rem; color: var(--gray); font-weight: 700; margin-top: 5px; letter-spacing: 1px; pointer-events: none; position: relative; z-index: 2;}
-        .run-unit { font-size: 0.8rem; color: var(--gray); font-weight: 700; margin-left: 4px; }
+        .run-val-center { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; pointer-events: none; }
+        .run-big-val { font-size: clamp(3rem, 12vw, 4.2rem); font-weight: 900; line-height: 1; letter-spacing: -1px; color: #FFFFFF; transition: color 0.2s, text-shadow 0.2s; position: relative; z-index: 2;}
+        .run-lbl { font-size: 0.8rem; color: var(--gray); font-weight: 700; margin-top: 2px; letter-spacing: 1px; position: relative; z-index: 2;}
+        .run-unit { font-size: 0.75rem; color: var(--gray); font-weight: 700; margin-left: 4px; }
         
         .run-sec-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 15px 10px; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); flex: none; position: relative; z-index: 10;}
         .r-s-box { display: flex; flex-direction: column; align-items: center; }
         .r-s-val { font-size: clamp(1.1rem, 4.5vw, 1.4rem); font-weight: 900; color: #FFFFFF; display: flex; align-items: baseline;}
         .r-s-lbl { font-size: 0.7rem; color: var(--gray); font-weight: 700; margin-top: 6px; white-space: nowrap; }
 
-        .c-z1 { color: var(--z1); } .c-z2 { color: var(--z2); } .c-z3 { color: var(--z3); } .c-z4 { color: var(--z4); } .c-z5 { color: var(--z5); }
-
-        /* Floating Controls in Run View */
+        /* Floating Controls in Run View moved to massive-time-container */
         .run-float-btn { position: absolute; width: 44px; height: 44px; border-radius: 22px; background: rgba(30,30,30,0.8); border: 1px solid #444; display: flex; justify-content: center; align-items: center; cursor: pointer; z-index: 20; backdrop-filter: blur(4px); outline: none; transition: all 0.2s; }
         .run-float-btn svg { width: 22px; height: 22px; fill: var(--text-main); }
         .run-float-btn:active { transform: scale(0.9); }
-        #btnBailOut { bottom: 15px; left: 15px; }
+        #btnBailOut { left: 15px; }
         #btnBailOut.active { background: var(--neon-yellow); border-color: var(--neon-yellow); }
         #btnBailOut.active svg { fill: #000; }
-        #btnVoiceToggle { bottom: 15px; right: 15px; }
+        #btnVoiceToggle { right: 15px; }
         #btnVoiceToggle.minimal svg { fill: var(--gray); }
 
         /* Full Screen Pause Catch */
@@ -161,9 +171,10 @@
         .preview-list { list-style: none; padding: 10px; }
         .preview-list li { padding: 14px 10px; border-radius: 8px; margin-bottom: 4px; font-size: 0.95rem; color: var(--gray); border-bottom: 1px solid #111; transition: all 0.3s ease; }
         .preview-list li.active-row { background: var(--bg-card); border-left: 4px solid var(--neon-green); color: #FFF; transform: scale(1.02); box-shadow: 0 4px 12px rgba(0,0,0,0.5); font-weight: 800; }
+        .preview-list li.max-lac-row { background: rgba(255, 69, 58, 0.15); color: #FFF; }
         .list-col-time { text-align: left; font-weight: 900; color: var(--text-main);}
-        .list-col-spd { color: var(--neon-green); border-radius: 4px; transition: text-shadow 0.3s; }
-        .list-col-inc { color: var(--neon-yellow); border-radius: 4px; transition: text-shadow 0.3s; }
+        .list-col-spd { border-radius: 4px; transition: all 0.3s; }
+        .list-col-inc { border-radius: 4px; transition: all 0.3s; }
         .list-col-phase { font-size: 0.85rem; }
         .list-col-hr { font-weight: 800;}
         .list-col-lac { font-weight: 800; }
@@ -177,8 +188,11 @@
         .btn-runner { background: var(--bg-card); color: var(--text-main); border: 1px solid #333; }
         .btn-start { background: var(--text-main); color: #000; }
         .btn-pause { background: var(--neon-yellow); color: #000; }
+        
         .btn-end { background: transparent; color: var(--neon-red); border: 2px solid var(--neon-red); position: relative; overflow: hidden;}
-        .btn-end-swipe { position: absolute; left: 0; top: 0; height: 100%; width: 64px; border-radius: 32px; background: rgba(255,69,58,0.2); display: flex; justify-content: center; align-items: center; pointer-events: none;}
+        .btn-end::after { content: ''; position: absolute; top: 0; left: 0; height: 100%; width: 0%; background: rgba(255, 69, 58, 0.3); transition: width 0s; pointer-events: none; }
+        .btn-end.holding::after { width: 100%; transition: width 1.5s linear; }
+        
         .btn-hide { display: none !important; }
 
         /* Modals */
@@ -294,8 +308,8 @@
 
         .svg-icon { width: 20px; height: 20px; fill: currentColor; vertical-align: middle; margin-right: 6px; flex-shrink:0;}
         
-        .pulse-spd-active { color: var(--neon-green); font-weight: 900; text-shadow: 0 0 10px var(--neon-green); transition: all 0.3s;}
-        .pulse-inc-active { color: var(--neon-yellow); font-weight: 900; text-shadow: 0 0 10px var(--neon-yellow); transition: all 0.3s;}
+        .pulse-spd-active { color: var(--neon-green); font-weight: 900; text-shadow: 0 0 10px var(--neon-green); transition: all 0.3s; background: rgba(50,215,75,0.15);}
+        .pulse-inc-active { color: var(--neon-yellow); font-weight: 900; text-shadow: 0 0 10px var(--neon-yellow); transition: all 0.3s; background: rgba(255,214,10,0.15);}
         .run-big-val.flash { animation: flash-text 0.4s 3; }
         @keyframes flash-text { 0% { color:#FFF; text-shadow: none; } 50% { color:var(--text-main); text-shadow: 0 0 20px var(--text-main); } 100% { color:#FFF; text-shadow: none; } }
         .cap-warn-icon { position: absolute; top: 15px; right: 15px; width: 20px; height: 20px; fill: var(--neon-red); display: none; animation: pulse 1s infinite; pointer-events: none;}
@@ -311,7 +325,6 @@
 </div>
 
 <audio id="silentAudio" loop playsinline src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA"></audio>
-<video id="wakeLockVideo" loop muted playsinline style="display:none;" src="data:video/mp4;base64,AAAAHGZ0eXBpc29tAAACAGlzb21pc28yYXZjMQAAAAhmcmVlAAAGF21kYXQAAAKsBgX/4NxF6b3m2VCAgIAAAJwEAAACpASZ+0oAAAB6AAAABwAAAAAABwAAAAAABwAAAAAABwAAAAAA..."></video>
 
 <div id="app-shell">
     <header id="header">
@@ -343,7 +356,7 @@
                                     <div class="dial-btn-mini" data-action="dial-down" data-target="ds-time" data-step="1"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></div>
                                 </div>
                             </div>
-                            <div class="dial-group" id="grp-dist">
+                            <div class="dial-group">
                                 <div class="dial-label" id="lblTargetKm">目標 (KM)</div>
                                 <div class="dial-window-wrap">
                                     <div class="dial-btn-mini" data-action="dial-up" data-target="ds-dist" data-step="0.1"><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg></div>
@@ -351,38 +364,24 @@
                                     <div class="dial-btn-mini" data-action="dial-down" data-target="ds-dist" data-step="0.1"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></div>
                                 </div>
                             </div>
-                            
-                            <div class="dial-group" id="grp-mxs">
-                                <div class="dial-label" id="lblSetMxS">最高速 (KPH)</div>
-                                <div class="dial-window-wrap">
-                                    <div class="dial-btn-mini" data-action="dial-up" data-target="ds-mxs" data-step="0.1"><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg></div>
-                                    <div class="dial-window" id="dw-mxs"><div class="dial-scroll" id="ds-mxs"></div></div>
-                                    <div class="dial-btn-mini" data-action="dial-down" data-target="ds-mxs" data-step="0.1"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></div>
+                        </div>
+
+                        <!-- Global Offset Panel for Setup View -->
+                        <div class="global-offset-panel">
+                            <div class="offset-ctrl">
+                                <span class="offset-title" id="lblOffsetSpd">速度偏移</span>
+                                <div class="offset-buttons">
+                                    <button class="offset-btn" data-action="btn-spd-down">-</button>
+                                    <span class="offset-val" data-bind="uiSpdOff">0.0</span>
+                                    <button class="offset-btn" data-action="btn-spd-up">+</button>
                                 </div>
                             </div>
-                            <div class="dial-group" id="grp-mxi">
-                                <div class="dial-label" id="lblSetMxI">最高坡 (%)</div>
-                                <div class="dial-window-wrap">
-                                    <div class="dial-btn-mini" data-action="dial-up" data-target="ds-mxi" data-step="0.5"><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg></div>
-                                    <div class="dial-window" id="dw-mxi"><div class="dial-scroll" id="ds-mxi"></div></div>
-                                    <div class="dial-btn-mini" data-action="dial-down" data-target="ds-mxi" data-step="0.5"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></div>
-                                </div>
-                            </div>
-                            
-                            <div class="dial-group" id="grp-mns">
-                                <div class="dial-label" id="lblSetMnS">最低速 (KPH)</div>
-                                <div class="dial-window-wrap">
-                                    <div class="dial-btn-mini" data-action="dial-up" data-target="ds-mns" data-step="0.1"><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg></div>
-                                    <div class="dial-window" id="dw-mns"><div class="dial-scroll" id="ds-mns"></div></div>
-                                    <div class="dial-btn-mini" data-action="dial-down" data-target="ds-mns" data-step="0.1"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></div>
-                                </div>
-                            </div>
-                            <div class="dial-group" id="grp-mni">
-                                <div class="dial-label" id="lblSetMnI">最低坡 (%)</div>
-                                <div class="dial-window-wrap">
-                                    <div class="dial-btn-mini" data-action="dial-up" data-target="ds-mni" data-step="0.5"><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg></div>
-                                    <div class="dial-window" id="dw-mni"><div class="dial-scroll" id="ds-mni"></div></div>
-                                    <div class="dial-btn-mini" data-action="dial-down" data-target="ds-mni" data-step="0.5"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></div>
+                            <div class="offset-ctrl">
+                                <span class="offset-title" id="lblOffsetInc">坡度偏移</span>
+                                <div class="offset-buttons">
+                                    <button class="offset-btn" data-action="btn-inc-down">-</button>
+                                    <span class="offset-val" data-bind="uiIncOff">0.0</span>
+                                    <button class="offset-btn" data-action="btn-inc-up">+</button>
                                 </div>
                             </div>
                         </div>
@@ -402,7 +401,7 @@
                         <div class="canvas-container" id="sChartWrap">
                             <canvas id="sChart"></canvas>
                             <div class="hud-hov" id="sHovRow">
-                                <div class="hud-hov-grid"><span class="lbl" data-bind="sHovMin">--:--</span><span class="val-inc" data-bind="sHovInc">--</span><span class="val-spd" data-bind="sHovSpd">--</span><span class="lbl" style="text-align:center; font-size:0.75rem;" data-bind="sHovPhase">--</span><span class="val-lac" data-bind="sHovLac">--</span></div>
+                                <div class="hud-hov-grid"><span class="lbl" data-bind="sHovMin">--:--</span><span class="val-inc" data-bind="sHovInc">--</span><span class="val-spd" data-bind="sHovSpd">--</span><span class="val-hr" data-bind="sHovHr">--</span><span class="val-lac" data-bind="sHovLac">--</span></div>
                             </div>
                             <div class="crosshair" id="sCrosshair"></div>
                         </div>
@@ -419,21 +418,30 @@
 
                 <div id="run-view" class="view-section">
                     <div id="pauseOverlayCatch" data-action="pause-catch"></div>
-                    <div class="massive-time" data-bind="massiveTime" id="massiveTime" data-action="open-adj-time">00:00</div>
                     
+                    <div class="massive-time-container">
+                        <button class="run-float-btn" id="btnBailOut" data-action="toggle-bailout"><svg viewBox="0 0 24 24"><path d="M12 2L1 21h22M12 6l7.53 13H4.47M11 10v4h2v-4m-2 6v2h2v-2"/></svg></button>
+                        <div class="massive-time" data-bind="massiveTime" id="massiveTime" data-action="open-adj-time">00:00</div>
+                        <button class="run-float-btn" id="btnVoiceToggle" data-action="toggle-voice-mode"><svg viewBox="0 0 24 24" id="iconVoiceFull"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
+                    </div>
+
                     <div class="run-primary-grid">
                         <div class="run-val-box">
                             <div class="overlay-btn top" data-action="btn-inc-up"><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg></div>
                             <svg viewBox="0 0 24 24" class="cap-warn-icon" id="warnCapInc"><path d="M12 2L1 21h22M12 6l7.53 13H4.47M11 10v4h2v-4m-2 6v2h2v-2"/></svg>
-                            <div class="run-big-val inc" id="runValInc">0.0</div>
-                            <div class="run-lbl"><span id="lblRunInc">坡度</span><span class="run-unit">%</span></div>
+                            <div class="run-val-center">
+                                <div class="run-big-val inc" id="runValInc">0.0</div>
+                                <div class="run-lbl"><span id="lblRunInc">坡度</span><span class="run-unit">%</span></div>
+                            </div>
                             <div class="overlay-btn bottom" data-action="btn-inc-down"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></div>
                         </div>
                         <div class="run-val-box">
                             <div class="overlay-btn top" data-action="btn-spd-up"><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg></div>
                             <svg viewBox="0 0 24 24" class="cap-warn-icon" id="warnCapSpd"><path d="M12 2L1 21h22M12 6l7.53 13H4.47M11 10v4h2v-4m-2 6v2h2v-2"/></svg>
-                            <div class="run-big-val spd" id="runValSpd">0.0</div>
-                            <div class="run-lbl"><span id="lblRunSpd">速度</span><span class="run-unit" id="unitRunSpd"></span></div>
+                            <div class="run-val-center">
+                                <div class="run-big-val spd" id="runValSpd">0.0</div>
+                                <div class="run-lbl"><span id="lblRunSpd">速度</span><span class="run-unit" id="unitRunSpd"></span></div>
+                            </div>
                             <div class="overlay-btn bottom" data-action="btn-spd-down"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></div>
                         </div>
                     </div>
@@ -454,14 +462,11 @@
                         <div class="canvas-container">
                             <canvas id="rChart"></canvas>
                             <div class="hud-hov" id="rHovRow">
-                                <div class="hud-hov-grid"><span class="lbl" data-bind="rHovMin">--:--</span><span class="val-inc" data-bind="rHovInc">--</span><span class="val-spd" data-bind="rHovSpd">--</span><span class="lbl" style="text-align:center; font-size:0.75rem;" data-bind="rHovPhase">--</span><span class="val-lac" data-bind="rHovLac">--</span></div>
+                                <div class="hud-hov-grid"><span class="lbl" data-bind="rHovMin">--:--</span><span class="val-inc" data-bind="rHovInc">--</span><span class="val-spd" data-bind="rHovSpd">--</span><span class="val-hr" data-bind="rHovHr">--</span><span class="val-lac" data-bind="rHovLac">--</span></div>
                             </div>
                             <div class="crosshair" id="rCrosshair"></div>
                         </div>
                     </div>
-
-                    <button class="run-float-btn" id="btnBailOut" data-action="toggle-bailout"><svg viewBox="0 0 24 24"><path d="M12 2L1 21h22M12 6l7.53 13H4.47M11 10v4h2v-4m-2 6v2h2v-2"/></svg></button>
-                    <button class="run-float-btn" id="btnVoiceToggle" data-action="toggle-voice-mode"><svg viewBox="0 0 24 24" id="iconVoiceFull"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
                 </div>
             </div>
 
@@ -485,9 +490,8 @@
                 <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                 <span id="lblBtnRight">Start</span>
             </button>
-            <button id="btnAskEnd" class="btn-ctrl btn-end btn-hide">
-                <div class="btn-end-swipe" id="btnEndSwipe"><svg viewBox="0 0 24 24" style="fill:var(--neon-red);"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></div>
-                <span id="lblEnd" style="margin-left:20px;">Swipe End</span>
+            <button id="btnAskEnd" class="btn-ctrl btn-end btn-hide" data-action="ask-end">
+                <span id="lblEnd">Hold/Swipe End</span>
             </button>
             <button id="btnPause" class="btn-ctrl btn-pause btn-hide" data-action="pause">
                 <svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
@@ -528,11 +532,16 @@
 
                 <div class="rm-group">
                     <div class="rm-label accordion-header" data-action="toggle-accordion" data-target="advSettings">
-                        <span><svg class="svg-icon" viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg><span id="lblAdvTitle">Advanced</span></span>
+                        <span><svg class="svg-icon" viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg><span id="lblAdvTitle">Advanced Limits</span></span>
                         <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
                     </div>
                     <div class="accordion-content" id="advSettings">
                         <div class="param-grid" style="margin-bottom: 15px;">
+                            <div class="param-item readonly" style="border-color:var(--neon-blue);" data-action="open-numpad" data-target="rmMxS" data-decimal="true"><label id="lblBaseMxS" style="color:var(--text-main);">課表基準-最高速</label><input type="text" id="rmMxS" readonly tabindex="-1"><span class="unit" id="unitBaseMxS"></span></div>
+                            <div class="param-item readonly" style="border-color:var(--neon-yellow);" data-action="open-numpad" data-target="rmMxI" data-decimal="true"><label id="lblBaseMxI" style="color:var(--text-main);">課表基準-最高坡</label><input type="text" id="rmMxI" readonly tabindex="-1"><span class="unit">%</span></div>
+                            <div class="param-item readonly" data-action="open-numpad" data-target="rmMnS" data-decimal="true"><label id="lblBaseMnS">課表基準-最低速</label><input type="text" id="rmMnS" readonly tabindex="-1"><span class="unit" id="unitBaseMnS"></span></div>
+                            <div class="param-item readonly" data-action="open-numpad" data-target="rmMnI" data-decimal="true"><label id="lblBaseMnI">課表基準-最低坡</label><input type="text" id="rmMnI" readonly tabindex="-1"><span class="unit">%</span></div>
+
                             <div class="param-item readonly" data-action="open-numpad" data-target="rmRHR"><label id="lblRHR">Resting HR</label><input type="text" id="rmRHR" placeholder="Auto" data-manual="false" readonly tabindex="-1"><span class="unit">bpm</span></div>
                             <div class="param-item readonly" data-action="open-numpad" data-target="rmMHR"><label id="lblMHR">Max HR</label><input type="text" id="rmMHR" placeholder="Auto" readonly tabindex="-1"><span class="unit">bpm</span></div>
                             <div class="param-item readonly" data-action="open-numpad" data-target="rmSMM" data-decimal="true"><label id="lblSMM">SMM</label><input type="text" id="rmSMM" readonly tabindex="-1"><span class="unit" id="unitSmm"></span></div>
@@ -550,10 +559,10 @@
                     </div>
                     <div class="accordion-content" id="hwSettings">
                         <div class="param-grid" style="background: #111; padding: 12px; border-radius: 12px; border: 1px solid #333;">
-                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMxS" data-decimal="true"><label id="lblHwMxS">Max Spd</label><input type="text" id="hwMxS" readonly tabindex="-1"><span class="unit" id="unitMxS2"></span></div>
-                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMnS" data-decimal="true"><label id="lblHwMnS">Min Spd</label><input type="text" id="hwMnS" readonly tabindex="-1"><span class="unit" id="unitMnS2"></span></div>
-                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMxI" data-decimal="true"><label id="lblHwMxI">Max Inc</label><input type="text" id="hwMxI" readonly tabindex="-1"><span class="unit">%</span></div>
-                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMnI" data-decimal="true"><label id="lblHwMnI">Min Inc</label><input type="text" id="hwMnI" readonly tabindex="-1"><span class="unit">%</span></div>
+                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMxS" data-decimal="true"><label id="lblHwMxS" style="color:var(--neon-red);">機台硬體-最高速</label><input type="text" id="hwMxS" readonly tabindex="-1"><span class="unit" id="unitMxS2"></span></div>
+                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMnS" data-decimal="true"><label id="lblHwMnS">機台硬體-最低速</label><input type="text" id="hwMnS" readonly tabindex="-1"><span class="unit" id="unitMnS2"></span></div>
+                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMxI" data-decimal="true"><label id="lblHwMxI" style="color:var(--neon-red);">機台硬體-最高坡</label><input type="text" id="hwMxI" readonly tabindex="-1"><span class="unit">%</span></div>
+                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMnI" data-decimal="true"><label id="lblHwMnI">機台硬體-最低坡</label><input type="text" id="hwMnI" readonly tabindex="-1"><span class="unit">%</span></div>
                         </div>
                     </div>
                 </div>
@@ -623,7 +632,7 @@
                 <div class="canvas-container" style="margin-top:0; min-height:120px;">
                     <canvas id="sumChart"></canvas>
                     <div class="hud-hov" id="sumHovRow">
-                        <div class="hud-hov-grid"><span class="lbl" data-bind="sumHovMin">--:--</span><span class="val-inc" data-bind="sumHovInc">--</span><span class="val-spd" data-bind="sumHovSpd">--</span><span class="lbl" style="text-align:center; font-size:0.75rem;" data-bind="sumHovPhase">--</span><span class="val-lac" data-bind="sumHovLac">--</span></div>
+                        <div class="hud-hov-grid"><span class="lbl" data-bind="sumHovMin">--:--</span><span class="val-inc" data-bind="sumHovInc">--</span><span class="val-spd" data-bind="sumHovSpd">--</span><span class="val-hr" data-bind="sumHovHr">--</span><span class="val-lac" data-bind="sumHovLac">--</span></div>
                     </div>
                     <div class="crosshair" id="sumCrosshair"></div>
                 </div>
@@ -648,7 +657,7 @@
     <div id="timeModal" class="modal-overlay" data-action="overlay-close">
         <div class="modal-box" data-no-close style="width: auto; padding: 25px;">
             <div class="modal-title" style="justify-content:center; border:none; padding-bottom:5px;" id="lblTimeTitle">校準時間</div>
-            <div class="adj-wrap" style="flex-direction:row;">
+            <div class="adj-wrap">
                 <div class="adj-box">
                     <button class="adj-btn" data-action="time-minus" data-target="th">-</button>
                     <div class="adj-dial-wrap">
@@ -673,14 +682,6 @@
         </div>
     </div>
 
-    <div id="topNotification">
-        <div class="notif-content">
-            <svg class="svg-icon" viewBox="0 0 24 24" id="notifIcon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-            <span id="notifContent"></span>
-        </div>
-        <div class="notif-bar-bg"><div class="notif-bar-fill" id="notifBar"></div></div>
-    </div>
-
     <!-- In-App Numpad Overlay -->
     <div id="numpadClickCatcher" data-action="close-numpad"></div>
     <div id="numpadOverlay">
@@ -699,27 +700,27 @@
 </div>
 
 <script>
-/** PRO TREADMILL OS (ULTIMATE EDITION v45) */
+/** PRO TREADMILL OS (ULTIMATE EDITION v46) */
 
 const i18n = {
     zh: {
         tab1: "設定", tab2: "配速",
-        tim: "總時間 (MIN)", km: "總目標 (KM)", mxI: "最高坡 (%)", mxS: "最高速 (KPH)", mnI: "最低坡 (%)", mnS: "最低速 (KPH)",
-        mxSImp: "最高速 (MPH)", mnSImp: "最低速 (MPH)",
-        hud1: "階段", hud2: "坡度", hud3: "速度", hud4: "心率", hud5: "乳酸",
+        tim: "總時間 (MIN)", km: "總目標 (KM)", 
+        lblBaseMxS: "課表基準-最高速", lblBaseMnS: "課表基準-最低速", lblBaseMxI: "課表基準-最高坡", lblBaseMnI: "課表基準-最低坡",
+        hud1: "Phase", hud2: "Inc", hud3: "Spd", hud4: "HR", hud5: "Lac",
         avg: "AVG", max: "MAX", estKcal: "預估消耗: ", actKcal: "實際消耗: ", estDist: "預估里程: ", actDist: "已完成: ", estElev: "預估爬升: ", actElev: "實際爬升: ",
         rInc: "坡度", rSpd: "速度", rDist: "里程", rPace: "配速", rHr: "心率", rLac: "乳酸", rElev: "爬升",
         thTime: "時間", thInc: "坡度", thSpd: "速度", thPhase: "階段", thHr: "心率", thLac: "乳酸",
-        btnLeft: "跑者", btnStart: "開始", btnResume: "繼續", btnHold: "滑動結束", btnPause: "暫停",
+        btnLeft: "跑者", btnStart: "開始", btnResume: "繼續", btnHold: "長按/滑動 結束", btnPause: "暫停",
         rmTitle: "跑者檔案設定", rmName: "名稱", rmPhy: "基本生理", rmAge: "年齡", rmWgt: "體重",
-        rmAdv: "進階生理與極限", rRHR: "安靜心率", rMHR: "最大心率", rSMM: "骨骼肌", rBF: "體脂肪", rVO2: "VO₂Max", ecw: "細胞外水比",
-        hwTitle: "硬體限制 (機台極限)", hMxS: "機器最高速", hMnS: "機器最低速", hMxI: "機器最高坡", hMnI: "機器最低坡",
+        rmAdv: "進階生理與基準極限", rRHR: "安靜心率", rMHR: "最大心率", rSMM: "骨骼肌", rBF: "體脂肪", rVO2: "VO₂Max", ecw: "細胞外水比",
+        hwTitle: "硬體限制 (機台實體極限不可超過)", hMxS: "機台硬體-最高速", hMnS: "機台硬體-最低速", hMxI: "機台硬體-最高坡", hMnI: "機台硬體-最低坡",
         rmPref: "偏好設定", btnCancel: "取消", btnSave: "儲存", btnAdd: "+ 新增跑者", errNameExist: "名稱已存在",
-        langZh: "中文", langEn: "EN", voiceOn: "語音 ON", voiceOff: "關閉", met: "公制", imp: "英制", male: "男", female: "女", lblSex: "跑者性別 (影響卡路里)",
+        langZh: "中文", langEn: "EN", voiceOn: "語音 ON", voiceOff: "語音 OFF", met: "公制", imp: "英制", male: "男", female: "女", lblSex: "跑者性別 (影響卡路里)",
         histTitle: "歷史紀錄", noHist: "尚無訓練紀錄", clearAsk: "確認清空所有歷史紀錄？此操作無法復原。",
         zones: ["Z1 恢復", "Z2 燃脂", "Z3 節奏", "Z4 乳酸", "Z5 無氧"], min: "分",
         phases: { warmup: "暖身", steep: "爬坡", sprint: "衝刺", recovery: "恢復", steady: "巡航", exhaust: "力竭", cooldown: "緩和", base: "基底" },
-        cats: { 'ALL': '全部', 'FAT_BURN': '燃脂', 'ENDURANCE': '耐力', 'HIIT': '間歇', 'HILL': '爬坡', 'WALK': '健走' },
+        cats: { 'FAT_BURN': '燃脂', 'ENDURANCE': '耐力', 'HIIT': '間歇', 'HILL': '爬坡', 'WALK': '健走' },
         prog: {
             p0: ["增肌減脂護肌", "75%燃脂區間錨定，適度高坡度抗阻，完美保護肌肉。"],
             p1: ["高效燃脂王", "最大化 Zone 2 搭配精準高強度，後燃極大化。"], p2: ["有氧耐力底層", "經典巡航，鍛鍊脂肪氧化。"],
@@ -761,7 +762,7 @@ const i18n = {
         sumTitle: "訓練總結與營養建議", btnSumClose: "完成", lblCalib: "校準真實跑步機里程",
         nutriMissing: "填寫「體脂肪」與「骨骼肌」解鎖精準營養",
         nutriRx: "【 運動營養建議 】", nutriPost: "跑後修復: 蛋白質 {p}g + 碳水 {c}g", nutriDaily: "全日建議蛋白質總量: {p}g 維持肌肉",
-        actualDist: "實際里程", estDist: "預估里程: ", 
+        actualDist: "實際里程", estDist: "預估里程: ", actDist: "已完成: ",
         unitKm: "公里", unitMi: "英里", unitAge: "歲",
         transMsgStart: "開始訓練。初始目標速度 {s}，坡度 {i}。",
         transMsgPre: "準備切換，目標速度 {s}，坡度 {i}。",
@@ -772,26 +773,27 @@ const i18n = {
         sysSleep: "系統休眠過久，已啟動時間回溯補償。",
         bailOutOn: "已啟動安全急救模式，降至最低速。", bailOutOff: "已解除安全急救模式。",
         warnCheating: "偵測到過度中斷或危險暫停，破壞了持續氧化，訓練效果已降級。",
-        warmupLimit: "偵測到長時暫停，心肺已冷卻，已暫時降速以策安全，請手動恢復。"
+        warmupLimit: "偵測到長時暫停，心肺已冷卻，已暫時降速以策安全，請手動恢復。",
+        lblOffsetSpd: "速度偏移量", lblOffsetInc: "坡度偏移量"
     },
     en: {
         tab1: "Setup", tab2: "Pace",
-        tim: "TIME (MIN)", km: "TARGET (KM)", mxI: "MAX INC (%)", mxS: "MAX SPD (KPH)", mnI: "MIN INC (%)", mnS: "MIN SPD (KPH)",
-        mxSImp: "MAX SPD (MPH)", mnSImp: "MIN SPD (MPH)",
+        tim: "TIME (MIN)", km: "TARGET (KM)", 
+        lblBaseMxS: "Base Max Spd", lblBaseMnS: "Base Min Spd", lblBaseMxI: "Base Max Inc", lblBaseMnI: "Base Min Inc",
         hud1: "Phase", hud2: "Inc", hud3: "Spd", hud4: "HR", hud5: "Lac",
         avg: "AVG", max: "MAX", estKcal: "Est. Kcal: ", actKcal: "Actual Kcal: ", estDist: "Est. Dist: ", actDist: "Completed: ", estElev: "Est. Elev: ", actElev: "Actual Elev: ",
         rInc: "INCLINE", rSpd: "SPEED", rDist: "DIST", rPace: "PACE", rHr: "HR", rLac: "LAC", rElev: "ELEV",
         thTime: "Time", thInc: "Inc", thSpd: "Spd", thPhase: "Phase", thHr: "HR", thLac: "Lac",
-        btnLeft: "Runner", btnStart: "Start", btnResume: "Resume", btnHold: "Swipe End", btnPause: "Pause",
+        btnLeft: "Runner", btnStart: "Start", btnResume: "Resume", btnHold: "Hold/Swipe End", btnPause: "Pause",
         rmTitle: "Runner Profile", rmName: "Name", rmPhy: "Physiology", rmAge: "Age", rmWgt: "Weight",
-        rmAdv: "Advanced & Limits", rRHR: "Resting HR", rMHR: "Max HR", rSMM: "Skel. Muscle", rBF: "Body Fat", rVO2: "VO₂Max", ecw: "ECW/TBW",
-        hwTitle: "Hardware Limits", hMxS: "Machine Max Spd", hMnS: "Machine Min Spd", hMxI: "Machine Max Inc", hMnI: "Machine Min Inc",
+        rmAdv: "Advanced & Base Limits", rRHR: "Resting HR", rMHR: "Max HR", rSMM: "Skel. Muscle", rBF: "Body Fat", rVO2: "VO₂Max", ecw: "ECW/TBW",
+        hwTitle: "Hardware Limits (Absolute Max)", hMxS: "Hardware Max Spd", hMnS: "Hardware Min Spd", hMxI: "Hardware Max Inc", hMnI: "Hardware Min Inc",
         rmPref: "Preferences", btnCancel: "Cancel", btnSave: "Save", btnAdd: "+ Add Runner", errNameExist: "Name Exists",
-        langZh: "中文", langEn: "EN", voiceOn: "Voice ON", voiceOff: "OFF", met: "Metric", imp: "Imperial", male: "M", female: "F", lblSex: "Sex impacts calorie math",
+        langZh: "中文", langEn: "EN", voiceOn: "Voice ON", voiceOff: "Voice OFF", met: "Metric", imp: "Imperial", male: "M", female: "F", lblSex: "Sex impacts calorie math",
         histTitle: "History", noHist: "No workout history yet.", clearAsk: "Clear all history? This cannot be undone.",
         zones: ["Z1 Rec", "Z2 Fat", "Z3 Tempo", "Z4 Lac", "Z5 Anaer"], min: "m",
         phases: { warmup: "Warmup", steep: "Steep", sprint: "Sprint", recovery: "Recovery", steady: "Steady", exhaust: "Exhaust", cooldown: "Cool", base: "Base" },
-        cats: { 'ALL': 'ALL', 'FAT_BURN': 'FAT BURN', 'ENDURANCE': 'ENDURANCE', 'HIIT': 'HIIT', 'HILL': 'HILL', 'WALK': 'WALK' },
+        cats: { 'FAT_BURN': 'FAT BURN', 'ENDURANCE': 'ENDURANCE', 'HIIT': 'HIIT', 'HILL': 'HILL', 'WALK': 'WALK' },
         prog: {
             p0: ["Physique Recomp", "FatMax anchored, moderate incline. Muscle sparing."],
             p1: ["Fat-Burning King", "Max Zone 2 with precise high intensity for EPOC."], 
@@ -854,7 +856,8 @@ const i18n = {
         sysSleep: "System sleep detected. Time-travel compensation applied.",
         bailOutOn: "Safe mode active. Dropping to minimums.", bailOutOff: "Safe mode deactivated.",
         warnCheating: "Excessive pauses disrupted fat oxidation. Efficacy degraded.",
-        warmupLimit: "Long pause detected. Speed reduced for safe resume. Adjust manually."
+        warmupLimit: "Long pause detected. Speed reduced for safe resume. Adjust manually.",
+        lblOffsetSpd: "Speed Offset", lblOffsetInc: "Incline Offset"
     }
 };
 
@@ -900,7 +903,6 @@ const VoiceDB = {
 };
 
 const PROG_CATEGORIES = {
-    'ALL': [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],
     'FAT_BURN': [0,1,2,9,13,16],
     'ENDURANCE': [2,3,14,18,19,20],
     'HIIT': [4,7,8,10],
@@ -981,7 +983,7 @@ const RunAcc = {
     curSpd: 0, curInc: 0, curHr: 0, curLac: 0,
     mxS: 0, mxI: 0, mxH: 0, mxL: 0, 
     dKm: 0, dElev: 0, fCal: 0, cCal: 0, zs: [0,0,0,0,0], 
-    cappedMs: {}, pauseCount: 0, lastPauseMs: 0, pausePenalty: false
+    cappedMs: {}, pauseCount: 0, lastPauseMs: 0, pausePenalty: false, transF: {}
 };
 
 const resetRunAcc = () => {
@@ -990,7 +992,7 @@ const resetRunAcc = () => {
         curSpd: 0, curInc: 0, curHr: 0, curLac: 0,
         mxS: 0, mxI: 0, mxH: 0, mxL: 0, 
         dKm: 0, dElev: 0, fCal: 0, cCal: 0, zs: [0,0,0,0,0], 
-        cappedMs: {}, pauseCount: 0, lastPauseMs: 0, pausePenalty: false
+        cappedMs: {}, pauseCount: 0, lastPauseMs: 0, pausePenalty: false, transF: {}
     });
 };
 
@@ -1021,7 +1023,9 @@ class PhysioEngine {
         let pMaxLac = 12.0 + (vo2 > 0 ? (vo2 - 40)*0.1 : 0) + (smmRatio - 0.35)*15 - ((m.age||35)-30)*0.05;
         pMaxLac = Math.min(18.0, Math.max(6.0, pMaxLac));
         
-        return { wKG, bf, smm, ecw, vo2, mHR, rHR, pMaxLac, maxSpd: ms, minSpd: Math.max(0.1, m.minSpd||1.0), mxInc: Utils.roundInc(Math.max(0, m.mxInc||5.0)), mnInc: Utils.roundInc(Math.max(0, m.mnInc||0.0)), tKm: Math.max(0.1, m.tKm||5.0), tTime: Math.max(20, m.tTime||60), age: Math.max(15, m.age||35), gender: m.gender, name: m.name, unit: m.unit, lang: m.lang, voiceOn: m.voiceOn, lastProg: (m.lastProg !== undefined) ? m.lastProg : 1, lastCat: m.lastCat || 'ALL', spdOffset: m.spdOffset||0, incOffset: Utils.roundInc(m.incOffset||0) };
+        if (!m.catMemory) m.catMemory = { 'FAT_BURN': 1, 'ENDURANCE': 2, 'HIIT': 4, 'HILL': 6, 'WALK': 11 };
+        
+        return { wKG, bf, smm, ecw, vo2, mHR, rHR, pMaxLac, maxSpd: ms, minSpd: Math.max(0.1, m.minSpd||1.0), mxInc: Utils.roundInc(Math.max(0, m.mxInc||5.0)), mnInc: Utils.roundInc(Math.max(0, m.mnInc||0.0)), tKm: Math.max(0.1, m.tKm||5.0), tTime: Math.max(20, m.tTime||60), age: Math.max(15, m.age||35), gender: m.gender, name: m.name, unit: m.unit, lang: m.lang, voiceOn: m.voiceOn !== false, lastProg: (m.lastProg !== undefined) ? m.lastProg : 1, lastCat: m.lastCat || 'FAT_BURN', spdOffset: m.spdOffset||0, incOffset: Utils.roundInc(m.incOffset||0), catMemory: m.catMemory };
     }
 
     static getGoldenRatios(pid) {
@@ -1062,19 +1066,20 @@ class PhysioEngine {
             let spd = p.minSpd, inc = p.mnInc;
             
             if (i < startMinute && existingMatrix && existingMatrix[i]) {
-                spd = existingMatrix[i].spd; inc = existingMatrix[i].inc;
+                spd = existingMatrix[i].rawSpd || existingMatrix[i].spd; inc = existingMatrix[i].rawInc || existingMatrix[i].inc;
             } else {
                 if (p.lastProg >= 11) {
                     let pct = 0;
                     if (startMinute > 0) {
-                        let remainingTime = T - startMinute; let passedPct = startMinute / T * 100;
+                        let remainingTime = Math.max(1, T - startMinute); let passedPct = startMinute / T * 100;
                         pct = passedPct + ((i - startMinute) / remainingTime) * (100 - passedPct);
                     } else { pct = (i / Math.max(1, T - 1)) * 100; }
                     let state = this.getHardcodedState(p.lastProg, pct);
                     spd = state.s; inc = state.i;
                 } else {
                     let ratios = this.getGoldenRatios(p.lastProg);
-                    let wT = Math.max(2, Math.floor(T * ratios[0])); let cT = Math.max(2, Math.floor(T * ratios[0])); 
+                    let wT = Math.max(1, Math.floor(T * ratios[0])); let cT = Math.max(1, Math.floor(T * ratios[4])); 
+                    if (wT + cT >= T) { wT = Math.max(1, Math.floor(T * 0.1)); cT = Math.max(1, Math.floor(T * 0.1)); }
                     let mT = T - wT - cT; let prog = (i >= wT && i < T - cT) ? (i - wT) / mT : 0;
                     let safeMnS = p.minSpd; let safeMnI = p.mnInc;
 
@@ -1113,18 +1118,19 @@ class PhysioEngine {
                     if (i === 0 || i === T - 1) { inc = safeMnI; if(i===0) spd = safeMnS; }
                 }
 
-                spd += p.spdOffset; inc += p.incOffset;
+                // Apply Global Offsets
+                spd += (p.spdOffset || 0); inc += (p.incOffset || 0);
             }
 
             let phase = i < 3 ? 'warmup' : i >= T-3 ? 'cooldown' : spd > 12 ? 'sprint' : inc > 4 ? 'steep' : 'steady';
             if (p.lastProg >= 11) phase = 'base';
-            m_raw.push({ spd, inc: Utils.roundInc(inc), m:i+1, phase, rawSpd: spd });
+            m_raw.push({ spd, inc: Utils.roundInc(inc), m:i+1, phase, rawSpd: spd, rawInc: inc });
         }
 
         let maxReq = Math.max(...m_raw.map(m => m.rawSpd));
         let baseProtect = Math.min(6.0, hw.maxSpd);
         
-        m_raw.forEach(m => {
+        m_raw.forEach((m, i) => {
             if (m.spd < hw.minSpd) m.spd = hw.minSpd;
             if (m.spd > hw.maxSpd) {
                 if (m.spd > baseProtect && maxReq > baseProtect) {
@@ -1138,6 +1144,7 @@ class PhysioEngine {
             m.inc = Utils.roundInc(m.inc);
             m.spd = Utils.round(m.spd);
 
+            // Time skip compensation inside solver for accurate initial prediction
             let sm = m.spd * 16.6667; let id = m.inc / 100;
             let vo2D = (m.spd <= 7.0 ? (3.5 + 0.1*sm + 1.8*sm*id) : (3.5 + 0.2*sm + 0.9*sm*id)) * RE;
             if (m.m < 4) vo2D *= 0.9; 
@@ -1162,6 +1169,7 @@ class PhysioEngine {
             let rer = Utils.clamp(rerBase - fitnessAdj, 0.7, 1.0); let pctCarb = (rer - 0.7) / 0.3; let pctFat = 1.0 - pctCarb;
             let kcalMin = (vo2D * p.wKG * 5) / 1000;
             m.fCal = kcalMin*pctFat; m.cCal = kcalMin*pctCarb; m.cal = kcalMin;
+            m.dist = m.spd / 60;
         });
 
         return { matrix: m_raw, newTime: T };
@@ -1182,12 +1190,12 @@ class PhysioEngine {
 }
 
 class VoiceEngine {
-    constructor() { this.synth = window.speechSynthesis; this.q = []; this.state = 'IDLE'; this.wd = null; }
+    constructor() { this.synth = window.speechSynthesis; this.q = []; this.state = 'IDLE'; this.wd = null; this.muted = false; }
     unlock() { if(this.synth) { let u = new SpeechSynthesisUtterance(''); u.volume = 0; this.synth.speak(u); } }
     
     speakText(txt, pri, langCode, cb = null) {
-        if (!this.synth || AppState.state.runStatus === 'PAUSED' || AppState.state.runStatus === 'STOPPED') { if(cb) cb(); return; }
-        let p = AppState.state.profiles[AppState.state.activeP]; if(!p || !p.voiceOn) { if(cb) cb(); return; }
+        if (!this.synth || AppState.state.runStatus === 'PAUSED' || AppState.state.runStatus === 'STOPPED' || this.muted) { if(cb) cb(); return; }
+        let p = AppState.state.profiles[AppState.state.activeP]; if(!p || p.voiceOn === false) { if(cb) cb(); return; }
         if (document.visibilityState === 'hidden') { if (pri <= 2) NotificationManager.show(txt, pri === 1); if(cb) cb(); return; }
         
         if (AppState.state.minimalVoice && pri > 2) { if(cb) cb(); return; }
@@ -1225,7 +1233,7 @@ class VoiceEngine {
     }
     
     evaluateAndSpeak(data, age, maxLac) {
-        let p = AppState.state.profiles[AppState.state.activeP]; if(!p || !p.voiceOn || AppState.state.minimalVoice) return;
+        let p = AppState.state.profiles[AppState.state.activeP]; if(!p || p.voiceOn === false || AppState.state.minimalVoice) return;
         let cLang = p.lang; let isMet = p.unit !== 'imperial';
         if (data.hr > p.mHR - 5) { this.speakText(Utils.PRNG.get(cLang, 'warn_hr', VoiceDB[cLang].warn_hr), 1, cLang==='zh'?'zh-TW':'en-US'); return; }
         if (data.lac > maxLac - 2.0) { this.speakText(Utils.PRNG.get(cLang, 'warn_lac', VoiceDB[cLang].warn_lac), 1, cLang==='zh'?'zh-TW':'en-US'); return; }
@@ -1262,7 +1270,7 @@ const VoiceApp = new VoiceEngine();
 
 const DB = {
     db: null,
-    init: async () => { return new Promise((res, rej) => { let req = indexedDB.open('ProTreadmillDB_U45', 1); req.onupgradeneeded = e => { let d = e.target.result; if(!d.objectStoreNames.contains('history')) d.createObjectStore('history', {keyPath: 'id', autoIncrement: true}); }; req.onsuccess = e => { DB.db = e.target.result; res(); }; req.onerror = rej; }); },
+    init: async () => { return new Promise((res, rej) => { let req = indexedDB.open('ProTreadmillDB_U46', 1); req.onupgradeneeded = e => { let d = e.target.result; if(!d.objectStoreNames.contains('history')) d.createObjectStore('history', {keyPath: 'id', autoIncrement: true}); }; req.onsuccess = e => { DB.db = e.target.result; res(); }; req.onerror = rej; }); },
     saveHist: async (data) => { if(!DB.db) return; return new Promise((res) => { try { let tx = DB.db.transaction('history', 'readwrite'); let st = tx.objectStore('history'); st.add(data); st.getAll().onsuccess = e => { let runnerHists = e.target.result.filter(x => x.runnerName === data.runnerName).sort((a,b)=>a.date - b.date); if(runnerHists.length > 500) { let dTx = DB.db.transaction('history', 'readwrite'); runnerHists.slice(0, runnerHists.length - 500).forEach(x => dTx.objectStore('history').delete(x.id)); } if(runnerHists.length > 100) { let cTx = DB.db.transaction('history', 'readwrite'); let toCompress = runnerHists.slice(0, runnerHists.length - 100); toCompress.forEach(x => { if(x.matrix) { x.matrix = []; cTx.objectStore('history').put(x); } }); } }; tx.oncomplete = res; tx.onerror = res; } catch(e) { res(); } }); },
     renameRunnerHistory: async (oldName, newName) => { if(!DB.db) return; return new Promise(res => { try { let tx = DB.db.transaction('history', 'readwrite'); let st = tx.objectStore('history'); st.getAll().onsuccess = e => { e.target.result.forEach(r => { if(r.runnerName === oldName) { r.runnerName = newName; st.put(r); } }); }; tx.oncomplete = res; tx.onerror = res; } catch (err) { res(); } }); },
     getHist: async (runnerName) => { return new Promise((res) => { if(!DB.db) return res([]); let tx = DB.db.transaction('history', 'readonly'); let st = tx.objectStore('history'); st.getAll().onsuccess = e => res(e.target.result.filter(x => x.runnerName === runnerName).sort((a,b) => b.id - a.id)); }); },
@@ -1314,7 +1322,6 @@ class SwipeDial {
         const handle = () => { if(this.isUpdating) return; clearTimeout(this.timer); this.timer = setTimeout(() => this.handleSnap(), 200); };
         if ('onscrollend' in window) { this.scrollEl.addEventListener('scrollend', handle); } this.scrollEl.addEventListener('scroll', handle, {passive: true}); this.scrollEl.addEventListener('touchstart', () => { if(!this.isUpdating) clearTimeout(this.timer); }, {passive: true});
         this.scrollEl.addEventListener('click', (e) => {
-            if(this.scrollEl.parentElement.parentElement.classList.contains('locked')) return;
             let target = e.target.closest('.dial-item'); if(!target) return;
             this.setValue(parseFloat(target.dataset.val));
         });
@@ -1421,8 +1428,7 @@ class ChartManager {
             let m = (px === 'sum' && this.sumM) ? this.sumM : AppState.state.snapshot; if(!m || !m.length) return;
             let fIdx = this.hovTimeIdx; let cIdx = Math.min(Math.ceil(fIdx), m.length - 1); let f = Math.floor(fIdx); let frac = fIdx - f;
             let iSpd = m[f].spd*(1-frac) + m[cIdx].spd*frac; let iInc = m[f].inc*(1-frac) + m[cIdx].inc*frac;
-            let dStr = i18n[p.lang] || i18n['zh']; let phaseText = dStr.phases[m[f].phase] || m[f].phase;
-            Binder.updateBatch({ [`${px}HovMin`]: Utils.fmtTime(fIdx * 60000), [`${px}HovSpd`]: (isMet?iSpd:iSpd/1.609344).toFixed(1), [`${px}HovInc`]: iInc.toFixed(1), [`${px}HovPhase`]: phaseText, [`${px}HovLac`]: (m[f].lac*(1-frac) + m[cIdx].lac*frac).toFixed(1) });
+            Binder.updateBatch({ [`${px}HovMin`]: Utils.fmtTime(fIdx * 60000), [`${px}HovSpd`]: (isMet?iSpd:iSpd/1.609344).toFixed(1), [`${px}HovInc`]: iInc.toFixed(1), [`${px}HovHr`]: Math.round(m[f].hr*(1-frac) + m[cIdx].hr*frac), [`${px}HovLac`]: (m[f].lac*(1-frac) + m[cIdx].lac*frac).toFixed(1) });
         }
     }
 
@@ -1440,15 +1446,19 @@ class ChartManager {
 
 class AppController {
     constructor() {
-        this.dials = {}; this.adjDials = {}; this.charts = new ChartManager(); this.longPressTimer = null; 
+        this.dials = {}; this.adjDials = {}; this.charts = new ChartManager(); 
+        this.holdTimer = null; this.isHolding = false; this.swipeStartX = 0; this.swipeStartY = 0;
         this.viewingProfile = null; this._syncing = false; 
+        this.lastInteraction = 0;
 
         const setVH = () => document.documentElement.style.setProperty('--vh', `${(window.visualViewport ? window.visualViewport.height : window.innerHeight) * 0.01}px`);
         if(window.visualViewport) window.visualViewport.addEventListener('resize', setVH); setVH();
         window.addEventListener('beforeunload', () => { if(AppState.state.runStatus === 'RUNNING') this.persistRun(); });
+        document.body.addEventListener('touchstart', () => this.lastInteraction = Date.now(), {passive:true});
+        document.body.addEventListener('mousedown', () => this.lastInteraction = Date.now(), {passive:true});
         
         DB.init().then(() => this.initData()).catch(e => { console.warn('IDB', e); this.initData(); }).finally(() => { 
-            this.initDials(); this.bindEvents(); this.setupSubscribers(); 
+            this.initDials(); this.bindEvents();
             setTimeout(() => document.getElementById('splashScreen').style.opacity = '0', 800);
             setTimeout(() => document.getElementById('splashScreen').style.display = 'none', 1200);
         });
@@ -1457,16 +1467,18 @@ class AppController {
     initData() {
         let needsRecalc = true;
         try {
-            let s = null; try { s = JSON.parse(localStorage.getItem('pro_treadmill_v45')); } catch(e){}
-            if(s && s.profiles && Object.keys(s.profiles).length > 0 && s.schemaVersion === 1) { 
+            let s = null; try { s = JSON.parse(localStorage.getItem('pro_treadmill_v46')); } catch(e){}
+            if(s && s.profiles && Object.keys(s.profiles).length > 0) { 
                 AppState.batch({ activeP: s.activeP || Object.keys(s.profiles)[0], profiles: s.profiles, hw: s.hw }); 
             } else { 
                 let sysLang = navigator.language.includes('zh') ? 'zh' : 'en';
-                let p = PhysioEngine.sanitize({ name: 'Runner 1', gender: 'M', unit: 'metric', lang: sysLang, voiceOn: true, lastProg: 0, lastCat: 'ALL' }); 
+                let p = PhysioEngine.sanitize({ name: 'Runner 1', gender: 'M', unit: 'metric', lang: sysLang, voiceOn: true, lastProg: 0, lastCat: 'FAT_BURN' }); 
                 AppState.batch({ activeP: 'Runner 1', profiles: { 'Runner 1': p } }); 
             }
             
-            let r = null; try { r = JSON.parse(sessionStorage.getItem('runState_v45')); } catch(e){} 
+            this.setupSubscribers();
+
+            let r = null; try { r = JSON.parse(sessionStorage.getItem('runState_v46')); } catch(e){} 
             if(r && r.accumMs > 0 && r.snapshot && r.snapshot.length > 0) { 
                 let restoredStatus = r.runStatus || 'PAUSED';
                 let dtGap = Date.now() - (r.lastTimestamp || Date.now());
@@ -1474,12 +1486,13 @@ class AppController {
                 if(r.acc) { Object.assign(RunAcc, r.acc); }
                 
                 if (restoredStatus === 'RUNNING' && dtGap > 0 && dtGap < 86400000) { this.logicTick(dtGap); }
-                this.updateI18n(); this.updateUIDataOnly(); needsRecalc = false;
+                this.updateI18n(); this.updateUIDataOnly(); this.syncDialsToProfile(); needsRecalc = false;
             }
         } catch(fatalError) {
             let sysLang = navigator.language.includes('zh') ? 'zh' : 'en';
-            let p = PhysioEngine.sanitize({ name: 'Runner 1', gender: 'M', unit: 'metric', lang: sysLang, voiceOn: true, lastProg: 0, lastCat: 'ALL' }); 
+            let p = PhysioEngine.sanitize({ name: 'Runner 1', gender: 'M', unit: 'metric', lang: sysLang, voiceOn: true, lastProg: 0, lastCat: 'FAT_BURN' }); 
             AppState.batch({ activeP: 'Runner 1', profiles: { 'Runner 1': p } });
+            this.setupSubscribers();
             needsRecalc = true;
         }
 
@@ -1487,35 +1500,23 @@ class AppController {
     }
 
     initDials() {
-        const createDial = (id, key, isFloat, isSpd, step) => {
+        const createDial = (id, key, isFloat) => {
             return new SwipeDial(id, isFloat, val => {
                 if (this._syncing || AppState.state.runStatus !== 'STOPPED') return;
                 let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
-                let v = isSpd ? (isMet ? val : Utils.round(val * 1.609344)) : val;
-                if (key === 'maxSpd') { v = Math.max(v, p.minSpd); p.maxSpd = v; }
-                if (key === 'minSpd') { v = Math.min(v, p.maxSpd); p.minSpd = v; }
-                if (key === 'mxInc') { v = Math.max(v, p.mnInc); p.mxInc = Utils.roundInc(v); }
-                if (key === 'mnInc') { v = Math.min(v, p.mxInc); p.mnInc = Utils.roundInc(v); }
+                let v = isFloat ? (isMet ? val : Utils.round(val * 1.609344)) : val;
                 if (key === 'tTime') { v = Math.max(20, v); p.tTime = v; }
-                if (key === 'tKm') { p.tKm = isMet ? v : Utils.round(v * 1.609344); }
+                if (key === 'tKm') { p.tKm = v; }
                 this.saveData(); this.recalc();
             });
         };
-        this.dials.time = createDial('ds-time', 'tTime', false, false, 1); this.dials.dist = createDial('ds-dist', 'tKm', true, true, 0.1);
-        this.dials.mxs = createDial('ds-mxs', 'maxSpd', true, true, 0.1); this.dials.mns = createDial('ds-mns', 'minSpd', true, true, 0.1);
-        this.dials.mxi = createDial('ds-mxi', 'mxInc', true, false, 0.5); this.dials.mni = createDial('ds-mni', 'mnInc', true, false, 0.5);
+        this.dials.time = createDial('ds-time', 'tTime', false); this.dials.dist = createDial('ds-dist', 'tKm', true);
         this.adjDials.timeH = new SwipeDial('ds-adj-th', false, () => {}); this.adjDials.timeM = new SwipeDial('ds-adj-tm', false, () => {});
     }
 
     syncDialsToProfile() {
         this._syncing = true; let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
         this.dials.time.build(20, 180, 1); this.dials.time.setValue(p.tTime, true);
-        let isLocked = p.lastProg >= 11;
-        ['grp-mxs', 'grp-mns', 'grp-mxi', 'grp-mni', 'grp-dist'].forEach(id => { let el = document.getElementById(id); if (el) { if (isLocked) el.classList.add('locked'); else el.classList.remove('locked'); } });
-        this.dials.mxs.build(isMet ? Math.max(1.0, p.minSpd) : Math.max(0.6, p.minSpd/1.609344), isMet?25.0:15.5, 0.1); this.dials.mxs.setValue(isMet ? p.maxSpd : p.maxSpd / 1.609344, true);
-        this.dials.mns.build(0.0, isMet ? p.maxSpd : p.maxSpd/1.609344, 0.1); this.dials.mns.setValue(isMet ? p.minSpd : p.minSpd / 1.609344, true);
-        this.dials.mxi.build(p.mnInc, 20.0, 0.5); this.dials.mxi.setValue(p.mxInc, true);
-        this.dials.mni.build(0.0, p.mxInc, 0.5); this.dials.mni.setValue(p.mnInc, true);
         this.dials.dist.build(1.0, 100.0, 0.1); this.dials.dist.setValue(isMet ? p.tKm : p.tKm / 1.609344, true);
         setTimeout(() => { this._syncing = false; }, 100);
     }
@@ -1524,17 +1525,19 @@ class AppController {
         let p = AppState.state.profiles[AppState.state.activeP]; let d = i18n[p.lang] || i18n['zh']; let isMet = p.unit !== 'imperial';
         document.getElementById('htmlRoot').lang = p.lang === 'zh' ? 'zh-TW' : 'en';
         document.getElementById('tabSettings').textContent = d.tab1; document.getElementById('tabMatrix').textContent = d.tab2;
-        ['tim','km','mxI','mxS','mnI','mnS'].forEach(k => { let key = k; if(!isMet && (k==='mxS'||k==='mnS')) key += 'Imp'; let el = document.getElementById(`lbl${k==='tim'?'TotalTime':k==='km'?'TargetKm':`Set${k.charAt(0).toUpperCase()+k.slice(1)}`}`); if(el) el.textContent = d[key]; });
+        ['tim','km'].forEach(k => { let el = document.getElementById(`lbl${k==='tim'?'TotalTime':'TargetKm'}`); if(el) el.textContent = d[k]; });
         for(let i=1;i<=5;i++) { let text = d[`hud${i}`]; document.getElementById(`hudH${i}`).textContent = text; document.getElementById(`hudRH${i}`).textContent = text; document.getElementById(`sumH${i}`).textContent = text; }
         ['Avg','Max','RAvg','RMax','SumAvg','SumMax'].forEach(k => { let el=document.getElementById(`lbl${k}`); if(el) el.textContent = d[k.toLowerCase().includes('avg')?'avg':'max']; });
         ['Inc','Spd','Dist','Pace','Hr','Lac','Elev'].forEach(k => { let el = document.getElementById(`lblRun${k}`); if(el) el.textContent = d[`r${k}`]; });
         ['Time','Inc','Spd','Phase','Hr','Lac'].forEach(k => { let el = document.getElementById(`th${k}`); if(el) el.textContent = d[`th${k}`]; });
         ['BtnLeft','Pause'].forEach(k => document.getElementById(`lbl${k}`).textContent = d[`btn${k}`]); document.getElementById('lblEnd').textContent = d.btnHold;
         
+        document.getElementById('lblOffsetSpd').textContent = d.lblOffsetSpd; document.getElementById('lblOffsetInc').textContent = d.lblOffsetInc;
+
         document.getElementById('lblRmTitle').textContent = d.rmTitle; document.getElementById('lblRmName').textContent = d.rmName; document.getElementById('lblRmPhysio').textContent = d.rmPhy;
         document.getElementById('lblAge').textContent = d.rmAge; document.getElementById('lblWgt').textContent = d.rmWgt; document.getElementById('lblAdvTitle').textContent = d.rmAdv;
-        ['RHR','MHR','SMM','BF','VO2','ECW'].forEach(k => { let el = document.getElementById(`lbl${k}`); if(el) el.textContent = d[`r${k}`] || d[k.toLowerCase()] || d[k]; });
-        document.getElementById('lblHwTitle').textContent = d.hwTitle; ['MxS','MnS','MxI','MnI'].forEach(k => document.getElementById(`lblHw${k}`).textContent = d[`h${k}`]);
+        ['RHR','MHR','SMM','BF','VO2','ECW','BaseMxS','BaseMnS','BaseMxI','BaseMnI'].forEach(k => { let el = document.getElementById(`lbl${k}`); if(el) el.textContent = d[`r${k}`] || d[`lbl${k}`] || d[k.toLowerCase()] || d[k]; });
+        document.getElementById('lblHwTitle').textContent = d.hwTitle; ['MxS','MnS','MxI','MnI'].forEach(k => { let el = document.getElementById(`lblHw${k}`); if(el) el.textContent = d[`h${k}`]; });
         document.getElementById('lblRmPref').textContent = d.rmPref; document.getElementById('btnRmCancel').textContent = d.btnCancel; document.getElementById('btnRmSave').textContent = d.btnSave;
         document.getElementById('lblHistTitle').textContent = d.histTitle;
         document.getElementById('btnLangZh').textContent = d.langZh; document.getElementById('btnLangEn').textContent = d.langEn;
@@ -1548,6 +1551,7 @@ class AppController {
         document.getElementById('unitRunElev').textContent = isMet ? 'm' : 'ft'; document.getElementById('unitAge').textContent = d.unitAge || '';
         document.getElementById('unitWgt').textContent = isMet ? 'kg' : 'lbs'; document.getElementById('unitSmm').textContent = isMet ? 'kg' : 'lbs';
         document.getElementById('unitMxS2').textContent = isMet ? 'kph' : 'mph'; document.getElementById('unitMnS2').textContent = isMet ? 'kph' : 'mph';
+        document.getElementById('unitBaseMxS').textContent = isMet ? 'kph' : 'mph'; document.getElementById('unitBaseMnS').textContent = isMet ? 'kph' : 'mph';
     }
 
     openModal(id) { document.querySelectorAll('.modal-overlay.show').forEach(el => el.classList.remove('show')); document.getElementById(id).classList.add('show'); }
@@ -1560,9 +1564,18 @@ class AppController {
             let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial'; let dStr = i18n[p.lang] || i18n['zh'];
             
             if(a === 'tab-settings') { AppState.state.activeTab = 'settings'; this.charts.teardown(); }
-            else if(a === 'tab-matrix') { AppState.state.activeTab = 'matrix'; this.charts.teardown(); }
-            else if(a === 'select-cat') { p.lastCat = t.dataset.cat; this.updateUIDataOnly(); }
-            else if(a === 'select-prog' && AppState.state.runStatus === 'STOPPED') { p.lastProg = parseInt(t.dataset.pid); p.spdOffset = 0; p.incOffset = 0; this.saveData(); this.recalc(); }
+            else if(a === 'tab-matrix') { AppState.state.activeTab = 'matrix'; this.charts.teardown(); this.scrollToRow(); }
+            else if(a === 'select-cat') { 
+                let cat = t.dataset.cat; p.lastCat = cat; 
+                if(!p.catMemory) p.catMemory = {}; 
+                p.lastProg = p.catMemory[cat] !== undefined ? p.catMemory[cat] : PROG_CATEGORIES[cat][0];
+                p.spdOffset = 0; p.incOffset = 0; this.saveData(); this.recalc(); 
+            }
+            else if(a === 'select-prog' && AppState.state.runStatus === 'STOPPED') { 
+                let pid = parseInt(t.dataset.pid); p.lastProg = pid; 
+                if(!p.catMemory) p.catMemory = {}; p.catMemory[p.lastCat] = pid;
+                p.spdOffset = 0; p.incOffset = 0; this.saveData(); this.recalc(); 
+            }
             else if(a === 'pause' || a === 'pause-catch') { 
                 if(AppState.state.runStatus === 'RUNNING') { 
                     AppState.state.runStatus = 'PAUSED'; 
@@ -1625,35 +1638,57 @@ class AppController {
                 NotificationManager.show(AppState.state.isBailOut ? dStr.bailOutOn : dStr.bailOutOff, AppState.state.isBailOut);
             }
             else if(a === 'toggle-voice-mode') {
-                AppState.state.minimalVoice = !AppState.state.minimalVoice;
-                t.classList.toggle('minimal', AppState.state.minimalVoice);
-                t.innerHTML = AppState.state.minimalVoice ? '<svg viewBox="0 0 24 24"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
+                p.voiceOn = !p.voiceOn; this.saveData();
+                t.classList.toggle('minimal', !p.voiceOn);
+                t.innerHTML = !p.voiceOn ? '<svg viewBox="0 0 24 24"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
+                NotificationManager.show(p.voiceOn ? dStr.voiceOn : dStr.voiceOff, !p.voiceOn);
                 this.persistRun();
+            }
+            else if (a === 'open-hist-detail') {
+                let idx = parseInt(t.dataset.idx); let runnerName = document.getElementById('histRunnerSelect').value;
+                DB.getHist(runnerName).then(data => {
+                    let hD = data[idx]; if (!hD) return;
+                    if(!hD.fCal) hD.fCal = hD.cal * 0.5 || 0; 
+                    this.viewingProfile = AppState.state.profiles[hD.runnerName];
+                    this.showSummaryModal(hD.ms, hD.totMs || (hD.matrix ? hD.matrix.length*60000 : 0), hD.distKm, hD.elevM || 0, hD.fCal, hD.cCal, hD.actualAvg, hD.actualMax, hD.z || [0,0,0,0,0], hD.matrix, hD.pausePenalty);
+                });
+            }
+            else if(a === 'offset-spd-minus' || a === 'offset-spd-plus' || a === 'offset-inc-minus' || a === 'offset-inc-plus' || a === 'btn-spd-up' || a === 'btn-spd-down' || a === 'btn-inc-up' || a === 'btn-inc-down') {
+                if (AppState.state.runStatus === 'STOPPED' && (a.includes('btn-'))) return;
+                if(AppState.state.isBailOut) { AppState.state.isBailOut = false; document.getElementById('btnBailOut').classList.remove('active'); }
+                
+                let isSpd = a.includes('spd'); let isUp = a.includes('plus') || a.includes('up');
+                let step = isSpd ? (isMet ? 0.1 : Utils.round(0.1 * 1.609344)) : 0.5;
+                if(isSpd) { p.spdOffset += (isUp ? step : -step); } else { p.incOffset += (isUp ? step : -step); }
+                this.saveData(); this.recalc(AppState.state.runStatus === 'STOPPED');
+                if (AppState.state.runStatus !== 'STOPPED') this.performMatrixSplicing();
             }
         });
 
-        const setupRepeater = (actionName, targetProp) => {
+        const setupRepeater = (actionName) => {
             document.querySelectorAll(`[data-action="${actionName}"]`).forEach(btn => {
-                let tRef = null; let speed = 300; let step = targetProp === 'spdOffset' ? 0.1 : 0.5; let isUp = actionName.includes('-up');
+                let tRef = null; let speed = 300; let isUp = actionName.includes('-up') || actionName.includes('-plus'); let isSpd = actionName.includes('spd');
                 const exec = () => {
-                    if (AppState.state.runStatus === 'STOPPED') return;
+                    if (AppState.state.runStatus === 'STOPPED' && actionName.includes('btn-')) return;
                     let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
                     if(AppState.state.isBailOut) { AppState.state.isBailOut = false; document.getElementById('btnBailOut').classList.remove('active'); }
-                    let actualStep = targetProp === 'spdOffset' ? (isMet ? step : Utils.round(step * 1.609344)) : step;
-                    p[targetProp] += (isUp ? actualStep : -actualStep);
-                    this.saveData(); this.performMatrixSplicing();
+                    let step = isSpd ? (isMet ? 0.1 : Utils.round(0.1 * 1.609344)) : 0.5;
+                    if(isSpd) p.spdOffset += (isUp ? step : -step); else p.incOffset += (isUp ? step : -step);
+                    this.saveData(); 
+                    if(AppState.state.runStatus === 'STOPPED') this.recalc(true); else this.performMatrixSplicing();
                 };
-                const start = (e) => { e.preventDefault(); exec(); tRef = setTimeout(function repeat() { exec(); speed = Math.max(100, speed - 20); tRef = setTimeout(repeat, speed); }, speed); };
+                const start = (e) => { e.preventDefault(); tRef = setTimeout(function repeat() { exec(); speed = Math.max(100, speed - 20); tRef = setTimeout(repeat, speed); }, speed); };
                 const stop = () => { clearTimeout(tRef); speed = 300; };
                 btn.addEventListener('pointerdown', start); btn.addEventListener('pointerup', stop); btn.addEventListener('pointerleave', stop); btn.addEventListener('touchcancel', stop);
             });
         };
-        setupRepeater('btn-spd-up', 'spdOffset'); setupRepeater('btn-spd-down', 'spdOffset'); setupRepeater('btn-inc-up', 'incOffset'); setupRepeater('btn-inc-down', 'incOffset');
+        setupRepeater('btn-spd-up'); setupRepeater('btn-spd-down'); setupRepeater('btn-inc-up'); setupRepeater('btn-inc-down');
+        setupRepeater('offset-spd-plus'); setupRepeater('offset-spd-minus'); setupRepeater('offset-inc-plus'); setupRepeater('offset-inc-minus');
 
         const btnStart = document.getElementById('btnRight');
         btnStart.addEventListener('pointerup', async () => {
             if(screen.orientation && screen.orientation.lock) screen.orientation.lock('portrait').catch(()=>{});
-            document.getElementById('silentAudio').play().catch(()=>{}); document.getElementById('wakeLockVideo').play().catch(()=>{});
+            document.getElementById('silentAudio').play().catch(()=>{});
             VoiceApp.unlock(); this.charts.teardown();
             
             if (AppState.state.runStatus === 'RUNNING' || AppState.state.runStatus === 'PRE_FLIGHT') return;
@@ -1672,7 +1707,7 @@ class AppController {
                 }
             } else {
                 AppState.state.runStatus = 'PRE_FLIGHT';
-                this.dials.time.forceSnap(); this.dials.dist.forceSnap(); this.dials.mxs.forceSnap(); this.dials.mns.forceSnap(); this.dials.mxi.forceSnap(); this.dials.mni.forceSnap();
+                this.dials.time.forceSnap(); this.dials.dist.forceSnap();
                 await new Promise(r => setTimeout(r, 200)); if (AppState.state.runStatus !== 'PRE_FLIGHT') return; 
 
                 resetRunAcc(); AppState.state.isBailOut = false; document.getElementById('btnBailOut').classList.remove('active');
@@ -1686,10 +1721,21 @@ class AppController {
             }
         });
 
-        const swipeEnd = document.getElementById('btnEndSwipe'); let swipeStartX = 0;
-        swipeEnd.addEventListener('touchstart', e => swipeStartX = e.touches[0].clientX, {passive:true});
-        swipeEnd.addEventListener('touchmove', e => { let d = e.touches[0].clientX - swipeStartX; if(d > 0 && d < 120) swipeEnd.style.transform = `translateX(${d}px)`; else if(d >= 120) { swipeEnd.style.transform = 'translateX(0)'; this.endWorkout(); } }, {passive:true});
-        swipeEnd.addEventListener('touchend', () => swipeEnd.style.transform = 'translateX(0)', {passive:true});
+        // Hold & Swipe End fusion
+        const btnEnd = document.getElementById('btnAskEnd');
+        btnEnd.addEventListener('touchstart', e => {
+           if(AppState.state.runStatus === 'STOPPED' || AppState.state.runStatus === 'PRE_FLIGHT') return;
+           this.swipeStartX = e.touches[0].clientX; this.swipeStartY = e.touches[0].clientY;
+           this.isHolding = true; btnEnd.classList.add('holding');
+           this.holdTimer = setTimeout(() => { if(this.isHolding) { btnEnd.classList.remove('holding'); this.endWorkout(); } }, 1500);
+        }, {passive:true});
+        btnEnd.addEventListener('touchmove', e => {
+           if(!this.isHolding && !this.swipeStartX) return;
+           let dX = Math.abs(e.touches[0].clientX - this.swipeStartX); let dY = Math.abs(e.touches[0].clientY - this.swipeStartY);
+           if(this.isHolding && (dX > 15 || dY > 15)) { this.isHolding = false; clearTimeout(this.holdTimer); btnEnd.classList.remove('holding'); }
+           if(!this.isHolding && (e.touches[0].clientX - this.swipeStartX) > 120) { this.swipeStartX = 0; this.endWorkout(); }
+        }, {passive:true});
+        btnEnd.addEventListener('touchend', () => { this.isHolding = false; clearTimeout(this.holdTimer); btnEnd.classList.remove('holding'); }, {passive:true});
 
         let rmForm = document.getElementById('runnerModal');
         rmForm.addEventListener('input', (e) => { this.validateRunnerForm(); if (['rmSMM', 'rmBF', 'rmECW', 'btnSexM', 'btnSexF', 'btnUnitMet', 'btnUnitImp'].includes(e.target.id) || e.target.closest('.seg-btn')) { this.autoFillRHR(); } });
@@ -1749,12 +1795,15 @@ class AppController {
 
     clearRunnerForm() {
         let p = AppState.state.profiles[AppState.state.activeP]; let d = i18n[p.lang] || i18n['zh']; document.getElementById('rmName').value = ''; document.getElementById('lblNameError').textContent = d.errNameExist;
-        ['rmAge','rmWeight','rmSMM','rmBF','rmRHR','rmMHR','rmECW','rmVO2'].forEach(id => { let el = document.getElementById(id); if (el) el.value = ''; if (id === 'rmRHR') el.dataset.manual = 'false'; }); this.autoFillRHR();
+        ['rmAge','rmWeight','rmSMM','rmBF','rmRHR','rmMHR','rmECW','rmVO2', 'rmMxS', 'rmMnS', 'rmMxI', 'rmMnI'].forEach(id => { let el = document.getElementById(id); if (el) el.value = ''; if (id === 'rmRHR') el.dataset.manual = 'false'; }); this.autoFillRHR();
     }
 
     syncFormToProfile() {
         let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial'; const getV = (id, f) => (parseFloat(document.getElementById(id).value)||0) * f;
         p.weight = getV('rmWeight', isMet ? 1 : 1/2.20462); p.smm = getV('rmSMM', isMet ? 1 : 1/2.20462); p.bf = parseFloat(document.getElementById('rmBF').value) || null; p.ecw = parseFloat(document.getElementById('rmECW').value) || null; p.customRHR = parseFloat(document.getElementById('rmRHR').value) || null; p.customMHR = parseFloat(document.getElementById('rmMHR').value) || null; p.customVO2 = parseFloat(document.getElementById('rmVO2').value) || null;
+        
+        p.maxSpd = getV('rmMxS', isMet ? 1 : 1.609344); p.minSpd = getV('rmMnS', isMet ? 1 : 1.609344); p.mxInc = parseFloat(document.getElementById('rmMxI').value) || 15; p.mnInc = parseFloat(document.getElementById('rmMnI').value) || 0;
+
         AppState.state.hw.maxSpd = getV('hwMxS', isMet ? 1 : 1.609344); AppState.state.hw.minSpd = getV('hwMnS', isMet ? 1 : 1.609344); AppState.state.hw.maxInc = parseFloat(document.getElementById('hwMxI').value) || 15; AppState.state.hw.minInc = parseFloat(document.getElementById('hwMnI').value) || 0;
     }
 
@@ -1763,7 +1812,11 @@ class AppController {
         document.getElementById('rmName').value = p.name;
         setV('rmAge', p.age); setV('rmWeight', isMet?p.weight:p.weight*2.20462); setV('rmSMM', isMet?p.smm:p.smm*2.20462); setV('rmBF', p.bf); setV('rmECW', p.ecw || 0.375); setV('rmRHR', p.customRHR); 
         let rhrEl = document.getElementById('rmRHR'); if(rhrEl) rhrEl.dataset.manual = p.customRHR ? 'true' : 'false';
-        setV('rmMHR', p.customMHR); setV('rmVO2', p.customVO2); setV('hwMxS', isMet?hw.maxSpd:hw.maxSpd/1.609344); setV('hwMnS', isMet?hw.minSpd:hw.minSpd/1.609344); setV('hwMxI', hw.maxInc); setV('hwMnI', hw.minInc);
+        setV('rmMHR', p.customMHR); setV('rmVO2', p.customVO2); 
+        
+        setV('rmMxS', isMet?p.maxSpd:p.maxSpd/1.609344); setV('rmMnS', isMet?p.minSpd:p.minSpd/1.609344); setV('rmMxI', p.mxInc); setV('rmMnI', p.mnInc);
+
+        setV('hwMxS', isMet?hw.maxSpd:hw.maxSpd/1.609344); setV('hwMnS', isMet?hw.minSpd:hw.minSpd/1.609344); setV('hwMxI', hw.maxInc); setV('hwMnI', hw.minInc);
         const setS = (id, v) => { let c=document.getElementById(id); c.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active')); let b=c.querySelector(`[data-val="${v}"]`); if(b) { b.classList.add('active'); c.querySelector('.seg-indicator').style.left= b.dataset.idx === '0' ? '4px' : 'calc(50% + 0px)'; } };
         setS('segLang', p.lang||'zh'); setS('segVoice', p.voiceOn?'on':'off'); setS('segUnit', p.unit); setS('segSex', p.gender); this.validateRunnerForm();
     }
@@ -1772,6 +1825,16 @@ class AppController {
         let wrap = document.getElementById('runnerSelectorRow'); wrap.innerHTML = ''; let d = i18n[AppState.state.profiles[AppState.state.activeP].lang] || i18n['zh'];
         Object.keys(AppState.state.profiles).forEach(k => { let t = document.createElement('div'); t.className = `runner-tag ${k===AppState.state.activeP ? 'active':''}`; t.textContent = k; t.dataset.action = 'switch-runner'; t.dataset.name = k; wrap.appendChild(t); });
         let add = document.createElement('div'); add.className = 'runner-tag add-new'; add.textContent = d.btnAdd; add.dataset.action = 'add-runner-mode'; wrap.appendChild(add); this.validateRunnerForm();
+    }
+
+    applyPulseAnimation(rowIndex, doSpd, doInc) { let nRow = document.getElementById(`min-row-${rowIndex}`); if(nRow) { if(doSpd) nRow.querySelector('.list-col-spd').classList.add('pulse-spd-active'); if(doInc) nRow.querySelector('.list-col-inc').classList.add('pulse-inc-active'); } }
+
+    scrollToRow() {
+        let cM = Math.floor(AppState.state.accumMs / 60000); let ul = document.getElementById('previewList'); if(!ul) return;
+        Array.from(ul.children).forEach((li, idx) => { 
+            if(idx === cM) { li.classList.add('active-row'); if(AppState.state.activeTab === 'matrix') { let tc2 = document.getElementById('tabContent2'); if(tc2) tc2.scrollTo({ top: li.offsetTop - tc2.clientHeight / 2 + li.clientHeight / 2, behavior: 'smooth' }); } } 
+            else { li.classList.remove('active-row'); let s = li.querySelector('.list-col-spd'); if(s) s.classList.remove('pulse-spd-active'); let i = li.querySelector('.list-col-inc'); if(i) i.classList.remove('pulse-inc-active'); }
+        });
     }
 
     setupSubscribers() {
@@ -1796,10 +1859,11 @@ class AppController {
             if (R) { BgWorker.postMessage('START'); } 
             else if (s === 'PAUSED' || S) { BgWorker.postMessage('STOP'); VoiceApp.clear(); }
         });
+
         AppState.subscribe('activeTab', t => {
             let isS = t === 'settings'; document.getElementById('tabSettings').classList.toggle('active', isS); document.getElementById('tabMatrix').classList.toggle('active', !isS);
             document.getElementById('tabIndicator').style.transform = isS ? 'translateX(0)' : 'translateX(100%)'; document.getElementById('viewsSlider').style.transform = isS ? 'translateX(0)' : 'translateX(-50%)';
-            if(!isS) this.renderPreviewList();
+            if(!isS) { this.renderPreviewList(); this.scrollToRow(); }
         });
     }
 
@@ -1807,8 +1871,12 @@ class AppController {
         let p = AppState.state.profiles[AppState.state.activeP]; let cM = Math.floor(AppState.state.accumMs / 60000);
         let res = PhysioEngine.solveBlueprint(p, AppState.state.hw, cM, AppState.state.snapshot);
         AppState.state.snapshot = res.matrix; this.saveData(); this.charts.drawAll(); this.renderPreviewList();
+        
+        let isMet = p.unit !== 'imperial';
+        Binder.updateBatch({ uiSpdOff: (isMet ? p.spdOffset : p.spdOffset/1.609344).toFixed(1), uiIncOff: p.incOffset.toFixed(1) });
+        
         if (AppState.state.runStatus === 'RUNNING') {
-            let curM = AppState.state.snapshot[cM]; let isMet = p.unit !== 'imperial';
+            let curM = AppState.state.snapshot[cM]; 
             if(!AppState.state.isBailOut) { TweenApp.to('runValSpd', isMet?curM.spd:curM.spd/1.609344, v => v.toFixed(1), true); TweenApp.to('runValInc', curM.inc, v => v.toFixed(1), true); }
         }
     }
@@ -1828,7 +1896,7 @@ class AppController {
 
     _macroSimulate(dt) {
         let m = AppState.state.snapshot; let ms = AppState.state.accumMs; let p = AppState.state.profiles[AppState.state.activeP]; let pClean = PhysioEngine.sanitize(p); let isMet = p.unit !== 'imperial';
-        let oldM = Math.floor(ms/60000);
+        
         AppState.state.accumMs += dt; ms += dt; let cM = Math.floor(ms/60000); let safeM = Math.min(cM, m.length - 1); let curM = m[safeM];
         
         let elapsedSec = dt / 1000;
@@ -1839,6 +1907,17 @@ class AppController {
         RunAcc.curHr = curM.hr; RunAcc.curLac = curM.lac; RunAcc.sumHr += RunAcc.curHr * elapsedSec; RunAcc.sumLac += RunAcc.curLac * elapsedSec;
         
         RunAcc.fCal += (curM.fCal / 60) * elapsedSec; RunAcc.cCal += (curM.cCal / 60) * elapsedSec;
+
+        // Skip zs tracking logic here because macroSimulate jumps time and interpolating Z1-Z5 purely linearily introduces huge errors over big jumps.
+        // It's acceptable to ignore zone times during long sleep, or approximate it to the final zone. We will just add the whole elapsed time to the current zone.
+        let HRR = pClean.mHR - pClean.rHR; let hrIntensity = (RunAcc.curHr - pClean.rHR) / HRR;
+        let z = hrIntensity < 0.6 ? 1 : (hrIntensity < 0.7 ? 2 : (hrIntensity < 0.8 ? 3 : (hrIntensity < 0.9 ? 4 : 5)));
+        RunAcc.zs[z - 1] += (dt / 60000);
+
+        if(RunAcc.curSpd > RunAcc.mxS) RunAcc.mxS = RunAcc.curSpd;
+        if(RunAcc.curInc > RunAcc.mxI) RunAcc.mxI = RunAcc.curInc;
+        if(RunAcc.curHr > RunAcc.mxH) RunAcc.mxH = Math.round(RunAcc.curHr); 
+        if(RunAcc.curLac > RunAcc.mxL) RunAcc.mxL = RunAcc.curLac;
 
         TweenApp.to('runValSpd', isMet?activeSpd:activeSpd/1.609344, v => v.toFixed(1), true); TweenApp.to('runValInc', activeInc, v => v.toFixed(1), true);
         
@@ -1921,21 +2000,49 @@ class AppController {
         if (Math.floor(ms/1000) !== Math.floor((ms-dt)/1000)) this.charts.drawAll(); 
 
         let isVisuallyChanged = Math.abs(nextM.spd - curM.spd) >= 0.1 || Math.abs(nextM.inc - curM.inc) >= 0.1;
-        if (cS >= 45000 && safeM < m.length - 1 && Math.floor((ms-dt)%60000) < 45000 && isVisuallyChanged && !AppState.state.isBailOut) {
+        
+        if (!RunAcc.transF[safeM]) RunAcc.transF[safeM] = { autoTab: false, warned: false, pulsing: false };
+        
+        // 45 秒預警與全域霓虹燈
+        if (cS >= 45000 && safeM < m.length - 1 && isVisuallyChanged && !RunAcc.transF[safeM].warned && !AppState.state.isBailOut) {
+            RunAcc.transF[safeM].warned = true;
             let transMsg = dStr.transMsgPre.replace('{s}', (isMet?nextM.spd:nextM.spd/1.609344).toFixed(1)).replace('{i}', nextM.inc.toFixed(1));
             VoiceApp.speakText(transMsg, 2, p.lang==='zh'?'zh-TW':'en-US');
-            let li = document.getElementById(`min-row-${safeM + 1}`);
-            if(li) { if(Math.abs(nextM.spd - curM.spd) >= 0.1) li.querySelector('.list-col-spd').classList.add('pulse-spd-active'); if(Math.abs(nextM.inc - curM.inc) >= 0.1) li.querySelector('.list-col-inc').classList.add('pulse-inc-active'); }
+            
+            // Check interaction
+            let userInteracting = (Date.now() - this.lastInteraction) < 5000;
+            
+            if (!userInteracting) {
+                // Not interacting -> Force Switch & flash list
+                AppState.state.activeTab = 'matrix'; 
+                RunAcc.transF[safeM].pulsing = true;
+                this.applyPulseAnimation(safeM + 1, Math.abs(nextM.spd - curM.spd) >= 0.1, Math.abs(nextM.inc - curM.inc) >= 0.1);
+            } else {
+                // Interacting -> Flash Header instead
+                document.getElementById('header').classList.add('pulse-warn-header');
+            }
+        }
+
+        // 55-60秒歸位
+        if (cS >= 55000 && RunAcc.transF[safeM].warned && !RunAcc.transF[safeM].autoTab) {
+            RunAcc.transF[safeM].autoTab = true;
+            document.getElementById('header').classList.remove('pulse-warn-header');
+            if (AppState.state.activeTab === 'matrix' && RunAcc.transF[safeM].pulsing) {
+                AppState.state.activeTab = 'settings';
+                RunAcc.transF[safeM].pulsing = false;
+            }
         }
 
         if (oldM !== cM) {
+            document.getElementById('header').classList.remove('pulse-warn-header');
             if(!AppState.state.isBailOut) { TweenApp.to('runValSpd', isMet?curM.spd:curM.spd/1.609344, v => v.toFixed(1), true); TweenApp.to('runValInc', curM.inc, v => v.toFixed(1), true); }
-            let ul = document.getElementById('previewList'); if(ul) Array.from(ul.children).forEach((li, idx) => li.classList.toggle('active-row', idx === cM));
+            this.scrollToRow();
         }
 
         if(Math.floor(ms/30000) !== Math.floor((ms-dt)/30000)) { VoiceApp.evaluateAndSpeak({ hr: RunAcc.curHr, lac: RunAcc.curLac, spd: targetSpd, inc: targetInc, phase: curM.phase }, pClean.age, pClean.pMaxLac); }
 
         document.getElementById('warnCapSpd').style.display = (targetSpd !== curM.rawSpd) ? 'block' : 'none';
+        document.getElementById('warnCapInc').style.display = (targetInc !== curM.rawInc) ? 'block' : 'none';
     }
 
     recalc(fullReset = true) {
@@ -1955,9 +2062,15 @@ class AppController {
         ul.innerHTML = ''; let cM = Math.floor(AppState.state.accumMs / 60000);
         m.forEach((r, i) => {
             let li = document.createElement('li'); li.id = `min-row-${i}`; li.className = `pace-grid-row ${i===cM?'active-row':''}`;
-            li.innerHTML = `<span class="list-col-time">${Utils.fmtTime(i*60000)}</span><span class="list-col-inc">${r.inc.toFixed(1)}%</span><span class="list-col-spd">${(isMet?r.spd:r.spd/1.609344).toFixed(1)}</span><span class="list-col-phase">${vdb[r.phase]||r.phase}</span><span class="list-col-hr">${Math.round(r.hr)}</span><span class="list-col-lac">${r.lac.toFixed(1)}</span>`;
+            let isMaxLac = r.lac >= (p.pMaxLac || 18); if(isMaxLac) li.classList.add('max-lac-row');
+            li.innerHTML = `<span class="list-col-time">${Utils.fmtTime(i*60000)}</span><span class="list-col-inc">${r.inc.toFixed(1)}%</span><span class="list-col-spd">${(isMet?r.spd:r.spd/1.609344).toFixed(1)}</span><span class="list-col-phase">${vdb[r.phase]||r.phase}</span><span class="list-col-hr" style="${isMaxLac?'color:var(--neon-red);':''}">${Math.round(r.hr)}</span><span class="list-col-lac">${r.lac.toFixed(1)}</span>`;
             ul.appendChild(li);
         });
+
+        if (RunAcc.transF[cM] && RunAcc.transF[cM].pulsing) {
+            let nextM = AppState.state.snapshot[cM+1];
+            if (nextM) this.applyPulseAnimation(cM + 1, Math.abs(nextM.spd - m[cM].spd) >= 0.1, Math.abs(nextM.inc - m[cM].inc) >= 0.1);
+        }
     }
 
     updateUIDataOnly() {
@@ -1967,13 +2080,15 @@ class AppController {
         document.getElementById('btnVoiceToggle').classList.toggle('minimal', AppState.state.minimalVoice);
         document.getElementById('iconVoiceFull').innerHTML = AppState.state.minimalVoice ? '<path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>' : '<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>';
         
+        Binder.updateBatch({ uiSpdOff: (isMet ? p.spdOffset : p.spdOffset/1.609344).toFixed(1), uiIncOff: p.incOffset.toFixed(1) });
+
         let cTabs = document.getElementById('catTabs'); cTabs.innerHTML = '';
         Object.keys(PROG_CATEGORIES).forEach(cat => {
             let btn = document.createElement('div'); btn.className = `cat-btn ${cat === p.lastCat ? 'active' : ''}`; btn.textContent = d.cats[cat] || cat; btn.dataset.action = 'select-cat'; btn.dataset.cat = cat; cTabs.appendChild(btn);
         });
 
         let pg = document.getElementById('progGrid'); pg.innerHTML = '';
-        let showList = PROG_CATEGORIES[p.lastCat] || PROG_CATEGORIES['ALL'];
+        let showList = PROG_CATEGORIES[p.lastCat] || PROG_CATEGORIES['FAT_BURN'];
         for(let i=0; i<=20; i++) {
             let btn = document.createElement('div'); btn.className = `prog-card ${showList.includes(i) ? '' : 'hide'}`; btn.dataset.action = 'select-prog'; btn.dataset.pid = i;
             btn.innerHTML = `<div class="p-title">${d.prog[`p${i}`][0]}</div><div class="p-desc">${d.prog[`p${i}`][1]}</div>`; pg.appendChild(btn);
@@ -2008,11 +2123,20 @@ class AppController {
         let name = document.getElementById('rmName').value.trim(); if(!name) return;
         let isNew = document.querySelector('.runner-tag.add-new').classList.contains('active'); if (isNew && AppState.state.profiles[name]) return; 
         let isMet = document.querySelector('#segUnit .seg-btn.active').dataset.val === 'metric'; let actP = AppState.state.profiles[AppState.state.activeP];
-        let p = { name, gender: document.querySelector('#segSex .seg-btn.active').dataset.val, unit: isMet?'metric':'imperial', lang: document.querySelector('#segLang .seg-btn.active').dataset.val, voiceOn: document.querySelector('#segVoice .seg-btn.active').dataset.val==='on', age: parseFloat(document.getElementById('rmAge').value)||35, tTime: isNew ? 30 : actP.tTime, tKm: isNew ? 5.0 : actP.tKm, lastProg: isNew ? 0 : actP.lastProg, lastCat: isNew ? 'ALL' : actP.lastCat, maxSpd: isNew ? 15.0 : actP.maxSpd, minSpd: isNew ? 2.0 : actP.minSpd, mxInc: isNew ? 5.0 : actP.mxInc, mnInc: isNew ? 0.0 : actP.mnInc, spdOffset: isNew?0:actP.spdOffset, incOffset: isNew?0:actP.incOffset };
         
         const getV = (id, f) => (parseFloat(document.getElementById(id).value)||0)*f;
+
+        let p = { 
+            name, gender: document.querySelector('#segSex .seg-btn.active').dataset.val, unit: isMet?'metric':'imperial', lang: document.querySelector('#segLang .seg-btn.active').dataset.val, voiceOn: document.querySelector('#segVoice .seg-btn.active').dataset.val==='on', 
+            age: parseFloat(document.getElementById('rmAge').value)||35, tTime: isNew ? 30 : actP.tTime, tKm: isNew ? 5.0 : actP.tKm, lastProg: isNew ? 0 : actP.lastProg, lastCat: isNew ? 'FAT_BURN' : actP.lastCat, 
+            spdOffset: isNew?0:actP.spdOffset, incOffset: isNew?0:actP.incOffset, catMemory: actP.catMemory || {} 
+        };
+        
         p.weight = getV('rmWeight', isMet?1:1/2.20462); p.smm = getV('rmSMM', isMet?1:1/2.20462); p.bf = parseFloat(document.getElementById('rmBF').value) || null; p.ecw = parseFloat(document.getElementById('rmECW').value) || null;
         p.customRHR = parseFloat(document.getElementById('rmRHR').value) || null; p.customMHR = parseFloat(document.getElementById('rmMHR').value) || null; p.customVO2 = parseFloat(document.getElementById('rmVO2').value) || null;
+        
+        p.maxSpd = getV('rmMxS', isMet ? 1 : 1.609344); p.minSpd = getV('rmMnS', isMet ? 1 : 1.609344); p.mxInc = parseFloat(document.getElementById('rmMxI').value) || 15; p.mnInc = parseFloat(document.getElementById('rmMnI').value) || 0;
+
         AppState.state.hw.maxSpd = getV('hwMxS', isMet?1:1.609344); AppState.state.hw.minSpd = getV('hwMnS', isMet?1:1.609344); AppState.state.hw.maxInc = parseFloat(document.getElementById('hwMxI').value)||15; AppState.state.hw.minInc = parseFloat(document.getElementById('hwMnI').value)||0;
         
         if (!isNew && name !== AppState.state.activeP) { DB.renameRunnerHistory(AppState.state.activeP, name); delete AppState.state.profiles[AppState.state.activeP]; }
@@ -2056,19 +2180,19 @@ class AppController {
         });
     }
 
-    saveData() { try { localStorage.setItem('pro_treadmill_v45', JSON.stringify({ activeP: AppState.state.activeP, profiles: AppState.state.profiles, hw: AppState.state.hw, schemaVersion: 1 })); } catch(e){} }
+    saveData() { try { localStorage.setItem('pro_treadmill_v46', JSON.stringify({ activeP: AppState.state.activeP, profiles: AppState.state.profiles, hw: AppState.state.hw, schemaVersion: 1 })); } catch(e){} }
     
     persistRun() { 
         if (AppState.state.accumMs > 0) {
-            sessionStorage.setItem('runState_v45', JSON.stringify({ runStatus: AppState.state.runStatus, lastTimestamp: Date.now(), activeP: AppState.state.activeP, accumMs: AppState.state.accumMs, matrix: AppState.state.matrix, snapshot: AppState.state.snapshot, acc: RunAcc, isBailOut: AppState.state.isBailOut, minimalVoice: AppState.state.minimalVoice })); 
-        } else { sessionStorage.removeItem('runState_v45'); }
+            sessionStorage.setItem('runState_v46', JSON.stringify({ runStatus: AppState.state.runStatus, lastTimestamp: Date.now(), activeP: AppState.state.activeP, accumMs: AppState.state.accumMs, matrix: AppState.state.matrix, snapshot: AppState.state.snapshot, acc: RunAcc, isBailOut: AppState.state.isBailOut, minimalVoice: AppState.state.minimalVoice })); 
+        } else { sessionStorage.removeItem('runState_v46'); }
     }
     
     endWorkout() {
         let ms = AppState.state.accumMs; AppState.state.uiLocked = false;
         let p = AppState.state.profiles[AppState.state.activeP]; let d = i18n[p.lang] || i18n['zh'];
         
-        sessionStorage.removeItem('runState_v45'); 
+        sessionStorage.removeItem('runState_v46'); 
 
         if(RunAcc.sec >= 10 && ms >= 10000) {
             let dKm = Utils.round(RunAcc.dKm); let fCal = Utils.round(RunAcc.fCal); let cCal = Utils.round(RunAcc.cCal); let dElev = Utils.round(RunAcc.dElev);
@@ -2086,7 +2210,7 @@ class AppController {
         AppState.state.runStatus = 'STOPPED'; AppState.state.accumMs = 0; AppState.state.activeTab = 'settings';
         AppState.state.isBailOut = false; document.getElementById('btnBailOut').classList.remove('active');
         
-        document.getElementById('silentAudio').pause(); document.getElementById('wakeLockVideo').pause();
+        document.getElementById('silentAudio').pause(); 
         document.getElementById('topProgressText').textContent = '0%'; document.getElementById('topProgressBar').style.width = '0%'; document.getElementById('topRemainingTime').textContent = '-00:00';
         resetRunAcc(); 
         setTimeout(() => this.recalc(true), 600);
