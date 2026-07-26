@@ -83,7 +83,7 @@
         .offset-ctrl { display: flex; flex-direction: column; gap: 6px; }
         .offset-title { font-size: 0.75rem; color: var(--gray); font-weight: 700; letter-spacing: 0.5px; }
         .offset-buttons { display: flex; justify-content: space-between; align-items: center; background: #000; border-radius: 8px; border: 1px solid #222; padding: 4px; }
-        .offset-btn { flex: 0 0 40px; height: 36px; background: #222; border: none; border-radius: 6px; color: #FFF; font-size: 1.2rem; font-weight: 900; cursor: pointer; outline: none; }
+        .offset-btn { flex: 0 0 40px; height: 36px; background: #222; border: none; border-radius: 6px; color: #FFF; font-size: 1.2rem; font-weight: 900; cursor: pointer; outline: none; touch-action: manipulation; }
         .offset-btn:active { background: #444; }
         .offset-val { font-size: 1.1rem; font-weight: 800; color: var(--text-main); width: 45px; }
 
@@ -267,7 +267,7 @@
         
         .adj-wrap { display: flex; flex-direction: column; gap: 20px; align-items: center; padding: 10px; }
         .adj-box { display: flex; align-items: center; justify-content: center; gap: 15px; width: 100%; }
-        .adj-btn { width: 50px; height: 50px; border-radius: 12px; background: #222; border: 1px solid #444; color: #FFF; font-size: 2rem; font-weight: 900; display: flex; justify-content: center; align-items: center; cursor: pointer; outline: none; transition: background 0.1s; line-height:0;}
+        .adj-btn { width: 50px; height: 50px; border-radius: 12px; background: #222; border: 1px solid #444; color: #FFF; font-size: 2rem; font-weight: 900; display: flex; justify-content: center; align-items: center; cursor: pointer; outline: none; transition: background 0.1s; line-height:0; touch-action: manipulation; }
         .adj-btn:active { background: #444; }
         .adj-dial-wrap { display: flex; flex-direction: column; align-items: center; background: var(--bg-card); border-radius: 12px; padding: 10px; border: 1px solid var(--border-color); width: 140px;}
         
@@ -419,7 +419,7 @@
                         <div class="run-val-box">
                             <div class="overlay-btn top" data-action="btn-inc-up"><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg></div>
                             <div class="run-val-center">
-                                <div class="run-big-val inc" id="runValInc">0.0</div>
+                                <div class="run-big-val inc" id="runValInc" data-action="open-run-numpad" data-target="inc">0.0</div>
                                 <div class="run-lbl"><span id="lblRunInc">坡度</span><span class="run-unit">%</span></div>
                             </div>
                             <div class="overlay-btn bottom" data-action="btn-inc-down"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></div>
@@ -427,7 +427,7 @@
                         <div class="run-val-box">
                             <div class="overlay-btn top" data-action="btn-spd-up"><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg></div>
                             <div class="run-val-center">
-                                <div class="run-big-val spd" id="runValSpd">0.0</div>
+                                <div class="run-big-val spd" id="runValSpd" data-action="open-run-numpad" data-target="spd">0.0</div>
                                 <div class="run-lbl"><span id="lblRunSpd">速度</span><span class="run-unit" id="unitRunSpd"></span></div>
                             </div>
                             <div class="overlay-btn bottom" data-action="btn-spd-down"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></div>
@@ -1135,8 +1135,8 @@ class PhysioEngine {
             }
 
             // Apply Global Offsets (Clamped to ±5.0 to prevent extreme destruction)
-            let sOff = Utils.clamp(p.spdOffset || 0, -5.0, 5.0);
-            let iOff = Utils.clamp(p.incOffset || 0, -5.0, 5.0);
+            let sOff = Utils.clamp(p.spdOffset || 0, -15.0, 15.0);
+            let iOff = Utils.clamp(p.incOffset || 0, -15.0, 15.0);
             spd += sOff; inc += iOff;
 
             let phase = i < 3 ? 'warmup' : i >= T-3 ? 'cooldown' : spd > 12 ? 'sprint' : inc > 4 ? 'steep' : 'steady';
@@ -1703,6 +1703,38 @@ class AppController {
                 let isDec = t.dataset.decimal === 'true';
                 Numpad.open(inputEl, title, isDec);
             }
+            else if(a === 'open-run-numpad' && (AppState.state.runStatus === 'RUNNING' || AppState.state.runStatus === 'PAUSED')) {
+                let isSpd = t.dataset.target === 'spd';
+                let p = AppState.state.profiles[AppState.state.activeP];
+                let isMet = p.unit !== 'imperial';
+                let title = isSpd ? (isMet ? 'Target Speed (kph)' : 'Target Speed (mph)') : 'Target Incline (%)';
+
+                // 建立一個隱藏的 input 來跟原有的 Numpad 模組對接
+                let hiddenInput = document.createElement('input');
+                hiddenInput.type = 'text';
+                hiddenInput.value = t.textContent; // 預設帶入畫面上的當前數字
+
+                hiddenInput.addEventListener('input', (e) => {
+                    let val = parseFloat(e.target.value);
+                    if(isNaN(val)) return;
+
+                    // 算出「目標值」與「課表基底值」的差距，直接寫入 Offset
+                    let cM = Math.floor(AppState.state.accumMs / 60000);
+                    let baseSpd = AppState.state.snapshot[cM].rawSpd;
+                    let baseInc = AppState.state.snapshot[cM].rawInc;
+
+                    if(isSpd) {
+                        let targetKph = isMet ? val : val * 1.609344;
+                        p.spdOffset = targetKph - baseSpd;
+                    } else {
+                        p.incOffset = val - baseInc;
+                    }
+                    this.saveData();
+                    this.performMatrixSplicing(); // 瞬間重繪圖表與履帶速度
+                });
+
+                Numpad.open(hiddenInput, title, true);
+            }
             else if(a === 'toggle-bailout') {
                 if (AppState.state.runStatus !== 'RUNNING') return;
                 AppState.state.isBailOut = !AppState.state.isBailOut;
@@ -1730,6 +1762,7 @@ class AppController {
                 if(AppState.state.isBailOut) { AppState.state.isBailOut = false; document.getElementById('btnBailOut').classList.remove('active'); }
                 
                 let isSpd = a.includes('spd'); let isUp = a.includes('plus') || a.includes('up');
+                if(navigator.vibrate) navigator.vibrate(10);
                 let step = isSpd ? (isMet ? 0.1 : Utils.round(0.1 * 1.609344)) : 0.5;
                 if(isSpd) { p.spdOffset += (isUp ? step : -step); p.spdOffset = Utils.clamp(p.spdOffset, -5.0, 5.0); } 
                 else { p.incOffset += (isUp ? step : -step); p.incOffset = Utils.clamp(p.incOffset, -5.0, 5.0); }
@@ -1931,8 +1964,14 @@ class AppController {
             this.charts.teardown();
             document.getElementById('btnLeft').className = `btn-ctrl btn-runner ${!S ? 'btn-hide' : ''}`;
             document.getElementById('btnRight').className = `btn-ctrl btn-start ${(R || s === 'PRE_FLIGHT') ? 'btn-hide' : ''}`;
-            document.getElementById('btnPause').className = `btn-ctrl btn-pause ${(!R && s !== 'PRE_FLIGHT') ? 'btn-hide' : ''}`;
             document.getElementById('btnAskEnd').className = `btn-ctrl btn-end ${S ? 'btn-hide' : ''}`;
+            
+            // 暫停按鈕：只要不是停止(S)就留在畫面上，但在語音播報(PRE_FLIGHT)時反灰禁用
+            let btnPause = document.getElementById('btnPause');
+            btnPause.className = `btn-ctrl btn-pause ${S ? 'btn-hide' : ''}`;
+            btnPause.disabled = (s === 'PRE_FLIGHT');
+            btnPause.style.opacity = (s === 'PRE_FLIGHT') ? '0.4' : '1';
+            btnPause.style.pointerEvents = (s === 'PRE_FLIGHT') ? 'none' : 'auto';
             
             let p = AppState.state.profiles[AppState.state.activeP]; let d = i18n[p.lang] || i18n['zh'];
             document.getElementById('lblBtnRight').textContent = (s === 'PAUSED' && AppState.state.accumMs > 0) ? d.btnResume : d.btnStart;
@@ -1943,7 +1982,7 @@ class AppController {
             let htmlRoot = document.getElementById('htmlRoot');
             if (S) { htmlRoot.classList.remove('run-mode'); } else { htmlRoot.classList.add('run-mode'); }
 
-            if (R) { BgWorker.postMessage('START'); } 
+            if (R) { BgWorker.postMessage('START'); if(navigator.wakeLock) navigator.wakeLock.request('screen').catch(()=>{}); }
             else if (s === 'PAUSED' || S) { BgWorker.postMessage('STOP'); }
         });
 
