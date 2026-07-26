@@ -119,8 +119,8 @@
         
         .val-spd { color: var(--neon-green); } .val-inc { color: var(--neon-yellow); } .val-hr { color: var(--neon-blue); } .val-lac { color: var(--neon-red); }
 
-        .canvas-container { position: relative; width: 100%; flex: 1 0 auto; min-height: 120px; margin-top: 5px; touch-action: none;}
-        canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+        .canvas-container { position: relative; width: 100%; flex: 1 0 auto; min-height: 120px; margin-top: 5px; touch-action: pan-y;}
+canvas { width: 100%; height: 100%; display: block; touch-action: pan-y; }
         .crosshair { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.4); pointer-events: none; display: none; z-index: 5;}
         
         .est-bottom-row { flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #222; font-size: 0.85rem; font-weight: 700; color: var(--gray-light); }
@@ -142,7 +142,8 @@
         .overlay-btn:active svg { fill: rgba(255,255,255,0.9); }
 
         .run-val-center { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; pointer-events: none; }
-        .run-big-val { font-size: clamp(3rem, 12vw, 4.2rem); font-weight: 900; line-height: 1; letter-spacing: -1px; color: #FFFFFF; transition: color 0.2s, text-shadow 0.2s; position: relative; z-index: 2;}
+        .run-big-val { font-size: clamp(3rem, 12vw, 4.2rem); font-weight: 900; line-height: 1; letter-spacing: -1px; color: #FFFFFF; transition: transform 0.1s, color 0.2s, text-shadow 0.2s; position: relative; z-index: 2; pointer-events: auto; cursor: pointer;}
+.run-big-val:active { transform: scale(0.92); opacity: 0.8; }
         .run-lbl { font-size: 0.8rem; color: var(--gray); font-weight: 700; margin-top: 2px; letter-spacing: 1px; position: relative; z-index: 2;}
         .run-unit { font-size: 0.75rem; color: var(--gray); font-weight: 700; margin-left: 4px; }
         
@@ -1483,12 +1484,15 @@ class ChartManager {
     bindEvents(px, wrap) {
         const move = e => {
             let m = (px === 'sum' && this.sumM) ? this.sumM : AppState.state.snapshot; if(!m || !m.length) return;
-            e.preventDefault(); let r = wrap.getBoundingClientRect(); let x = Utils.clamp((e.touches ? e.touches[0].clientX : e.clientX) - r.left, 0, r.width); let fIdx = (x / r.width) * (m.length - 1); 
+            // e.preventDefault(); 被刪除了，把上下滑動權限還給瀏覽器
+            let r = wrap.getBoundingClientRect(); let x = Utils.clamp((e.touches ? e.touches[0].clientX : e.clientX) - r.left, 0, r.width); let fIdx = (x / r.width) * (m.length - 1); 
             this.hovTimeIdx = fIdx; let ch = document.getElementById(`${px}Crosshair`); if(ch) { ch.style.display = 'block'; ch.style.left = `${(fIdx/(Math.max(1, m.length-1)))*100}%`; }
             let row = document.getElementById(px+'HovRow'); if(row) row.classList.add('show'); this.updateHovData(px);
         };
         const leave = () => { this.hovTimeIdx = -1; let ch=document.getElementById(`${px}Crosshair`); if(ch) ch.style.display='none'; let row=document.getElementById(`${px}HovRow`); if(row) row.classList.remove('show'); };
-        wrap.addEventListener('mousemove', move); wrap.addEventListener('touchmove', move, {passive:false}); wrap.addEventListener('mouseleave', leave); wrap.addEventListener('touchend', leave); wrap.addEventListener('touchcancel', leave);
+        wrap.addEventListener('mousemove', move); 
+        wrap.addEventListener('touchmove', move, {passive:true}); // passive 改為 true
+        wrap.addEventListener('mouseleave', leave); wrap.addEventListener('touchend', leave); wrap.addEventListener('touchcancel', leave); wrap.addEventListener('mouseleave', leave); wrap.addEventListener('touchend', leave); wrap.addEventListener('touchcancel', leave);
     }
 }
 
@@ -1739,6 +1743,25 @@ class AppController {
                 if (AppState.state.runStatus !== 'RUNNING') return;
                 AppState.state.isBailOut = !AppState.state.isBailOut;
                 t.classList.toggle('active', AppState.state.isBailOut);
+                let p = AppState.state.profiles[AppState.state.activeP];
+                let isMet = p.unit !== 'imperial';
+                let dStr = i18n[p.lang] || i18n['zh'];
+                
+                if (AppState.state.isBailOut) {
+                    // 瞬間把物理引擎數值降到安全最低點
+                    RunAcc.curSpd = AppState.state.hw.minSpd;
+                    RunAcc.curInc = AppState.state.hw.minInc;
+                    TweenApp.to('runValSpd', isMet ? AppState.state.hw.minSpd : AppState.state.hw.minSpd/1.609344, v => v.toFixed(1), true);
+                    TweenApp.to('runValInc', AppState.state.hw.minInc, v => v.toFixed(1), true);
+                } else {
+                    // 解除急救，瞬間恢復到目前課表的數值
+                    let cM = Math.floor(AppState.state.accumMs / 60000);
+                    let curM = AppState.state.snapshot[cM];
+                    RunAcc.curSpd = curM.spd;
+                    RunAcc.curInc = curM.inc;
+                    TweenApp.to('runValSpd', isMet ? curM.spd : curM.spd/1.609344, v => v.toFixed(1), true);
+                    TweenApp.to('runValInc', curM.inc, v => v.toFixed(1), true);
+                }
                 NotificationManager.show(AppState.state.isBailOut ? dStr.bailOutOn : dStr.bailOutOff, AppState.state.isBailOut);
             }
             else if(a === 'toggle-voice-mode') {
