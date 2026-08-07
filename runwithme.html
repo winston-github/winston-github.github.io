@@ -27,7 +27,6 @@
             -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
         }
         
-        /* Allow text selection for specific elements */
         input, textarea, .modal-content-scroll, #summaryContent, .est-bottom-row { 
             -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; 
         }
@@ -151,7 +150,7 @@
         .run-big-val { font-size: clamp(3rem, 12vw, 4.2rem); font-weight: 900; line-height: 1; letter-spacing: -1px; color: #FFFFFF; transition: transform 0.1s, color 0.2s, text-shadow 0.2s; position: relative; z-index: 2; pointer-events: auto; cursor: pointer; display: flex; align-items: baseline;}
         .run-big-val:active { transform: scale(0.92); opacity: 0.8; }
         .run-big-val .dot { transition: all var(--gait-fade-dur) ease-out; color: #FFF; text-shadow: none; }
-        .run-big-val .dot.strike { transition: none; color: var(--current-gait-color); text-shadow: 0 0 10px var(--current-gait-color); }
+        .run-big-val .dot.strike { transition: none; color: var(--current-gait-color); text-shadow: 0 0 15px var(--current-gait-color); opacity: 1; }
         
         .run-lbl { font-size: 0.8rem; color: var(--gray); font-weight: 700; margin-top: 2px; letter-spacing: 1px; position: relative; z-index: 2;}
         .run-unit { font-size: 0.75rem; color: var(--gray); font-weight: 700; margin-left: 4px; }
@@ -169,7 +168,7 @@
         .gait-layer { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center; opacity: 0; transition: opacity 0.3s ease; }
         .gait-layer.active { opacity: 1; }
         .gait-layer.active svg { fill: var(--current-gait-color); transition: fill 0.3s ease; }
-        #gaitNum { font-weight: 900; font-size: 1.15rem; transition: transform 0.15s, filter 0.15s; }
+        #gaitNum { font-weight: 900; font-size: 1.15rem; transition: transform 0.15s, filter 0.15s; color: var(--current-gait-color); text-shadow: 0 0 8px rgba(0,0,0,0.5); }
         
         #btnVoiceToggle { right: 15px; }
         #btnVoiceToggle.minimal svg { fill: var(--gray); }
@@ -320,8 +319,6 @@
         .pulse-inc-active { color: var(--neon-yellow); font-weight: 900; text-shadow: 0 0 10px var(--neon-yellow); transition: all 0.3s; background: rgba(255,214,10,0.15);}
         .run-big-val.flash { animation: flash-text 0.4s 3; }
         @keyframes flash-text { 0% { color:#FFF; text-shadow: none; } 50% { color:var(--text-main); text-shadow: 0 0 20px var(--text-main); } 100% { color:#FFF; text-shadow: none; } }
-        
-        #wakeLockCatcher { display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:99999; background: transparent; }
     </style>
 </head>
 <body>
@@ -343,16 +340,17 @@
 
 <!-- Invisible video element for iOS background/sleep prevention -->
 <video id="wakeLockVideo" playsinline muted loop style="position:fixed; opacity:0; pointer-events:none; width:1px; height:1px;" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA"></video>
+<div id="wakeLockCatcher" style="display:none; position:fixed; inset:0; z-index:99999; background:transparent;"></div>
 
 <div id="app-shell">
     <header id="header">
         <div class="tabs-row">
-            <button class="tab-btn active" data-action="tab-settings" id="tabSettings">設定</button>
-            <button class="tab-btn" data-action="tab-matrix" id="tabMatrix">配速</button>
+            <button class="tab-btn active" data-action="tab-settings" id="tabSettings" data-i18n="tab_settings">---</button>
+            <button class="tab-btn" data-action="tab-matrix" id="tabMatrix" data-i18n="tab_pace">---</button>
             <div class="tab-indicator" id="tabIndicator"></div>
         </div>
         <div class="progress-row" id="runProgressRow" data-action="open-adj-time">
-            <div id="topProgressText" class="prg-text">0.00 / 0.00 km (0%)</div>
+            <div id="topProgressText" class="prg-text">0.00 / 0.00 (0%)</div>
             <div class="prg-track"><div id="topProgressBar" class="prg-fill"></div></div>
             <div id="topRemainingTime" class="prg-rem">-00:00</div>
         </div>
@@ -367,7 +365,7 @@
                     <div id="setup-controls-container">
                         <div class="dial-grid">
                             <div class="dial-group">
-                                <div class="dial-label" id="lblTotalTime">總時間 (MIN)</div>
+                                <div class="dial-label" id="lblTotalTime" data-i18n="lbl_tot_time">---</div>
                                 <div class="dial-window-wrap">
                                     <div class="dial-btn-mini" data-action="dial-up" data-target="ds-time" data-step="1"><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg></div>
                                     <div class="dial-window" id="dw-time"><div class="dial-scroll" id="ds-time"></div></div>
@@ -375,7 +373,7 @@
                                 </div>
                             </div>
                             <div class="dial-group">
-                                <div class="dial-label" id="lblTargetKm">目標 (KM)</div>
+                                <div class="dial-label" id="lblTargetKm" data-i18n="lbl_tgt_km">---</div>
                                 <div class="dial-window-wrap">
                                     <div class="dial-btn-mini" data-action="dial-up" data-target="ds-dist" data-step="0.1"><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg></div>
                                     <div class="dial-window" id="dw-dist"><div class="dial-scroll" id="ds-dist"></div></div>
@@ -391,7 +389,7 @@
 
                         <div class="global-offset-panel">
                             <div class="offset-ctrl">
-                                <span class="offset-title" id="lblOffsetInc">坡度偏移</span>
+                                <span class="offset-title" id="lblOffsetInc" data-i18n="lbl_offset_inc">---</span>
                                 <div class="offset-buttons">
                                     <button class="offset-btn" data-action="offset-inc-minus">-</button>
                                     <span class="offset-val" data-bind="uiIncOff">0.0</span>
@@ -399,7 +397,7 @@
                                 </div>
                             </div>
                             <div class="offset-ctrl">
-                                <span class="offset-title" id="lblOffsetSpd">速度偏移</span>
+                                <span class="offset-title" id="lblOffsetSpd" data-i18n="lbl_offset_spd">---</span>
                                 <div class="offset-buttons">
                                     <button class="offset-btn" data-action="offset-spd-minus">-</button>
                                     <span class="offset-val" data-bind="uiSpdOff">0.0</span>
@@ -411,9 +409,9 @@
 
                     <div class="chart-card">
                         <div class="hud-grid">
-                            <div class="hud-header-row"><span id="hudH1">Phase</span><span id="hudH2">Inc</span><span id="hudH3">Spd</span><span id="hudH4">HR</span><span id="hudH5">Lac</span></div>
-                            <div class="hud-avg-row"><span class="lbl" id="lblAvg">AVG</span><span class="val-inc" data-bind="sAvgInc">--</span><span class="val-spd" data-bind="sAvgSpd">--</span><span class="val-hr" data-bind="sAvgHr">--</span><span class="val-lac" data-bind="sAvgLac">--</span></div>
-                            <div class="hud-max-row"><span class="lbl" id="lblMax">MAX</span><span class="val-inc" data-bind="sMaxInc">--</span><span class="val-spd" data-bind="sMaxSpd">--</span><span class="val-hr" data-bind="sMaxHr">--</span><span class="val-lac" data-bind="sMaxLac">--</span></div>
+                            <div class="hud-header-row"><span id="hudH1" data-i18n="hud_phase"></span><span id="hudH2" data-i18n="hud_inc"></span><span id="hudH3" data-i18n="hud_spd"></span><span id="hudH4" data-i18n="hud_hr"></span><span id="hudH5" data-i18n="hud_lac"></span></div>
+                            <div class="hud-avg-row"><span class="lbl" id="lblAvg" data-i18n="hud_avg"></span><span class="val-inc" data-bind="sAvgInc">--</span><span class="val-spd" data-bind="sAvgSpd">--</span><span class="val-hr" data-bind="sAvgHr">--</span><span class="val-lac" data-bind="sAvgLac">--</span></div>
+                            <div class="hud-max-row"><span class="lbl" id="lblMax" data-i18n="hud_max"></span><span class="val-inc" data-bind="sMaxInc">--</span><span class="val-spd" data-bind="sMaxSpd">--</span><span class="val-hr" data-bind="sMaxHr">--</span><span class="val-lac" data-bind="sMaxLac">--</span></div>
                         </div>
                         <div class="canvas-container" id="sChartWrap">
                             <canvas id="sChart"></canvas>
@@ -423,9 +421,9 @@
                             <div class="crosshair" id="sCrosshair"></div>
                         </div>
                         <div class="est-bottom-row" id="sEstStatsBlock">
-                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblEstDistTitle">預估里程</span><span style="color:var(--text-main);" data-bind="sEstDist">--</span></div>
-                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblEstElevTitle">預估爬升</span><span style="color:var(--text-main);" data-bind="sEstElev">--</span></div>
-                            <div style="display:flex; justify-content:space-between;"><span id="lblEstKcalTitle">預估消耗</span><span style="color:var(--neon-green);" data-bind="sEstKcal">--</span></div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblEstDistTitle" data-i18n="est_dist"></span><span style="color:var(--text-main);" data-bind="sEstDist">--</span></div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblEstElevTitle" data-i18n="est_elev"></span><span style="color:var(--text-main);" data-bind="sEstElev">--</span></div>
+                            <div style="display:flex; justify-content:space-between;"><span id="lblEstKcalTitle" data-i18n="est_kcal"></span><span style="color:var(--neon-green);" data-bind="sEstKcal">--</span></div>
                             <div class="est-zones" style="margin-top:4px;">
                                 <span class="c-z1" data-bind="sEstz1">Z1 0m</span><span class="c-z2" data-bind="sEstz2">Z2 0m</span><span class="c-z3" data-bind="sEstz3">Z3 0m</span><span class="c-z4" data-bind="sEstz4">Z4 0m</span><span class="c-z5" data-bind="sEstz5">Z5 0m</span>
                             </div>
@@ -436,7 +434,6 @@
 
                 <div id="run-view" class="view-section">
                     <div class="massive-time-container">
-                        <!-- Smart Gait Hub -->
                         <button class="run-float-btn" id="btnSmartGait" data-action="toggle-gait">
                             <div id="gaitIcon" class="gait-layer active"><svg viewBox="0 0 24 24"><path d="M12 2L4 20h16L12 2zm0 4.5l5 12H7l5-12zM11 10v4h2v-4h-2z"/></svg></div>
                             <div id="gaitNum" class="gait-layer">--</div>
@@ -454,7 +451,7 @@
                             <div class="overlay-btn top" data-action="btn-inc-up"><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg></div>
                             <div class="run-val-center">
                                 <div class="run-big-val inc" id="runValInc" data-action="open-run-numpad" data-target="inc" data-raw="0.0"><span>0</span><span class="dot">.</span><span>0</span></div>
-                                <div class="run-lbl"><span id="lblRunInc">坡度</span><span class="run-unit">%</span></div>
+                                <div class="run-lbl"><span id="lblRunInc" data-i18n="r_inc"></span><span class="run-unit">%</span></div>
                             </div>
                             <div class="overlay-btn bottom" data-action="btn-inc-down"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></div>
                         </div>
@@ -462,24 +459,24 @@
                             <div class="overlay-btn top" data-action="btn-spd-up"><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg></div>
                             <div class="run-val-center">
                                 <div class="run-big-val spd" id="runValSpd" data-action="open-run-numpad" data-target="spd" data-raw="0.0"><span>0</span><span class="dot">.</span><span>0</span></div>
-                                <div class="run-lbl"><span id="lblRunSpd">速度</span><span class="run-unit" id="unitRunSpd"></span></div>
+                                <div class="run-lbl"><span id="lblRunSpd" data-i18n="r_spd"></span><span class="run-unit" id="unitRunSpd"></span></div>
                             </div>
                             <div class="overlay-btn bottom" data-action="btn-spd-down"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></div>
                         </div>
                     </div>
                     
                     <div class="run-sec-grid">
-                        <div class="r-s-box"><div class="r-s-val"><span data-bind="runDist">0.00</span><span class="run-unit" id="unitRunDist">km</span></div><div class="r-s-lbl" id="lblRunDist">里程</div></div>
-                        <div class="r-s-box"><div class="r-s-val"><span data-bind="runElev">0</span><span class="run-unit" id="unitRunElev">m</span></div><div class="r-s-lbl" id="lblRunElev">爬升</div></div>
-                        <div class="r-s-box"><div class="r-s-val val-hr"><span data-bind="runHr">0</span><span class="run-unit">bpm</span></div><div class="r-s-lbl" id="lblRunHr">心率</div></div>
-                        <div class="r-s-box"><div class="r-s-val val-lac"><span data-bind="runLac">0.0</span><span class="run-unit">mM</span></div><div class="r-s-lbl" id="lblRunLac">乳酸</div></div>
+                        <div class="r-s-box"><div class="r-s-val"><span data-bind="runDist">0.00</span><span class="run-unit" id="unitRunDist">km</span></div><div class="r-s-lbl" id="lblRunDist" data-i18n="r_dist"></div></div>
+                        <div class="r-s-box"><div class="r-s-val"><span data-bind="runElev">0</span><span class="run-unit" id="unitRunElev">m</span></div><div class="r-s-lbl" id="lblRunElev" data-i18n="r_elev"></div></div>
+                        <div class="r-s-box"><div class="r-s-val val-hr"><span data-bind="runHr">0</span><span class="run-unit">bpm</span></div><div class="r-s-lbl" id="lblRunHr" data-i18n="r_hr"></div></div>
+                        <div class="r-s-box"><div class="r-s-val val-lac"><span data-bind="runLac">0.0</span><span class="run-unit">mM</span></div><div class="r-s-lbl" id="lblRunLac" data-i18n="r_lac"></div></div>
                     </div>
                     
                     <div class="chart-card" id="rChartWrap">
                         <div class="hud-grid">
-                            <div class="hud-header-row"><span id="hudRH1">Phase</span><span id="hudRH2">Inc</span><span id="hudRH3">Spd</span><span id="hudRH4">HR</span><span id="hudRH5">Lac</span></div>
-                            <div class="hud-avg-row"><span class="lbl" id="lblRAvg">AVG</span><span class="val-inc" data-bind="rAvgInc">--</span><span class="val-spd" data-bind="rAvgSpd">--</span><span class="val-hr" data-bind="rAvgHr">--</span><span class="val-lac" data-bind="rAvgLac">--</span></div>
-                            <div class="hud-max-row"><span class="lbl" id="lblRMax">MAX</span><span class="val-inc" data-bind="rMaxInc">--</span><span class="val-spd" data-bind="rMaxSpd">--</span><span class="val-hr" data-bind="rMaxHr">--</span><span class="val-lac" data-bind="rMaxLac">--</span></div>
+                            <div class="hud-header-row"><span id="hudRH1" data-i18n="hud_phase"></span><span id="hudRH2" data-i18n="hud_inc"></span><span id="hudRH3" data-i18n="hud_spd"></span><span id="hudRH4" data-i18n="hud_hr"></span><span id="hudRH5" data-i18n="hud_lac"></span></div>
+                            <div class="hud-avg-row"><span class="lbl" id="lblRAvg" data-i18n="hud_avg"></span><span class="val-inc" data-bind="rAvgInc">--</span><span class="val-spd" data-bind="rAvgSpd">--</span><span class="val-hr" data-bind="rAvgHr">--</span><span class="val-lac" data-bind="rAvgLac">--</span></div>
+                            <div class="hud-max-row"><span class="lbl" id="lblRMax" data-i18n="hud_max"></span><span class="val-inc" data-bind="rMaxInc">--</span><span class="val-spd" data-bind="rMaxSpd">--</span><span class="val-hr" data-bind="rMaxHr">--</span><span class="val-lac" data-bind="rMaxLac">--</span></div>
                         </div>
                         <div class="canvas-container">
                             <canvas id="rChart"></canvas>
@@ -489,9 +486,9 @@
                             <div class="crosshair" id="rCrosshair"></div>
                         </div>
                         <div class="est-bottom-row" id="rActStatsBlock" style="margin-top:10px; padding-top:10px;">
-                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblActDistTitle">實際里程</span><span style="color:var(--text-main);" data-bind="rActDist">--</span></div>
-                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblActElevTitle">實際爬升</span><span style="color:var(--text-main);" data-bind="rActElev">--</span></div>
-                            <div style="display:flex; justify-content:space-between;"><span id="lblActKcalTitle">實際消耗</span><span style="color:var(--neon-green);" data-bind="rActKcal">--</span></div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblActDistTitle" data-i18n="act_dist"></span><span style="color:var(--text-main);" data-bind="rActDist">--</span></div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblActElevTitle" data-i18n="act_elev"></span><span style="color:var(--text-main);" data-bind="rActElev">--</span></div>
+                            <div style="display:flex; justify-content:space-between;"><span id="lblActKcalTitle" data-i18n="act_kcal"></span><span style="color:var(--neon-green);" data-bind="rActKcal">--</span></div>
                             <div class="est-zones" style="margin-top:4px;">
                                 <span class="c-z1" data-bind="rActz1">Z1 0m</span><span class="c-z2" data-bind="rActz2">Z2 0m</span><span class="c-z3" data-bind="rActz3">Z3 0m</span><span class="c-z4" data-bind="rActz4">Z4 0m</span><span class="c-z5" data-bind="rActz5">Z5 0m</span>
                             </div>
@@ -503,7 +500,7 @@
 
             <div class="tab-content" id="tabContent2">
                 <div class="list-header pace-grid-row">
-                    <span class="list-col-time" id="thTime">Time</span><span class="list-col-inc" id="thInc">Inc</span><span class="list-col-spd" id="thSpd">Spd</span><span class="list-col-phase" id="thPhase">Phase</span><span class="list-col-hr" id="thHr">HR</span><span class="list-col-lac" id="thLac">Lac</span>
+                    <span class="list-col-time" id="thTime" data-i18n="th_time"></span><span class="list-col-inc" id="thInc" data-i18n="th_inc"></span><span class="list-col-spd" id="thSpd" data-i18n="th_spd"></span><span class="list-col-phase" id="thPhase" data-i18n="th_phase"></span><span class="list-col-hr" id="thHr" data-i18n="th_hr"></span><span class="list-col-lac" id="thLac" data-i18n="th_lac"></span>
                 </div>
                 <ul id="previewList" class="preview-list"></ul>
             </div>
@@ -515,18 +512,18 @@
         <div class="bottom-controls">
             <button id="btnLeft" class="btn-ctrl btn-runner" data-action="open-runner">
                 <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                <span id="lblBtnLeft">Runner</span>
+                <span id="lblBtnLeft" data-i18n="btn_runner"></span>
             </button>
             <button id="btnRight" class="btn-ctrl btn-start" data-action="start">
                 <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                <span id="lblBtnRight">Start</span>
+                <span id="lblBtnRight" data-i18n="btn_start"></span>
             </button>
             <button id="btnAskEnd" class="btn-ctrl btn-end btn-hide" data-action="ask-end">
-                <span id="lblEnd">Hold/Swipe End</span>
+                <span id="lblEnd" data-i18n="btn_hold"></span>
             </button>
             <button id="btnPause" class="btn-ctrl btn-pause btn-hide" data-action="pause">
                 <svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-                <span id="lblPause">Pause</span>
+                <span id="lblPause" data-i18n="btn_pause"></span>
             </button>
         </div>
     </footer>
@@ -536,7 +533,7 @@
         <div class="modal-box" data-no-close>
             <div class="modal-header" style="flex-direction:column; align-items:stretch; padding-bottom:10px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                    <div class="modal-title"><span id="lblRmTitle">Runner Profile</span></div>
+                    <div class="modal-title"><span id="lblRmTitle" data-i18n="rm_title"></span></div>
                     <div class="modal-header-actions">
                         <button class="btn-icon" data-action="delete-runner" id="btnRmDelete" style="fill:var(--neon-red);"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
                         <button class="btn-icon" data-action="open-history"><svg viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg></button>
@@ -554,58 +551,59 @@
                         </div>
                         <div class="segmented-control" id="segSex" style="min-width:110px; flex:0 0 auto;">
                             <div class="seg-indicator" style="left: 4px;"></div>
-                            <button class="seg-btn active" data-val="M" data-idx="0" id="btnSexM">男</button><button class="seg-btn" data-val="F" data-idx="1" id="btnSexF">女</button>
+                            <button class="seg-btn active" data-val="M" data-idx="0" id="btnSexM" data-i18n="opt_m"></button>
+                            <button class="seg-btn" data-val="F" data-idx="1" id="btnSexF" data-i18n="opt_f"></button>
                         </div>
                     </div>
-                    <div class="input-error-msg" id="nameErrorMsg"><svg viewBox="0 0 24 24" class="svg-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg><span id="lblNameError">Name Exists</span></div>
+                    <div class="input-error-msg" id="nameErrorMsg"><svg viewBox="0 0 24 24" class="svg-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg><span id="lblNameError" data-i18n="err_name"></span></div>
                 </div>
                 
                 <div class="rm-group">
-                    <label class="rm-label" id="lblRmPhysio">Physiology</label>
+                    <label class="rm-label" id="lblRmPhysio" data-i18n="rm_phy"></label>
                     <div class="param-grid">
-                        <div class="param-item readonly" data-action="open-numpad" data-target="rmAge" data-title="Age"><label id="lblAge">Age</label><input type="text" id="rmAge" readonly tabindex="-1"><span class="unit" id="unitAge"></span></div>
-                        <div class="param-item readonly" data-action="open-numpad" data-target="rmWeight" data-decimal="true" data-title="Weight"><label id="lblWgt">Weight</label><input type="text" id="rmWeight" readonly tabindex="-1"><span class="unit" id="unitWgt"></span></div>
+                        <div class="param-item readonly" data-action="open-numpad" data-target="rmAge" data-title="Age"><label id="lblAge" data-i18n="rm_age"></label><input type="text" id="rmAge" readonly tabindex="-1"><span class="unit" id="unitAge"></span></div>
+                        <div class="param-item readonly" data-action="open-numpad" data-target="rmWeight" data-decimal="true" data-title="Weight"><label id="lblWgt" data-i18n="rm_wgt"></label><input type="text" id="rmWeight" readonly tabindex="-1"><span class="unit" id="unitWgt"></span></div>
                     </div>
                 </div>
 
                 <div class="rm-group">
                     <div class="rm-label accordion-header" data-action="toggle-accordion" data-target="advSettings">
-                        <span><svg class="svg-icon" viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg><span id="lblAdvTitle">Advanced Limits</span></span>
+                        <span><svg class="svg-icon" viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg><span id="lblAdvTitle" data-i18n="rm_adv"></span></span>
                         <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
                     </div>
                     <div class="accordion-content" id="advSettings">
                         <div class="param-grid" style="margin-bottom: 15px;">
-                            <div class="param-item readonly" style="border-color:var(--neon-yellow);" data-action="open-numpad" data-target="rmMxI" data-decimal="true" data-title="Base Max Inc"><label id="lblBaseMxI" style="color:var(--text-main);">課表基準-最高坡</label><input type="text" id="rmMxI" readonly tabindex="-1"><span class="unit" id="unitBaseMxI">%</span></div>
-                            <div class="param-item readonly" style="border-color:var(--neon-blue);" data-action="open-numpad" data-target="rmMxS" data-decimal="true" data-title="Base Max Spd"><label id="lblBaseMxS" style="color:var(--text-main);">課表基準-最高速</label><input type="text" id="rmMxS" readonly tabindex="-1"><span class="unit" id="unitBaseMxS"></span></div>
+                            <div class="param-item readonly" style="border-color:var(--neon-yellow);" data-action="open-numpad" data-target="rmMxI" data-decimal="true" data-title="Base Max Inc"><label id="lblBaseMxI" data-i18n="lbl_base_mxi" style="color:var(--text-main);"></label><input type="text" id="rmMxI" readonly tabindex="-1"><span class="unit" id="unitBaseMxI">%</span></div>
+                            <div class="param-item readonly" style="border-color:var(--neon-blue);" data-action="open-numpad" data-target="rmMxS" data-decimal="true" data-title="Base Max Spd"><label id="lblBaseMxS" data-i18n="lbl_base_mxs" style="color:var(--text-main);"></label><input type="text" id="rmMxS" readonly tabindex="-1"><span class="unit" id="unitBaseMxS"></span></div>
                             
-                            <div class="param-item readonly" data-action="open-numpad" data-target="rmMnI" data-decimal="true" data-title="Base Min Inc"><label id="lblBaseMnI">課表基準-最低坡</label><input type="text" id="rmMnI" readonly tabindex="-1"><span class="unit">%</span></div>
-                            <div class="param-item readonly" data-action="open-numpad" data-target="rmMnS" data-decimal="true" data-title="Base Min Spd"><label id="lblBaseMnS">課表基準-最低速</label><input type="text" id="rmMnS" readonly tabindex="-1"><span class="unit" id="unitBaseMnS"></span></div>
+                            <div class="param-item readonly" data-action="open-numpad" data-target="rmMnI" data-decimal="true" data-title="Base Min Inc"><label id="lblBaseMnI" data-i18n="lbl_base_mni"></label><input type="text" id="rmMnI" readonly tabindex="-1"><span class="unit">%</span></div>
+                            <div class="param-item readonly" data-action="open-numpad" data-target="rmMnS" data-decimal="true" data-title="Base Min Spd"><label id="lblBaseMnS" data-i18n="lbl_base_mns"></label><input type="text" id="rmMnS" readonly tabindex="-1"><span class="unit" id="unitBaseMnS"></span></div>
 
-                            <div class="param-item readonly" data-action="open-numpad" data-target="rmRHR" data-title="Resting HR"><label id="lblRHR">Resting HR</label><input type="text" id="rmRHR" placeholder="Auto" data-manual="false" readonly tabindex="-1"><span class="unit">bpm</span></div>
-                            <div class="param-item readonly" data-action="open-numpad" data-target="rmMHR" data-title="Max HR"><label id="lblMHR">Max HR</label><input type="text" id="rmMHR" placeholder="Auto" readonly tabindex="-1"><span class="unit">bpm</span></div>
-                            <div class="param-item readonly" data-action="open-numpad" data-target="rmSMM" data-decimal="true" data-title="SMM"><label id="lblSMM">SMM</label><input type="text" id="rmSMM" readonly tabindex="-1"><span class="unit" id="unitSmm"></span></div>
-                            <div class="param-item readonly" data-action="open-numpad" data-target="rmBF" data-decimal="true" data-title="Body Fat"><label id="lblBF">Body Fat</label><input type="text" id="rmBF" placeholder="Auto" readonly tabindex="-1"><span class="unit">%</span></div>
-                            <div class="param-item readonly" data-action="open-numpad" data-target="rmECW" data-decimal="true" data-title="ECW"><label id="lblECW">ECW</label><input type="text" id="rmECW" placeholder="0.375" readonly tabindex="-1"><span class="unit"></span></div>
-                            <div class="param-item readonly" data-action="open-numpad" data-target="rmVO2" data-decimal="true" data-title="VO2Max"><label id="lblVO2">VO2</label><input type="text" id="rmVO2" placeholder="Auto" readonly tabindex="-1"><span class="unit">ml/kg</span></div>
+                            <div class="param-item readonly" data-action="open-numpad" data-target="rmRHR" data-title="Resting HR"><label id="lblRHR" data-i18n="rm_rhr"></label><input type="text" id="rmRHR" placeholder="Auto" data-manual="false" readonly tabindex="-1"><span class="unit">bpm</span></div>
+                            <div class="param-item readonly" data-action="open-numpad" data-target="rmMHR" data-title="Max HR"><label id="lblMHR" data-i18n="rm_mhr"></label><input type="text" id="rmMHR" placeholder="Auto" readonly tabindex="-1"><span class="unit">bpm</span></div>
+                            <div class="param-item readonly" data-action="open-numpad" data-target="rmSMM" data-decimal="true" data-title="SMM"><label id="lblSMM" data-i18n="rm_smm"></label><input type="text" id="rmSMM" readonly tabindex="-1"><span class="unit" id="unitSmm"></span></div>
+                            <div class="param-item readonly" data-action="open-numpad" data-target="rmBF" data-decimal="true" data-title="Body Fat"><label id="lblBF" data-i18n="rm_bf"></label><input type="text" id="rmBF" placeholder="Auto" readonly tabindex="-1"><span class="unit">%</span></div>
+                            <div class="param-item readonly" data-action="open-numpad" data-target="rmECW" data-decimal="true" data-title="ECW"><label id="lblECW" data-i18n="rm_ecw"></label><input type="text" id="rmECW" placeholder="0.375" readonly tabindex="-1"><span class="unit"></span></div>
+                            <div class="param-item readonly" data-action="open-numpad" data-target="rmVO2" data-decimal="true" data-title="VO2Max"><label id="lblVO2" data-i18n="rm_vo2"></label><input type="text" id="rmVO2" placeholder="Auto" readonly tabindex="-1"><span class="unit">ml/kg</span></div>
                         </div>
                     </div>
                 </div>
                 
                 <div class="rm-group">
                     <div class="rm-label accordion-header" data-action="toggle-accordion" data-target="hwSettings">
-                        <span><svg class="svg-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg><span id="lblHwTitle">Hardware</span></span>
+                        <span><svg class="svg-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg><span id="lblHwTitle" data-i18n="rm_hw_title"></span></span>
                         <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
                     </div>
                     <div class="accordion-content" id="hwSettings">
                         <div class="param-grid" style="background: #111; padding: 12px; border-radius: 12px; border: 1px solid #333;">
-                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMxI" data-decimal="true" data-title="HW Max Inc"><label id="lblHwMxI" style="color:var(--neon-red);">機台硬體-最高坡</label><input type="text" id="hwMxI" readonly tabindex="-1"><span class="unit">%</span></div>
-                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMxS" data-decimal="true" data-title="HW Max Spd"><label id="lblHwMxS" style="color:var(--neon-red);">機台硬體-最高速</label><input type="text" id="hwMxS" readonly tabindex="-1"><span class="unit" id="unitMxS2"></span></div>
+                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMxI" data-decimal="true" data-title="HW Max Inc"><label id="lblHwMxI" data-i18n="rm_hw_mxi" style="color:var(--neon-red);"></label><input type="text" id="hwMxI" readonly tabindex="-1"><span class="unit">%</span></div>
+                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMxS" data-decimal="true" data-title="HW Max Spd"><label id="lblHwMxS" data-i18n="rm_hw_mxs" style="color:var(--neon-red);"></label><input type="text" id="hwMxS" readonly tabindex="-1"><span class="unit" id="unitMxS2"></span></div>
                             
-                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMnI" data-decimal="true" data-title="HW Min Inc"><label id="lblHwMnI">機台硬體-最低坡</label><input type="text" id="hwMnI" readonly tabindex="-1"><span class="unit">%</span></div>
-                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMnS" data-decimal="true" data-title="HW Min Spd"><label id="lblHwMnS">機台硬體-最低速</label><input type="text" id="hwMnS" readonly tabindex="-1"><span class="unit" id="unitMnS2"></span></div>
+                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMnI" data-decimal="true" data-title="HW Min Inc"><label id="lblHwMnI" data-i18n="rm_hw_mni"></label><input type="text" id="hwMnI" readonly tabindex="-1"><span class="unit">%</span></div>
+                            <div class="param-item readonly" style="background: #000;" data-action="open-numpad" data-target="hwMnS" data-decimal="true" data-title="HW Min Spd"><label id="lblHwMnS" data-i18n="rm_hw_mns"></label><input type="text" id="hwMnS" readonly tabindex="-1"><span class="unit" id="unitMnS2"></span></div>
                             
                             <div style="grid-column: span 2; margin-top: 5px;">
-                                <div style="font-size: 0.75rem; color: var(--gray); font-weight: 600; margin-bottom: 6px;" id="lblIncStepTitle">坡度精度 (Inc Step)</div>
+                                <div style="font-size: 0.75rem; color: var(--gray); font-weight: 600; margin-bottom: 6px;" id="lblIncStepTitle" data-i18n="lbl_inc_step"></div>
                                 <div class="segmented-control" id="segIncStep">
                                     <div class="seg-indicator seg-3" style="left: calc(33.33% + 2px);"></div>
                                     <button class="seg-btn" data-val="0.1" data-idx="0">0.1</button>
@@ -618,31 +616,35 @@
                 </div>
                 
                 <div class="rm-group">
-                    <label class="rm-label" id="lblRmPref">Prefs</label>
+                    <label class="rm-label" id="lblRmPref" data-i18n="rm_pref"></label>
                     <div class="param-grid">
                         <div class="segmented-control" id="segLang">
                             <div class="seg-indicator" style="left: 4px;"></div>
-                            <button class="seg-btn active" data-val="zh" data-idx="0" id="btnLangZh">中文</button><button class="seg-btn" data-val="en" data-idx="1" id="btnLangEn">EN</button>
+                            <button class="seg-btn active" data-val="zh" data-idx="0" id="btnLangZh" data-i18n="lang_zh"></button>
+                            <button class="seg-btn" data-val="en" data-idx="1" id="btnLangEn" data-i18n="lang_en"></button>
                         </div>
                         <div class="segmented-control" id="segUnit">
                             <div class="seg-indicator" style="left: 4px;"></div>
-                            <button class="seg-btn active" data-val="metric" data-idx="0" id="btnUnitMet">公制</button><button class="seg-btn" data-val="imperial" data-idx="1" id="btnUnitImp">英制</button>
+                            <button class="seg-btn active" data-val="metric" data-idx="0" id="btnUnitMet" data-i18n="opt_met"></button>
+                            <button class="seg-btn" data-val="imperial" data-idx="1" id="btnUnitImp" data-i18n="opt_imp"></button>
                         </div>
                         <div class="segmented-control" id="segGait">
                             <div class="seg-indicator" style="left: 4px;"></div>
-                            <button class="seg-btn active" data-val="on" data-idx="0" id="btnGaitOn">Gait ON</button><button class="seg-btn" data-val="off" data-idx="1" id="btnGaitOff">OFF</button>
+                            <button class="seg-btn active" data-val="on" data-idx="0" id="btnGaitOn" data-i18n="opt_gait_on"></button>
+                            <button class="seg-btn" data-val="off" data-idx="1" id="btnGaitOff" data-i18n="opt_gait_off"></button>
                         </div>
                         <div class="segmented-control" id="segVoice">
                             <div class="seg-indicator" style="left: 4px;"></div>
-                            <button class="seg-btn active" data-val="on" data-idx="0" id="btnVoiceOn">Voice ON</button><button class="seg-btn" data-val="off" data-idx="1" id="btnVoiceOff">OFF</button>
+                            <button class="seg-btn active" data-val="on" data-idx="0" id="btnVoiceOn" data-i18n="opt_voice_on"></button>
+                            <button class="seg-btn" data-val="off" data-idx="1" id="btnVoiceOff" data-i18n="opt_voice_off"></button>
                         </div>
                     </div>
                 </div>
             </div>
             
             <div class="modal-footer">
-                <button class="btn-modal btn-ghost" data-action="close-runner" id="btnRmCancel">Cancel</button>
-                <button class="btn-modal btn-save" data-action="save-runner" id="btnRmSave">Save</button>
+                <button class="btn-modal btn-ghost" data-action="close-runner" id="btnRmCancel" data-i18n="btn_cancel"></button>
+                <button class="btn-modal btn-save" data-action="save-runner" id="btnRmSave" data-i18n="btn_save"></button>
             </div>
         </div>
     </div>
@@ -651,7 +653,7 @@
         <div class="modal-box" data-no-close>
             <div class="modal-header" style="flex-direction:column; padding-bottom:10px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom:10px;">
-                    <div class="modal-title" style="color:var(--neon-blue);" id="lblHistTitle">歷史紀錄</div>
+                    <div class="modal-title" style="color:var(--neon-blue);" id="lblHistTitle" data-i18n="hist_title"></div>
                     <div class="modal-header-actions">
                         <button class="btn-icon" data-action="clear-history" style="fill:var(--neon-red);"><svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
                         <button class="btn-icon" data-action="close-history"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
@@ -668,15 +670,15 @@
     <div id="summaryModal" class="modal-overlay" data-action="overlay-close">
         <div class="modal-box" data-no-close style="max-height:95%; max-width:600px; width:95%;">
             <div class="modal-header">
-                <div class="modal-title" style="color:var(--neon-blue);" id="lblSumTitle">訓練總結與營養建議</div>
+                <div class="modal-title" style="color:var(--neon-blue);" id="lblSumTitle" data-i18n="sum_title"></div>
                 <button class="btn-icon" data-action="close-summary"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
             </div>
             
             <div class="chart-card" id="sumChartWrap" style="flex:none; height:max-content; min-height:220px; border-radius:0; border-left:none; border-right:none; background:#000; touch-action: pan-y; padding-bottom:5px;">
                 <div class="hud-grid" id="sumHudGrid">
-                    <div class="hud-header-row"><span id="sumH1">Phase</span><span id="sumH2">Inc</span><span id="sumH3">Spd</span><span id="sumH4">HR</span><span id="sumH5">Lac</span></div>
-                    <div class="hud-avg-row"><span class="lbl" id="lblSumAvg">AVG</span><span class="val-inc" data-bind="sumAvgInc">--</span><span class="val-spd" data-bind="sumAvgSpd">--</span><span class="val-hr" data-bind="sumAvgHr">--</span><span class="val-lac" data-bind="sumAvgLac">--</span></div>
-                    <div class="hud-max-row"><span class="lbl" id="lblSumMax">MAX</span><span class="val-inc" data-bind="sumMaxInc">--</span><span class="val-spd" data-bind="sumMaxSpd">--</span><span class="val-hr" data-bind="sumMaxHr">--</span><span class="val-lac" data-bind="sumMaxLac">--</span></div>
+                    <div class="hud-header-row"><span id="sumH1" data-i18n="hud_phase"></span><span id="sumH2" data-i18n="hud_inc"></span><span id="sumH3" data-i18n="hud_spd"></span><span id="sumH4" data-i18n="hud_hr"></span><span id="sumH5" data-i18n="hud_lac"></span></div>
+                    <div class="hud-avg-row"><span class="lbl" id="lblSumAvg" data-i18n="hud_avg"></span><span class="val-inc" data-bind="sumAvgInc">--</span><span class="val-spd" data-bind="sumAvgSpd">--</span><span class="val-hr" data-bind="sumAvgHr">--</span><span class="val-lac" data-bind="sumAvgLac">--</span></div>
+                    <div class="hud-max-row"><span class="lbl" id="lblSumMax" data-i18n="hud_max"></span><span class="val-inc" data-bind="sumMaxInc">--</span><span class="val-spd" data-bind="sumMaxSpd">--</span><span class="val-hr" data-bind="sumMaxHr">--</span><span class="val-lac" data-bind="sumMaxLac">--</span></div>
                 </div>
                 <div class="canvas-container" style="margin-top:0; min-height:120px; touch-action: pan-y;">
                     <canvas id="sumChart" style="touch-action: pan-y;"></canvas>
@@ -688,18 +690,18 @@
             </div>
 
             <div class="modal-content-scroll" id="summaryContent" style="padding-top:10px;">
-                <div style="display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid #222; font-size:1.05rem; color:var(--gray-light);"><span>Total Time</span><span style="color:var(--text-main); font-weight:bold; font-variant-numeric:tabular-nums;" id="sumTimeDisp">--:--</span></div>
+                <div style="display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid #222; font-size:1.05rem; color:var(--gray-light);"><span data-i18n="lbl_tot_time"></span><span style="color:var(--text-main); font-weight:bold; font-variant-numeric:tabular-nums;" id="sumTimeDisp">--:--</span></div>
                 <div class="est-bottom-row" id="sumStatsBlock" style="border:none; margin-top:0; padding-top:10px;">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblSumDistTitle">總里程</span><span style="color:var(--text-main);" data-bind="sumDist">--</span></div>
-                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblSumElevTitle">總爬升</span><span style="color:var(--text-main);" data-bind="sumElev">--</span></div>
-                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblSumAvgPaceTitle">平均配速</span><span style="color:var(--neon-green);" data-bind="sumAvgPace">--</span></div>
-                    <div style="display:flex; justify-content:space-between;"><span id="lblSumKcalTitle">總消耗</span><span style="color:var(--neon-green);" data-bind="sumKcal">--</span></div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblSumDistTitle" data-i18n="sum_dist"></span><span style="color:var(--text-main);" data-bind="sumDist">--</span></div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblSumElevTitle" data-i18n="sum_elev"></span><span style="color:var(--text-main);" data-bind="sumElev">--</span></div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblSumAvgPaceTitle" data-i18n="sum_avg_pace"></span><span style="color:var(--neon-green);" data-bind="sumAvgPace">--</span></div>
+                    <div style="display:flex; justify-content:space-between;"><span id="lblSumKcalTitle" data-i18n="sum_kcal"></span><span style="color:var(--neon-green);" data-bind="sumKcal">--</span></div>
                     
                     <div style="margin-top:15px; padding-bottom:5px;">
                         <div class="fc-bar-wrap"><div class="fc-bar-fat" id="sumFatBar" style="width:50%;"></div><div class="fc-bar-carb" id="sumCarbBar" style="width:50%;"></div></div>
                         <div class="fc-labels">
-                            <div class="fc-label-fat"><svg class="fc-icon" viewBox="0 0 24 24"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8zM7.83 14c.37 0 .67.26.74.62 1.09 5.92 6.21 6.33 6.57.41.05.7.44.65.85-.05.41-.44.7-.85.65-.68-.07-6.53-.98-7.85-8.08-.07-.39.19-.75.58-.82.13-.02.26.04.4.21z"/></svg><span id="sumLblFat">Fat Cal</span> <span data-bind="sumFatCal">0</span></div>
-                            <div class="fc-label-carb"><svg class="fc-icon" viewBox="0 0 24 24"><path d="M20 9.86v-1.6c0-1.25-.83-2.33-2.05-2.58l-5-1.02c-.31-.06-.63-.06-.94 0l-5 1.02C5.83 5.93 5 7.01 5 8.26v1.6c0 .64.29 1.22.76 1.6l4.24 3.39v4.29c0 .55.45 1 1 1h2c.55 0 1-.45 1-1v-4.29l4.24-3.39c.47-.38.76-.96.76-1.6z"/></svg><span id="sumLblCarb">Carb Cal</span> <span data-bind="sumCarbCal">0</span></div>
+                            <div class="fc-label-fat"><svg class="fc-icon" viewBox="0 0 24 24"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8zM7.83 14c.37 0 .67.26.74.62 1.09 5.92 6.21 6.33 6.57.41.05.7.44.65.85-.05.41-.44.7-.85.65-.68-.07-6.53-.98-7.85-8.08-.07-.39.19-.75.58-.82.13-.02.26.04.4.21z"/></svg><span id="sumLblFat" data-i18n="lbl_fat"></span> <span data-bind="sumFatCal">0</span></div>
+                            <div class="fc-label-carb"><svg class="fc-icon" viewBox="0 0 24 24"><path d="M20 9.86v-1.6c0-1.25-.83-2.33-2.05-2.58l-5-1.02c-.31-.06-.63-.06-.94 0l-5 1.02C5.83 5.93 5 7.01 5 8.26v1.6c0 .64.29 1.22.76 1.6l4.24 3.39v4.29c0 .55.45 1 1 1h2c.55 0 1-.45 1-1v-4.29l4.24-3.39c.47-.38.76-.96.76-1.6z"/></svg><span id="sumLblCarb" data-i18n="lbl_carb"></span> <span data-bind="sumCarbCal">0</span></div>
                         </div>
                     </div>
 
@@ -712,19 +714,19 @@
             </div>
 
             <div class="modal-footer">
-                <button class="btn-modal btn-save" style="background:var(--neon-blue);" data-action="close-summary" id="btnSumClose">完成</button>
+                <button class="btn-modal btn-save" style="background:var(--neon-blue);" data-action="close-summary" id="btnSumClose" data-i18n="btn_done"></button>
             </div>
         </div>
     </div>
 
     <div id="timeModal" class="modal-overlay" data-action="overlay-close">
         <div class="modal-box" data-no-close style="width: auto; padding: 25px;">
-            <div class="modal-title" style="justify-content:center; border:none; padding-bottom:5px;" id="lblTimeTitle">校準時間</div>
+            <div class="modal-title" style="justify-content:center; border:none; padding-bottom:5px;" id="lblTimeTitle" data-i18n="adj_time"></div>
             <div class="adj-wrap">
                 <div class="adj-box">
                     <button class="adj-btn" data-action="time-minus" data-target="th">-</button>
                     <div class="adj-dial-wrap">
-                        <div class="dial-label" id="lblTimeH">小時</div>
+                        <div class="dial-label" id="lblTimeH" data-i18n="unit_hr"></div>
                         <div class="dial-window" id="dw-adj-th" style="width:100%;"><div class="dial-scroll" id="ds-adj-th"></div></div>
                     </div>
                     <button class="adj-btn" data-action="time-plus" data-target="th">+</button>
@@ -732,15 +734,15 @@
                 <div class="adj-box">
                     <button class="adj-btn" data-action="time-minus" data-target="tm">-</button>
                     <div class="adj-dial-wrap">
-                        <div class="dial-label" id="lblTimeM">分鐘</div>
+                        <div class="dial-label" id="lblTimeM" data-i18n="unit_mn"></div>
                         <div class="dial-window" id="dw-adj-tm" style="width:100%;"><div class="dial-scroll" id="ds-adj-tm"></div></div>
                     </div>
                     <button class="adj-btn" data-action="time-plus" data-target="tm">+</button>
                 </div>
             </div>
             <div style="display:flex; gap:10px; margin-top:20px;">
-                <button class="btn-modal btn-ghost" data-action="close-time" id="btnTimeCancel">取消</button>
-                <button class="btn-modal btn-save" style="background:var(--neon-green);" data-action="save-time" id="btnTimeSave">儲存</button>
+                <button class="btn-modal btn-ghost" data-action="close-time" id="btnTimeCancel" data-i18n="btn_cancel"></button>
+                <button class="btn-modal btn-save" style="background:var(--neon-green);" data-action="save-time" id="btnTimeSave" data-i18n="btn_save"></button>
             </div>
         </div>
     </div>
@@ -767,22 +769,22 @@
 
 const i18n = {
     zh: {
-        tab1: "設定", tab2: "配速",
-        tim: "總時間 (MIN)", km: "總目標 (KM)", 
-        lblBaseMxS: "課表基準-最高速", lblBaseMnS: "課表基準-最低速", lblBaseMxI: "課表基準-最高坡", lblBaseMnI: "課表基準-最低坡",
-        hud1: "階段", hud2: "坡度", hud3: "速度", hud4: "心率", hud5: "乳酸",
-        avg: "AVG", max: "MAX", estKcal: "預估消耗: ", actKcal: "實際消耗: ", estDist: "預估里程: ", actDist: "實際里程: ", estElev: "預估爬升: ", actElev: "實際爬升: ",
-        rInc: "坡度", rSpd: "速度", rDist: "里程", rPace: "配速", rHr: "心率", rLac: "乳酸", rElev: "爬升",
-        thTime: "時間", thInc: "坡度", thSpd: "速度", thPhase: "階段", thHr: "心率", thLac: "乳酸",
-        btnLeft: "跑者", btnStart: "開始", btnResume: "繼續", btnHold: "長按/滑動 結束", btnPause: "暫停",
-        rmTitle: "跑者檔案設定", rmName: "名稱", rmPhy: "基本生理", rmAge: "年齡", rmWgt: "體重",
-        rmAdv: "進階生理與基準極限", rRHR: "安靜心率", rMHR: "最大心率", rSMM: "骨骼肌", rBF: "體脂肪", rVO2: "VO₂Max", ecw: "細胞外水比",
-        hwTitle: "硬體限制 (機台實體極限不可超過)", hMxS: "機台硬體-最高速", hMnS: "機台硬體-最低速", hMxI: "機台硬體-最高坡", hMnI: "機台硬體-最低坡",
-        rmPref: "偏好設定", btnCancel: "取消", btnSave: "儲存", btnAdd: "+ 新增跑者", errNameExist: "名稱已存在",
-        lblIncStepTitle: "坡度精度",
-        langZh: "中文", langEn: "EN", voiceOn: "語音 ON", voiceOff: "語音 OFF", gaitOn: "步頻 ON", gaitOff: "步頻 OFF", met: "公制", imp: "英制", male: "男", female: "女", lblSex: "",
-        histTitle: "歷史紀錄", noHist: "尚無訓練紀錄", clearAsk: "確認清空所有歷史紀錄？此操作無法復原。",
-        zones: ["Z1 恢復", "Z2 燃脂", "Z3 節奏", "Z4 乳酸", "Z5 無氧"], min: "分",
+        tab_settings: "設定", tab_pace: "配速",
+        lbl_tot_time: "總時間 (MIN)", lbl_tgt_km: "目標 (KM)", 
+        lbl_base_mxs: "課表基準-最高速", lbl_base_mns: "課表基準-最低速", lbl_base_mxi: "課表基準-最高坡", lbl_base_mni: "課表基準-最低坡",
+        hud_phase: "階段", hud_inc: "坡度", hud_spd: "速度", hud_hr: "心率", hud_lac: "乳酸",
+        hud_avg: "AVG", hud_max: "MAX", est_kcal: "預估消耗", act_kcal: "實際消耗", est_dist: "預估里程", act_dist: "實際里程", est_elev: "預估爬升", act_elev: "實際爬升",
+        r_inc: "坡度", r_spd: "速度", r_dist: "里程", r_pace: "配速", r_hr: "心率", r_lac: "乳酸", r_elev: "爬升",
+        th_time: "時間", th_inc: "坡度", th_spd: "速度", th_phase: "階段", th_hr: "心率", th_lac: "乳酸",
+        btn_runner: "跑者", btn_start: "開始", btn_resume: "繼續", btn_hold: "長按/滑動 結束", btn_pause: "暫停",
+        rm_title: "跑者檔案設定", rm_name: "名稱", rm_phy: "基本生理", rm_age: "年齡", rm_wgt: "體重",
+        rm_adv: "進階生理與基準極限", rm_rhr: "安靜心率", rm_mhr: "最大心率", rm_smm: "骨骼肌", rm_bf: "體脂肪", rm_vo2: "VO₂Max", rm_ecw: "細胞外水比",
+        rm_hw_title: "硬體限制 (實體極限不可超過)", rm_hw_mxs: "機台硬體-最高速", rm_hw_mns: "機台硬體-最低速", rm_hw_mxi: "機台硬體-最高坡", rm_hw_mni: "機台硬體-最低坡",
+        rm_pref: "偏好設定", btn_cancel: "取消", btn_save: "儲存", btn_add: "+ 新增跑者", err_name: "名稱已存在",
+        lbl_inc_step: "坡度精度",
+        lang_zh: "中文", lang_en: "EN", opt_voice_on: "語音 ON", opt_voice_off: "語音 OFF", opt_gait_on: "步頻 ON", opt_gait_off: "步頻 OFF", opt_met: "公制", opt_imp: "英制", opt_m: "男", opt_f: "女",
+        hist_title: "歷史紀錄", hist_empty: "尚無訓練紀錄", hist_clear: "確認清空所有歷史紀錄？此操作無法復原。",
+        zones: ["Z1 恢復", "Z2 燃脂", "Z3 節奏", "Z4 乳酸", "Z5 無氧"], unit_min: "分",
         phases: { warmup: "暖身", steep: "爬坡", sprint: "衝刺", recovery: "恢復", steady: "巡航", exhaust: "力竭", cooldown: "緩和", base: "基底" },
         cats: { 'FAT_BURN': '燃脂', 'ENDURANCE': '耐力', 'HIIT': '間歇', 'HILL': '爬坡', 'WALK': '健走', 'ULTRA': '超馬' },
         prog: {
@@ -829,44 +831,41 @@ const i18n = {
             p23: "超馬進階抗疲勞。拉高速度與坡度，模擬真實賽道動態轉換。",
             p24: "超馬極限燃脂巡航。榨取推蹬力，挑戰嚴苛高壓有氧臨界點。"
         },
-        warnSave: "資料已儲存", shortWorkout: "訓練時間過短，紀錄已作廢",
-        adjTime: "總時間校準", hr: "小時", mn: "分鐘",
-        sumTitle: "訓練總結與營養建議", btnSumClose: "完成",
-        nutriMissing: "填寫「體脂肪」與「骨骼肌」解鎖精準營養",
-        nutriRx: "【 運動營養建議 】", nutriPost: "跑後修復: 蛋白質 {p}g + 碳水 {c}g", nutriDaily: "全日建議蛋白質總量: {p}g 維持肌肉",
-        estDistTitle: "預估里程", actDistTitle: "實際里程", estElevTitle: "預估爬升", actElevTitle: "實際爬升", estKcalTitle: "預估消耗", actKcalTitle: "實際消耗",
-        sumDistTitle: "總里程", sumElevTitle: "總爬升", sumAvgPaceTitle: "平均配速", sumKcalTitle: "總消耗",
-        unitKm: "公里", unitMi: "英里", unitAge: "歲",
-        transMsgStart: "開始訓練。初始目標速度 {s}，坡度 {i}。",
-        spdSame: "速度不變", spdUp: "速度調升為 {v}", spdDown: "速度調降為 {v}",
-        incSame: "坡度不變", incUp: "坡度調升為 {v}", incDown: "坡度調降為 {v}",
-        resumeAudio: "繼續訓練。",
-        lblFat: "脂肪消耗", lblCarb: "碳水消耗", lblTotDist: "總跑量", lblMonDist: "本月跑量", lblTotCal: "總燃燒",
-        bioWarnHr: "心率突破安全紅線！已自動限制最高配速並強迫拉長吐氣。",
-        errTimeShort: "設定時間不可低於已跑時間加一分鐘",
-        sysSleep: "系統休眠過久，已啟動靜默回溯結算。",
-        bailOutOn: "已啟動安全急救模式，降至最低速。", bailOutOff: "已解除安全急救模式。",
-        warnCheating: "偵測到過度中斷或危險暫停，破壞了持續氧化，訓練效果已降級。",
-        warmupLimit: "偵測到長時暫停，心肺已冷卻，已暫時降速以策安全，請手動恢復。",
-        lblOffsetSpd: "速度偏移量", lblOffsetInc: "坡度偏移量"
+        warn_save: "資料已儲存", warn_short: "訓練時間過短，紀錄已作廢",
+        adj_time: "總時間校準", unit_hr: "小時", unit_mn: "分鐘",
+        sum_title: "訓練總結與營養建議", btn_done: "完成",
+        nutri_missing: "填寫「體脂肪」與「骨骼肌」解鎖精準營養",
+        nutri_rx: "【 運動營養建議 】", nutri_post: "跑後修復: 蛋白質 {p}g + 碳水 {c}g", nutri_daily: "全日建議蛋白質總量: {p}g 維持肌肉",
+        sum_dist: "總里程", sum_elev: "總爬升", sum_avg_pace: "平均配速", sum_kcal: "總消耗",
+        trans_start: "開始訓練。初始目標速度 {s}，坡度 {i}。",
+        spd_same: "速度不變", spd_up: "速度調升為 {v}", spd_down: "速度調降為 {v}",
+        inc_same: "坡度不變", inc_up: "坡度調升為 {v}", inc_down: "坡度調降為 {v}",
+        msg_resume: "繼續訓練。",
+        lbl_fat: "脂肪消耗", lbl_carb: "碳水消耗", lbl_tot_dist: "總跑量", lbl_mon_dist: "本月跑量", lbl_tot_cal: "總燃燒",
+        warn_hr: "心率突破安全紅線！已自動限制最高配速並強迫拉長吐氣。",
+        err_time_short: "設定時間不可低於已跑時間加一分鐘",
+        sys_sleep: "系統休眠過久，已啟動靜默回溯結算。",
+        warn_cheat: "偵測到過度中斷或危險暫停，破壞了持續氧化，訓練效果已降級。",
+        warn_warmup: "偵測到長時暫停，心肺已冷卻，已暫時降速以策安全，請手動恢復。",
+        lbl_offset_spd: "速度偏移量", lbl_offset_inc: "坡度偏移量"
     },
     en: {
-        tab1: "Setup", tab2: "Pace",
-        tim: "TIME (MIN)", km: "TARGET (KM)", 
-        lblBaseMxS: "Base Max Spd", lblBaseMnS: "Base Min Spd", lblBaseMxI: "Base Max Inc", lblBaseMnI: "Base Min Inc",
-        hud1: "Phase", hud2: "Inc", hud3: "Spd", hud4: "HR", hud5: "Lac",
-        avg: "AVG", max: "MAX", estKcal: "Est. Kcal: ", actKcal: "Actual Kcal: ", estDist: "Est. Dist: ", actDist: "Actual Dist: ", estElev: "Est. Elev: ", actElev: "Actual Elev: ",
-        rInc: "INCLINE", rSpd: "SPEED", rDist: "DIST", rPace: "PACE", rHr: "HR", rLac: "LAC", rElev: "ELEV",
-        thTime: "Time", thInc: "Inc", thSpd: "Spd", thPhase: "Phase", thHr: "HR", thLac: "Lac",
-        btnLeft: "Runner", btnStart: "Start", btnResume: "Resume", btnHold: "Hold/Swipe End", btnPause: "Pause",
-        rmTitle: "Runner Profile", rmName: "Name", rmPhy: "Physiology", rmAge: "Age", rmWgt: "Weight",
-        rmAdv: "Advanced & Base Limits", rRHR: "Resting HR", rMHR: "Max HR", rSMM: "Skel. Muscle", rBF: "Body Fat", rVO2: "VO₂Max", ecw: "ECW/TBW",
-        hwTitle: "Hardware Limits (Absolute Max)", hMxS: "Hardware Max Spd", hMnS: "Hardware Min Spd", hMxI: "Hardware Max Inc", hMnI: "Hardware Min Inc",
-        rmPref: "Preferences", btnCancel: "Cancel", btnSave: "Save", btnAdd: "+ Add Runner", errNameExist: "Name Exists",
-        lblIncStepTitle: "Incline Precision",
-        langZh: "中文", langEn: "EN", voiceOn: "Voice ON", voiceOff: "Voice OFF", gaitOn: "Gait ON", gaitOff: "Gait OFF", met: "Metric", imp: "Imperial", male: "M", female: "F", lblSex: "",
-        histTitle: "History", noHist: "No workout history yet.", clearAsk: "Clear all history? This cannot be undone.",
-        zones: ["Z1 Rec", "Z2 Fat", "Z3 Tempo", "Z4 Lac", "Z5 Anaer"], min: "m",
+        tab_settings: "Setup", tab_pace: "Pace",
+        lbl_tot_time: "TIME (MIN)", lbl_tgt_km: "TARGET (KM)", 
+        lbl_base_mxs: "Base Max Spd", lbl_base_mns: "Base Min Spd", lbl_base_mxi: "Base Max Inc", lbl_base_mni: "Base Min Inc",
+        hud_phase: "Phase", hud_inc: "Inc", hud_spd: "Spd", hud_hr: "HR", hud_lac: "Lac",
+        hud_avg: "AVG", hud_max: "MAX", est_kcal: "Est. Kcal", act_kcal: "Actual Kcal", est_dist: "Est. Dist", act_dist: "Actual Dist", est_elev: "Est. Elev", act_elev: "Actual Elev",
+        r_inc: "INCLINE", r_spd: "SPEED", r_dist: "DIST", r_pace: "PACE", r_hr: "HR", r_lac: "LAC", r_elev: "ELEV",
+        th_time: "Time", th_inc: "Inc", th_spd: "Spd", th_phase: "Phase", th_hr: "HR", th_lac: "Lac",
+        btn_runner: "Runner", btn_start: "Start", btn_resume: "Resume", btn_hold: "Hold/Swipe End", btn_pause: "Pause",
+        rm_title: "Runner Profile", rm_name: "Name", rm_phy: "Physiology", rm_age: "Age", rm_wgt: "Weight",
+        rm_adv: "Advanced & Base Limits", rm_rhr: "Resting HR", rm_mhr: "Max HR", rm_smm: "Skel. Muscle", rm_bf: "Body Fat", rm_vo2: "VO₂Max", rm_ecw: "ECW/TBW",
+        rm_hw_title: "Hardware Limits (Absolute Max)", rm_hw_mxs: "Hardware Max Spd", rm_hw_mns: "Hardware Min Spd", rm_hw_mxi: "Hardware Max Inc", rm_hw_mni: "Hardware Min Inc",
+        rm_pref: "Preferences", btn_cancel: "Cancel", btn_save: "Save", btn_add: "+ Add Runner", err_name: "Name Exists",
+        lbl_inc_step: "Incline Precision",
+        lang_zh: "中文", lang_en: "EN", opt_voice_on: "Voice ON", opt_voice_off: "Voice OFF", opt_gait_on: "Gait ON", opt_gait_off: "Gait OFF", opt_met: "Metric", opt_imp: "Imperial", opt_m: "M", opt_f: "F",
+        hist_title: "History", hist_empty: "No workout history yet.", hist_clear: "Clear all history? This cannot be undone.",
+        zones: ["Z1 Rec", "Z2 Fat", "Z3 Tempo", "Z4 Lac", "Z5 Anaer"], unit_min: "m",
         phases: { warmup: "Warmup", steep: "Steep", sprint: "Sprint", recovery: "Recovery", steady: "Steady", exhaust: "Exhaust", cooldown: "Cool", base: "Base" },
         cats: { 'FAT_BURN': 'FAT BURN', 'ENDURANCE': 'ENDURANCE', 'HIIT': 'HIIT', 'HILL': 'HILL', 'WALK': 'WALK', 'ULTRA': 'ULTRA' },
         prog: {
@@ -923,26 +922,23 @@ const i18n = {
             p23: "Ultra Advanced Endurance. Simulate real race muscular transitions.",
             p24: "Ultra Extreme Cruise. Maximize glute drive. Push your threshold."
         },
-        warnSave: "Profile Saved", shortWorkout: "Workout too short, discarded.",
-        adjTime: "Time Calibration", hr: "Hours", mn: "Minutes",
-        sumTitle: "Summary & Nutrition", btnSumClose: "Done",
-        nutriMissing: "Fill Body Fat & SMM to unlock precise nutrition.",
-        nutriRx: "[ Nutrition Suggestion ]", nutriPost: "Post-run: Protein {p}g + Carbs {c}g", nutriDaily: "Daily Protein: {p}g to maintain muscle.",
-        estDistTitle: "Est. Dist", actDistTitle: "Actual Dist", estElevTitle: "Est. Elev", actElevTitle: "Actual Elev", estKcalTitle: "Est. Kcal", actKcalTitle: "Actual Kcal",
-        sumDistTitle: "Total Dist", sumElevTitle: "Total Elev", sumAvgPaceTitle: "Avg Pace", sumKcalTitle: "Total Burn",
-        unitKm: "km", unitMi: "mi", unitAge: "yrs",
-        transMsgStart: "Starting workout. Initial target speed {s}, incline {i}.",
-        spdSame: "Speed unchanged", spdUp: "Speed increased to {v}", spdDown: "Speed decreased to {v}",
-        incSame: "Incline unchanged", incUp: "Incline increased to {v}", incDown: "Incline decreased to {v}",
-        resumeAudio: "Resuming workout.",
-        lblFat: "Fat Cal", lblCarb: "Carb Cal", lblTotDist: "Total Dist", lblMonDist: "Month Dist", lblTotCal: "Total Burn",
-        bioWarnHr: "Heart rate over safety line. Pace capped. Watch your breathing.",
-        errTimeShort: "Time cannot be less than elapsed + 1 minute.",
-        sysSleep: "Time-warp detected. Silent simulation applied.",
-        bailOutOn: "Safe mode active. Dropping to minimums.", bailOutOff: "Safe mode deactivated.",
-        warnCheating: "Excessive pauses disrupted fat oxidation. Efficacy degraded.",
-        warmupLimit: "Long pause detected. Speed reduced for safe resume. Adjust manually.",
-        lblOffsetSpd: "Speed Offset", lblOffsetInc: "Incline Offset"
+        warn_save: "Profile Saved", warn_short: "Workout too short, discarded.",
+        adj_time: "Time Calibration", unit_hr: "Hours", unit_mn: "Minutes",
+        sum_title: "Summary & Nutrition", btn_done: "Done",
+        nutri_missing: "Fill Body Fat & SMM to unlock precise nutrition.",
+        nutri_rx: "[ Nutrition Suggestion ]", nutri_post: "Post-run: Protein {p}g + Carbs {c}g", nutri_daily: "Daily Protein: {p}g to maintain muscle.",
+        sum_dist: "Total Dist", sum_elev: "Total Elev", sum_avg_pace: "Avg Pace", sum_kcal: "Total Burn",
+        trans_start: "Starting workout. Initial target speed {s}, incline {i}.",
+        spd_same: "Speed unchanged", spd_up: "Speed increased to {v}", spd_down: "Speed decreased to {v}",
+        inc_same: "Incline unchanged", inc_up: "Incline increased to {v}", inc_down: "Incline decreased to {v}",
+        msg_resume: "Resuming workout.",
+        lbl_fat: "Fat Cal", lbl_carb: "Carb Cal", lbl_tot_dist: "Total Dist", lbl_mon_dist: "Month Dist", lbl_tot_cal: "Total Burn",
+        warn_hr: "Heart rate over safety line. Pace capped. Watch your breathing.",
+        err_time_short: "Time cannot be less than elapsed + 1 minute.",
+        sys_sleep: "Time-warp detected. Silent simulation applied.",
+        warn_cheat: "Excessive pauses disrupted fat oxidation. Efficacy degraded.",
+        warn_warmup: "Long pause detected. Speed reduced for safe resume. Adjust manually.",
+        lbl_offset_spd: "Speed Offset", lbl_offset_inc: "Incline Offset"
     }
 };
 
@@ -959,7 +955,7 @@ const VoiceDB = {
         phy_aero: ["肝臟與肌肉進行 Beta 氧化，將脂肪轉為游離脂肪酸燃料。","慢肌纖維合成粒線體並增加微血管，打造耐力銀行。","心室舒張末期容積增加，每跳打出比平常多30%的血液。","有氧酶活性倍增，同速度下將消耗更少的肝醣。","波耳效應啟動，血紅素加速釋放氧氣給飢渴細胞。","訓練肌肉的抗疲勞度，次最大耗氧量巡航對馬拉松至關重要。","呼吸交換率顯示你正依賴脂肪代謝，最純粹的有氧底層。","肺泡氣體交換效率達巔峰，心肺系統運轉極度完美。","能量路徑正在被大量活化，全面提升你的耐力基因。","這正是增加慢縮肌內肌紅蛋白濃度的完美狀態。","你的心臟正在經歷離心性肥大，左心室的容積正在擴張。","這種配速能大幅促進毛細血管新生，讓每一條肌纖維都充滿氧氣。","脂肪分解酶正在全速運轉，把你身上的脂肪轉化為純粹的推力。","你的肌肉細胞正在增加脂肪酸結合蛋白的數量，燃脂效率飆升！","這是提升有氧代謝酶濃度的黃金區間，保持這份穩定。","有氧系統正在將乳酸當作燃料重新回收，效率極高。","你現在就像是一台混合動力車，完美平衡了糖與脂肪的燃燒。","持續這份壓力，你的微血管床正在像樹枝一樣瘋狂生長。","細胞內的粒線體工廠正在瘋狂擴建，這是你未來的體能基石。","葡萄糖與游離脂肪酸在細胞內完美共舞，輸出極度穩定。","感受這份純粹的有氧做功，你的心肌正在變得更加強韌有力。"],
         phy_ana: ["乳酸是燃料不是敵人！肝臟正透過柯氏循環把它轉回葡萄糖！","跨越臨界點，強迫身體適應強酸環境下的收縮！","快縮肌全面啟動！榨乾肌肉裡高能磷酸與儲備肌醣原！","交感神經放電，兒茶酚胺大量分泌，逼出最大攝氧極限！","氫離子濃度飆升，這股酸痛是刺激肌肉生長變強的最強信號！","無氧系統超載運轉，乳酸閾值大幅右移，極速將突破天際！","高壓引發微小肌肉損傷，今晚深度睡眠將把它們修復更粗壯！","肺部通氣量達極限，呼吸肌群承受巨大壓力，挺住考驗！","神經肌肉接合處正瘋狂釋放化學物質，撐住這高頻率！","你的極速快肌正在燃燒殆盡，這是爆發力的絕對關鍵！","血液中的重碳酸鹽正在拼命緩衝酸鹼值，用呼吸來幫助它！","無氧醣解正在產生大量的代謝物，這是你突破瓶頸的代價！","感受肌纖維的強力收縮，這是在召喚你最深處的運動單元！","你的無氧做功能力正在以指數級別上升，忍受這短暫的地獄！","神經元的放電頻率已經到達巔峰，這是真正的爆發力訓練。","無氧代謝正在摧毀舊的肌肉結構，為更強大的纖維騰出空間。","乳酸脫氫酶正在滿載運作，這份痛苦將化為你明天的極速。","榨乾所有的肝醣儲備，逼迫身體在恢復期引發超量補償！","這種缺氧的灼燒感，正是刺激生長激素大量爆發的唯一途徑！","你的無氧動力正在刷新歷史紀錄，把這些乳酸全部吃下去！","這是在對抗細胞內的劇烈酸鹼失衡，你的緩衝能力正在進化！"],
         phy_rec: ["深呼吸啟動迷走神經，提高副交感張力，後燃效應持續大量燃脂。","小腿肌肉幫浦加速靜脈回流，迅速排除堆積的代謝廢物。","剛產生的乳酸正被心臟與慢肌纖維氧化，當作超級燃料回收。","走動讓血液循環，防靜脈血液滯留，心率安全且平滑地降下。","腦內啡與多巴胺在突觸間瘋狂釋放，無與倫比的跑者高潮！","體溫中樞慢慢關閉排汗，肌肉發炎正被身體修復機制接管。","動態恢復比完全靜止更能減輕明天的延遲性肌肉痠痛。","這就是償還氧債的階段，大口把氧氣還給耗竭的細胞。","讓交感神經慢慢退出，你的身體正在記錄剛才高強度的神經印記。","白血球正在前往受損的微小肌纖維，開始進行最強的修復工程。","巨噬細胞正在清理肌肉微細損傷的碎片，恢復機制全開。","神經遞質正在重新平衡，享受這份歷經劫難後的極致平靜。","運動後過量耗氧正在發生，你即使停下也還在燃燒卡路里。","血管舒張效應帶來了大量的養分，受損的肌肉正在貪婪吸收。","乳酸鹽正在被快速轉運出細胞，你的血液酸鹼值正在回歸完美中性。","感受心搏徐緩的美妙，你的心臟在證明它的強大恢復力。"],
-        psy_focus: ["採用解離策略！不專注痛苦，專注吐氣，數著，一、二、吐盡。","想像是一台無情機械，沒有痛覺沒有感情，只有規律步頻。","閉眼三秒，切斷視覺輸入，只聽呼吸聲找回身體主導權。","不想終點還有多遠，專注在此時此刻，這一步踩穩再踩下一步。","意識抽離燃燒的大腿，你是身體的冷酷駕駛員，指令一下就得動。","注意力集中手臂擺動，用上半身強行帶動已經疲勞的下半身。","想像跑在沒有盡頭的光滑軌道上，輕輕滑過毫無摩擦。","把意識放在心臟的跳動上，感受它強大不屈的推進力。","把你的大腦想成第三人稱視角，俯視著這具正在奔跑的軀殼。","痛覺只是神經的電流訊號，你可以選擇拒絕讀取它。","將意識鎖定在鼻腔吸入冷空氣的觸感，摒除一切雜念。","把痛苦具象化為一道煙霧，隨著每一次用力吐氣把它排出體外。","你是這場訓練的旁觀者，冷靜地監控著機體的每一項數據運作。","縮小你的視野，只看眼前履帶的轉動，其餘的世界與你無關。","化身為絕對理性的觀察者，感受肌肉的收縮，但不帶入情緒。","將所有的意志力灌注在核心，讓那裡成為不可撼動的能量源。","切斷對未來時間的恐懼，你現在唯一擁有的就是這一秒鐘。","想像身體被一層冷靜的藍光包圍，隔離掉所有的高溫與不適。"],
+        psy_focus: ["採用解離策略！不專注痛苦，專注吐氣，數著，一、二、吐盡。","想像是一台無情機械，沒有痛覺沒有感情，只有規律步頻。","閉眼三秒，切斷視覺輸入，只聽呼吸聲找回身體主導權。","不想終點還有多遠，專注在此時此刻，這一步踩穩再踩下一步。","意識抽離燃燒的大腿，你是身體的冷酷駕駛員，指令一下就得動。","注意力集中手臂擺動，用上半身強行帶動已經疲勞的下半身。","想像跑在沒有盡頭光滑軌道上，輕輕滑過毫無摩擦。","把意識放在心臟的跳動上，感受它強大不屈的推進力。","把你的大腦想成第三人稱視角，俯視著這具正在奔跑的軀殼。","痛覺只是神經的電流訊號，你可以選擇拒絕讀取它。","將意識鎖定在鼻腔吸入冷空氣的觸感，摒除一切雜念。","把痛苦具象化為一道煙霧，隨著每一次用力吐氣把它排出體外。","你是這場訓練的旁觀者，冷靜地監控著機體的每一項數據運作。","縮小你的視野，只看眼前履帶的轉動，其餘的世界與你無關。","化身為絕對理性的觀察者，感受肌肉的收縮，但不帶入情緒。","將所有的意志力灌注在核心，讓那裡成為不可撼動的能量源。","切斷對未來時間的恐懼，你現在唯一擁有的就是這一秒鐘。","想像身體被一層冷靜的藍光包圍，隔離掉所有的高溫與不適。"],
         psy_micro: ["不想還有多少分鐘！撐過眼前十秒，十秒鐘你絕對做得到！","痛苦路程切成五等份，現在只征服眼前這一小段，踩下去！","只要不按停止鍵你就是贏家！配速掉一點也沒關係，繼續動！","跟我倒數五秒，五四三二一，你看，又成功撐過地獄時刻！","把大目標丟進垃圾桶，唯一目標只有眼前的下一個十步！","別看時間！那會摧毀意志，看著前方，專注吸進的每一口氣！","只要撐過這一個坡！過坡我們再說，咬緊牙關把它吃下來！","告訴自己再撐三步就好，然後再騙自己三步，就這樣熬過去！","只要你還在履帶上，每一秒你都在擊敗過去的自己！","不要去想明天會多痠痛，我只要你把這一分鐘跑完！","撐過這一次的呼吸循環，只要一次！然後我們再來下一次！","把專注力縮小到這三步之內，不要讓未來壓垮現在的你。","再跑十公尺就好，對，就是這種自我欺騙帶遇到極限！","時間是虛無的，唯有你腳下踩出的這一步是絕對真實的。","忘掉里程！忘掉配速！你現在的任務就是不讓這台機器停下！","把剩下的時間切成五秒一局的微型遊戲，贏下眼前的這一局！","現在看手錶只會剝奪你的勇氣，看著前方，你是無畏的挑戰者！","每一次落地都在累積勝利的籌碼，不要在最後關頭掀牌認輸！"],
         psy_over: ["科學證明大腦說不行，肌肉其實還有百分之三十儲備電力！","痛苦是防止受傷的保護謊言，告訴大腦我很安全我做主，跑！","擁抱不適感！頂尖選手的蛻變，全發生在想放棄的瞬間！","意志力絕對比跑步機馬達堅強。打破大腦限制器，釋放野性！","這就是重塑自我的高溫火爐，不經過鍛打怎麼可能成為鋼鐵？","感覺像快死了？但你不會死！跨越恐懼邊界將迎來新生！","記住為什麼站在這裡！把質疑聲音踩在腳下，用實力輾壓過去！","當痛苦離開身體的時候，就是軟弱離開身體的時候！","你的極限遠比你大腦設定的底線還要遙遠，去觸碰它！","真正的突破，永遠發生在你覺得自己絕對辦不到的那一秒！","人類的基因是在大草原上獵殺獵物演化來的，喚醒你的原始本能！","痛苦是一道門，推開它，背後就是你夢寐以求的強大自我。","別讓潛意識裡的舒適圈綁架你，暴力地撕碎大腦的警告！","這是對靈魂強度的最高測試，向整個世界證明你的硬度！","大腦會說謊，但數據不會！你的身體完全有能力繼續，給我衝！","在放棄的懸崖邊緣跳舞吧！跨越這道界線，你將再也不平庸！","不要對妥協讓步！今天在這裡低頭，明天就會在人生中低頭！","你是掌控這具軀殼的暴君，命令你的肌肉繼續收縮，絕對服從！"],
         warn_hr: ["警告！心率突破安全紅線！請強迫拉長吐氣！若胸悶請立刻暫停！","心跳接近機體極限！心臟負荷極高，專注深吐氣，安全第一！"],
@@ -1070,9 +1066,9 @@ class ReactiveState {
 }
 
 const AppState = new ReactiveState({
-    activeP: 'Runner', profiles: {}, hw: { maxSpd: 20.0, minSpd: 0.1, maxInc: 15.0, minInc: 0.0 },
+    activeP: 'Runner', profiles: {}, hw: { maxSpd: 20.0, minSpd: 0.8, maxInc: 15.0, minInc: 0.0 },
     runStatus: 'STOPPED', accumMs: 0, matrix: [], snapshot: [], activeTab: 'settings',
-    isBailOut: false, minimalVoice: false, estTotKm: 0, isTimeWarping: false
+    isTimeWarping: false, minimalVoice: false, estTotKm: 0
 });
 
 const RunAcc = { 
@@ -1098,14 +1094,14 @@ const resetRunAcc = () => {
 class PhysioEngine {
     static sanitize(raw) {
         let m = { ...raw }; 
-        let wKG = Utils.clamp(m.weight || (m.gender === 'M' ? 70 : 55), 30, 200); 
-        let sKG = Utils.clamp(m.smm || 0, 0, wKG * 0.6); 
-        let defBF = m.gender === 'M' ? 18 : 26;
-        let bf = Utils.clamp(m.bf || (sKG > 0 ? Math.max(5, 100 - (sKG/wKG*100) - (m.gender==='M'?20:15)) : defBF), 3, 50);
+        let wKG = Utils.clamp(m.weight ?? (m.gender === 'M' ? 70 : 55), 30, 200); 
+        let sKG = Utils.clamp(m.smm ?? 33.1, 0, wKG * 0.6); 
+        let defBF = m.gender === 'M' ? 21.6 : 26;
+        let bf = Utils.clamp(m.bf ?? defBF, 3, 50);
         let smm = sKG || (wKG * (1 - bf/100) * (m.gender==='M'?0.45:0.38));
-        let ecw = Utils.clamp(m.ecw || 0.375, 0.300, 0.450);
+        let ecw = Utils.clamp(m.ecw ?? 0.382, 0.300, 0.450);
         
-        let mHR = m.customMHR || Math.max(130, 208 - 0.7 * (m.age||35)); 
+        let mHR = m.customMHR || Math.max(130, 208 - 0.7 * (m.age ?? 40)); 
         let rHR = m.customRHR || 60; 
         if (!m.customRHR && m.customRHR !== 0) {
             let isFit = false;
@@ -1115,19 +1111,31 @@ class PhysioEngine {
         }
 
         mHR = Math.max(mHR, rHR + 20);
-        let ms = Math.max(0.2, m.maxSpd || 12.0); 
+        let ms = Math.max(0.2, m.maxSpd ?? 16.0); 
         let vo2 = m.customVO2 || Math.min(80, Math.max(25, 3.5 + 0.2*(ms*16.67) + 0.9*(ms*16.67)*0.01)); 
         
         let smmRatio = smm / wKG;
-        let pMaxLac = 12.0 + (vo2 > 0 ? (vo2 - 40)*0.1 : 0) + (smmRatio - 0.35)*15 - ((m.age||35)-30)*0.05;
+        let pMaxLac = 12.0 + (vo2 > 0 ? (vo2 - 40)*0.1 : 0) + (smmRatio - 0.35)*15 - ((m.age ?? 40)-30)*0.05;
         pMaxLac = Math.min(18.0, Math.max(6.0, pMaxLac));
         
         if (!m.catMemory) m.catMemory = { 'FAT_BURN': 1, 'ENDURANCE': 2, 'HIIT': 4, 'HILL': 6, 'WALK': 11, 'ULTRA': 21 };
         if (m.catMemory && m.catMemory['ULTRA'] === undefined) m.catMemory['ULTRA'] = 21;
         
-        let incStep = m.incStep || 0.5;
+        let incStep = m.incStep ?? 0.5;
 
-        return { wKG, bf, smm, ecw, vo2, mHR, rHR, pMaxLac, maxSpd: ms, minSpd: Math.max(0.1, m.minSpd||1.0), mxInc: Utils.roundInc(Math.max(0, m.mxInc||5.0), incStep), mnInc: Utils.roundInc(Math.max(0, m.mnInc||0.0), incStep), tKm: Math.max(0.1, m.tKm||5.0), tTime: Math.max(20, m.tTime||60), age: Math.max(15, m.age||35), gender: m.gender, name: m.name, unit: m.unit, lang: m.lang, voiceOn: m.voiceOn !== false, gaitOn: m.gaitOn !== false, lastProg: (m.lastProg !== undefined) ? m.lastProg : 1, lastCat: m.lastCat || 'FAT_BURN', spdOffset: m.spdOffset||0, incOffset: Utils.roundInc(m.incOffset||0, incStep), incStep: incStep, catMemory: m.catMemory };
+        return { 
+            wKG, bf, smm, ecw, vo2, mHR, rHR, pMaxLac, 
+            maxSpd: ms, minSpd: Math.max(0.1, m.minSpd ?? 2.0), 
+            mxInc: Utils.roundInc(Math.max(0, m.mxInc ?? 15.0), incStep), 
+            mnInc: Utils.roundInc(Math.max(0, m.mnInc ?? 0.0), incStep), 
+            tKm: Math.max(0.1, m.tKm ?? 5.0), tTime: Math.max(20, m.tTime ?? 30), 
+            age: Math.max(15, m.age ?? 40), gender: m.gender ?? 'M', 
+            name: m.name ?? 'Runner', unit: m.unit ?? 'metric', 
+            lang: m.lang ?? 'zh', voiceOn: m.voiceOn ?? true, gaitOn: m.gaitOn ?? true,
+            lastProg: m.lastProg ?? 0, lastCat: m.lastCat ?? 'FAT_BURN', 
+            spdOffset: m.spdOffset ?? 0, incOffset: Utils.roundInc(m.incOffset ?? 0, incStep), 
+            incStep: incStep, catMemory: m.catMemory 
+        };
     }
 
     static getGoldenRatios(pid) {
@@ -1364,21 +1372,20 @@ class VoiceEngine {
         if (!spdChanged && !incChanged) return null;
         let sVal = this.numToSpeech(isMet ? nextM.spd : nextM.spd/1.609344, lang);
         let iVal = this.numToSpeech(nextM.inc, lang);
-        let spdPart = !spdChanged ? dStr.spdSame : (nextM.spd > curM.spd ? dStr.spdUp.replace('{v}', sVal) : dStr.spdDown.replace('{v}', sVal));
-        let incPart = !incChanged ? dStr.incSame : (nextM.inc > curM.inc ? dStr.incUp.replace('{v}', iVal) : dStr.incDown.replace('{v}', iVal));
+        let spdPart = !spdChanged ? dStr.spd_same : (nextM.spd > curM.spd ? dStr.spd_up.replace('{v}', sVal) : dStr.spd_down.replace('{v}', sVal));
+        let incPart = !incChanged ? dStr.inc_same : (nextM.inc > curM.inc ? dStr.inc_up.replace('{v}', iVal) : dStr.inc_down.replace('{v}', iVal));
         return `${incPart}，${spdPart}`;
     }
 
     speakText(txt, pri, langCode, cb = null) {
         if (!this.synth || AppState.state.runStatus === 'STOPPED' || this.muted) { if(cb) cb(); return; }
         if (AppState.state.runStatus === 'PAUSED' && pri !== 3) { if(cb) cb(); return; } 
-        if (AppState.state.isTimeWarping) { if(cb) cb(); return; } // Silence during time-warp
+        if (AppState.state.isTimeWarping) { if(cb) cb(); return; } 
         let p = AppState.state.profiles[AppState.state.activeP]; if(!p || p.voiceOn === false) { if(cb) cb(); return; }
         if (document.visibilityState === 'hidden') { if (pri <= 2) NotificationManager.show(txt, pri === 1); if(cb) cb(); return; }
         
         if (AppState.state.minimalVoice && pri > 2) { if(cb) cb(); return; }
         
-        // Priority Override
         if (pri <= 1) { this.synth.cancel(); this.q = []; clearTimeout(this.wd); this.state = 'IDLE'; }
         
         let chunks = txt.match(/[^,。！？.!?]+[,。！？.!?]*/g) || [txt];
@@ -1482,8 +1489,8 @@ class TweenEngine {
         let startVal = parseFloat(el.dataset.raw) || 0; let diff = targetVal - startVal;
         
         const render = (val) => {
-            let formatted = formatFn(val);
             el.dataset.raw = val;
+            let formatted = formatFn(val);
             let parts = formatted.split('.');
             if(parts.length === 2) {
                 el.innerHTML = `<span>${parts[0]}</span><span class="dot">.</span><span>${parts[1]}</span>`;
@@ -1676,7 +1683,7 @@ class AppController {
             if (AppState.state.runStatus === 'RUNNING' || AppState.state.runStatus === 'PAUSED') {
                 history.pushState(null, null, location.href);
                 let p = AppState.state.profiles[AppState.state.activeP];
-                NotificationManager.show((i18n[p.lang]||i18n['zh']).btnHold, false);
+                NotificationManager.show((i18n[p.lang]||i18n['zh']).btn_hold, false);
             }
         });
         
@@ -1695,8 +1702,8 @@ class AppController {
                 AppState.batch({ activeP: s.activeP || Object.keys(s.profiles)[0], profiles: s.profiles, hw: s.hw }); 
             } else { 
                 let sysLang = navigator.language.includes('zh') ? 'zh' : 'en';
-                let p = PhysioEngine.sanitize({ name: 'Runner 1', gender: 'M', unit: 'metric', lang: sysLang, voiceOn: true, gaitOn: true, lastProg: 0, lastCat: 'FAT_BURN' }); 
-                AppState.batch({ activeP: 'Runner 1', profiles: { 'Runner 1': p } }); 
+                let p = PhysioEngine.sanitize({ name: 'Runner', gender: 'M', unit: 'metric', lang: sysLang, voiceOn: true, gaitOn: true, lastProg: 0, lastCat: 'FAT_BURN' }); 
+                AppState.batch({ activeP: 'Runner', profiles: { 'Runner': p } }); 
             }
             
             // Defensive Bootstrapping
@@ -1712,7 +1719,7 @@ class AppController {
             if(r && r.accumMs > 0 && r.snapshot && r.snapshot.length > 0) { 
                 let restoredStatus = r.runStatus || 'PAUSED';
                 let dtGap = Date.now() - (r.lastTimestamp || Date.now());
-                AppState.batch({ runStatus: restoredStatus, accumMs: r.accumMs, matrix: r.matrix, snapshot: r.snapshot, activeP: r.activeP, isBailOut: r.isBailOut || false, minimalVoice: r.minimalVoice || false }); 
+                AppState.batch({ runStatus: restoredStatus, accumMs: r.accumMs, matrix: r.matrix, snapshot: r.snapshot, activeP: r.activeP, minimalVoice: r.minimalVoice || false }); 
                 if(r.acc) { Object.assign(RunAcc, r.acc); }
                 
                 AppState.state.estTotKm = PhysioEngine.simulatePhysics(r.snapshot, AppState.state.hw).dist;
@@ -1723,8 +1730,8 @@ class AppController {
         } catch(fatalError) {
             console.error('Fatal Init Error', fatalError);
             let sysLang = navigator.language.includes('zh') ? 'zh' : 'en';
-            let p = PhysioEngine.sanitize({ name: 'Runner 1', gender: 'M', unit: 'metric', lang: sysLang, voiceOn: true, gaitOn: true, lastProg: 0, lastCat: 'FAT_BURN' }); 
-            AppState.batch({ activeP: 'Runner 1', profiles: { 'Runner 1': p } });
+            let p = PhysioEngine.sanitize({ name: 'Runner', gender: 'M', unit: 'metric', lang: sysLang, voiceOn: true, gaitOn: true, lastProg: 0, lastCat: 'FAT_BURN' }); 
+            AppState.batch({ activeP: 'Runner', profiles: { 'Runner': p } });
             this.setupSubscribers();
             needsRecalc = true;
         }
@@ -1757,32 +1764,21 @@ class AppController {
     updateI18n() {
         let p = AppState.state.profiles[AppState.state.activeP]; let d = i18n[p.lang] || i18n['zh']; let isMet = p.unit !== 'imperial';
         document.getElementById('htmlRoot').lang = p.lang === 'zh' ? 'zh-TW' : 'en';
-        document.getElementById('tabSettings').textContent = d.tab1; document.getElementById('tabMatrix').textContent = d.tab2;
-        ['tim','km'].forEach(k => { let el = document.getElementById(`lbl${k==='tim'?'TotalTime':'TargetKm'}`); if(el) el.textContent = d[k]; });
-        for(let i=1;i<=5;i++) { let text = d[`hud${i}`]; document.getElementById(`hudH${i}`).textContent = text; document.getElementById(`hudRH${i}`).textContent = text; document.getElementById(`sumH${i}`).textContent = text; }
-        ['Avg','Max','RAvg','RMax','SumAvg','SumMax'].forEach(k => { let el=document.getElementById(`lbl${k}`); if(el) el.textContent = d[k.toLowerCase().includes('avg')?'avg':'max']; });
-        ['Inc','Spd','Dist','Pace','Hr','Lac','Elev'].forEach(k => { let el = document.getElementById(`lblRun${k}`); if(el) el.textContent = d[`r${k}`]; });
-        ['Time','Inc','Spd','Phase','Hr','Lac'].forEach(k => { let el = document.getElementById(`th${k}`); if(el) el.textContent = d[`th${k}`]; });
-        ['BtnLeft','Pause'].forEach(k => document.getElementById(`lbl${k}`).textContent = d[`btn${k}`]); document.getElementById('lblEnd').textContent = d.btnHold;
         
-        document.getElementById('lblOffsetSpd').textContent = d.lblOffsetSpd; document.getElementById('lblOffsetInc').textContent = d.lblOffsetInc;
+        // Data-i18n bindings
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            let key = el.dataset.i18n;
+            if (d[key]) {
+                if (el.tagName === 'INPUT' && el.type === 'text' && el.placeholder) {
+                    el.placeholder = d[key];
+                } else {
+                    el.textContent = d[key];
+                }
+            }
+        });
 
-        document.getElementById('lblRmTitle').textContent = d.rmTitle; document.getElementById('lblRmName').textContent = d.rmName; document.getElementById('lblRmPhysio').textContent = d.rmPhy;
-        document.getElementById('lblAge').textContent = d.rmAge; document.getElementById('lblWgt').textContent = d.rmWgt; document.getElementById('lblAdvTitle').textContent = d.rmAdv;
-        ['RHR','MHR','SMM','BF','VO2','ECW','BaseMxS','BaseMnS','BaseMxI','BaseMnI'].forEach(k => { let el = document.getElementById(`lbl${k}`); if(el) el.textContent = d[`r${k}`] || d[`lbl${k}`] || d[k.toLowerCase()] || d[k]; });
-        document.getElementById('lblHwTitle').textContent = d.hwTitle; ['MxS','MnS','MxI','MnI'].forEach(k => { let el = document.getElementById(`lblHw${k}`); if(el) el.textContent = d[`h${k}`]; });
-        document.getElementById('lblRmPref').textContent = d.rmPref; document.getElementById('btnRmCancel').textContent = d.btnCancel; document.getElementById('btnRmSave').textContent = d.btnSave;
-        document.getElementById('lblHistTitle').textContent = d.histTitle;
-        document.getElementById('lblIncStepTitle').textContent = d.lblIncStepTitle || '坡度精度';
-        
-        ['EstDist','ActDist','EstElev','ActElev','EstKcal','ActKcal','SumDist','SumElev','SumAvgPace','SumKcal'].forEach(k => { let el = document.getElementById(`lbl${k}Title`); if(el) el.textContent = d[`${k.charAt(0).toLowerCase() + k.slice(1)}Title`] || k; });
-        
-        document.getElementById('btnLangZh').textContent = d.langZh; document.getElementById('btnLangEn').textContent = d.langEn;
-        document.getElementById('btnVoiceOn').textContent = d.voiceOn; document.getElementById('btnVoiceOff').textContent = d.voiceOff;
-        document.getElementById('btnGaitOn').textContent = d.gaitOn; document.getElementById('btnGaitOff').textContent = d.gaitOff;
-        document.getElementById('btnUnitMet').textContent = d.met; document.getElementById('btnUnitImp').textContent = d.imp;
-        document.getElementById('btnSexM').textContent = d.male; document.getElementById('btnSexF').textContent = d.female;
-        document.getElementById('lblSumTitle').textContent = d.sumTitle; document.getElementById('btnSumClose').textContent = d.btnSumClose;
+        // Dynamic properties
+        ['Avg','Max','RAvg','RMax','SumAvg','SumMax'].forEach(k => { let el=document.getElementById(`lbl${k}`); if(el) el.textContent = d[k.toLowerCase().includes('avg')?'hud_avg':'hud_max']; });
         
         document.getElementById('unitRunSpd').textContent = isMet ? 'kph' : 'mph'; document.getElementById('unitRunDist').textContent = isMet ? 'km' : 'mi';
         document.getElementById('unitRunElev').textContent = isMet ? 'm' : 'ft'; document.getElementById('unitAge').textContent = d.unitAge || '';
@@ -1857,7 +1853,7 @@ class AppController {
             else if(a === 'add-runner-mode') { document.getElementById('runnerSelectorRow').querySelectorAll('.runner-tag').forEach(x=>x.classList.remove('active')); t.classList.add('active'); this.clearRunnerForm(); document.getElementById('btnRmDelete').disabled = true; this.validateRunnerForm(); }
             else if(a === 'open-history') this.openHistory();
             else if(a === 'close-history') { this.closeModal('historyModal'); this.viewingProfile = null; }
-            else if(a === 'clear-history') { if(confirm(dStr.clearAsk)) { let fR = document.getElementById('histRunnerSelect').value; DB.clearHist(fR).then(()=>this.openHistory()); } }
+            else if(a === 'clear-history') { if(confirm(dStr.hist_clear)) { let fR = document.getElementById('histRunnerSelect').value; DB.clearHist(fR).then(()=>this.openHistory()); } }
             else if(a === 'close-summary' || (a === 'close-summary-overlay' && e.target.id === 'summaryModal')) { 
                 this.closeModal('summaryModal'); this.charts.sumM = null; this.viewingProfile = null;
                 // Force Clean Reboot Logic
@@ -1879,8 +1875,6 @@ class AppController {
             else if(a === 'open-adj-time') {
                 if(AppState.state.runStatus !== 'RUNNING' && AppState.state.runStatus !== 'PAUSED') return;
                 let curMins = p.tTime; this.charts.teardown();
-                document.getElementById('lblTimeTitle').textContent = dStr.adjTime; document.getElementById('lblTimeH').textContent = dStr.hr; document.getElementById('lblTimeM').textContent = dStr.mn;
-                document.getElementById('btnTimeCancel').textContent = dStr.btnCancel; document.getElementById('btnTimeSave').textContent = dStr.btnSave;
                 this.adjDials.timeH.build(0, 5, 1); this.adjDials.timeM.build(0, 59, 1);
                 this.adjDials.timeH.setValue(Math.floor(curMins / 60), true); this.adjDials.timeM.setValue(curMins % 60, true);
                 this.openModal('timeModal');
@@ -1890,7 +1884,7 @@ class AppController {
                 if(AppState.state.runStatus === 'STOPPED') return;
                 let tm = this.adjDials.timeH.currentVal * 60 + this.adjDials.timeM.currentVal;
                 let elapsedMins = AppState.state.accumMs / 60000; let minLimit = Math.floor(elapsedMins) + 1;
-                if (tm < minLimit) { NotificationManager.show(dStr.errTimeShort, true); return; }
+                if (tm < minLimit) { NotificationManager.show(dStr.err_time_short, true); return; }
                 p.tTime = tm; this.saveData(); this.performMatrixSplicing(); this.closeModal('timeModal');
             }
             else if(a === 'open-numpad') {
@@ -1944,12 +1938,12 @@ class AppController {
             else if(a === 'toggle-gait') {
                 p.gaitOn = !p.gaitOn; this.saveData();
                 this.updateUIDataOnly();
-                NotificationManager.show(p.gaitOn ? dStr.gaitOn : dStr.gaitOff, !p.gaitOn);
+                NotificationManager.show(p.gaitOn ? dStr.opt_gait_on : dStr.opt_gait_off, !p.gaitOn);
             }
             else if(a === 'toggle-voice-mode') {
                 p.voiceOn = !p.voiceOn; this.saveData();
                 this.updateUIDataOnly();
-                NotificationManager.show(p.voiceOn ? dStr.voiceOn : dStr.voiceOff, !p.voiceOn);
+                NotificationManager.show(p.voiceOn ? dStr.opt_voice_on : dStr.opt_voice_off, !p.voiceOn);
                 this.persistRun();
             }
             else if (a === 'open-hist-detail') {
@@ -2027,9 +2021,9 @@ class AppController {
                 let curM = AppState.state.snapshot[Math.floor(AppState.state.accumMs/60000)];
                 if (pauseDuration > 60000 && curM && curM.spd > 7.0) {
                     p.spdOffset -= 3.0; this.saveData(); this.performMatrixSplicing();
-                    VoiceApp.speakText(dStr.warmupLimit, 3, p.lang==='zh'?'zh-TW':'en-US', () => { AppState.state.runStatus = 'RUNNING'; });
+                    VoiceApp.speakText(dStr.warn_warmup, 3, p.lang==='zh'?'zh-TW':'en-US', () => { AppState.state.runStatus = 'RUNNING'; });
                 } else {
-                    VoiceApp.speakText(dStr.resumeAudio, 3, p.lang==='zh'?'zh-TW':'en-US', () => { AppState.state.runStatus = 'RUNNING'; });
+                    VoiceApp.speakText(dStr.msg_resume, 3, p.lang==='zh'?'zh-TW':'en-US', () => { AppState.state.runStatus = 'RUNNING'; });
                 }
             } else {
                 AppState.state.runStatus = 'PRE_FLIGHT';
@@ -2041,7 +2035,7 @@ class AppController {
                 AppState.state.estTotKm = PhysioEngine.simulatePhysics(AppState.state.snapshot, AppState.state.hw).dist;
 
                 let startM = AppState.state.snapshot[0];
-                let initTrans = dStr.transMsgStart.replace('{s}', VoiceApp.numToSpeech(isMet?startM.spd:startM.spd/1.609344, p.lang)).replace('{i}', VoiceApp.numToSpeech(startM.inc, p.lang));
+                let initTrans = dStr.trans_start.replace('{s}', VoiceApp.numToSpeech(isMet?startM.spd:startM.spd/1.609344, p.lang)).replace('{i}', VoiceApp.numToSpeech(startM.inc, p.lang));
                 let combinedMsg = dStr.intro[`p${p.lastProg}`] + " " + initTrans;
                 
                 TweenApp.to('runValSpd', isMet?startM.spd:startM.spd/1.609344, v => v.toFixed(1), true); TweenApp.to('runValInc', startM.inc, v => v.toFixed(1), true);
@@ -2083,7 +2077,7 @@ class AppController {
                     c.querySelector('.seg-indicator').style.left = idx === 0 ? '4px' : 'calc(50% + 0px)';
                 }
 
-                if(c.id === 'segLang' || c.id === 'segUnit' || c.id === 'segGait') { 
+                if(c.id === 'segLang' || c.id === 'segUnit' || c.id === 'segGait' || c.id === 'segSex' || c.id === 'segVoice') { 
                     if(c.id === 'segUnit') { 
                         this.syncFormToProfile(); 
                         AppState.state.profiles[AppState.state.activeP].unit = b.dataset.val; 
@@ -2095,6 +2089,12 @@ class AppController {
                         VoiceApp.clear(); 
                     } else if (c.id === 'segGait') {
                         AppState.state.profiles[AppState.state.activeP].gaitOn = b.dataset.val === 'on';
+                        this.saveData();
+                    } else if (c.id === 'segVoice') {
+                        AppState.state.profiles[AppState.state.activeP].voiceOn = b.dataset.val === 'on';
+                        this.saveData();
+                    } else if (c.id === 'segSex') {
+                        AppState.state.profiles[AppState.state.activeP].gender = b.dataset.val;
                         this.saveData();
                     }
                     this.updateI18n(); this.updateUIDataOnly(); this.charts.drawAll();
@@ -2115,7 +2115,7 @@ class AppController {
         let rhrEl = document.getElementById('rmRHR'); if (rhrEl.dataset.manual === 'true') return; 
         let isMet = document.querySelector('#segUnit .seg-btn.active').dataset.val === 'metric'; let sex = document.querySelector('#segSex .seg-btn.active').dataset.val;
         let smmRaw = parseFloat(document.getElementById('rmSMM').value) || 0; let smmKg = isMet ? smmRaw : smmRaw / 2.20462; 
-        let bf = parseFloat(document.getElementById('rmBF').value) || 0; let ecw = parseFloat(document.getElementById('rmECW').value) || 0.375;
+        let bf = parseFloat(document.getElementById('rmBF').value) || 0; let ecw = parseFloat(document.getElementById('rmECW').value) || 0.382;
         let isFit = false; if (smmKg > 0 && bf > 0) { if (sex === 'M' && smmKg >= 32 && bf <= 18) isFit = true; if (sex === 'F' && smmKg >= 24 && bf <= 23) isFit = true; }
         rhrEl.value = (isFit && ecw >= 0.360 && ecw <= 0.380) ? 55 : 70;
     }
@@ -2146,7 +2146,7 @@ class AppController {
     }
 
     clearRunnerForm() {
-        let p = AppState.state.profiles[AppState.state.activeP]; let d = i18n[p.lang] || i18n['zh']; document.getElementById('rmName').value = ''; document.getElementById('lblNameError').textContent = d.errNameExist;
+        let p = AppState.state.profiles[AppState.state.activeP]; let d = i18n[p.lang] || i18n['zh']; document.getElementById('rmName').value = ''; 
         ['rmAge','rmWeight','rmSMM','rmBF','rmRHR','rmMHR','rmECW','rmVO2', 'rmMxS', 'rmMnS', 'rmMxI', 'rmMnI'].forEach(id => { let el = document.getElementById(id); if (el) el.value = ''; if (id === 'rmRHR') el.dataset.manual = 'false'; }); this.autoFillRHR();
     }
 
@@ -2162,7 +2162,7 @@ class AppController {
     populateRunnerForm(p) {
         let isMet = p.unit !== 'imperial'; let hw = AppState.state.hw; const setV = (id, v) => { let el=document.getElementById(id); if(el) el.value = (v!==null&&v!==undefined&&!isNaN(v)) ? Number(v).toFixed(3).replace(/\.?0+$/,'') : ''; };
         document.getElementById('rmName').value = p.name;
-        setV('rmAge', p.age); setV('rmWeight', isMet?p.weight:p.weight*2.20462); setV('rmSMM', isMet?p.smm:p.smm*2.20462); setV('rmBF', p.bf); setV('rmECW', p.ecw || 0.375); setV('rmRHR', p.customRHR); 
+        setV('rmAge', p.age); setV('rmWeight', isMet?p.weight:p.weight*2.20462); setV('rmSMM', isMet?p.smm:p.smm*2.20462); setV('rmBF', p.bf); setV('rmECW', p.ecw || 0.382); setV('rmRHR', p.customRHR); 
         let rhrEl = document.getElementById('rmRHR'); if(rhrEl) rhrEl.dataset.manual = p.customRHR ? 'true' : 'false';
         setV('rmMHR', p.customMHR); setV('rmVO2', p.customVO2); 
         
@@ -2204,7 +2204,7 @@ class AppController {
             btnPause.style.pointerEvents = (s === 'PRE_FLIGHT') ? 'none' : 'auto';
             
             let p = AppState.state.profiles[AppState.state.activeP]; let d = i18n[p.lang] || i18n['zh'];
-            document.getElementById('lblBtnRight').textContent = (P && AppState.state.accumMs > 0) ? d.btnResume : d.btnStart;
+            document.getElementById('lblBtnRight').textContent = (P && AppState.state.accumMs > 0) ? d.btn_resume : d.btn_start;
             
             document.getElementById('setup-view').classList.toggle('active', S); document.getElementById('run-view').classList.toggle('active', !S); document.getElementById('runProgressRow').classList.toggle('show', !S);
             if(s === 'PRE_FLIGHT') { document.getElementById('setup-view').classList.remove('active'); document.getElementById('run-view').classList.add('active'); document.getElementById('runProgressRow').classList.add('show'); }
@@ -2329,7 +2329,7 @@ class AppController {
         if (dt > 2000) { 
             AppState.state.isTimeWarping = true;
             let p = AppState.state.profiles[AppState.state.activeP]; let dStr = i18n[p.lang] || i18n['zh'];
-            NotificationManager.show(dStr.sysSleep, false);
+            NotificationManager.show(dStr.sys_sleep, false);
             VoiceApp.clear(); // Block pending voices
         }
 
@@ -2360,7 +2360,7 @@ class AppController {
         let cM = Math.floor(ms/60000); let cS = ms%60000;
         let safeM = Math.min(cM, m.length - 1); let curM = m[safeM]; let nextM = m[Math.min(safeM + 1, m.length - 1)]; let sr = dt/60000; 
 
-        // 15s Lerp Base Computation
+        // 15s Lerp Base Computation (Deterministic time-based)
         let baseSpd = curM.rawSpd; let baseInc = curM.rawInc;
         if (cS >= 45000 && safeM < m.length - 1) {
             let progress = (cS - 45000) / 15000;
@@ -2395,7 +2395,7 @@ class AppController {
         
         if (hrIntensity > 0.95 && !RunAcc.cappedMs[safeM]) {
             RunAcc.cappedMs[safeM] = true;
-            VoiceApp.speakText(dStr.bioWarnHr, 1, p.lang==='zh'?'zh-TW':'en-US');
+            VoiceApp.speakText(dStr.warn_hr, 1, p.lang==='zh'?'zh-TW':'en-US');
         }
 
         RunAcc.sec += dt/1000; RunAcc.sumSpd += RunAcc.curSpd * (dt/1000); if(RunAcc.curSpd > RunAcc.mxS) RunAcc.mxS = RunAcc.curSpd;
@@ -2514,11 +2514,11 @@ class AppController {
             [`${prefix}Dist`]: `${(isMet ? stats.distKm : stats.distKm/1.609344).toFixed(2)} ${isMet?'km':'mi'}`,
             [`${prefix}Elev`]: `${Math.round(isMet ? stats.elevM : stats.elevM*3.28084)} ${isMet?'m':'ft'}`,
             [`${prefix}Kcal`]: `${Math.round(stats.totalKcal)} kcal`,
-            [`${prefix}z1`]: `${d.zones[0]} ${Math.floor(stats.zs[0])}${d.min}`,
-            [`${prefix}z2`]: `${d.zones[1]} ${Math.floor(stats.zs[1])}${d.min}`,
-            [`${prefix}z3`]: `${d.zones[2]} ${Math.floor(stats.zs[2])}${d.min}`,
-            [`${prefix}z4`]: `${d.zones[3]} ${Math.floor(stats.zs[3])}${d.min}`,
-            [`${prefix}z5`]: `${d.zones[4]} ${Math.floor(stats.zs[4])}${d.min}`
+            [`${prefix}z1`]: `${d.zones[0]} ${Math.floor(stats.zs[0])}${d.unit_min}`,
+            [`${prefix}z2`]: `${d.zones[1]} ${Math.floor(stats.zs[1])}${d.unit_min}`,
+            [`${prefix}z3`]: `${d.zones[2]} ${Math.floor(stats.zs[2])}${d.unit_min}`,
+            [`${prefix}z4`]: `${d.zones[3]} ${Math.floor(stats.zs[3])}${d.unit_min}`,
+            [`${prefix}z5`]: `${d.zones[4]} ${Math.floor(stats.zs[4])}${d.unit_min}`
         });
 
         if (prefix === 'sum') {
@@ -2532,15 +2532,15 @@ class AppController {
         if (opts.showNutrition) {
             let container = document.getElementById(`${prefix}Nutri`); if(!container) return;
             if (!profile.bf || !profile.smm) {
-                container.innerHTML = `<div style="text-align:center; padding-top:15px; margin-top:15px; border-top:1px solid #333; color:var(--gray); font-weight:700;"><svg viewBox="0 0 24 24" class="svg-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>${d.nutriMissing}</div>`;
+                container.innerHTML = `<div style="text-align:center; padding-top:15px; margin-top:15px; border-top:1px solid #333; color:var(--gray); font-weight:700;"><svg viewBox="0 0 24 24" class="svg-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>${d.nutri_missing}</div>`;
             } else {
                 let ageFactor = profile.age > 50 ? 1.1 : (profile.age > 40 ? 1.05 : 1.0);
                 let bmr = 370 + 21.6 * (profile.wKG * (1 - profile.bf/100)); let bmrFactor = Math.max(0.7, Math.min(1.5, (bmr / (profile.wKG * 24))));
                 let proFactor = Math.max(1.2, Math.min(2.2, (1.2 + Math.max(0, profile.smm/profile.wKG - 0.3) * 4) * ageFactor * bmrFactor));
                 let dailyPro = Math.round(profile.wKG * proFactor + (stats.totalKcal / 100));
                 let postPro = Math.round(Math.min(65, Math.max(20, profile.wKG * 0.3 * ageFactor + (stats.totalKcal / 200) * 4))); let postCarb = Math.round(stats.cCal / 4); 
-                let strPost = d.nutriPost.replace('{p}', postPro).replace('{c}', postCarb); let strDaily = d.nutriDaily.replace('{p}', dailyPro);
-                container.innerHTML = `<div style="margin-top:15px; padding-top:15px; border-top:1px dashed #333; text-align:left;"><strong style="color:var(--neon-yellow);"><svg viewBox="0 0 24 24" class="svg-icon" style="fill:currentColor; width:16px; height:16px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/></svg>${d.nutriRx}</strong><br><span style="color:var(--gray-light); font-size:0.95rem; line-height: 1.6;">${strPost}<br>${strDaily}</span></div>`;
+                let strPost = d.nutri_post.replace('{p}', postPro).replace('{c}', postCarb); let strDaily = d.nutri_daily.replace('{p}', dailyPro);
+                container.innerHTML = `<div style="margin-top:15px; padding-top:15px; border-top:1px dashed #333; text-align:left;"><strong style="color:var(--neon-yellow);"><svg viewBox="0 0 24 24" class="svg-icon" style="fill:currentColor; width:16px; height:16px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/></svg>${d.nutri_rx}</strong><br><span style="color:var(--gray-light); font-size:0.95rem; line-height: 1.6;">${strPost}<br>${strDaily}</span></div>`;
             }
         }
     }
@@ -2623,7 +2623,7 @@ class AppController {
 
         let p = { 
             name, gender: document.querySelector('#segSex .seg-btn.active').dataset.val, unit: isMet?'metric':'imperial', lang: document.querySelector('#segLang .seg-btn.active').dataset.val, voiceOn: document.querySelector('#segVoice .seg-btn.active').dataset.val==='on', gaitOn: document.querySelector('#segGait .seg-btn.active').dataset.val==='on',
-            age: parseFloat(document.getElementById('rmAge').value)||35, tTime: isNew ? 30 : actP.tTime, tKm: isNew ? 5.0 : actP.tKm, lastProg: isNew ? 0 : actP.lastProg, lastCat: isNew ? 'FAT_BURN' : actP.lastCat, 
+            age: parseFloat(document.getElementById('rmAge').value)||40, tTime: isNew ? 30 : actP.tTime, tKm: isNew ? 5.0 : actP.tKm, lastProg: isNew ? 0 : actP.lastProg, lastCat: isNew ? 'FAT_BURN' : actP.lastCat, 
             spdOffset: isNew?0:actP.spdOffset, incOffset: isNew?0:actP.incOffset, catMemory: actP.catMemory || {} 
         };
         
@@ -2636,7 +2636,7 @@ class AppController {
         
         if (!isNew && name !== AppState.state.activeP) { DB.renameRunnerHistory(AppState.state.activeP, name); delete AppState.state.profiles[AppState.state.activeP]; }
         AppState.state.activeP = name; AppState.state.profiles[name] = p; this.saveData(); 
-        this.updateI18n(); this.recalc(); this.closeModal('runnerModal'); NotificationManager.show((i18n[p.lang] || i18n['zh']).warnSave, false);
+        this.updateI18n(); this.recalc(); this.closeModal('runnerModal'); NotificationManager.show((i18n[p.lang] || i18n['zh']).warn_save, false);
     }
 
     openHistory() {
@@ -2654,13 +2654,13 @@ class AppController {
             });
             
             hc.innerHTML += `<div class="hist-dash">
-                <div class="hist-d-box"><div class="hist-d-val">${(isMet?totKm:totKm/1.609344).toFixed(1)}</div><div class="hist-d-lbl">${dStr.lblTotDist} (${isMet?'km':'mi'})</div></div>
-                <div class="hist-d-box"><div class="hist-d-val">${(isMet?monKm:monKm/1.609344).toFixed(1)}</div><div class="hist-d-lbl">${dStr.lblMonDist}</div></div>
-                <div class="hist-d-box" style="grid-column: span 2;"><div class="hist-d-val" style="color:var(--neon-green);">${Math.round(totCal)}</div><div class="hist-d-lbl">${dStr.lblTotCal} (kcal)</div></div>
+                <div class="hist-d-box"><div class="hist-d-val">${(isMet?totKm:totKm/1.609344).toFixed(1)}</div><div class="hist-d-lbl">${dStr.lbl_tot_dist} (${isMet?'km':'mi'})</div></div>
+                <div class="hist-d-box"><div class="hist-d-val">${(isMet?monKm:monKm/1.609344).toFixed(1)}</div><div class="hist-d-lbl">${dStr.lbl_mon_dist}</div></div>
+                <div class="hist-d-box" style="grid-column: span 2;"><div class="hist-d-val" style="color:var(--neon-green);">${Math.round(totCal)}</div><div class="hist-d-lbl">${dStr.lbl_tot_cal} (kcal)</div></div>
             </div>`;
 
             if(data.length === 0) { 
-                hc.innerHTML += `<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm1-13h-2v6l5.25 3.15.75-1.23-4-2.37V7z"/></svg><div>${dStr.noHist}</div></div>`; 
+                hc.innerHTML += `<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm1-13h-2v6l5.25 3.15.75-1.23-4-2.37V7z"/></svg><div>${dStr.hist_empty}</div></div>`; 
             } else {
                 data.forEach((h, idx) => {
                     let sDisp = isMet ? h.avgSpdKm : h.avgSpdKm / 1.609344; let dDisp = isMet ? h.distKm : h.distKm / 1.609344;
@@ -2685,7 +2685,7 @@ class AppController {
     
     endWorkout() {
         VoiceApp.clear();
-        let ms = AppState.state.accumMs; AppState.state.uiLocked = false;
+        let ms = AppState.state.accumMs;
         let p = AppState.state.profiles[AppState.state.activeP]; let d = i18n[p.lang] || i18n['zh'];
         
         sessionStorage.removeItem('runState_v50'); 
@@ -2702,7 +2702,7 @@ class AppController {
             DB.saveHist(histObj);
             
             this.showSummaryModal(ms, histObj.totMs, dKm, dElev, fCal, cCal, histObj.actualAvg, histObj.actualMax, isolatedZ, isolatedMatrix, RunAcc.pausePenalty);
-        } else { NotificationManager.show(d.shortWorkout, true); }
+        } else { NotificationManager.show(d.warn_short, true); }
         
         AppState.state.runStatus = 'STOPPED'; AppState.state.accumMs = 0; AppState.state.activeTab = 'settings';
         
@@ -2721,7 +2721,7 @@ class AppController {
         
         document.getElementById('sumTimeDisp').textContent = Utils.fmtTime(ms);
         
-        let penaltyHtml = penalty ? `<div style="margin-top:10px; padding:10px; background:rgba(255,69,58,0.1); border-radius:8px; border:1px solid rgba(255,69,58,0.3); color:var(--neon-red); font-size:0.85rem; line-height:1.4; font-weight:600;"><svg viewBox="0 0 24 24" class="svg-icon"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>${iStr.warnCheating}</div>` : '';
+        let penaltyHtml = penalty ? `<div style="margin-top:10px; padding:10px; background:rgba(255,69,58,0.1); border-radius:8px; border:1px solid rgba(255,69,58,0.3); color:var(--neon-red); font-size:0.85rem; line-height:1.4; font-weight:600;"><svg viewBox="0 0 24 24" class="svg-icon"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>${iStr.warn_cheat}</div>` : '';
         document.getElementById('sumPenaltyHtml').innerHTML = penaltyHtml;
 
         if(aAvg && aMax) {
