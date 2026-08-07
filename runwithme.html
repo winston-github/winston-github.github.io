@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="format-detection" content="telephone=no">
-    <title>Pro Treadmill OS - Ultimate Edition (v49)</title>
+    <title>Pro Treadmill OS - Ultimate Edition (v50)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.85); 
@@ -14,6 +14,8 @@
             --border-color: #222222; 
             --safe-bottom: env(safe-area-inset-bottom, 20px); --safe-top: env(safe-area-inset-top, 20px);
             --z-splash: 20000; --z-numpad: 15000; --z-toast: 10000; --z-modal: 9000; --z-header: 500; --z-footer: 100;
+            --current-gait-color: hsl(200, 100%, 60%);
+            --gait-fade-dur: 400ms;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; font-variant-numeric: tabular-nums; }
@@ -30,7 +32,7 @@
             -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; 
         }
 
-        #splashScreen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-dark); z-index: var(--z-splash); display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.4s ease; }
+        #splashScreen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-dark); z-index: var(--z-splash); display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.5s ease; }
         .splash-logo svg { width: 64px; height: 64px; fill: var(--text-main); animation: pulse 2s infinite; }
         @keyframes pulse { 0% { transform: scale(0.95); opacity: 0.8; } 50% { transform: scale(1.05); opacity: 1; } 100% { transform: scale(0.95); opacity: 0.8; } }
 
@@ -146,8 +148,11 @@
         .overlay-btn:active svg { fill: rgba(255,255,255,0.9); }
 
         .run-val-center { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; pointer-events: none; }
-        .run-big-val { font-size: clamp(3rem, 12vw, 4.2rem); font-weight: 900; line-height: 1; letter-spacing: -1px; color: #FFFFFF; transition: transform 0.1s, color 0.2s, text-shadow 0.2s; position: relative; z-index: 2; pointer-events: auto; cursor: pointer;}
+        .run-big-val { font-size: clamp(3rem, 12vw, 4.2rem); font-weight: 900; line-height: 1; letter-spacing: -1px; color: #FFFFFF; transition: transform 0.1s, color 0.2s, text-shadow 0.2s; position: relative; z-index: 2; pointer-events: auto; cursor: pointer; display: flex; align-items: baseline;}
         .run-big-val:active { transform: scale(0.92); opacity: 0.8; }
+        .run-big-val .dot { transition: all var(--gait-fade-dur) ease-out; color: #FFF; text-shadow: none; }
+        .run-big-val .dot.strike { transition: none; color: var(--current-gait-color); text-shadow: 0 0 10px var(--current-gait-color); }
+        
         .run-lbl { font-size: 0.8rem; color: var(--gray); font-weight: 700; margin-top: 2px; letter-spacing: 1px; position: relative; z-index: 2;}
         .run-unit { font-size: 0.75rem; color: var(--gray); font-weight: 700; margin-left: 4px; }
         
@@ -156,12 +161,16 @@
         .r-s-val { font-size: clamp(1.1rem, 4.5vw, 1.4rem); font-weight: 900; color: #FFFFFF; display: flex; align-items: baseline;}
         .r-s-lbl { font-size: 0.7rem; color: var(--gray); font-weight: 700; margin-top: 6px; white-space: nowrap; }
 
-        .run-float-btn { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 22px; background: rgba(30,30,30,0.8); border: 1px solid #444; display: flex; justify-content: center; align-items: center; cursor: pointer; z-index: 20; backdrop-filter: blur(4px); outline: none; transition: all 0.2s; }
+        .run-float-btn { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 22px; background: rgba(30,30,30,0.8); border: 1px solid #444; display: flex; justify-content: center; align-items: center; cursor: pointer; z-index: 20; backdrop-filter: blur(4px); outline: none; transition: all 0.3s; overflow: hidden; }
         .run-float-btn svg { width: 22px; height: 22px; fill: var(--text-main); }
         .run-float-btn:active { transform: translateY(-50%) scale(0.9); }
-        #btnBailOut { left: 15px; }
-        #btnBailOut.active { background: var(--neon-yellow); border-color: var(--neon-yellow); }
-        #btnBailOut.active svg { fill: #000; }
+        
+        #btnSmartGait { left: 15px; }
+        .gait-layer { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center; opacity: 0; transition: opacity 0.3s ease; }
+        .gait-layer.active { opacity: 1; }
+        .gait-layer.active svg { fill: var(--current-gait-color); transition: fill 0.3s ease; }
+        #gaitNum { font-weight: 900; font-size: 1.15rem; transition: transform 0.15s, filter 0.15s; }
+        
         #btnVoiceToggle { right: 15px; }
         #btnVoiceToggle.minimal svg { fill: var(--gray); }
 
@@ -311,6 +320,8 @@
         .pulse-inc-active { color: var(--neon-yellow); font-weight: 900; text-shadow: 0 0 10px var(--neon-yellow); transition: all 0.3s; background: rgba(255,214,10,0.15);}
         .run-big-val.flash { animation: flash-text 0.4s 3; }
         @keyframes flash-text { 0% { color:#FFF; text-shadow: none; } 50% { color:var(--text-main); text-shadow: 0 0 20px var(--text-main); } 100% { color:#FFF; text-shadow: none; } }
+        
+        #wakeLockCatcher { display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:99999; background: transparent; }
     </style>
 </head>
 <body>
@@ -322,7 +333,16 @@
     <div style="margin-top:20px; font-weight:800; color:#555; font-size:1.2rem; letter-spacing:2px;">PRO TREADMILL OS</div>
 </div>
 
-<audio id="silentAudio" loop playsinline src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA"></audio>
+<div id="topNotification">
+    <div class="notif-content">
+        <svg id="notifIcon" class="svg-icon" viewBox="0 0 24 24"></svg>
+        <span id="notifContent"></span>
+    </div>
+    <div class="notif-bar-bg"><div class="notif-bar-fill" id="notifBar"></div></div>
+</div>
+
+<!-- Invisible video element for iOS background/sleep prevention -->
+<video id="wakeLockVideo" playsinline muted loop style="position:fixed; opacity:0; pointer-events:none; width:1px; height:1px;" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA"></video>
 
 <div id="app-shell">
     <header id="header">
@@ -416,16 +436,24 @@
 
                 <div id="run-view" class="view-section">
                     <div class="massive-time-container">
-                        <button class="run-float-btn" id="btnBailOut" data-action="toggle-bailout"><svg viewBox="0 0 24 24"><path d="M12 2L1 21h22M12 6l7.53 13H4.47M11 10v4h2v-4m-2 6v2h2v-2"/></svg></button>
+                        <!-- Smart Gait Hub -->
+                        <button class="run-float-btn" id="btnSmartGait" data-action="toggle-gait">
+                            <div id="gaitIcon" class="gait-layer active"><svg viewBox="0 0 24 24"><path d="M12 2L4 20h16L12 2zm0 4.5l5 12H7l5-12zM11 10v4h2v-4h-2z"/></svg></div>
+                            <div id="gaitNum" class="gait-layer">--</div>
+                        </button>
+                        
                         <div class="massive-time" data-bind="massiveTime" id="massiveTime" data-action="open-adj-time">00:00</div>
-                        <button class="run-float-btn" id="btnVoiceToggle" data-action="toggle-voice-mode"><svg viewBox="0 0 24 24" id="iconVoiceFull"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></button>
+                        
+                        <button class="run-float-btn" id="btnVoiceToggle" data-action="toggle-voice-mode">
+                            <svg viewBox="0 0 24 24" id="iconVoiceFull"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                        </button>
                     </div>
 
                     <div class="run-primary-grid">
                         <div class="run-val-box">
                             <div class="overlay-btn top" data-action="btn-inc-up"><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg></div>
                             <div class="run-val-center">
-                                <div class="run-big-val inc" id="runValInc" data-action="open-run-numpad" data-target="inc">0.0</div>
+                                <div class="run-big-val inc" id="runValInc" data-action="open-run-numpad" data-target="inc" data-raw="0.0"><span>0</span><span class="dot">.</span><span>0</span></div>
                                 <div class="run-lbl"><span id="lblRunInc">坡度</span><span class="run-unit">%</span></div>
                             </div>
                             <div class="overlay-btn bottom" data-action="btn-inc-down"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></div>
@@ -433,7 +461,7 @@
                         <div class="run-val-box">
                             <div class="overlay-btn top" data-action="btn-spd-up"><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg></div>
                             <div class="run-val-center">
-                                <div class="run-big-val spd" id="runValSpd" data-action="open-run-numpad" data-target="spd">0.0</div>
+                                <div class="run-big-val spd" id="runValSpd" data-action="open-run-numpad" data-target="spd" data-raw="0.0"><span>0</span><span class="dot">.</span><span>0</span></div>
                                 <div class="run-lbl"><span id="lblRunSpd">速度</span><span class="run-unit" id="unitRunSpd"></span></div>
                             </div>
                             <div class="overlay-btn bottom" data-action="btn-spd-down"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></div>
@@ -520,8 +548,15 @@
             
             <div class="modal-content-scroll">
                 <div class="rm-group">
-                    <label class="rm-label" id="lblRmName">Name</label>
-                    <div class="input-wrapper" id="nameInputWrap"><input type="text" id="rmName" maxlength="12" autocomplete="off" spellcheck="false" inputmode="text"></div>
+                    <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+                        <div class="input-wrapper" id="nameInputWrap" style="flex:1; min-width:180px;">
+                            <input type="text" id="rmName" maxlength="12" autocomplete="off" spellcheck="false" inputmode="text" placeholder="Name">
+                        </div>
+                        <div class="segmented-control" id="segSex" style="min-width:110px; flex:0 0 auto;">
+                            <div class="seg-indicator" style="left: 4px;"></div>
+                            <button class="seg-btn active" data-val="M" data-idx="0" id="btnSexM">男</button><button class="seg-btn" data-val="F" data-idx="1" id="btnSexF">女</button>
+                        </div>
+                    </div>
                     <div class="input-error-msg" id="nameErrorMsg"><svg viewBox="0 0 24 24" class="svg-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg><span id="lblNameError">Name Exists</span></div>
                 </div>
                 
@@ -589,20 +624,19 @@
                             <div class="seg-indicator" style="left: 4px;"></div>
                             <button class="seg-btn active" data-val="zh" data-idx="0" id="btnLangZh">中文</button><button class="seg-btn" data-val="en" data-idx="1" id="btnLangEn">EN</button>
                         </div>
-                        <div class="segmented-control" id="segVoice">
-                            <div class="seg-indicator" style="left: 4px;"></div>
-                            <button class="seg-btn active" data-val="on" data-idx="0" id="btnVoiceOn">Voice ON</button><button class="seg-btn" data-val="off" data-idx="1" id="btnVoiceOff">OFF</button>
-                        </div>
                         <div class="segmented-control" id="segUnit">
                             <div class="seg-indicator" style="left: 4px;"></div>
                             <button class="seg-btn active" data-val="metric" data-idx="0" id="btnUnitMet">公制</button><button class="seg-btn" data-val="imperial" data-idx="1" id="btnUnitImp">英制</button>
                         </div>
-                        <div class="segmented-control" id="segSex">
+                        <div class="segmented-control" id="segGait">
                             <div class="seg-indicator" style="left: 4px;"></div>
-                            <button class="seg-btn active" data-val="M" data-idx="0" id="btnSexM">男</button><button class="seg-btn" data-val="F" data-idx="1" id="btnSexF">女</button>
+                            <button class="seg-btn active" data-val="on" data-idx="0" id="btnGaitOn">Gait ON</button><button class="seg-btn" data-val="off" data-idx="1" id="btnGaitOff">OFF</button>
+                        </div>
+                        <div class="segmented-control" id="segVoice">
+                            <div class="seg-indicator" style="left: 4px;"></div>
+                            <button class="seg-btn active" data-val="on" data-idx="0" id="btnVoiceOn">Voice ON</button><button class="seg-btn" data-val="off" data-idx="1" id="btnVoiceOff">OFF</button>
                         </div>
                     </div>
-                    <div style="text-align: center; margin-top: 5px; color: var(--gray); font-size: 0.75rem;" id="lblSexDesc">Sex influences calorie math</div>
                 </div>
             </div>
             
@@ -729,14 +763,14 @@
 </div>
 
 <script>
-/** PRO TREADMILL OS (ULTIMATE EDITION v49) */
+/** PRO TREADMILL OS (ULTIMATE EDITION v50) */
 
 const i18n = {
     zh: {
         tab1: "設定", tab2: "配速",
         tim: "總時間 (MIN)", km: "總目標 (KM)", 
         lblBaseMxS: "課表基準-最高速", lblBaseMnS: "課表基準-最低速", lblBaseMxI: "課表基準-最高坡", lblBaseMnI: "課表基準-最低坡",
-        hud1: "Phase", hud2: "Inc", hud3: "Spd", hud4: "HR", hud5: "Lac",
+        hud1: "階段", hud2: "坡度", hud3: "速度", hud4: "心率", hud5: "乳酸",
         avg: "AVG", max: "MAX", estKcal: "預估消耗: ", actKcal: "實際消耗: ", estDist: "預估里程: ", actDist: "實際里程: ", estElev: "預估爬升: ", actElev: "實際爬升: ",
         rInc: "坡度", rSpd: "速度", rDist: "里程", rPace: "配速", rHr: "心率", rLac: "乳酸", rElev: "爬升",
         thTime: "時間", thInc: "坡度", thSpd: "速度", thPhase: "階段", thHr: "心率", thLac: "乳酸",
@@ -746,7 +780,7 @@ const i18n = {
         hwTitle: "硬體限制 (機台實體極限不可超過)", hMxS: "機台硬體-最高速", hMnS: "機台硬體-最低速", hMxI: "機台硬體-最高坡", hMnI: "機台硬體-最低坡",
         rmPref: "偏好設定", btnCancel: "取消", btnSave: "儲存", btnAdd: "+ 新增跑者", errNameExist: "名稱已存在",
         lblIncStepTitle: "坡度精度",
-        langZh: "中文", langEn: "EN", voiceOn: "語音 ON", voiceOff: "語音 OFF", met: "公制", imp: "英制", male: "男", female: "女", lblSex: "跑者性別 (影響卡路里)",
+        langZh: "中文", langEn: "EN", voiceOn: "語音 ON", voiceOff: "語音 OFF", gaitOn: "步頻 ON", gaitOff: "步頻 OFF", met: "公制", imp: "英制", male: "男", female: "女", lblSex: "",
         histTitle: "歷史紀錄", noHist: "尚無訓練紀錄", clearAsk: "確認清空所有歷史紀錄？此操作無法復原。",
         zones: ["Z1 恢復", "Z2 燃脂", "Z3 節奏", "Z4 乳酸", "Z5 無氧"], min: "分",
         phases: { warmup: "暖身", steep: "爬坡", sprint: "衝刺", recovery: "恢復", steady: "巡航", exhaust: "力竭", cooldown: "緩和", base: "基底" },
@@ -800,7 +834,8 @@ const i18n = {
         sumTitle: "訓練總結與營養建議", btnSumClose: "完成",
         nutriMissing: "填寫「體脂肪」與「骨骼肌」解鎖精準營養",
         nutriRx: "【 運動營養建議 】", nutriPost: "跑後修復: 蛋白質 {p}g + 碳水 {c}g", nutriDaily: "全日建議蛋白質總量: {p}g 維持肌肉",
-        actualDist: "實際里程",
+        estDistTitle: "預估里程", actDistTitle: "實際里程", estElevTitle: "預估爬升", actElevTitle: "實際爬升", estKcalTitle: "預估消耗", actKcalTitle: "實際消耗",
+        sumDistTitle: "總里程", sumElevTitle: "總爬升", sumAvgPaceTitle: "平均配速", sumKcalTitle: "總消耗",
         unitKm: "公里", unitMi: "英里", unitAge: "歲",
         transMsgStart: "開始訓練。初始目標速度 {s}，坡度 {i}。",
         spdSame: "速度不變", spdUp: "速度調升為 {v}", spdDown: "速度調降為 {v}",
@@ -809,7 +844,7 @@ const i18n = {
         lblFat: "脂肪消耗", lblCarb: "碳水消耗", lblTotDist: "總跑量", lblMonDist: "本月跑量", lblTotCal: "總燃燒",
         bioWarnHr: "心率突破安全紅線！已自動限制最高配速並強迫拉長吐氣。",
         errTimeShort: "設定時間不可低於已跑時間加一分鐘",
-        sysSleep: "系統休眠過久，已啟動時間回溯補償。",
+        sysSleep: "系統休眠過久，已啟動靜默回溯結算。",
         bailOutOn: "已啟動安全急救模式，降至最低速。", bailOutOff: "已解除安全急救模式。",
         warnCheating: "偵測到過度中斷或危險暫停，破壞了持續氧化，訓練效果已降級。",
         warmupLimit: "偵測到長時暫停，心肺已冷卻，已暫時降速以策安全，請手動恢復。",
@@ -829,7 +864,7 @@ const i18n = {
         hwTitle: "Hardware Limits (Absolute Max)", hMxS: "Hardware Max Spd", hMnS: "Hardware Min Spd", hMxI: "Hardware Max Inc", hMnI: "Hardware Min Inc",
         rmPref: "Preferences", btnCancel: "Cancel", btnSave: "Save", btnAdd: "+ Add Runner", errNameExist: "Name Exists",
         lblIncStepTitle: "Incline Precision",
-        langZh: "中文", langEn: "EN", voiceOn: "Voice ON", voiceOff: "Voice OFF", met: "Metric", imp: "Imperial", male: "M", female: "F", lblSex: "Sex impacts calorie math",
+        langZh: "中文", langEn: "EN", voiceOn: "Voice ON", voiceOff: "Voice OFF", gaitOn: "Gait ON", gaitOff: "Gait OFF", met: "Metric", imp: "Imperial", male: "M", female: "F", lblSex: "",
         histTitle: "History", noHist: "No workout history yet.", clearAsk: "Clear all history? This cannot be undone.",
         zones: ["Z1 Rec", "Z2 Fat", "Z3 Tempo", "Z4 Lac", "Z5 Anaer"], min: "m",
         phases: { warmup: "Warmup", steep: "Steep", sprint: "Sprint", recovery: "Recovery", steady: "Steady", exhaust: "Exhaust", cooldown: "Cool", base: "Base" },
@@ -893,7 +928,8 @@ const i18n = {
         sumTitle: "Summary & Nutrition", btnSumClose: "Done",
         nutriMissing: "Fill Body Fat & SMM to unlock precise nutrition.",
         nutriRx: "[ Nutrition Suggestion ]", nutriPost: "Post-run: Protein {p}g + Carbs {c}g", nutriDaily: "Daily Protein: {p}g to maintain muscle.",
-        actualDist: "Actual Dist",
+        estDistTitle: "Est. Dist", actDistTitle: "Actual Dist", estElevTitle: "Est. Elev", actElevTitle: "Actual Elev", estKcalTitle: "Est. Kcal", actKcalTitle: "Actual Kcal",
+        sumDistTitle: "Total Dist", sumElevTitle: "Total Elev", sumAvgPaceTitle: "Avg Pace", sumKcalTitle: "Total Burn",
         unitKm: "km", unitMi: "mi", unitAge: "yrs",
         transMsgStart: "Starting workout. Initial target speed {s}, incline {i}.",
         spdSame: "Speed unchanged", spdUp: "Speed increased to {v}", spdDown: "Speed decreased to {v}",
@@ -902,7 +938,7 @@ const i18n = {
         lblFat: "Fat Cal", lblCarb: "Carb Cal", lblTotDist: "Total Dist", lblMonDist: "Month Dist", lblTotCal: "Total Burn",
         bioWarnHr: "Heart rate over safety line. Pace capped. Watch your breathing.",
         errTimeShort: "Time cannot be less than elapsed + 1 minute.",
-        sysSleep: "System sleep detected. Time-travel compensation applied.",
+        sysSleep: "Time-warp detected. Silent simulation applied.",
         bailOutOn: "Safe mode active. Dropping to minimums.", bailOutOff: "Safe mode deactivated.",
         warnCheating: "Excessive pauses disrupted fat oxidation. Efficacy degraded.",
         warmupLimit: "Long pause detected. Speed reduced for safe resume. Adjust manually.",
@@ -1036,7 +1072,7 @@ class ReactiveState {
 const AppState = new ReactiveState({
     activeP: 'Runner', profiles: {}, hw: { maxSpd: 20.0, minSpd: 0.1, maxInc: 15.0, minInc: 0.0 },
     runStatus: 'STOPPED', accumMs: 0, matrix: [], snapshot: [], activeTab: 'settings',
-    isBailOut: false, minimalVoice: false, estTotKm: 0
+    isBailOut: false, minimalVoice: false, estTotKm: 0, isTimeWarping: false
 });
 
 const RunAcc = { 
@@ -1044,7 +1080,8 @@ const RunAcc = {
     curSpd: 0, curInc: 0, curHr: 0, curLac: 0,
     mxS: 0, mxI: 0, mxH: 0, mxL: 0, 
     dKm: 0, dElev: 0, fCal: 0, cCal: 0, zs: [0,0,0,0,0], 
-    cappedMs: {}, pauseCount: 0, lastPauseMs: 0, pausePenalty: false, transF: {}
+    cappedMs: {}, pauseCount: 0, lastPauseMs: 0, pausePenalty: false, transF: {},
+    gaitPhase: 0, lastGaitBPM: 0, lastGaitPulseTime: 0
 };
 
 const resetRunAcc = () => {
@@ -1053,7 +1090,8 @@ const resetRunAcc = () => {
         curSpd: 0, curInc: 0, curHr: 0, curLac: 0,
         mxS: 0, mxI: 0, mxH: 0, mxL: 0, 
         dKm: 0, dElev: 0, fCal: 0, cCal: 0, zs: [0,0,0,0,0], 
-        cappedMs: {}, pauseCount: 0, lastPauseMs: 0, pausePenalty: false, transF: {}
+        cappedMs: {}, pauseCount: 0, lastPauseMs: 0, pausePenalty: false, transF: {},
+        gaitPhase: 0, lastGaitBPM: 0, lastGaitPulseTime: 0
     });
 };
 
@@ -1089,7 +1127,7 @@ class PhysioEngine {
         
         let incStep = m.incStep || 0.5;
 
-        return { wKG, bf, smm, ecw, vo2, mHR, rHR, pMaxLac, maxSpd: ms, minSpd: Math.max(0.1, m.minSpd||1.0), mxInc: Utils.roundInc(Math.max(0, m.mxInc||5.0), incStep), mnInc: Utils.roundInc(Math.max(0, m.mnInc||0.0), incStep), tKm: Math.max(0.1, m.tKm||5.0), tTime: Math.max(20, m.tTime||60), age: Math.max(15, m.age||35), gender: m.gender, name: m.name, unit: m.unit, lang: m.lang, voiceOn: m.voiceOn !== false, lastProg: (m.lastProg !== undefined) ? m.lastProg : 1, lastCat: m.lastCat || 'FAT_BURN', spdOffset: m.spdOffset||0, incOffset: Utils.roundInc(m.incOffset||0, incStep), incStep: incStep, catMemory: m.catMemory };
+        return { wKG, bf, smm, ecw, vo2, mHR, rHR, pMaxLac, maxSpd: ms, minSpd: Math.max(0.1, m.minSpd||1.0), mxInc: Utils.roundInc(Math.max(0, m.mxInc||5.0), incStep), mnInc: Utils.roundInc(Math.max(0, m.mnInc||0.0), incStep), tKm: Math.max(0.1, m.tKm||5.0), tTime: Math.max(20, m.tTime||60), age: Math.max(15, m.age||35), gender: m.gender, name: m.name, unit: m.unit, lang: m.lang, voiceOn: m.voiceOn !== false, gaitOn: m.gaitOn !== false, lastProg: (m.lastProg !== undefined) ? m.lastProg : 1, lastCat: m.lastCat || 'FAT_BURN', spdOffset: m.spdOffset||0, incOffset: Utils.roundInc(m.incOffset||0, incStep), incStep: incStep, catMemory: m.catMemory };
     }
 
     static getGoldenRatios(pid) {
@@ -1334,11 +1372,14 @@ class VoiceEngine {
     speakText(txt, pri, langCode, cb = null) {
         if (!this.synth || AppState.state.runStatus === 'STOPPED' || this.muted) { if(cb) cb(); return; }
         if (AppState.state.runStatus === 'PAUSED' && pri !== 3) { if(cb) cb(); return; } 
+        if (AppState.state.isTimeWarping) { if(cb) cb(); return; } // Silence during time-warp
         let p = AppState.state.profiles[AppState.state.activeP]; if(!p || p.voiceOn === false) { if(cb) cb(); return; }
         if (document.visibilityState === 'hidden') { if (pri <= 2) NotificationManager.show(txt, pri === 1); if(cb) cb(); return; }
         
         if (AppState.state.minimalVoice && pri > 2) { if(cb) cb(); return; }
-        if (pri === 1) { this.synth.cancel(); this.q = []; clearTimeout(this.wd); this.state = 'IDLE'; }
+        
+        // Priority Override
+        if (pri <= 1) { this.synth.cancel(); this.q = []; clearTimeout(this.wd); this.state = 'IDLE'; }
         
         let chunks = txt.match(/[^,。！？.!?]+[,。！？.!?]*/g) || [txt];
         let idBase = Date.now();
@@ -1400,7 +1441,7 @@ const VoiceApp = new VoiceEngine();
 
 const DB = {
     db: null,
-    init: async () => { return new Promise((res, rej) => { let req = indexedDB.open('ProTreadmillDB_U49', 1); req.onupgradeneeded = e => { let d = e.target.result; if(!d.objectStoreNames.contains('history')) d.createObjectStore('history', {keyPath: 'id', autoIncrement: true}); }; req.onsuccess = e => { DB.db = e.target.result; res(); }; req.onerror = rej; }); },
+    init: async () => { return new Promise((res, rej) => { let req = indexedDB.open('ProTreadmillDB_U50', 1); req.onupgradeneeded = e => { let d = e.target.result; if(!d.objectStoreNames.contains('history')) d.createObjectStore('history', {keyPath: 'id', autoIncrement: true}); }; req.onsuccess = e => { DB.db = e.target.result; res(); }; req.onerror = rej; }); },
     saveHist: async (data) => { if(!DB.db) return; return new Promise((res) => { try { let tx = DB.db.transaction('history', 'readwrite'); let st = tx.objectStore('history'); st.add(data); st.getAll().onsuccess = e => { let runnerHists = e.target.result.filter(x => x.runnerName === data.runnerName).sort((a,b)=>a.date - b.date); if(runnerHists.length > 500) { let dTx = DB.db.transaction('history', 'readwrite'); runnerHists.slice(0, runnerHists.length - 500).forEach(x => dTx.objectStore('history').delete(x.id)); } if(runnerHists.length > 100) { let cTx = DB.db.transaction('history', 'readwrite'); let toCompress = runnerHists.slice(0, runnerHists.length - 100); toCompress.forEach(x => { if(x.matrix) { x.matrix = []; cTx.objectStore('history').put(x); } }); } }; tx.oncomplete = res; tx.onerror = res; } catch(e) { res(); } }); },
     renameRunnerHistory: async (oldName, newName) => { if(!DB.db) return; return new Promise(res => { try { let tx = DB.db.transaction('history', 'readwrite'); let st = tx.objectStore('history'); st.getAll().onsuccess = e => { e.target.result.forEach(r => { if(r.runnerName === oldName) { r.runnerName = newName; st.put(r); } }); }; tx.oncomplete = res; tx.onerror = res; } catch (err) { res(); } }); },
     getHist: async (runnerName) => { return new Promise((res) => { if(!DB.db) return res([]); let tx = DB.db.transaction('history', 'readonly'); let st = tx.objectStore('history'); st.getAll().onsuccess = e => res(e.target.result.filter(x => x.runnerName === runnerName).sort((a,b) => b.id - a.id)); }); },
@@ -1436,11 +1477,31 @@ const NotificationManager = {
 class TweenEngine {
     constructor() { this.active = {}; }
     to(id, targetVal, formatFn, forceInstant = false) {
+        if (AppState.state.isTimeWarping) forceInstant = true;
         if(this.active[id]) cancelAnimationFrame(this.active[id].req); let el = document.getElementById(id); if(!el) return;
-        let startVal = parseFloat(el.dataset.raw) || parseFloat(el.textContent) || 0; let diff = targetVal - startVal;
-        if(forceInstant || Math.abs(diff) < 0.01) { el.textContent = formatFn(targetVal); el.dataset.raw = targetVal; return; }
+        let startVal = parseFloat(el.dataset.raw) || 0; let diff = targetVal - startVal;
+        
+        const render = (val) => {
+            let formatted = formatFn(val);
+            el.dataset.raw = val;
+            let parts = formatted.split('.');
+            if(parts.length === 2) {
+                el.innerHTML = `<span>${parts[0]}</span><span class="dot">.</span><span>${parts[1]}</span>`;
+            } else {
+                el.textContent = formatted;
+            }
+        };
+
+        if(forceInstant || Math.abs(diff) < 0.01) { render(targetVal); return; }
+        
         let startTs = performance.now(); let duration = 300;
-        const step = (ts) => { let prog = Math.min(1, (ts - startTs) / duration); let ease = 1 - Math.pow(1 - prog, 3); let cur = startVal + diff * ease; el.textContent = formatFn(cur); el.dataset.raw = cur; if(prog < 1) { this.active[id].req = requestAnimationFrame(step); } else { delete this.active[id]; } };
+        const step = (ts) => { 
+            let prog = Math.min(1, (ts - startTs) / duration); 
+            let ease = 1 - Math.pow(1 - prog, 3); 
+            let cur = startVal + diff * ease; 
+            render(cur);
+            if(prog < 1) { this.active[id].req = requestAnimationFrame(step); } else { delete this.active[id]; } 
+        };
         this.active[id] = { req: requestAnimationFrame(step) };
     }
 }
@@ -1585,46 +1646,75 @@ class AppController {
         const setVH = () => document.documentElement.style.setProperty('--vh', `${(window.visualViewport ? window.visualViewport.height : window.innerHeight) * 0.01}px`);
         if(window.visualViewport) window.visualViewport.addEventListener('resize', setVH); setVH();
         window.addEventListener('beforeunload', () => { if(AppState.state.runStatus === 'RUNNING') this.persistRun(); });
-        document.body.addEventListener('touchstart', () => this.lastInteraction = Date.now(), {passive:true});
-        document.body.addEventListener('mousedown', () => this.lastInteraction = Date.now(), {passive:true});
+        
+        // Touch interception for WakeLock
+        const touchWake = () => {
+            this.lastInteraction = Date.now();
+            if (navigator.wakeLock && document.visibilityState === 'visible' && AppState.state.runStatus === 'RUNNING') {
+                navigator.wakeLock.request('screen').catch(()=>{});
+            }
+            let catcher = document.getElementById('wakeLockCatcher');
+            if(catcher && catcher.style.display === 'block') catcher.style.display = 'none';
+        };
+        document.body.addEventListener('touchstart', touchWake, {passive:true});
+        document.body.addEventListener('mousedown', touchWake, {passive:true});
+        
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && AppState.state.runStatus === 'RUNNING') {
+                let catcher = document.getElementById('wakeLockCatcher');
+                if(!catcher) {
+                    catcher = document.createElement('div');
+                    catcher.id = 'wakeLockCatcher';
+                    document.body.appendChild(catcher);
+                }
+                catcher.style.display = 'block'; // Block first click to steal lock silently
+            }
+        });
+
+        // History Swipe-Back Prevention
+        window.addEventListener('popstate', (e) => {
+            if (AppState.state.runStatus === 'RUNNING' || AppState.state.runStatus === 'PAUSED') {
+                history.pushState(null, null, location.href);
+                let p = AppState.state.profiles[AppState.state.activeP];
+                NotificationManager.show((i18n[p.lang]||i18n['zh']).btnHold, false);
+            }
+        });
         
         DB.init().then(() => this.initData()).catch(e => { console.warn('IDB', e); this.initData(); }).finally(() => { 
             this.initDials(); this.bindEvents();
             setTimeout(() => document.getElementById('splashScreen').style.opacity = '0', 800);
-            setTimeout(() => document.getElementById('splashScreen').style.display = 'none', 1200);
+            setTimeout(() => document.getElementById('splashScreen').style.display = 'none', 1300);
         });
     }
 
     initData() {
         let needsRecalc = true;
         try {
-            let s = null; try { s = JSON.parse(localStorage.getItem('pro_treadmill_v48')); } catch(e){}
+            let s = null; try { s = JSON.parse(localStorage.getItem('pro_treadmill_v50')); } catch(e){}
             if(s && s.profiles && Object.keys(s.profiles).length > 0) { 
                 AppState.batch({ activeP: s.activeP || Object.keys(s.profiles)[0], profiles: s.profiles, hw: s.hw }); 
             } else { 
                 let sysLang = navigator.language.includes('zh') ? 'zh' : 'en';
-                let p = PhysioEngine.sanitize({ name: 'Runner 1', gender: 'M', unit: 'metric', lang: sysLang, voiceOn: true, lastProg: 0, lastCat: 'FAT_BURN' }); 
+                let p = PhysioEngine.sanitize({ name: 'Runner 1', gender: 'M', unit: 'metric', lang: sysLang, voiceOn: true, gaitOn: true, lastProg: 0, lastCat: 'FAT_BURN' }); 
                 AppState.batch({ activeP: 'Runner 1', profiles: { 'Runner 1': p } }); 
             }
             
-            // Defensive Bootstrapping (防禦啟動：避免舊緩存導致的白屏)
+            // Defensive Bootstrapping
             let p = AppState.state.profiles[AppState.state.activeP];
             if (!PROG_CATEGORIES[p.lastCat]) {
-                console.warn(`Category ${p.lastCat} not found, falling back to FAT_BURN`);
                 p.lastCat = 'FAT_BURN';
                 p.lastProg = PROG_CATEGORIES['FAT_BURN'][0];
             }
 
             this.setupSubscribers();
 
-            let r = null; try { r = JSON.parse(sessionStorage.getItem('runState_v48')); } catch(e){} 
+            let r = null; try { r = JSON.parse(sessionStorage.getItem('runState_v50')); } catch(e){} 
             if(r && r.accumMs > 0 && r.snapshot && r.snapshot.length > 0) { 
                 let restoredStatus = r.runStatus || 'PAUSED';
                 let dtGap = Date.now() - (r.lastTimestamp || Date.now());
                 AppState.batch({ runStatus: restoredStatus, accumMs: r.accumMs, matrix: r.matrix, snapshot: r.snapshot, activeP: r.activeP, isBailOut: r.isBailOut || false, minimalVoice: r.minimalVoice || false }); 
                 if(r.acc) { Object.assign(RunAcc, r.acc); }
                 
-                // 預估值改用物理模擬引擎計算，避免預估與實際落差
                 AppState.state.estTotKm = PhysioEngine.simulatePhysics(r.snapshot, AppState.state.hw).dist;
 
                 if (restoredStatus === 'RUNNING' && dtGap > 0 && dtGap < 86400000) { this.logicTick(dtGap); }
@@ -1633,7 +1723,7 @@ class AppController {
         } catch(fatalError) {
             console.error('Fatal Init Error', fatalError);
             let sysLang = navigator.language.includes('zh') ? 'zh' : 'en';
-            let p = PhysioEngine.sanitize({ name: 'Runner 1', gender: 'M', unit: 'metric', lang: sysLang, voiceOn: true, lastProg: 0, lastCat: 'FAT_BURN' }); 
+            let p = PhysioEngine.sanitize({ name: 'Runner 1', gender: 'M', unit: 'metric', lang: sysLang, voiceOn: true, gaitOn: true, lastProg: 0, lastCat: 'FAT_BURN' }); 
             AppState.batch({ activeP: 'Runner 1', profiles: { 'Runner 1': p } });
             this.setupSubscribers();
             needsRecalc = true;
@@ -1684,11 +1774,14 @@ class AppController {
         document.getElementById('lblRmPref').textContent = d.rmPref; document.getElementById('btnRmCancel').textContent = d.btnCancel; document.getElementById('btnRmSave').textContent = d.btnSave;
         document.getElementById('lblHistTitle').textContent = d.histTitle;
         document.getElementById('lblIncStepTitle').textContent = d.lblIncStepTitle || '坡度精度';
+        
+        ['EstDist','ActDist','EstElev','ActElev','EstKcal','ActKcal','SumDist','SumElev','SumAvgPace','SumKcal'].forEach(k => { let el = document.getElementById(`lbl${k}Title`); if(el) el.textContent = d[`${k.charAt(0).toLowerCase() + k.slice(1)}Title`] || k; });
+        
         document.getElementById('btnLangZh').textContent = d.langZh; document.getElementById('btnLangEn').textContent = d.langEn;
         document.getElementById('btnVoiceOn').textContent = d.voiceOn; document.getElementById('btnVoiceOff').textContent = d.voiceOff;
+        document.getElementById('btnGaitOn').textContent = d.gaitOn; document.getElementById('btnGaitOff').textContent = d.gaitOff;
         document.getElementById('btnUnitMet').textContent = d.met; document.getElementById('btnUnitImp').textContent = d.imp;
         document.getElementById('btnSexM').textContent = d.male; document.getElementById('btnSexF').textContent = d.female;
-        document.getElementById('lblSexDesc').textContent = d.lblSex;
         document.getElementById('lblSumTitle').textContent = d.sumTitle; document.getElementById('btnSumClose').textContent = d.btnSumClose;
         
         document.getElementById('unitRunSpd').textContent = isMet ? 'kph' : 'mph'; document.getElementById('unitRunDist').textContent = isMet ? 'km' : 'mi';
@@ -1699,6 +1792,7 @@ class AppController {
     }
 
     openModal(id) {
+        if(AppState.state.runStatus !== 'STOPPED' && id === 'runnerModal') return; // Strict lock
         const el = document.getElementById(id);
         if(!el) return;
         el.classList.add('show');
@@ -1752,7 +1846,10 @@ class AppController {
                     this.persistRun(); 
                 }
             }
-            else if(a === 'open-runner') { this.charts.teardown(); this.renderRunnerSelector(); this.populateRunnerForm(AppState.state.profiles[AppState.state.activeP]); this.openModal('runnerModal'); }
+            else if(a === 'open-runner') { 
+                if(AppState.state.runStatus !== 'STOPPED') return; // Double Lock
+                this.charts.teardown(); this.renderRunnerSelector(); this.populateRunnerForm(AppState.state.profiles[AppState.state.activeP]); this.openModal('runnerModal'); 
+            }
             else if(a === 'close-runner') { this.closeModal('runnerModal'); this.charts.teardown(); }
             else if(a === 'save-runner') { if(!this.validateRunnerForm()) return; this.saveRunnerModal(); }
             else if(a === 'delete-runner') this.deleteRunner();
@@ -1761,7 +1858,14 @@ class AppController {
             else if(a === 'open-history') this.openHistory();
             else if(a === 'close-history') { this.closeModal('historyModal'); this.viewingProfile = null; }
             else if(a === 'clear-history') { if(confirm(dStr.clearAsk)) { let fR = document.getElementById('histRunnerSelect').value; DB.clearHist(fR).then(()=>this.openHistory()); } }
-            else if(a === 'close-summary' || (a === 'close-summary-overlay' && e.target.id === 'summaryModal')) { this.closeModal('summaryModal'); this.charts.sumM = null; this.viewingProfile = null; }
+            else if(a === 'close-summary' || (a === 'close-summary-overlay' && e.target.id === 'summaryModal')) { 
+                this.closeModal('summaryModal'); this.charts.sumM = null; this.viewingProfile = null;
+                // Force Clean Reboot Logic
+                let splash = document.getElementById('splashScreen');
+                splash.style.display = 'flex'; void splash.offsetWidth;
+                splash.style.opacity = '1';
+                setTimeout(() => { window.location.replace(window.location.href); }, 500);
+            }
             else if(a === 'overlay-close') { if(e.target.id === 'historyModal') { this.closeModal('historyModal'); this.viewingProfile = null; } else if(e.target.id === 'timeModal') { this.closeModal('timeModal'); } }
             else if(a === 'toggle-accordion') { t.classList.toggle('open'); document.getElementById(t.dataset.target).classList.toggle('show'); }
             
@@ -1804,15 +1908,26 @@ class AppController {
 
                 let hiddenInput = document.createElement('input');
                 hiddenInput.type = 'text';
-                hiddenInput.value = t.textContent;
+                // Read from dataset.raw due to DOM fragmentation
+                let targetDom = document.getElementById(`runVal${isSpd ? 'Spd' : 'Inc'}`);
+                hiddenInput.value = targetDom.dataset.raw || '0.0';
 
                 hiddenInput.addEventListener('input', (e) => {
                     let val = parseFloat(e.target.value);
                     if(isNaN(val)) return;
 
                     let cM = Math.floor(AppState.state.accumMs / 60000);
-                    let baseSpd = AppState.state.snapshot[cM].rawSpd;
-                    let baseInc = AppState.state.snapshot[cM].rawInc;
+                    let m = AppState.state.snapshot; let safeM = Math.min(cM, m.length - 1);
+                    
+                    let baseSpd = m[safeM].rawSpd;
+                    let baseInc = m[safeM].rawInc;
+                    
+                    // Time-Warp 15s Future-Anchor
+                    let cS = AppState.state.accumMs % 60000;
+                    if(cS >= 45000 && safeM < m.length - 1) {
+                        baseSpd = m[safeM + 1].rawSpd;
+                        baseInc = m[safeM + 1].rawInc;
+                    }
 
                     if(isSpd) {
                         let targetKph = isMet ? val : val * 1.609344;
@@ -1826,33 +1941,14 @@ class AppController {
 
                 Numpad.open(hiddenInput, title, true);
             }
-            else if(a === 'toggle-bailout') {
-                if (AppState.state.runStatus !== 'RUNNING') return;
-                AppState.state.isBailOut = !AppState.state.isBailOut;
-                t.classList.toggle('active', AppState.state.isBailOut);
-                let p = AppState.state.profiles[AppState.state.activeP];
-                let isMet = p.unit !== 'imperial';
-                let dStr = i18n[p.lang] || i18n['zh'];
-                
-                if (AppState.state.isBailOut) {
-                    RunAcc.curSpd = AppState.state.hw.minSpd;
-                    RunAcc.curInc = AppState.state.hw.minInc;
-                    TweenApp.to('runValSpd', isMet ? AppState.state.hw.minSpd : AppState.state.hw.minSpd/1.609344, v => v.toFixed(1), true);
-                    TweenApp.to('runValInc', AppState.state.hw.minInc, v => v.toFixed(1), true);
-                } else {
-                    let cM = Math.floor(AppState.state.accumMs / 60000);
-                    let curM = AppState.state.snapshot[cM];
-                    RunAcc.curSpd = curM.spd;
-                    RunAcc.curInc = curM.inc;
-                    TweenApp.to('runValSpd', isMet ? curM.spd : curM.spd/1.609344, v => v.toFixed(1), true);
-                    TweenApp.to('runValInc', curM.inc, v => v.toFixed(1), true);
-                }
-                NotificationManager.show(AppState.state.isBailOut ? dStr.bailOutOn : dStr.bailOutOff, AppState.state.isBailOut);
+            else if(a === 'toggle-gait') {
+                p.gaitOn = !p.gaitOn; this.saveData();
+                this.updateUIDataOnly();
+                NotificationManager.show(p.gaitOn ? dStr.gaitOn : dStr.gaitOff, !p.gaitOn);
             }
             else if(a === 'toggle-voice-mode') {
                 p.voiceOn = !p.voiceOn; this.saveData();
-                t.classList.toggle('minimal', !p.voiceOn);
-                t.innerHTML = !p.voiceOn ? '<svg viewBox="0 0 24 24"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
+                this.updateUIDataOnly();
                 NotificationManager.show(p.voiceOn ? dStr.voiceOn : dStr.voiceOff, !p.voiceOn);
                 this.persistRun();
             }
@@ -1867,7 +1963,6 @@ class AppController {
             }
             else if(a === 'offset-spd-minus' || a === 'offset-spd-plus' || a === 'offset-inc-minus' || a === 'offset-inc-plus' || a === 'btn-spd-up' || a === 'btn-spd-down' || a === 'btn-inc-up' || a === 'btn-inc-down') {
                 if (AppState.state.runStatus === 'STOPPED' && a.includes('btn-')) return;
-                if(AppState.state.isBailOut) { AppState.state.isBailOut = false; document.getElementById('btnBailOut').classList.remove('active'); }
                 
                 let isSpd = a.includes('spd'); let isUp = a.includes('plus') || a.includes('up');
                 if(navigator.vibrate) navigator.vibrate(10);
@@ -1889,7 +1984,6 @@ class AppController {
                     firedByRepeat = true;
                     if (AppState.state.runStatus === 'STOPPED' && actionName.includes('btn-')) return;
                     let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
-                    if(AppState.state.isBailOut) { AppState.state.isBailOut = false; document.getElementById('btnBailOut').classList.remove('active'); }
                     
                     if(navigator.vibrate) navigator.vibrate(10);
                     
@@ -1913,9 +2007,16 @@ class AppController {
         const btnStart = document.getElementById('btnRight');
         btnStart.addEventListener('pointerup', async () => {
             if(screen.orientation && screen.orientation.lock) screen.orientation.lock('portrait').catch(()=>{});
-            document.getElementById('silentAudio').play().catch(()=>{});
+            
+            // WakeLock physical anchor play
+            let vL = document.getElementById('wakeLockVideo');
+            if(vL) vL.play().catch(()=>{});
+
             VoiceApp.unlock(); this.charts.teardown();
             
+            // Push history trap
+            history.pushState(null, null, location.href);
+
             if (AppState.state.runStatus === 'RUNNING' || AppState.state.runStatus === 'PRE_FLIGHT') return;
             let p = AppState.state.profiles[AppState.state.activeP]; let dStr = i18n[p.lang] || i18n['zh']; let isMet = p.unit !== 'imperial';
             
@@ -1935,9 +2036,8 @@ class AppController {
                 this.dials.time.forceSnap(); this.dials.dist.forceSnap();
                 await new Promise(r => setTimeout(r, 200)); if (AppState.state.runStatus !== 'PRE_FLIGHT') return; 
 
-                resetRunAcc(); AppState.state.isBailOut = false; document.getElementById('btnBailOut').classList.remove('active');
+                resetRunAcc();
                 
-                // Cache estimated total dist from the pre-simulated blueprint
                 AppState.state.estTotKm = PhysioEngine.simulatePhysics(AppState.state.snapshot, AppState.state.hw).dist;
 
                 let startM = AppState.state.snapshot[0];
@@ -1983,16 +2083,19 @@ class AppController {
                     c.querySelector('.seg-indicator').style.left = idx === 0 ? '4px' : 'calc(50% + 0px)';
                 }
 
-                if(c.id === 'segLang' || c.id === 'segUnit') { 
+                if(c.id === 'segLang' || c.id === 'segUnit' || c.id === 'segGait') { 
                     if(c.id === 'segUnit') { 
                         this.syncFormToProfile(); 
                         AppState.state.profiles[AppState.state.activeP].unit = b.dataset.val; 
                         this.saveData(); 
                         this.populateRunnerForm(AppState.state.profiles[AppState.state.activeP]); 
-                    } else { 
+                    } else if (c.id === 'segLang') { 
                         AppState.state.profiles[AppState.state.activeP].lang = b.dataset.val; 
                         this.saveData(); 
                         VoiceApp.clear(); 
+                    } else if (c.id === 'segGait') {
+                        AppState.state.profiles[AppState.state.activeP].gaitOn = b.dataset.val === 'on';
+                        this.saveData();
                     }
                     this.updateI18n(); this.updateUIDataOnly(); this.charts.drawAll();
                 } else if (c.id === 'segIncStep') {
@@ -2067,7 +2170,7 @@ class AppController {
 
         setV('hwMxS', isMet?hw.maxSpd:hw.maxSpd/1.609344); setV('hwMnS', isMet?hw.minSpd:hw.minSpd/1.609344); setV('hwMxI', hw.maxInc); setV('hwMnI', hw.minInc);
         const setS = (id, v) => { let c=document.getElementById(id); c.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active')); let b=c.querySelector(`[data-val="${v}"]`); if(b) { b.classList.add('active'); if(c.id==='segIncStep'){ c.querySelector('.seg-indicator').style.left= `calc(${b.dataset.idx * 33.33}% + 2px)`; } else { c.querySelector('.seg-indicator').style.left= b.dataset.idx === '0' ? '4px' : 'calc(50% + 0px)'; } } };
-        setS('segLang', p.lang||'zh'); setS('segVoice', p.voiceOn?'on':'off'); setS('segUnit', p.unit); setS('segSex', p.gender); setS('segIncStep', p.incStep || 0.5); this.validateRunnerForm();
+        setS('segLang', p.lang||'zh'); setS('segVoice', p.voiceOn?'on':'off'); setS('segGait', p.gaitOn?'on':'off'); setS('segUnit', p.unit); setS('segSex', p.gender); setS('segIncStep', p.incStep || 0.5); this.validateRunnerForm();
     }
 
     renderRunnerSelector() {
@@ -2075,8 +2178,6 @@ class AppController {
         Object.keys(AppState.state.profiles).forEach(k => { let t = document.createElement('div'); t.className = `runner-tag ${k===AppState.state.activeP ? 'active':''}`; t.textContent = k; t.dataset.action = 'switch-runner'; t.dataset.name = k; wrap.appendChild(t); });
         let add = document.createElement('div'); add.className = 'runner-tag add-new'; add.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" style="fill:currentColor;"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><span style="margin-left:4px;">+</span>'; add.dataset.action = 'add-runner-mode'; wrap.appendChild(add); this.validateRunnerForm();
     }
-
-    applyPulseAnimation(rowIndex, doSpd, doInc) { let nRow = document.getElementById(`min-row-${rowIndex}`); if(nRow) { if(doSpd) nRow.querySelector('.list-col-spd').classList.add('pulse-spd-active'); if(doInc) nRow.querySelector('.list-col-inc').classList.add('pulse-inc-active'); } }
 
     scrollToRow() {
         let cM = Math.floor(AppState.state.accumMs / 60000); let ul = document.getElementById('previewList'); if(!ul) return;
@@ -2088,20 +2189,22 @@ class AppController {
 
     setupSubscribers() {
         AppState.subscribe('runStatus', s => {
-            let R = (s === 'RUNNING'); let S = s === 'STOPPED';
+            let R = (s === 'RUNNING'); let S = s === 'STOPPED'; let P = s === 'PAUSED';
             this.charts.teardown();
-            document.getElementById('btnLeft').className = `btn-ctrl btn-runner ${!S ? 'btn-hide' : ''}`;
-            document.getElementById('btnRight').className = `btn-ctrl btn-start ${(R || s === 'PRE_FLIGHT') ? 'btn-hide' : ''}`;
-            document.getElementById('btnAskEnd').className = `btn-ctrl btn-end ${S ? 'btn-hide' : ''}`;
+            
+            // Re-Align bottom controls
+            document.getElementById('btnLeft').className = `btn-ctrl btn-runner ${!S ? 'btn-hide' : ''}`; // Runner only on STOPPED
+            document.getElementById('btnRight').className = `btn-ctrl btn-start ${(R || s === 'PRE_FLIGHT') ? 'btn-hide' : ''}`; // Start/Resume
+            document.getElementById('btnAskEnd').className = `btn-ctrl btn-end ${S ? 'btn-hide' : ''}`; // End button
+            document.getElementById('btnPause').className = `btn-ctrl btn-pause ${!R ? 'btn-hide' : ''}`; // Pause ONLY when RUNNING
             
             let btnPause = document.getElementById('btnPause');
-            btnPause.className = `btn-ctrl btn-pause ${S ? 'btn-hide' : ''}`;
             btnPause.disabled = (s === 'PRE_FLIGHT');
             btnPause.style.opacity = (s === 'PRE_FLIGHT') ? '0.4' : '1';
             btnPause.style.pointerEvents = (s === 'PRE_FLIGHT') ? 'none' : 'auto';
             
             let p = AppState.state.profiles[AppState.state.activeP]; let d = i18n[p.lang] || i18n['zh'];
-            document.getElementById('lblBtnRight').textContent = (s === 'PAUSED' && AppState.state.accumMs > 0) ? d.btnResume : d.btnStart;
+            document.getElementById('lblBtnRight').textContent = (P && AppState.state.accumMs > 0) ? d.btnResume : d.btnStart;
             
             document.getElementById('setup-view').classList.toggle('active', S); document.getElementById('run-view').classList.toggle('active', !S); document.getElementById('runProgressRow').classList.toggle('show', !S);
             if(s === 'PRE_FLIGHT') { document.getElementById('setup-view').classList.remove('active'); document.getElementById('run-view').classList.add('active'); document.getElementById('runProgressRow').classList.add('show'); }
@@ -2109,8 +2212,15 @@ class AppController {
             let htmlRoot = document.getElementById('htmlRoot');
             if (S) { htmlRoot.classList.remove('run-mode'); } else { htmlRoot.classList.add('run-mode'); }
 
-            if (R) { BgWorker.postMessage('START'); if(navigator.wakeLock) navigator.wakeLock.request('screen').catch(()=>{}); }
-            else if (s === 'PAUSED' || S) { BgWorker.postMessage('STOP'); }
+            if (R) { 
+                BgWorker.postMessage('START'); 
+                if(navigator.wakeLock) navigator.wakeLock.request('screen').catch(()=>{}); 
+                this.updateGaitHubState();
+            }
+            else if (P || S) { 
+                BgWorker.postMessage('STOP'); 
+                this.silenceGaitHub();
+            }
         });
 
         AppState.subscribe('activeTab', t => {
@@ -2132,60 +2242,113 @@ class AppController {
         Binder.updateBatch({ uiSpdOff: (isMet ? p.spdOffset : p.spdOffset/1.609344).toFixed(1), uiIncOff: p.incOffset.toFixed(1) });
         
         if (AppState.state.runStatus === 'RUNNING') {
-            let immediateSpd = Utils.clamp(res.matrix[cM].rawSpd + p.spdOffset, AppState.state.hw.minSpd, AppState.state.hw.maxSpd);
-            let immediateInc = Utils.clamp(res.matrix[cM].rawInc + p.incOffset, AppState.state.hw.minInc, AppState.state.hw.maxInc);
-
-            AppState.state.snapshot[cM].spd = Utils.round(immediateSpd);
-            AppState.state.snapshot[cM].inc = Utils.roundInc(immediateInc, p.incStep);
-
-            if(!AppState.state.isBailOut) { 
+            let cS = AppState.state.accumMs % 60000;
+            // Immediate jump only if not in lerp window
+            if(cS < 45000) {
+                let immediateSpd = Utils.clamp(res.matrix[cM].rawSpd + p.spdOffset, AppState.state.hw.minSpd, AppState.state.hw.maxSpd);
+                let immediateInc = Utils.clamp(res.matrix[cM].rawInc + p.incOffset, AppState.state.hw.minInc, AppState.state.hw.maxInc);
+                AppState.state.snapshot[cM].spd = Utils.round(immediateSpd);
+                AppState.state.snapshot[cM].inc = Utils.roundInc(immediateInc, p.incStep);
                 TweenApp.to('runValSpd', isMet?immediateSpd:immediateSpd/1.609344, v => v.toFixed(1), true); 
                 TweenApp.to('runValInc', immediateInc, v => v.toFixed(1), true); 
             }
         }
     }
 
+    calculateBPM(speedKph, incPct) {
+        let bpm = 0;
+        if(speedKph <= 6.0) bpm = 100 + ((speedKph - 1) / 5) * 35;
+        else if(speedKph <= 8.0) bpm = 135 + ((speedKph - 6) / 2) * 20;
+        else bpm = 155 + ((speedKph - 8) / 12) * 35;
+        bpm += incPct * 0.5;
+        return Math.min(220, Math.max(80, bpm));
+    }
+
+    getGaitHSL(bpm) {
+        if(bpm <= 110) return 200;
+        if(bpm >= 185) return 0;
+        if(bpm <= 155) return 200 - (80 * ((bpm - 110) / 45));
+        if(bpm <= 171) return 120 - (78 * ((bpm - 155) / 16));
+        return 42 - (42 * ((bpm - 171) / 14));
+    }
+
+    triggerFlash(side) {
+        if (Numpad.targetInput !== null || AppState.state.isTimeWarping) return; // Silent if Numpad open or warping
+        let el = document.getElementById(side === 'inc' ? 'runValInc' : 'runValSpd');
+        if (!el) return;
+        let dot = el.querySelector('.dot'); if (!dot) return;
+        let p = AppState.state.profiles[AppState.state.activeP];
+        if(!p.gaitOn) return;
+
+        let now = performance.now();
+        // Throttle overlapping flashes on same side
+        if (dot.dataset.lastF && now - parseFloat(dot.dataset.lastF) < 200) return;
+        dot.dataset.lastF = now;
+
+        dot.classList.add('strike');
+        // Force reflow for immediate CSS application
+        void dot.offsetWidth;
+        
+        requestAnimationFrame(() => {
+            dot.classList.remove('strike');
+        });
+    }
+
+    updateGaitHubState() {
+        let p = AppState.state.profiles[AppState.state.activeP];
+        let btn = document.getElementById('btnSmartGait');
+        let iconLayer = document.getElementById('gaitIcon');
+        let numLayer = document.getElementById('gaitNum');
+
+        if (p.gaitOn && AppState.state.runStatus === 'RUNNING') {
+            btn.classList.remove('minimal');
+            iconLayer.classList.remove('active');
+            numLayer.classList.add('active');
+        } else {
+            btn.classList.toggle('minimal', !p.gaitOn);
+            numLayer.classList.remove('active');
+            iconLayer.classList.add('active');
+            document.documentElement.style.setProperty('--current-gait-color', `hsl(200, 0%, 50%)`);
+        }
+    }
+
+    silenceGaitHub() {
+        let numLayer = document.getElementById('gaitNum');
+        let iconLayer = document.getElementById('gaitIcon');
+        numLayer.classList.remove('active');
+        iconLayer.classList.add('active');
+        
+        document.querySelectorAll('.run-big-val .dot').forEach(d => {
+            d.classList.remove('strike');
+        });
+    }
+
     logicTick(dt) {
         if (AppState.state.runStatus === 'STOPPED' || AppState.state.runStatus === 'PAUSED' || AppState.state.runStatus === 'PRE_FLIGHT') return;
 
-        if (dt > 2000) { this._macroSimulate(dt); return; }
+        if (dt > 2000) { 
+            AppState.state.isTimeWarping = true;
+            let p = AppState.state.profiles[AppState.state.activeP]; let dStr = i18n[p.lang] || i18n['zh'];
+            NotificationManager.show(dStr.sysSleep, false);
+            VoiceApp.clear(); // Block pending voices
+        }
 
         let stepDt = Math.min(1000, dt);
         let ms = AppState.state.accumMs; let p = AppState.state.profiles[AppState.state.activeP]; let totMs = p.tTime * 60000;
         
         this._processPhysicsTick(stepDt); 
         
+        if (AppState.state.isTimeWarping) {
+            AppState.state.isTimeWarping = false;
+            this.charts.drawAll();
+            // Jump to correct tab based on current time
+            let finalC = AppState.state.accumMs % 60000;
+            if (finalC >= 45000 && finalC < 46500 && AppState.state.accumMs < totMs - 60000) {
+                AppState.state.activeTab = 'matrix';
+            }
+        }
+
         if (AppState.state.runStatus === 'RUNNING' && AppState.state.accumMs >= totMs) { this.forceEvictModals(); this.endWorkout(); }
-    }
-
-    _macroSimulate(dt) {
-        let m = AppState.state.snapshot; let ms = AppState.state.accumMs; let p = AppState.state.profiles[AppState.state.activeP]; let pClean = PhysioEngine.sanitize(p); let isMet = p.unit !== 'imperial';
-        
-        AppState.state.accumMs += dt; ms += dt; let cM = Math.floor(ms/60000); let safeM = Math.min(cM, m.length - 1); let curM = m[safeM];
-        
-        let elapsedSec = dt / 1000;
-        let activeSpd = AppState.state.isBailOut ? AppState.state.hw.minSpd : curM.spd;
-        let activeInc = AppState.state.isBailOut ? AppState.state.hw.minInc : curM.inc;
-        RunAcc.sec += elapsedSec; RunAcc.dKm += (activeSpd / 3600) * elapsedSec; RunAcc.dElev += (activeSpd / 3.6) * elapsedSec * (activeInc / 100);
-        RunAcc.sumSpd += activeSpd * elapsedSec; RunAcc.sumInc += activeInc * elapsedSec;
-        RunAcc.curHr = curM.hr; RunAcc.curLac = curM.lac; RunAcc.sumHr += RunAcc.curHr * elapsedSec; RunAcc.sumLac += RunAcc.curLac * elapsedSec;
-        
-        RunAcc.fCal += (curM.fCal / 60) * elapsedSec; RunAcc.cCal += (curM.cCal / 60) * elapsedSec;
-
-        let HRR = pClean.mHR - pClean.rHR; let hrIntensity = (RunAcc.curHr - pClean.rHR) / HRR;
-        let z = hrIntensity < 0.6 ? 1 : (hrIntensity < 0.7 ? 2 : (hrIntensity < 0.8 ? 3 : (hrIntensity < 0.9 ? 4 : 5)));
-        RunAcc.zs[z - 1] += (dt / 60000);
-
-        if(RunAcc.curSpd > RunAcc.mxS) RunAcc.mxS = RunAcc.curSpd;
-        if(RunAcc.curInc > RunAcc.mxI) RunAcc.mxI = RunAcc.curInc;
-        if(RunAcc.curHr > RunAcc.mxH) RunAcc.mxH = Math.round(RunAcc.curHr); 
-        if(RunAcc.curLac > RunAcc.mxL) RunAcc.mxL = RunAcc.curLac;
-
-        TweenApp.to('runValSpd', isMet?activeSpd:activeSpd/1.609344, v => v.toFixed(1), true); TweenApp.to('runValInc', activeInc, v => v.toFixed(1), true);
-        
-        VoiceApp.clear(); NotificationManager.show((i18n[p.lang]||i18n['zh']).sysSleep, false);
-        this.charts.drawAll();
-        if (AppState.state.accumMs >= p.tTime * 60000) { this.forceEvictModals(); this.endWorkout(); }
     }
 
     _processPhysicsTick(dt) {
@@ -2197,14 +2360,19 @@ class AppController {
         let cM = Math.floor(ms/60000); let cS = ms%60000;
         let safeM = Math.min(cM, m.length - 1); let curM = m[safeM]; let nextM = m[Math.min(safeM + 1, m.length - 1)]; let sr = dt/60000; 
 
-        let targetSpd = AppState.state.isBailOut ? AppState.state.hw.minSpd : curM.spd;
-        let targetInc = AppState.state.isBailOut ? AppState.state.hw.minInc : curM.inc;
+        // 15s Lerp Base Computation
+        let baseSpd = curM.rawSpd; let baseInc = curM.rawInc;
+        if (cS >= 45000 && safeM < m.length - 1) {
+            let progress = (cS - 45000) / 15000;
+            baseSpd = curM.rawSpd + (nextM.rawSpd - curM.rawSpd) * progress;
+            baseInc = curM.rawInc + (nextM.rawInc - curM.rawInc) * progress;
+        }
 
-        if (RunAcc.curSpd === 0) RunAcc.curSpd = targetSpd;
-        RunAcc.curSpd += Math.sign(targetSpd - RunAcc.curSpd) * Math.min(Math.abs(targetSpd - RunAcc.curSpd), (0.2 * dt/1000));
-        RunAcc.curInc += Math.sign(targetInc - RunAcc.curInc) * Math.min(Math.abs(targetInc - RunAcc.curInc), (0.5 * dt/1000));
-        
-        RunAcc.curSpd = Utils.round(RunAcc.curSpd); RunAcc.curInc = Utils.round(RunAcc.curInc);
+        let targetSpd = Utils.clamp(baseSpd + p.spdOffset, AppState.state.hw.minSpd, AppState.state.hw.maxSpd);
+        let targetInc = Utils.roundInc(Utils.clamp(baseInc + p.incOffset, AppState.state.hw.minInc, AppState.state.hw.maxInc), p.incStep);
+        targetSpd = Utils.round(targetSpd);
+
+        RunAcc.curSpd = targetSpd; RunAcc.curInc = targetInc;
 
         let sm = RunAcc.curSpd * 16.6667; let id = RunAcc.curInc / 100;
         let RE = pClean.gender === 'F' ? 1.05 : 1.0; if(pClean.smm / pClean.wKG > (pClean.gender==='M' ? 0.4 : 0.35)) RE -= 0.05; 
@@ -2242,16 +2410,48 @@ class AppController {
         let kcalTick = ((vo2D * pClean.wKG * 5) / 1000) * sr;
         if(Number.isFinite(kcalTick)) { RunAcc.fCal += kcalTick * pctFat; RunAcc.cCal += kcalTick * pctCarb; }
 
-        let totMs = AppState.state.profiles[AppState.state.activeP].tTime * 60000;
+        let totMs = p.tTime * 60000;
         let rMs = Math.max(0, totMs - ms); let pct = Math.min(100, (ms / Math.max(1, totMs)) * 100);
         
         let dDisp = isMet ? RunAcc.dKm : RunAcc.dKm/1.609344; 
         let estDisp = isMet ? AppState.state.estTotKm : AppState.state.estTotKm/1.609344;
         
-        document.getElementById('topProgressText').textContent = `${dDisp.toFixed(2)} / ${estDisp.toFixed(2)} ${isMet?'km':'mi'} (${pct.toFixed(0)}%)`; 
-        document.getElementById('topProgressBar').style.width = pct.toFixed(1) + '%'; 
-        document.getElementById('topRemainingTime').textContent = '-' + Utils.fmtTime(rMs); 
-        Binder.update('massiveTime', Utils.fmtTime(ms, false));
+        if (!AppState.state.isTimeWarping) {
+            document.getElementById('topProgressText').textContent = `${dDisp.toFixed(2)} / ${estDisp.toFixed(2)} ${isMet?'km':'mi'} (${pct.toFixed(0)}%)`; 
+            document.getElementById('topProgressBar').style.width = pct.toFixed(1) + '%'; 
+            document.getElementById('topRemainingTime').textContent = '-' + Utils.fmtTime(rMs); 
+            Binder.update('massiveTime', Utils.fmtTime(ms, false));
+            
+            TweenApp.to('runValSpd', isMet?targetSpd:targetSpd/1.609344, v => v.toFixed(1), cS >= 45000); 
+            TweenApp.to('runValInc', targetInc, v => v.toFixed(1), cS >= 45000); 
+
+            // Gait Hub calculation & Metronome
+            if (p.gaitOn) {
+                let currentBPM = this.calculateBPM(targetSpd, targetInc);
+                let currentHue = this.getGaitHSL(currentBPM);
+                document.documentElement.style.setProperty('--current-gait-color', `hsl(${currentHue}, 100%, 60%)`);
+                let fadeMs = 60000 / currentBPM;
+                document.documentElement.style.setProperty('--gait-fade-dur', `${Math.min(500, fadeMs * 0.8)}ms`);
+                
+                let numLayer = document.getElementById('gaitNum');
+                let intBPM = Math.round(currentBPM);
+                if (intBPM !== RunAcc.lastGaitBPM) {
+                    numLayer.textContent = intBPM;
+                    if (Math.abs(currentBPM - RunAcc.lastGaitBPM) > 0.8 && (performance.now() - RunAcc.lastGaitPulseTime > 300)) {
+                        numLayer.style.transform = 'scale(1.15)'; numLayer.style.filter = 'brightness(1.5)';
+                        setTimeout(() => { numLayer.style.transform = 'scale(1)'; numLayer.style.filter = 'brightness(1)'; }, 150);
+                        RunAcc.lastGaitPulseTime = performance.now();
+                    }
+                    RunAcc.lastGaitBPM = intBPM;
+                }
+
+                let prevPhase = RunAcc.gaitPhase;
+                RunAcc.gaitPhase = (RunAcc.gaitPhase + (currentBPM / 60) * (dt / 1000)) % 1.0;
+                
+                if (prevPhase < 0.5 && RunAcc.gaitPhase >= 0.5) this.triggerFlash('inc');
+                else if (prevPhase > RunAcc.gaitPhase) this.triggerFlash('spd');
+            }
+        }
         
         let eElev = isMet ? RunAcc.dElev : RunAcc.dElev * 3.28084;
         Binder.updateBatch({ runDist: dDisp.toFixed(2), runElev: Math.round(eElev), runHr: Math.round(RunAcc.curHr), runLac: RunAcc.curLac.toFixed(1) });
@@ -2262,46 +2462,39 @@ class AppController {
         
         if (Math.floor(ms/5000) !== Math.floor((ms-dt)/5000)) this.persistRun(); 
         
-        if (Math.floor(ms/1000) !== Math.floor((ms-dt)/1000)) { 
+        if (Math.floor(ms/1000) !== Math.floor((ms-dt)/1000) && !AppState.state.isTimeWarping) { 
             this.charts.drawAll(); 
             this.updateStatsBlock('rAct', ms, true);
         }
 
+        if (!RunAcc.transF[safeM]) RunAcc.transF[safeM] = { autoTab: false, warned: false, autoSwitchedToMatrix: false };
+        
         let isVisuallyChanged = Math.abs(nextM.spd - curM.spd) >= 0.1 || Math.abs(nextM.inc - curM.inc) >= 0.1;
         
-        if (!RunAcc.transF[safeM]) RunAcc.transF[safeM] = { autoTab: false, warned: false, pulsing: false };
-        
-        if (cS >= 45000 && safeM < m.length - 1 && isVisuallyChanged && !RunAcc.transF[safeM].warned && !AppState.state.isBailOut) {
+        if (cS >= 45000 && safeM < m.length - 1 && isVisuallyChanged && !RunAcc.transF[safeM].warned && !AppState.state.isTimeWarping) {
             RunAcc.transF[safeM].warned = true;
+            VoiceApp.clear(); // Interrupt any ongoing voice to ensure priority
             let transMsg = VoiceApp.buildTransMsg(dStr, curM, nextM, isMet, p.lang);
-            if (transMsg) VoiceApp.speakText(transMsg, 2, p.lang==='zh'?'zh-TW':'en-US');
+            if (transMsg) VoiceApp.speakText(transMsg, 1, p.lang==='zh'?'zh-TW':'en-US'); // High priority
             
-            let userInteracting = (Date.now() - this.lastInteraction) < 5000;
-            if (!userInteracting) {
+            if (AppState.state.activeTab !== 'matrix') {
                 AppState.state.activeTab = 'matrix'; 
-                RunAcc.transF[safeM].pulsing = true;
-                this.applyPulseAnimation(safeM + 1, Math.abs(nextM.spd - curM.spd) >= 0.1, Math.abs(nextM.inc - curM.inc) >= 0.1);
-            } else {
-                document.getElementById('header').classList.add('pulse-warn-header');
+                RunAcc.transF[safeM].autoSwitchedToMatrix = true;
             }
         }
 
-        if (cS >= 55000 && RunAcc.transF[safeM].warned && !RunAcc.transF[safeM].autoTab) {
-            RunAcc.transF[safeM].autoTab = true;
-            document.getElementById('header').classList.remove('pulse-warn-header');
-            if (AppState.state.activeTab === 'matrix' && RunAcc.transF[safeM].pulsing) {
+        if (cS >= 1500 && cS < 15000 && oldM !== cM && RunAcc.transF[oldM] && RunAcc.transF[oldM].autoSwitchedToMatrix && !RunAcc.transF[oldM].autoTab && !AppState.state.isTimeWarping) {
+            RunAcc.transF[oldM].autoTab = true;
+            if (AppState.state.activeTab === 'matrix') {
                 AppState.state.activeTab = 'settings';
-                RunAcc.transF[safeM].pulsing = false;
             }
         }
 
-        if (oldM !== cM) {
-            document.getElementById('header').classList.remove('pulse-warn-header');
-            if(!AppState.state.isBailOut) { TweenApp.to('runValSpd', isMet?curM.spd:curM.spd/1.609344, v => v.toFixed(1), true); TweenApp.to('runValInc', curM.inc, v => v.toFixed(1), true); }
+        if (oldM !== cM && !AppState.state.isTimeWarping) {
             this.scrollToRow();
         }
 
-        if(Math.floor(ms/30000) !== Math.floor((ms-dt)/30000)) { VoiceApp.evaluateAndSpeak({ hr: RunAcc.curHr, lac: RunAcc.curLac, spd: targetSpd, inc: targetInc, phase: curM.phase }, pClean.age, pClean.pMaxLac); }
+        if(Math.floor(ms/30000) !== Math.floor((ms-dt)/30000) && !AppState.state.isTimeWarping) { VoiceApp.evaluateAndSpeak({ hr: RunAcc.curHr, lac: RunAcc.curLac, spd: targetSpd, inc: targetInc, phase: curM.phase }, pClean.age, pClean.pMaxLac); }
     }
 
     computeRunStats(matrix, accumMs, isActual) {
@@ -2380,11 +2573,6 @@ class AppController {
             li.innerHTML = `<span class="list-col-time">${Utils.fmtTime(i*60000)}</span><span class="list-col-inc">${r.inc.toFixed(1)}%</span><span class="list-col-spd">${(isMet?r.spd:r.spd/1.609344).toFixed(1)}</span><span class="list-col-phase">${vdb[r.phase]||r.phase}</span><span class="list-col-hr" style="${isMaxLac?'color:var(--neon-red);':''}">${Math.round(r.hr)}</span><span class="list-col-lac">${r.lac.toFixed(1)}</span>`;
             ul.appendChild(li);
         });
-
-        if (RunAcc.transF[cM] && RunAcc.transF[cM].pulsing) {
-            let nextM = AppState.state.snapshot[cM+1];
-            if (nextM) this.applyPulseAnimation(cM + 1, Math.abs(nextM.spd - m[cM].spd) >= 0.1, Math.abs(nextM.inc - m[cM].inc) >= 0.1);
-        }
     }
 
     updateUIDataOnly() {
@@ -2395,6 +2583,7 @@ class AppController {
         document.getElementById('iconVoiceFull').innerHTML = AppState.state.minimalVoice ? '<path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>' : '<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>';
         
         Binder.updateBatch({ uiSpdOff: (isMet ? p.spdOffset : p.spdOffset/1.609344).toFixed(1), uiIncOff: p.incOffset.toFixed(1) });
+        this.updateGaitHubState();
 
         let cTabs = document.getElementById('catTabs'); cTabs.innerHTML = '';
         Object.keys(PROG_CATEGORIES).forEach(cat => {
@@ -2433,7 +2622,7 @@ class AppController {
         const getV = (id, f) => (parseFloat(document.getElementById(id).value)||0)*f;
 
         let p = { 
-            name, gender: document.querySelector('#segSex .seg-btn.active').dataset.val, unit: isMet?'metric':'imperial', lang: document.querySelector('#segLang .seg-btn.active').dataset.val, voiceOn: document.querySelector('#segVoice .seg-btn.active').dataset.val==='on', 
+            name, gender: document.querySelector('#segSex .seg-btn.active').dataset.val, unit: isMet?'metric':'imperial', lang: document.querySelector('#segLang .seg-btn.active').dataset.val, voiceOn: document.querySelector('#segVoice .seg-btn.active').dataset.val==='on', gaitOn: document.querySelector('#segGait .seg-btn.active').dataset.val==='on',
             age: parseFloat(document.getElementById('rmAge').value)||35, tTime: isNew ? 30 : actP.tTime, tKm: isNew ? 5.0 : actP.tKm, lastProg: isNew ? 0 : actP.lastProg, lastCat: isNew ? 'FAT_BURN' : actP.lastCat, 
             spdOffset: isNew?0:actP.spdOffset, incOffset: isNew?0:actP.incOffset, catMemory: actP.catMemory || {} 
         };
@@ -2486,12 +2675,12 @@ class AppController {
         });
     }
 
-    saveData() { try { localStorage.setItem('pro_treadmill_v48', JSON.stringify({ activeP: AppState.state.activeP, profiles: AppState.state.profiles, hw: AppState.state.hw, schemaVersion: 1 })); } catch(e){} }
+    saveData() { try { localStorage.setItem('pro_treadmill_v50', JSON.stringify({ activeP: AppState.state.activeP, profiles: AppState.state.profiles, hw: AppState.state.hw, schemaVersion: 1 })); } catch(e){} }
     
     persistRun() { 
         if (AppState.state.accumMs > 0) {
-            sessionStorage.setItem('runState_v48', JSON.stringify({ runStatus: AppState.state.runStatus, lastTimestamp: Date.now(), activeP: AppState.state.activeP, accumMs: AppState.state.accumMs, matrix: AppState.state.matrix, snapshot: AppState.state.snapshot, acc: RunAcc, isBailOut: AppState.state.isBailOut, minimalVoice: AppState.state.minimalVoice })); 
-        } else { sessionStorage.removeItem('runState_v48'); }
+            sessionStorage.setItem('runState_v50', JSON.stringify({ runStatus: AppState.state.runStatus, lastTimestamp: Date.now(), activeP: AppState.state.activeP, accumMs: AppState.state.accumMs, matrix: AppState.state.matrix, snapshot: AppState.state.snapshot, acc: RunAcc, minimalVoice: AppState.state.minimalVoice })); 
+        } else { sessionStorage.removeItem('runState_v50'); }
     }
     
     endWorkout() {
@@ -2499,7 +2688,7 @@ class AppController {
         let ms = AppState.state.accumMs; AppState.state.uiLocked = false;
         let p = AppState.state.profiles[AppState.state.activeP]; let d = i18n[p.lang] || i18n['zh'];
         
-        sessionStorage.removeItem('runState_v48'); 
+        sessionStorage.removeItem('runState_v50'); 
         this.updateStatsBlock('rAct', ms, true);
 
         if(RunAcc.sec >= 10 && ms >= 10000) {
@@ -2516,9 +2705,7 @@ class AppController {
         } else { NotificationManager.show(d.shortWorkout, true); }
         
         AppState.state.runStatus = 'STOPPED'; AppState.state.accumMs = 0; AppState.state.activeTab = 'settings';
-        AppState.state.isBailOut = false; document.getElementById('btnBailOut').classList.remove('active');
         
-        document.getElementById('silentAudio').pause(); 
         document.getElementById('topProgressText').textContent = '0.00 / 0.00 (0%)'; document.getElementById('topProgressBar').style.width = '0%'; document.getElementById('topRemainingTime').textContent = '-00:00';
         resetRunAcc(); 
         setTimeout(() => this.recalc(true), 600);
