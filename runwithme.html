@@ -1686,12 +1686,19 @@ class AppController {
                 NotificationManager.show((i18n[p.lang]||i18n['zh']).btn_hold, false);
             }
         });
-        
         DB.init().then(() => this.initData()).catch(e => { console.warn('IDB', e); this.initData(); }).finally(() => { 
             this.initDials(); this.bindEvents();
             setTimeout(() => document.getElementById('splashScreen').style.opacity = '0', 800);
             setTimeout(() => document.getElementById('splashScreen').style.display = 'none', 1300);
         });
+
+        // 啟動專屬的高頻 60fps 視覺節拍器引擎
+        this.lastGaitFrame = performance.now();
+        const gaitLoop = (ts) => {
+            requestAnimationFrame(gaitLoop);
+            this.renderGaitFrame(ts);
+        };
+        requestAnimationFrame(gaitLoop);
     }
 
     initData() {
@@ -2311,8 +2318,7 @@ class AppController {
             document.documentElement.style.setProperty('--current-gait-color', `hsl(200, 0%, 50%)`);
         }
     }
-
-    silenceGaitHub() {
+silenceGaitHub() {
         let numLayer = document.getElementById('gaitNum');
         let iconLayer = document.getElementById('gaitIcon');
         numLayer.classList.remove('active');
@@ -2321,6 +2327,51 @@ class AppController {
         document.querySelectorAll('.run-big-val .dot').forEach(d => {
             d.classList.remove('strike');
         });
+    }
+
+    renderGaitFrame(ts) {
+        if (AppState.state.runStatus !== 'RUNNING' || AppState.state.isTimeWarping) {
+            this.lastGaitFrame = ts; return;
+        }
+        let dt = ts - this.lastGaitFrame;
+        this.lastGaitFrame = ts;
+        if (dt > 100) return; // 防呆：避免從背景喚醒時瞬間暴衝
+
+        let p = AppState.state.profiles[AppState.state.activeP];
+        if (!p || !p.gaitOn) return;
+
+        let targetSpd = RunAcc.curSpd || 0;
+        let targetInc = RunAcc.curInc || 0;
+        if (targetSpd <= 0.1) return; 
+        
+        let currentBPM = this.calculateBPM(targetSpd, targetInc);
+        let currentHue = this.getGaitHSL(currentBPM);
+        document.documentElement.style.setProperty('--current-gait-color', `hsl(${currentHue}, 100%, 60%)`);
+        let fadeMs = 60000 / currentBPM;
+        document.documentElement.style.setProperty('--gait-fade-dur', `${Math.min(500, fadeMs * 0.8)}ms`);
+        
+        let numLayer = document.getElementById('gaitNum');
+        let intBPM = Math.round(currentBPM);
+        if (intBPM !== RunAcc.lastGaitBPM) {
+            numLayer.textContent = intBPM;
+            if (Math.abs(currentBPM - RunAcc.lastGaitBPM) > 0.8 && (ts - RunAcc.lastGaitPulseTime > 300)) {
+                numLayer.style.transform = 'scale(1.15)'; numLayer.style.filter = 'brightness(1.5)';
+                setTimeout(() => { numLayer.style.transform = 'scale(1)'; numLayer.style.filter = 'brightness(1)'; }, 150);
+                RunAcc.lastGaitPulseTime = ts;
+            }
+            RunAcc.lastGaitBPM = intBPM;
+        }
+
+        let prevPhase = RunAcc.gaitPhase;
+        // 修正數學：一個循環(0~1)包含左右兩步，所以真實踩踏速率是 (BPM/2)
+        let phaseIncrement = ((currentBPM / 2) / 60) * (dt / 1000);
+        RunAcc.gaitPhase = (RunAcc.gaitPhase + phaseIncrement) % 1.0;
+        
+        if (prevPhase < 0.5 && RunAcc.gaitPhase >= 0.5) {
+            this.triggerFlash('spd'); // 跨越 0.5 亮右腳 (速度面板)
+        } else if (prevPhase > RunAcc.gaitPhase) {
+            this.triggerFlash('inc'); // 跨越 1.0 亮左腳 (坡度面板)
+        }
     }
 
     logicTick(dt) {
@@ -2421,36 +2472,10 @@ class AppController {
             document.getElementById('topProgressBar').style.width = pct.toFixed(1) + '%'; 
             document.getElementById('topRemainingTime').textContent = '-' + Utils.fmtTime(rMs); 
             Binder.update('massiveTime', Utils.fmtTime(ms, false));
-            
             TweenApp.to('runValSpd', isMet?targetSpd:targetSpd/1.609344, v => v.toFixed(1), cS >= 45000); 
             TweenApp.to('runValInc', targetInc, v => v.toFixed(1), cS >= 45000); 
 
-            // Gait Hub calculation & Metronome
-            if (p.gaitOn) {
-                let currentBPM = this.calculateBPM(targetSpd, targetInc);
-                let currentHue = this.getGaitHSL(currentBPM);
-                document.documentElement.style.setProperty('--current-gait-color', `hsl(${currentHue}, 100%, 60%)`);
-                let fadeMs = 60000 / currentBPM;
-                document.documentElement.style.setProperty('--gait-fade-dur', `${Math.min(500, fadeMs * 0.8)}ms`);
-                
-                let numLayer = document.getElementById('gaitNum');
-                let intBPM = Math.round(currentBPM);
-                if (intBPM !== RunAcc.lastGaitBPM) {
-                    numLayer.textContent = intBPM;
-                    if (Math.abs(currentBPM - RunAcc.lastGaitBPM) > 0.8 && (performance.now() - RunAcc.lastGaitPulseTime > 300)) {
-                        numLayer.style.transform = 'scale(1.15)'; numLayer.style.filter = 'brightness(1.5)';
-                        setTimeout(() => { numLayer.style.transform = 'scale(1)'; numLayer.style.filter = 'brightness(1)'; }, 150);
-                        RunAcc.lastGaitPulseTime = performance.now();
-                    }
-                    RunAcc.lastGaitBPM = intBPM;
-                }
-
-                let prevPhase = RunAcc.gaitPhase;
-                RunAcc.gaitPhase = (RunAcc.gaitPhase + (currentBPM / 60) * (dt / 1000)) % 1.0;
-                
-                if (prevPhase < 0.5 && RunAcc.gaitPhase >= 0.5) this.triggerFlash('inc');
-                else if (prevPhase > RunAcc.gaitPhase) this.triggerFlash('spd');
-            }
+            // (原本 1Hz 的 Gait Hub 計算與節拍器邏輯已徹底移除，轉交給 renderGaitFrame 60fps 引擎負責)
         }
         
         let eElev = isMet ? RunAcc.dElev : RunAcc.dElev * 3.28084;
