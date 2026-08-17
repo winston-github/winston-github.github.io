@@ -1683,11 +1683,18 @@ class PhysioEngine {
 
             futureM.push({ spd: finalSpd, inc: finalInc, m: m.m, phase, rawSpd: m.rawSpd, rawInc: m.rawInc, sOff, iOff });
         }
-
-        // Pass 3: Safe Speed Processing & Physio Simulation
+        // Pass 3: Safe Speed Processing & Physio Simulation (Ghost Runner Full-Resolution)
         let maxReq = futureM.slice(startMinute).length > 0 ? Math.max(...futureM.slice(startMinute).map(m => m.rawSpd)) : 0;
         let baseProtect = Math.min(6.0, hw.maxSpd);
         
+        // 【修正點1】重置預估引擎的物理起點，避免時空跳躍
+        cHR = p.rHR; cLac = 1.0;
+        
+        if (startMinute > 0 && existingMatrix && existingMatrix[startMinute - 1]) {
+            cHR = existingMatrix[startMinute - 1].hr;
+            cLac = existingMatrix[startMinute - 1].lac;
+        }
+
         for(let i = startMinute; i < futureM.length; i++) {
             let m = futureM[i];
             if (m.rawSpd + m.sOff > hw.maxSpd) {
@@ -1697,30 +1704,45 @@ class PhysioEngine {
                 }
             }
 
-            let sm = m.spd * 16.6667; let id = m.inc / 100;
-            let vo2D = (m.spd <= 7.0 ? (3.5 + 0.1*sm + 1.8*sm*id) : (3.5 + 0.2*sm + 0.9*sm*id)) * RE;
-            if (m.m < 4) vo2D *= 0.9; 
-            let effortRatio = vo2D / p.vo2; 
-            let smoothedTargetPct = effortRatio < 0.6 ? effortRatio : (1.0 - 0.4 * Math.exp(-2.5 * (effortRatio - 0.6)));
-            let tHR = p.rHR + (HRR * smoothedTargetPct);
-            cHR += (tHR - cHR) * 0.4; 
-            let hrIntensity = (cHR - p.rHR) / HRR;
-
-            if(hrIntensity < lacThresh - 0.05) { cLac += (1.0 - cLac) * 0.2; } 
-            else if(hrIntensity < lacThresh + 0.05) { cLac += (2.5 - cLac) * 0.1; } 
-            else { let acidStress = Math.min(1.0, (hrIntensity - (lacThresh + 0.05)) * 5); cLac += Math.pow(acidStress, 3) * 1.5; }
-            cLac = Math.min(p.pMaxLac + 3.0, cLac);
+            // Ghost Runner: 1秒微積分循環 (完全對齊 _processPhysicsTick 實際引擎)
+            let minFCal = 0; let minCCal = 0; let lastZ = 1; let minZs = [0,0,0,0,0];
             
-            let z = hrIntensity < 0.6 ? 1 : (hrIntensity < 0.7 ? 2 : (hrIntensity < 0.8 ? 3 : (hrIntensity < 0.9 ? 4 : 5)));
+            for(let sec = 0; sec < 60; sec++) {
+                // 【修正點2】直接使用目標速度 m.spd，與實戰引擎的 (RunAcc.curSpd = targetSpd) 同步
+                let sm = m.spd * 16.6667; let id = m.inc / 100;
+                let vo2D = (m.spd <= 7.0 ? (3.5 + 0.1*sm + 1.8*sm*id) : (3.5 + 0.2*sm + 0.9*sm*id)) * RE;
+                if (!Number.isFinite(vo2D)) vo2D = 10; if (m.m < 4) vo2D *= 0.9;
+                
+                let effortRatio = vo2D / p.vo2; 
+                let smoothedTargetPct = effortRatio < 0.6 ? effortRatio : (1.0 - 0.4 * Math.exp(-2.5 * (effortRatio - 0.6)));
+                let tHR = p.rHR + (HRR * smoothedTargetPct); if (!Number.isFinite(tHR)) tHR = 110;
+                
+                // 【修正點3】平滑常數由 0.4 降至 0.1，對齊真實世界的 dt/1000
+                cHR += (tHR - cHR) * 0.1; 
+                
+                let hrIntensity = (cHR - p.rHR) / HRR;
+                
+                if(hrIntensity < lacThresh - 0.05) { cLac += (1.0 - cLac) * 0.01; } 
+                else if(hrIntensity < lacThresh + 0.05) { cLac += (2.5 - cLac) * 0.005; } 
+                else { let acidStress = Math.min(1.0, (hrIntensity - (lacThresh + 0.05)) * 5); cLac += Math.pow(acidStress, 3) * 0.05; }
+                cLac = Math.min(p.pMaxLac + 3.0, cLac);
+
+                lastZ = hrIntensity < 0.6 ? 1 : (hrIntensity < 0.7 ? 2 : (hrIntensity < 0.8 ? 3 : (hrIntensity < 0.9 ? 4 : 5)));
+                minZs[lastZ - 1] += 1/60; // 核心修正：以每秒(1/60)分鐘為單位累加，切碎粗糙區間
+                
+                let rerBase = 0.7 + (hrIntensity * 0.3); let fitnessAdj = (p.vo2 - 35) * 0.005 + (p.smm / p.wKG - 0.35) * 0.5 - (p.bf - 15) * 0.002;
+                let rer = Utils.clamp(rerBase - fitnessAdj, 0.7, 1.0); let pctCarb = (rer - 0.7) / 0.3; let pctFat = 1.0 - pctCarb;
+                let kcalTick = ((vo2D * p.wKG * 5) / 1000) * (1/60);
+                if (Number.isFinite(kcalTick)) { minFCal += kcalTick * pctFat; minCCal += kcalTick * pctCarb; }
+            }
             
             m.hr = Number.isFinite(cHR) ? Math.round(cHR) : 110;
             m.lac = Number.isFinite(cLac) ? Utils.round(cLac) : 1.5;
-            m.z = z;
-
-            let rerBase = 0.7 + (hrIntensity * 0.3); let fitnessAdj = (p.vo2 - 35) * 0.005 + (p.smm / p.wKG - 0.35) * 0.5 - (p.bf - 15) * 0.002;
-            let rer = Utils.clamp(rerBase - fitnessAdj, 0.7, 1.0); let pctCarb = (rer - 0.7) / 0.3; let pctFat = 1.0 - pctCarb;
-            let kcalMin = (vo2D * p.wKG * 5) / 1000;
-            m.fCal = kcalMin*pctFat; m.cCal = kcalMin*pctCarb; m.cal = kcalMin;
+            m.z = lastZ;
+            m.zs = minZs; 
+            m.fCal = minFCal; 
+            m.cCal = minCCal; 
+            m.cal = minFCal + minCCal;
             m.dist = m.spd / 60;
         }
 
@@ -1735,9 +1757,16 @@ class PhysioEngine {
                 cS += Math.sign(m.spd - cS) * Math.min(Math.abs(m.spd - cS), 0.2);
                 cI += Math.sign(m.inc - cI) * Math.min(Math.abs(m.inc - cI), 0.5);
                 dist += cS / 3600; elev += (cS / 3.6) * (cI / 100); 
-                fCal += m.fCal / 60; cCal += m.cCal / 60;
             }
-            zs[m.z - 1] += 1;
+            // 【向下相容防護】保護舊歷史紀錄
+            if (m.zs) {
+                for(let i=0; i<5; i++) zs[i] += m.zs[i];
+            } else {
+                zs[m.z - 1] += 1;
+            }
+            // 【數學相容修正】不再除以 60
+            fCal += m.fCal || 0; 
+            cCal += m.cCal || 0;
         });
         return { dist, elev, fCal, cCal, cal: fCal + cCal, zs };
     }
