@@ -1683,16 +1683,21 @@ class PhysioEngine {
 
             futureM.push({ spd: finalSpd, inc: finalInc, m: m.m, phase, rawSpd: m.rawSpd, rawInc: m.rawInc, sOff, iOff });
         }
-        // Pass 3: Safe Speed Processing & Physio Simulation (Ghost Runner Full-Resolution)
+        // Pass 3: Safe Speed Processing & Physio Simulation (Ghost Runner + Two-Compartment Model)
         let maxReq = futureM.slice(startMinute).length > 0 ? Math.max(...futureM.slice(startMinute).map(m => m.rawSpd)) : 0;
         let baseProtect = Math.min(6.0, hw.maxSpd);
         
-        // 【修正點1】重置預估引擎的物理起點，避免時空跳躍
-        cHR = p.rHR; cLac = 1.0;
+        let HRR = p.mHR - p.rHR;
+        let RE = p.gender === 'F' ? 1.05 : 1.0; if(p.smm / p.wKG > (p.gender==='M' ? 0.4 : 0.35)) RE -= 0.05; 
+        
+        // 物理起點重置，避免時空跳躍
+        let cHR = p.rHR; let cLac = 1.0; let vSpd = 0; let vInc = 0;
         
         if (startMinute > 0 && existingMatrix && existingMatrix[startMinute - 1]) {
             cHR = existingMatrix[startMinute - 1].hr;
             cLac = existingMatrix[startMinute - 1].lac;
+            vSpd = existingMatrix[startMinute - 1].spd;
+            vInc = existingMatrix[startMinute - 1].inc;
         }
 
         for(let i = startMinute; i < futureM.length; i++) {
@@ -1708,7 +1713,10 @@ class PhysioEngine {
             let minFCal = 0; let minCCal = 0; let lastZ = 1; let minZs = [0,0,0,0,0];
             
             for(let sec = 0; sec < 60; sec++) {
-                // 【修正點2】直接使用目標速度 m.spd，與實戰引擎的 (RunAcc.curSpd = targetSpd) 同步
+                if (vSpd === 0 && i === 0 && sec === 0) vSpd = m.spd;
+                vSpd += Math.sign(m.spd - vSpd) * Math.min(Math.abs(m.spd - vSpd), 0.2);
+                vInc += Math.sign(m.inc - vInc) * Math.min(Math.abs(m.inc - vInc), 0.5);
+
                 let sm = m.spd * 16.6667; let id = m.inc / 100;
                 let vo2D = (m.spd <= 7.0 ? (3.5 + 0.1*sm + 1.8*sm*id) : (3.5 + 0.2*sm + 0.9*sm*id)) * RE;
                 if (!Number.isFinite(vo2D)) vo2D = 10; if (m.m < 4) vo2D *= 0.9;
@@ -1717,18 +1725,25 @@ class PhysioEngine {
                 let smoothedTargetPct = effortRatio < 0.6 ? effortRatio : (1.0 - 0.4 * Math.exp(-2.5 * (effortRatio - 0.6)));
                 let tHR = p.rHR + (HRR * smoothedTargetPct); if (!Number.isFinite(tHR)) tHR = 110;
                 
-                // 【修正點3】平滑常數由 0.4 降至 0.1，對齊真實世界的 dt/1000
                 cHR += (tHR - cHR) * 0.1; 
-                
                 let hrIntensity = (cHR - p.rHR) / HRR;
                 
-                if(hrIntensity < lacThresh - 0.05) { cLac += (1.0 - cLac) * 0.01; } 
-                else if(hrIntensity < lacThresh + 0.05) { cLac += (2.5 - cLac) * 0.005; } 
-                else { let acidStress = Math.min(1.0, (hrIntensity - (lacThresh + 0.05)) * 5); cLac += Math.pow(acidStress, 3) * 0.05; }
-                cLac = Math.min(p.pMaxLac + 3.0, cLac);
+                // --- 雙軌代謝生理模型 (Two-Compartment Lactate Model) ---
+                // 1. 生成引擎 (Production)：指數飆升 + 天花板質量抑制
+                let prodBuffer = Math.max(0.01, 1.0 - (cLac / p.pMaxLac)); 
+                let lacProd = Math.pow(Math.max(0, hrIntensity - 0.45), 3) * 0.3 * prodBuffer; 
+                
+                // 2. 排除引擎 (Clearance)：地板濃度差驅動 + 心率脫鉤抑制
+                let clearEfficiency = Math.max(0.2, 1.0 - Math.max(0, hrIntensity - 0.6));
+                let clearBase = 0.005 + Math.max(0, (p.vo2 - 40) * 0.0001);
+                let lacClear = Math.max(0, cLac - 1.0) * clearBase * clearEfficiency;
+                
+                // 3. 動態平衡 (Net Change)
+                cLac += (lacProd - lacClear);
+                cLac = Utils.clamp(cLac, 1.0, p.pMaxLac + 1.0);
 
                 lastZ = hrIntensity < 0.6 ? 1 : (hrIntensity < 0.7 ? 2 : (hrIntensity < 0.8 ? 3 : (hrIntensity < 0.9 ? 4 : 5)));
-                minZs[lastZ - 1] += 1/60; // 核心修正：以每秒(1/60)分鐘為單位累加，切碎粗糙區間
+                minZs[lastZ - 1] += 1/60; 
                 
                 let rerBase = 0.7 + (hrIntensity * 0.3); let fitnessAdj = (p.vo2 - 35) * 0.005 + (p.smm / p.wKG - 0.35) * 0.5 - (p.bf - 15) * 0.002;
                 let rer = Utils.clamp(rerBase - fitnessAdj, 0.7, 1.0); let pctCarb = (rer - 0.7) / 0.3; let pctFat = 1.0 - pctCarb;
@@ -1737,7 +1752,7 @@ class PhysioEngine {
             }
             
             m.hr = Number.isFinite(cHR) ? Math.round(cHR) : 110;
-            m.lac = Number.isFinite(cLac) ? Utils.round(cLac) : 1.5;
+            m.lac = Number.isFinite(cLac) ? Utils.round(cLac) : 1.0;
             m.z = lastZ;
             m.zs = minZs; 
             m.fCal = minFCal; 
@@ -1758,15 +1773,9 @@ class PhysioEngine {
                 cI += Math.sign(m.inc - cI) * Math.min(Math.abs(m.inc - cI), 0.5);
                 dist += cS / 3600; elev += (cS / 3.6) * (cI / 100); 
             }
-            // 【向下相容防護】保護舊歷史紀錄
-            if (m.zs) {
-                for(let i=0; i<5; i++) zs[i] += m.zs[i];
-            } else {
-                zs[m.z - 1] += 1;
-            }
-            // 【數學相容修正】不再除以 60
-            fCal += m.fCal || 0; 
-            cCal += m.cCal || 0;
+            if (m.zs) { for(let i=0; i<5; i++) zs[i] += m.zs[i]; } 
+            else { zs[m.z - 1] += 1; }
+            fCal += m.fCal || 0; cCal += m.cCal || 0;
         });
         return { dist, elev, fCal, cCal, cal: fCal + cCal, zs };
     }
@@ -3053,15 +3062,27 @@ class AppController {
         let tHR = pClean.rHR + (HRR * smoothedTargetPct); if (!Number.isFinite(tHR)) tHR = 110;
         
         if (RunAcc.curHr === 0) RunAcc.curHr = pClean.rHR || 75;
-        RunAcc.curHr += (tHR - RunAcc.curHr) * (0.1 * dt/1000);
+        RunAcc.curHr += (tHR - RunAcc.curHr) * (0.1 * (dt/1000));
         if(RunAcc.curHr > RunAcc.mxH) RunAcc.mxH = Math.round(RunAcc.curHr); 
         
-        let lacThresh = pClean.vo2 > 60 ? 0.9 : 0.8; let hrIntensity = (RunAcc.curHr - pClean.rHR) / HRR;
+        let hrIntensity = (RunAcc.curHr - pClean.rHR) / HRR;
         if(RunAcc.curLac === 0) RunAcc.curLac = 1.0; 
-        if(hrIntensity < lacThresh - 0.05) { RunAcc.curLac += (1.0 - RunAcc.curLac) * (0.01 * dt/1000); } 
-        else if(hrIntensity < lacThresh + 0.05) { RunAcc.curLac += (2.5 - RunAcc.curLac) * (0.005 * dt/1000); } 
-        else { let acidStress = Math.min(1.0, (hrIntensity - (lacThresh + 0.05)) * 5); RunAcc.curLac += Math.pow(acidStress, 3) * (0.05 * dt/1000); }
-        if(RunAcc.curLac > RunAcc.mxL) RunAcc.mxL = RunAcc.curLac; 
+        
+        // --- 實戰雙軌代謝生理同步運算 ---
+        // 1. 生成 (Production)
+        let prodBuffer = Math.max(0.01, 1.0 - (RunAcc.curLac / pClean.pMaxLac));
+        let lacProd = Math.pow(Math.max(0, hrIntensity - 0.45), 3) * 0.3 * prodBuffer; 
+        
+        // 2. 排除 (Clearance)
+        let clearEfficiency = Math.max(0.2, 1.0 - Math.max(0, hrIntensity - 0.6));
+        let clearBase = 0.005 + Math.max(0, (pClean.vo2 - 40) * 0.0001);
+        let lacClear = Math.max(0, RunAcc.curLac - 1.0) * clearBase * clearEfficiency;
+        
+        // 3. 淨變化量 = (生成 - 排除) * 即時秒數比例
+        RunAcc.curLac += (lacProd - lacClear) * (dt/1000);
+        RunAcc.curLac = Utils.clamp(RunAcc.curLac, 1.0, pClean.pMaxLac + 1.0);
+        
+        if(RunAcc.curLac > RunAcc.mxL) RunAcc.mxL = RunAcc.curLac;
         
         if (hrIntensity > 0.95 && !RunAcc.cappedMs[safeM]) {
             RunAcc.cappedMs[safeM] = true;
