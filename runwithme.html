@@ -146,8 +146,12 @@
         .run-val-center { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; pointer-events: none; }
         .run-big-val { font-size: clamp(3rem, 12vw, 4.2rem); font-weight: 900; line-height: 1; letter-spacing: -1px; color: #FFFFFF; transition: transform 0.1s, color 0.2s, text-shadow 0.2s; position: relative; z-index: 2; pointer-events: auto; cursor: pointer; display: flex; align-items: baseline;}
         .run-big-val:active { transform: scale(0.92); opacity: 0.8; }
-        .run-big-val .dot { transition: color var(--gait-fade-dur) ease-out, text-shadow var(--gait-fade-dur) ease-out; color: #FFF; text-shadow: none; }
+        /* 讓全部數字具備漸變動畫準備 */
+        .run-big-val span { transition: color var(--gait-fade-dur) ease-out, text-shadow var(--gait-fade-dur) ease-out; color: #FFF; text-shadow: none; }
+        /* 第一階段：只有小數點閃 */
         .run-big-val .dot.strike { transition: none; color: var(--current-gait-color); text-shadow: 0 0 15px var(--current-gait-color); }
+        /* 第二階段：全部數字一起閃 */
+        .run-big-val.strike-all span { transition: none; color: var(--current-gait-color); text-shadow: 0 0 15px var(--current-gait-color); }
         
         .run-lbl { font-size: 0.8rem; color: var(--gray); font-weight: 700; margin-top: 2px; letter-spacing: 1px; position: relative; z-index: 2;}
         .run-unit { font-size: 0.75rem; color: var(--gray); font-weight: 700; margin-left: 4px; }
@@ -2862,18 +2866,27 @@ class AppController {
         if(!p.gaitOn) return;
 
         let now = performance.now();
-        
         let el = document.getElementById(side === 'left' ? 'runValInc' : 'runValSpd');
         if (el) {
-            let dot = el.querySelector('.dot'); 
-            if (dot && (!dot.dataset.lastF || now - parseFloat(dot.dataset.lastF) >= 200)) {
-                dot.dataset.lastF = now;
-                dot.classList.add('strike');
-                void dot.offsetWidth;
-                requestAnimationFrame(() => dot.classList.remove('strike'));
+            if (AppState.state.fabMode === 'GAIT_IMMERSIVE') {
+                // 第二階段：全部數字一起閃爍
+                if (!el.dataset.lastF || now - parseFloat(el.dataset.lastF) >= 200) {
+                    el.dataset.lastF = now;
+                    el.classList.add('strike-all');
+                    void el.offsetWidth;
+                    requestAnimationFrame(() => el.classList.remove('strike-all'));
+                }
+            } else {
+                // 第一階段：只閃爍小數點
+                let dot = el.querySelector('.dot'); 
+                if (dot && (!dot.dataset.lastF || now - parseFloat(dot.dataset.lastF) >= 200)) {
+                    dot.dataset.lastF = now;
+                    dot.classList.add('strike');
+                    void dot.offsetWidth;
+                    requestAnimationFrame(() => dot.classList.remove('strike'));
+                }
             }
         }
-        
         if (AppState.state.fabMode === 'GAIT_IMMERSIVE') {
             let fabFlash = document.getElementById(side === 'left' ? 'fabFlashLeft' : 'fabFlashRight');
             if (fabFlash && (!fabFlash.dataset.lastF || now - parseFloat(fabFlash.dataset.lastF) >= 200)) {
@@ -2895,6 +2908,7 @@ class AppController {
         document.getElementById('fabRightNormal').classList.add('active');
         
         document.querySelectorAll('.run-big-val .dot').forEach(d => d.classList.remove('strike'));
+        document.querySelectorAll('.run-big-val').forEach(d => d.classList.remove('strike-all'));
         document.querySelectorAll('.fab-flash-layer').forEach(d => d.classList.remove('strike'));
     }
 
