@@ -201,7 +201,7 @@
             <div class="dash-grid">
                 <div class="dash-item">
                     <span class="dash-label">當前選擇特訓組合</span>
-                    <span class="dash-value" id="dashCombo">冬山河超級馬拉松 + 穩定巡航</span>
+                    <span class="dash-value" id="dashCombo">冬山河超級馬拉松 + 穩定巡航 (60 Min)</span>
                 </div>
                 <div class="dash-item">
                     <span class="dash-label">綜合賽事與特訓難度</span>
@@ -274,7 +274,7 @@
         return `${mins}:${String(secs).padStart(2, '0')}`;
     }
 
-    // 分鐘/公里 轉配速(M:SS)
+    // 分/公里 轉配速(M:SS) - 專門處理小數點計算出來的平均配速
     function formatPaceMinPerKm(minPerKm) {
         if (!minPerKm || minPerKm <= 0) return "0:00";
         let totalSeconds = Math.round(minPerKm * 60);
@@ -287,13 +287,14 @@
      * 3. 核心數據運算邏輯
      */
     
-    // 動態解析各模式的區段參數與 BaseSpeed
-    function getModeParams(target, totalMins, mode) {
-        const key = `${target}_${totalMins}_${mode}`;
+    // 動態解析各模式的區段參數與 BaseSpeed (核心修正：Dist_work 動態向外延伸)
+    function getModeParams(v1hr, totalMins, mode) {
+        const key = `${v1hr}_${totalMins}_${mode}`;
         if (modeParamsCache[key]) return modeParamsCache[key];
 
         const tWork = totalMins - 5;
-        const distWork = target - 0.5;
+        // 動態里程計算：1小時(55分)的里程負荷，隨時間等比例擴大以維持訓練強度
+        const distWork = (v1hr - 0.5) * (tWork / 55); 
         let p = {};
         
         if (mode === 'cruise') {
@@ -328,9 +329,9 @@
         return p;
     }
 
-    // 計算最終完賽時間與名次
-    function calcRaceOutcomes(v1hr, factor, mode, trackKey) {
-        const baseSpeed = v1hr * 0.63; 
+    // 計算最終完賽時間與名次 (導入 Stamina Bonus 紅利)
+    function calcRaceOutcomes(v1hr, factor, mode, trackKey, totalMins) {
+        const baseSpeed = v1hr * 0.63; // 依舊採用一小時素質指標做基礎運算
         const distance = 80.4672;
         let minMod = 1, maxMod = 1, minBuf = 0, maxBuf = 0;
 
@@ -343,9 +344,12 @@
         }
 
         const trackPenalty = tracksData[trackKey].penalty / 60;
+        
+        // 導入長時訓練之耐力紅利係數 (最高抵銷至 0.75 倍時間)
+        const staminaBonus = Math.max(0.75, 1 - ((totalMins - 60) * 0.0025));
 
-        const hrMin = (distance / (baseSpeed * minMod)) + minBuf + trackPenalty;
-        const hrMax = (distance / (baseSpeed * maxMod)) + maxBuf + trackPenalty;
+        const hrMin = ((distance / (baseSpeed * minMod)) + minBuf + trackPenalty) * staminaBonus;
+        const hrMax = ((distance / (baseSpeed * maxMod)) + maxBuf + trackPenalty) * staminaBonus;
 
         const rankMin = Math.max(1, Math.round(Math.pow(hrMin / (5.8 * factor), 4.5)));
         const rankMax = Math.max(1, Math.round(Math.pow(hrMax / (5.8 * factor), 4.5)));
@@ -359,11 +363,11 @@
     }
 
     // 單分鐘時速與坡度運算 (支援動態時間)
-    function calcCellData(target, min, mode, totalMins) {
+    function calcCellData(v1hr, min, mode, totalMins) {
         if (min < 5) return { inc: 1.0, spd: 6.0 };
         
         const relMin = min - 5;
-        const p = getModeParams(target, totalMins, mode);
+        const p = getModeParams(v1hr, totalMins, mode);
         let inc = 0, spd = 0;
 
         switch (mode) {
@@ -396,32 +400,36 @@
     }
 
     // 總結欄位統計與營養學動態計算
-    function calcColStats(target, mode, totalMins) {
+    function calcColStats(v1hr, mode, totalMins) {
         let maxSpd = 0, minSpd = 999, tElev = 0, tInc = 0;
         
         for (let m = 0; m < totalMins; m++) {
-            const { inc, spd } = calcCellData(target, m, mode, totalMins);
+            const { inc, spd } = calcCellData(v1hr, m, mode, totalMins);
             tElev += (spd / 60) * 1000 * (inc / 100);
             tInc += inc;
             if (spd > maxSpd) maxSpd = spd;
             if (spd < minSpd) minSpd = spd;
         }
 
-        // 動態營養需求計算 (依據目標里程與實際訓練時長)
-        const totalKcal = Math.round(70 * (target * (totalMins / 60)) * 1.05);
+        // 動態里程公式計算
+        const dynamicTotalDistance = 0.5 + (v1hr - 0.5) * ((totalMins - 5) / 55);
+
+        // 動態營養需求計算 (採用 v1hr 一小時素質作為強度係數基準)
+        const totalKcal = Math.round(70 * (v1hr * (totalMins / 60)) * 1.05);
         const carbsG = Math.round(totalKcal * 0.12);
         const proteinG = (totalKcal * 0.025).toFixed(1);
         
-        // 取得實際動態均速
-        const avgSpd = target / (totalMins / 60);
+        // 取得實際動態均速 (小時制)
+        const avgSpd = dynamicTotalDistance / (totalMins / 60);
 
         return {
+            distStr: `${dynamicTotalDistance.toFixed(2)} km`,
             elev: Math.round(tElev),
             kcal: `${totalKcal} kcal`,
             carbs: `${carbsG} g`,
             protein: `${proteinG} g`,
             // 順序：快 / 平 / 慢
-            paceStr: `${formatPace(maxSpd)} / ${formatPaceMinPerKm(totalMins / target)} / ${formatPace(minSpd)}`,
+            paceStr: `${formatPace(maxSpd)} / ${formatPaceMinPerKm(totalMins / dynamicTotalDistance)} / ${formatPace(minSpd)}`,
             kphStr: `${maxSpd.toFixed(2)} / ${avgSpd.toFixed(2)} / ${minSpd.toFixed(2)} kph`,
             avgI: (tInc / totalMins).toFixed(2)
         };
@@ -431,7 +439,7 @@
      * 4. 渲染邏輯
      */
     function updateMatrix() {
-        modeParamsCache = {}; // 每次更新重置快取
+        modeParamsCache = {}; // 每次更新重置快取以保障正確重算
         
         // 更新儀表板
         const tObj = tracksData[currentTrack];
@@ -444,7 +452,7 @@
         const table = document.getElementById('paceTable');
         let html = '<thead>';
         
-        let r1 = '<tr><th>時間 (分鐘)</th>';
+        let r1 = '<tr><th>時間 (分鐘) \\ 1HR素質</th>';
         let r2 = '<tr class="rank-row"><th>最快分齡名次</th>';
         let r3 = '<tr class="rank-row"><th>最慢分齡名次</th>';
         let r4 = '<tr class="est-row"><th>預估最快時間</th>';
@@ -461,8 +469,7 @@
         for (const target of targets) {
             r1 += `<th>${target.toFixed(1)}K</th>`;
             
-            // 50-mile預估使用 1-Hour 能力標竿 (Target) 作為計算基準，維持賽事一致性
-            const out = calcRaceOutcomes(target, currentAgeFactor, currentMode, currentTrack);
+            const out = calcRaceOutcomes(target, currentAgeFactor, currentMode, currentTrack, currentTotalMins);
             const rMinTxt = `第 ${out.rankMin} 名`;
             const rMaxTxt = out.rankMin === out.rankMax ? `第 ${out.rankMin} 名` : `第 ${out.rankMax} 名`;
 
@@ -472,7 +479,7 @@
             r5 += `<th>${out.timeMax}</th>`;
 
             const stat = calcColStats(target, currentMode, currentTotalMins);
-            r6 += `<th>${target.toFixed(2)} km</th>`;
+            r6 += `<th>${stat.distStr}</th>`; // 套用動態展延的實際總公里數
             r7 += `<th>${stat.elev} m</th>`;
             r8 += `<th>${stat.kcal}</th>`;
             r9 += `<th>${stat.carbs}</th>`;
@@ -486,7 +493,7 @@
                 r6 + '</tr>' + r7 + '</tr>' + r8 + '</tr>' + r9 + '</tr>' + r10 + '</tr>' + 
                 r11 + '</tr>' + r12 + '</tr>' + r13 + '</tr></thead><tbody>';
         
-        // 根據選擇時間動態渲染對應分鐘行數
+        // 根據選擇時間動態生成相應的分鐘數列
         for (let m = 0; m < currentTotalMins; m++) {
             const cls = m < 5 ? ' class="warmup"' : '';
             html += `<tr${cls}><td>${formatTimeString(m)}</td>`;
