@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>冬山河超馬特訓 - 跑步機動態配速矩陣</title>
+    <style>
+        /* CSS 變數定義，提供一致的色彩與樣式設定 */
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-body: #f1f5f9;
+            --bg-card: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border-color: #cbd5e1;
+            --warmup-bg: #fef9c3;
+            --warmup-sticky-bg: #fde047;
+            --table-header-bg: #f8fafc;
+            --table-hover: #f1f5f9;
+        }
+
+        /* 基礎重置與排版設定 */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            padding: 20px;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* 標題區域樣式 */
+        .header {
+            background: var(--bg-card);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            margin-bottom: 8px;
+            color: var(--text-main);
+        }
+
+        .header p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-bottom: 20px;
+        }
+
+        /* 模式切換按鈕區域 */
+        .modes {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .modes button {
+            padding: 10px 18px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-card);
+            color: var(--text-main);
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.2s ease-in-out;
+        }
+
+        .modes button:hover {
+            background: var(--table-hover);
+        }
+
+        /* .active 狀態樣式 (符合需求: bright blue #2563eb with subtle box-shadow) */
+        .modes button.active {
+            background: var(--primary);
+            color: #ffffff;
+            border-color: var(--primary);
+            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.4);
+        }
+
+        /* 表格容器與自訂滾動條 */
+        .table-container {
+            width: 100%;
+            max-height: 75vh;
+            overflow: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-card);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        /* 自訂現代化滾動條 */
+        .table-container::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        .table-container::-webkit-scrollbar-track {
+            background: var(--bg-body);
+            border-radius: 8px;
+        }
+
+        .table-container::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 8px;
+            border: 2px solid var(--bg-body);
+        }
+
+        .table-container::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        /* 表格核心樣式 */
+        table {
+            border-collapse: separate; /* 配合 sticky 才能確保邊界線正確 */
+            border-spacing: 0;
+            width: max-content;
+        }
+
+        th, td {
+            padding: 10px 14px;
+            border-right: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+            text-align: center;
+            white-space: nowrap;
+            font-size: 13px;
+        }
+
+        /* 雙向 Sticky Positioning 實作 */
+        /* 第一列 (時間欄位) Sticky Left */
+        tbody td:first-child, thead th:first-child {
+            position: sticky;
+            left: 0;
+            background: var(--table-header-bg);
+            z-index: 5;
+            font-weight: 600;
+            border-right: 2px solid var(--border-color); /* 加深右側邊界增強視覺 */
+        }
+
+        /* 標題列 Sticky Top */
+        thead th {
+            position: sticky;
+            top: 0;
+            background: var(--table-header-bg);
+            z-index: 10;
+            font-weight: 700;
+            color: var(--text-main);
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        /* 左上角交叉點，最高 Z-index */
+        thead th:first-child {
+            z-index: 15;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        /* 第一個 5 分鐘暖身行 (Light Yellow #fef9c3) */
+        .warmup td {
+            background: var(--warmup-bg);
+        }
+
+        /* 暖身行的 Sticky 左側欄位需有獨立顏色 (稍微深一點以區分層次) */
+        .warmup td:first-child {
+            background: var(--warmup-sticky-bg);
+        }
+
+        /* 懸停效果 (不套用於暖身區) */
+        tbody tr:not(.warmup):hover td:not(:first-child) {
+            background-color: var(--table-hover);
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>冬山河超馬特訓 - 跑步機動態配速矩陣</h1>
+        <p>目標一小時完成里程（7.0K - 12.0K），前5分鐘安全暖身，最後無緩和（機器自帶5分鐘保護降速）</p>
+        
+        <div class="modes" id="modeButtons">
+            <button class="active" data-mode="cruise">穩定巡航 (Cruise Mode)</button>
+            <button data-mode="climb">階梯爬坡 (Climb Mode)</button>
+            <button data-mode="beginner">安全新手 (Beginner Mode)</button>
+            <button data-mode="interval">高能間歇 (Interval Mode)</button>
+            <button data-mode="progressive">漸進加壓 (Progressive Mode)</button>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table id="paceTable">
+            <!-- JS 動態生成內容 -->
+        </table>
+    </div>
+</div>
+
+<script>
+    /**
+     * 動態產生目標距離的陣列 (7.0k 到 12.0k，每次增加 0.1k)
+     * 利用整數計算以避免浮點數精確度問題
+     */
+    const targets = [];
+    for (let i = 70; i <= 120; i += 1) {
+        targets.push(i / 10);
+    }
+
+    /**
+     * 將分鐘數格式化成 "MM-MM" 格式 (如 00-01)
+     */
+    function formatTimeString(min) {
+        const start = String(min).padStart(2, '0');
+        const end = String(min + 1).padStart(2, '0');
+        return `${start}-${end}`;
+    }
+
+    /**
+     * 根據訓練模式、目標與分鐘數計算對應的坡度(Incline)與速度(Speed)
+     * @param {number} target 目標總里程 (km)
+     * @param {number} min 經過分鐘數 (0-59)
+     * @param {string} mode 當前選取的訓練模式
+     * @returns {object} { inc: number, spd: number }
+     */
+    function calculateCellData(target, min, mode) {
+        // 第一階段：安全暖身區 (前5分鐘 00-05)
+        // 條件：全階段、全模式均固定速度 6.0 kph、坡度 1.0%
+        if (min < 5) {
+            return { inc: 1.0, spd: 6.0 };
+        }
+
+        // 剩餘 55 分鐘所需要達成的距離 (扣掉暖身 0.5km)
+        const workDistNeeded = target - 0.5;
+        let inc = 0;
+        let spd = 0;
+        let baseSpeed = 0;
+
+        // 第二階段：主訓練區 (第 05-60 分鐘)
+        switch (mode) {
+            case 'cruise':
+                // 穩定巡航 (Cruise Mode)
+                spd = (workDistNeeded / 55) * 60;
+                inc = 0.5;
+                break;
+
+            case 'climb':
+                // 階梯爬坡 (Climb Mode)
+                baseSpeed = (workDistNeeded * 60 + 18) / 55;
+                if (min < 20) { // 第 05-20 分鐘 (15 min)
+                    inc = 1.0;
+                    spd = baseSpeed;
+                } else if (min < 40) { // 第 20-40 分鐘 (20 min)
+                    inc = 2.0;
+                    spd = baseSpeed - 0.3;
+                } else { // 第 40-60 分鐘 (20 min)
+                    inc = 3.0;
+                    spd = baseSpeed - 0.6;
+                }
+                break;
+
+            case 'beginner':
+                // 安全新手 (Beginner Mode)
+                baseSpeed = (workDistNeeded * 60 - 6) / 55;
+                if (min < 30) { // 第 05-30 分鐘 (25 min)
+                    inc = 0.5;
+                    spd = baseSpeed;
+                } else { // 第 30-60 分鐘 (30 min)
+                    inc = 0.0;
+                    spd = baseSpeed + 0.2;
+                }
+                break;
+
+            case 'interval':
+                // 高能間歇 (Interval Mode)
+                baseSpeed = (workDistNeeded * 60 - 11) / 55;
+                // 每 5 分鐘為一循環，扣除暖身 5 分鐘後重新計算週期
+                // cycleMin 會落在 0~4 之間
+                const cycleMin = (min - 5) % 5; 
+                if (cycleMin < 3) { // 3 min Sprint
+                    inc = 1.5;
+                    spd = baseSpeed + 1.0;
+                } else { // 2 min Recovery
+                    inc = 0.5;
+                    spd = baseSpeed - 1.0;
+                }
+                break;
+
+            case 'progressive':
+                // 漸進加壓 (Progressive Mode)
+                baseSpeed = (workDistNeeded * 60 - 60) / 55;
+                inc = 0.5;
+                if (min < 10) { // 第 05-10 分鐘 (5 min)
+                    spd = baseSpeed;
+                } else if (min < 20) { // 第 10-20 分鐘 (10 min)
+                    spd = baseSpeed + 0.4;
+                } else if (min < 30) { // 第 20-30 分鐘 (10 min)
+                    spd = baseSpeed + 0.8;
+                } else if (min < 40) { // 第 30-40 分鐘 (10 min)
+                    spd = baseSpeed + 1.2;
+                } else if (min < 50) { // 第 40-50 分鐘 (10 min)
+                    spd = baseSpeed + 1.6;
+                } else { // 第 50-60 分鐘 (10 min)
+                    spd = baseSpeed + 2.0;
+                }
+                break;
+        }
+
+        return { inc, spd };
+    }
+
+    /**
+     * 核心渲染函數，負責組合 HTML 字串並塞入 DOM
+     */
+    function renderTable(mode) {
+        const table = document.getElementById('paceTable');
+        
+        // 1. 組裝表頭 (Table Header)
+        let html = '<thead><tr><th>Time \\ Target</th>';
+        for (const target of targets) {
+            html += `<th>${target.toFixed(1)}K</th>`;
+        }
+        html += '</tr></thead>';
+        
+        // 2. 組裝表身 (Table Body)
+        html += '<tbody>';
+        for (let min = 0; min < 60; min++) {
+            // 前 5 分鐘 (0-4) 掛上 warmup 的 class，以套用黃色高亮樣式
+            const rowClass = min < 5 ? ' class="warmup"' : '';
+            const timeStr = formatTimeString(min);
+            
+            html += `<tr${rowClass}><td>${timeStr}</td>`;
+            
+            for (const target of targets) {
+                const { inc, spd } = calculateCellData(target, min, mode);
+                // 格式化輸出要求：Incline 1位小數，Speed 2位小數 (e.g. 0.5% / 10.08k)
+                html += `<td>${inc.toFixed(1)}% / ${spd.toFixed(2)}k</td>`;
+            }
+            
+            html += '</tr>';
+        }
+        html += '</tbody>';
+        
+        // 更新表格 DOM
+        table.innerHTML = html;
+    }
+
+    /**
+     * 初始化與事件綁定
+     */
+    document.addEventListener('DOMContentLoaded', () => {
+        // 預設載入 Cruise Mode
+        renderTable('cruise');
+
+        // 處理按鈕切換邏輯
+        const buttons = document.querySelectorAll('#modeButtons button');
+        buttons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                // 移除所有 active class
+                buttons.forEach(btn => btn.classList.remove('active'));
+                
+                // 設定當前點擊的為 active
+                const currentBtn = e.target;
+                currentBtn.classList.add('active');
+                
+                // 取得 mode 並重新渲染表格
+                const selectedMode = currentBtn.getAttribute('data-mode');
+                renderTable(selectedMode);
+            });
+        });
+    });
+</script>
+
+</body>
+</html>
