@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>冬山河超馬特訓 - 跑步機動態配速矩陣 (進階版)</title>
+    <title>冬山河超馬特訓 - 跑步機動態配速矩陣 (無限延展版)</title>
     <style>
         /* =========================================
            CSS 變數與色彩系統
@@ -218,9 +218,6 @@
     /** 
      * 1. 基礎設定與核心資料
      */
-    const targets = [];
-    for (let i = 70; i <= 120; i += 1) { targets.push(i / 10); }
-
     const tracksData = {
         'dongshan': { name: '冬山河超馬 (全平路河岸)', stars: 1, penalty: 0 },
         'taipei': { name: '臺北超級馬拉松 (花博繞圈)', stars: 2, penalty: 0 },
@@ -354,7 +351,8 @@
 
         return {
             timeStr: `${formatDecimalHoursToHMS(hrMin)} / ${formatDecimalHoursToHMS(hrAvg)} / ${formatDecimalHoursToHMS(hrMax)}`,
-            rankStr: `第 ${rankMin} / ${rankAvg} / ${rankMax} 名`
+            rankStr: `第 ${rankMin} / ${rankAvg} / ${rankMax} 名`,
+            rawRankMax: rankMax // 新增用於無限擴展動態終止判定
         };
     }
 
@@ -437,10 +435,37 @@
     }
 
     /**
-     * 4. 渲染邏輯
+     * 4. 渲染邏輯與動態迴圈解構
      */
     function updateMatrix() {
         modeParamsCache = {}; // 每次更新重置快取以保障正確重算
+        
+        // --- 1. 動態運算能力陣列 (逆向解碼器) ---
+        let targets = [];
+        let currentCapability = 7.0;
+        let reachedFirstPlaceAll = false;
+
+        // 向右無限展延，直到連「最慢情境」都已經保證跑出 1 級首位 (Rank_Max == 1)
+        while (!reachedFirstPlaceAll) {
+            let v1hr = Math.round(currentCapability * 10) / 10;
+            
+            let out = calcRaceOutcomes(v1hr, currentAgeFactor, currentMode, currentTrack, currentTotalMins);
+            let Rank_Max = out.rawRankMax;
+            
+            targets.push(v1hr);
+            
+            // 終止條件: 名次達 1，且能力已超過基礎邊界 12.0
+            if (Rank_Max === 1 && v1hr >= 12.0) {
+                reachedFirstPlaceAll = true;
+            }
+            
+            currentCapability += 0.1;
+            
+            // 防護網: 避免係數或瀏覽器無限卡死，設置絕對天花板 (25.0K 物理極限)
+            if (currentCapability > 25.0) {
+                reachedFirstPlaceAll = true; 
+            }
+        }
         
         // 更新儀表板
         const tObj = tracksData[currentTrack];
