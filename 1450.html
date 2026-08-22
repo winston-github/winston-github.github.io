@@ -76,7 +76,7 @@
         .dash-stars { color: #fbbf24; letter-spacing: 2px; font-size: 1.1rem; }
 
         /* =========================================
-           表格與 13 層無縫 Sticky Header 控制
+           表格與精簡後 11 層無縫 Sticky Header 控制
            ========================================= */
         .table-container { width: 100%; max-height: 85vh; overflow: auto; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-card); }
         .table-container::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -91,22 +91,18 @@
         thead th:first-child { left: 0; z-index: 15; border-right: 2px solid var(--border-dark); }
         tbody td:first-child { position: sticky; left: 0; background: var(--table-header-bg); z-index: 5; font-weight: 600; border-right: 2px solid var(--border-dark); }
 
-        /* 精準 13 行 Sticky Top 疊加高度運算 (總計 392px) */
+        /* 精準 11 行 Sticky Top 疊加高度運算 (總計 328px) */
         thead tr:nth-child(1) th { top: 0px; height: 40px; padding: 6px 14px; background: var(--table-header-bg); font-weight: 700; color: var(--text-main); border-bottom: 2px solid var(--border-color); }
         thead tr:nth-child(2) th { top: 40px; height: 32px; padding: 4px 14px; }
         thead tr:nth-child(3) th { top: 72px; height: 32px; padding: 4px 14px; }
-        thead tr:nth-child(4) th { top: 104px; height: 32px; padding: 4px 14px; }
-        thead tr:nth-child(5) th { top: 136px; height: 32px; padding: 4px 14px; }
-        
-        thead tr:nth-child(6) th { top: 168px; height: 28px; padding: 4px 14px; } 
-        thead tr:nth-child(7) th { top: 196px; height: 28px; padding: 4px 14px; } 
-        thead tr:nth-child(8) th { top: 224px; height: 28px; padding: 4px 14px; } 
-        thead tr:nth-child(9) th { top: 252px; height: 28px; padding: 4px 14px; } 
-        thead tr:nth-child(10) th { top: 280px; height: 28px; padding: 4px 14px; } 
-        
-        thead tr:nth-child(11) th { top: 308px; height: 28px; padding: 4px 14px; } 
-        thead tr:nth-child(12) th { top: 336px; height: 28px; padding: 4px 14px; } 
-        thead tr:nth-child(13) th { top: 364px; height: 28px; padding: 4px 14px; } 
+        thead tr:nth-child(4) th { top: 104px; height: 28px; padding: 4px 14px; }
+        thead tr:nth-child(5) th { top: 132px; height: 28px; padding: 4px 14px; }
+        thead tr:nth-child(6) th { top: 160px; height: 28px; padding: 4px 14px; } 
+        thead tr:nth-child(7) th { top: 188px; height: 28px; padding: 4px 14px; } 
+        thead tr:nth-child(8) th { top: 216px; height: 28px; padding: 4px 14px; } 
+        thead tr:nth-child(9) th { top: 244px; height: 28px; padding: 4px 14px; } 
+        thead tr:nth-child(10) th { top: 272px; height: 28px; padding: 4px 14px; } 
+        thead tr:nth-child(11) th { top: 300px; height: 28px; padding: 4px 14px; } 
 
         /* 行列專業配色樣式 */
         thead .rank-row th { background: #1e293b; color: #38bdf8; font-weight: 600; font-size: 12px; border-right: 1px solid #334155; border-bottom: 1px solid #334155; }
@@ -287,7 +283,7 @@
      * 3. 核心數據運算邏輯
      */
     
-    // 動態解析各模式的區段參數與 BaseSpeed (核心修正：Dist_work 動態向外延伸)
+    // 動態解析各模式的區段參數與 BaseSpeed
     function getModeParams(v1hr, totalMins, mode) {
         const key = `${v1hr}_${totalMins}_${mode}`;
         if (modeParamsCache[key]) return modeParamsCache[key];
@@ -329,7 +325,7 @@
         return p;
     }
 
-    // 計算最終完賽時間與名次 (導入 Stamina Bonus 紅利)
+    // 計算最終完賽時間與名次 (導入 Stamina Bonus 紅利與 快/平/慢 均值計算)
     function calcRaceOutcomes(v1hr, factor, mode, trackKey, totalMins) {
         const baseSpeed = v1hr * 0.63; // 依舊採用一小時素質指標做基礎運算
         const distance = 80.4672;
@@ -350,15 +346,15 @@
 
         const hrMin = ((distance / (baseSpeed * minMod)) + minBuf + trackPenalty) * staminaBonus;
         const hrMax = ((distance / (baseSpeed * maxMod)) + maxBuf + trackPenalty) * staminaBonus;
+        const hrAvg = (hrMin + hrMax) / 2; // 代數平均值 (平)
 
         const rankMin = Math.max(1, Math.round(Math.pow(hrMin / (5.8 * factor), 4.5)));
         const rankMax = Math.max(1, Math.round(Math.pow(hrMax / (5.8 * factor), 4.5)));
+        const rankAvg = Math.max(1, Math.round(Math.pow(hrAvg / (5.8 * factor), 4.5)));
 
         return {
-            timeMin: formatDecimalHoursToHMS(hrMin),
-            timeMax: formatDecimalHoursToHMS(hrMax),
-            rankMin: rankMin,
-            rankMax: rankMax
+            timeStr: `${formatDecimalHoursToHMS(hrMin)} / ${formatDecimalHoursToHMS(hrAvg)} / ${formatDecimalHoursToHMS(hrMax)}`,
+            rankStr: `第 ${rankMin} / ${rankAvg} / ${rankMax} 名`
         };
     }
 
@@ -399,16 +395,21 @@
         return { inc, spd };
     }
 
-    // 總結欄位統計與營養學動態計算
+    // 總結欄位統計與營養學動態計算 (導入坡度 快/平/慢 均值)
     function calcColStats(v1hr, mode, totalMins) {
         let maxSpd = 0, minSpd = 999, tElev = 0, tInc = 0;
+        let maxInc = -999, minInc = 999;
         
         for (let m = 0; m < totalMins; m++) {
             const { inc, spd } = calcCellData(v1hr, m, mode, totalMins);
             tElev += (spd / 60) * 1000 * (inc / 100);
             tInc += inc;
+            
             if (spd > maxSpd) maxSpd = spd;
             if (spd < minSpd) minSpd = spd;
+            
+            if (inc > maxInc) maxInc = inc;
+            if (inc < minInc) minInc = inc;
         }
 
         // 動態里程公式計算
@@ -428,10 +429,10 @@
             kcal: `${totalKcal} kcal`,
             carbs: `${carbsG} g`,
             protein: `${proteinG} g`,
-            // 順序：快 / 平 / 慢
+            // 順序：快 / 平 / 慢 統一匯流輸出
             paceStr: `${formatPace(maxSpd)} / ${formatPaceMinPerKm(totalMins / dynamicTotalDistance)} / ${formatPace(minSpd)}`,
             kphStr: `${maxSpd.toFixed(2)} / ${avgSpd.toFixed(2)} / ${minSpd.toFixed(2)} kph`,
-            avgI: (tInc / totalMins).toFixed(2)
+            incStr: `${maxInc.toFixed(1)}% / ${(tInc / totalMins).toFixed(2)}% / ${minInc.toFixed(1)}%`
         };
     }
 
@@ -453,45 +454,38 @@
         let html = '<thead>';
         
         let r1 = '<tr><th>時間 (分鐘) \\ 1HR素質</th>';
-        let r2 = '<tr class="rank-row"><th>最快分齡名次</th>';
-        let r3 = '<tr class="rank-row"><th>最慢分齡名次</th>';
-        let r4 = '<tr class="est-row"><th>預估最快時間</th>';
-        let r5 = '<tr class="est-row"><th>預估最慢時間</th>';
-        let r6 = '<tr class="stat-row"><th>總公里數</th>';
-        let r7 = '<tr class="stat-row"><th>總爬坡</th>';
-        let r8 = '<tr class="stat-row"><th>總消耗kcal</th>';
-        let r9 = '<tr class="stat-row"><th>碳水需求g</th>';
-        let r10 = '<tr class="stat-row"><th>蛋白質需求g</th>';
-        let r11 = '<tr class="stat-row"><th>配速(快/平/慢)</th>';
-        let r12 = '<tr class="stat-row"><th>kph(快/平/慢)</th>';
-        let r13 = '<tr class="stat-row last-head-row"><th>平均坡度</th>';
+        let r2 = '<tr class="rank-row"><th>分齡名次(快/平/慢)</th>';
+        let r3 = '<tr class="est-row"><th>預估時間(快/平/慢)</th>';
+        let r4 = '<tr class="stat-row"><th>總公里數</th>';
+        let r5 = '<tr class="stat-row"><th>總爬坡</th>';
+        let r6 = '<tr class="stat-row"><th>總消耗kcal</th>';
+        let r7 = '<tr class="stat-row"><th>碳水需求g</th>';
+        let r8 = '<tr class="stat-row"><th>蛋白質需求g</th>';
+        let r9 = '<tr class="stat-row"><th>配速(快/平/慢)</th>';
+        let r10 = '<tr class="stat-row"><th>kph(快/平/慢)</th>';
+        let r11 = '<tr class="stat-row last-head-row"><th>坡度(快/平/慢)</th>';
 
         for (const target of targets) {
             r1 += `<th>${target.toFixed(1)}K</th>`;
             
             const out = calcRaceOutcomes(target, currentAgeFactor, currentMode, currentTrack, currentTotalMins);
-            const rMinTxt = `第 ${out.rankMin} 名`;
-            const rMaxTxt = out.rankMin === out.rankMax ? `第 ${out.rankMin} 名` : `第 ${out.rankMax} 名`;
-
-            r2 += `<th>${rMinTxt}</th>`;
-            r3 += `<th>${rMaxTxt}</th>`;
-            r4 += `<th>${out.timeMin}</th>`;
-            r5 += `<th>${out.timeMax}</th>`;
+            r2 += `<th>${out.rankStr}</th>`;
+            r3 += `<th>${out.timeStr}</th>`;
 
             const stat = calcColStats(target, currentMode, currentTotalMins);
-            r6 += `<th>${stat.distStr}</th>`; // 套用動態展延的實際總公里數
-            r7 += `<th>${stat.elev} m</th>`;
-            r8 += `<th>${stat.kcal}</th>`;
-            r9 += `<th>${stat.carbs}</th>`;
-            r10 += `<th>${stat.protein}</th>`;
-            r11 += `<th>${stat.paceStr}</th>`;
-            r12 += `<th>${stat.kphStr}</th>`;
-            r13 += `<th>${stat.avgI}%</th>`;
+            r4 += `<th>${stat.distStr}</th>`; 
+            r5 += `<th>${stat.elev} m</th>`;
+            r6 += `<th>${stat.kcal}</th>`;
+            r7 += `<th>${stat.carbs}</th>`;
+            r8 += `<th>${stat.protein}</th>`;
+            r9 += `<th>${stat.paceStr}</th>`;
+            r10 += `<th>${stat.kphStr}</th>`;
+            r11 += `<th>${stat.incStr}</th>`;
         }
         
         html += r1 + '</tr>' + r2 + '</tr>' + r3 + '</tr>' + r4 + '</tr>' + r5 + '</tr>' + 
                 r6 + '</tr>' + r7 + '</tr>' + r8 + '</tr>' + r9 + '</tr>' + r10 + '</tr>' + 
-                r11 + '</tr>' + r12 + '</tr>' + r13 + '</tr></thead><tbody>';
+                r11 + '</tr></thead><tbody>';
         
         // 根據選擇時間動態生成相應的分鐘數列
         for (let m = 0; m < currentTotalMins; m++) {
