@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>冬山河超馬特訓 - 跑步機動態配速矩陣</title>
     <style>
-        /* CSS 變數定義，提供一致的色彩與樣式設定 */
+        /* =========================================
+           CSS 變數定義，提供一致的色彩與樣式設定
+           ========================================= */
         :root {
             --primary: #2563eb;
             --primary-hover: #1d4ed8;
@@ -87,7 +89,6 @@
             background: var(--table-hover);
         }
 
-        /* .active 狀態樣式 (符合需求: bright blue #2563eb with subtle box-shadow) */
         .modes button.active {
             background: var(--primary);
             color: #ffffff;
@@ -106,7 +107,6 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
 
-        /* 自訂現代化滾動條 */
         .table-container::-webkit-scrollbar {
             width: 10px;
             height: 10px;
@@ -127,9 +127,11 @@
             background: #64748b;
         }
 
-        /* 表格核心樣式 */
+        /* =========================================
+           表格與多層次 Sticky Header 核心設定
+           ========================================= */
         table {
-            border-collapse: separate; /* 配合 sticky 才能確保邊界線正確 */
+            border-collapse: separate; 
             border-spacing: 0;
             width: max-content;
         }
@@ -143,49 +145,93 @@
             font-size: 13px;
         }
 
-        /* 雙向 Sticky Positioning 實作 */
-        /* 第一列 (時間欄位) Sticky Left */
-        tbody td:first-child, thead th:first-child {
+        /* 第 1 列表頭 (目標距離) */
+        thead tr:nth-child(1) th {
+            position: sticky;
+            top: 0;
+            height: 46px; /* 固定高度，確保無縫對齊 */
+            background: var(--table-header-bg);
+            z-index: 12;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+        thead tr:nth-child(1) th:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 15; /* 最上層左上角 */
+            border-right: 2px solid var(--border-color);
+        }
+
+        /* 第 2 列表頭 (50英里預估最快時間) */
+        thead tr:nth-child(2) th {
+            position: sticky;
+            top: 46px; /* 緊貼第 1 列的 46px 高度 */
+            height: 38px;
+            z-index: 11;
+            padding: 6px 14px;
+        }
+        thead tr:nth-child(2) th:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 14;
+        }
+
+        /* 第 3 列表頭 (50英里預估最慢時間) */
+        thead tr:nth-child(3) th {
+            position: sticky;
+            top: 84px; /* 46px + 38px */
+            height: 38px;
+            z-index: 10;
+            padding: 6px 14px;
+        }
+        thead tr:nth-child(3) th:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 13;
+        }
+        /* 替第 3 列 (表頭底部) 加上加深的底線區隔 Body */
+        thead tr:nth-child(3).est-row th {
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        /* 新增 50 英里預估時間列專用暗色調樣式 */
+        thead .est-row th {
+            background-color: #1e293b;
+            color: #94a3b8;
+            font-weight: normal;
+            font-size: 12px;
+            border-right: 1px solid #334155;
+            border-bottom: 1px solid #334155;
+        }
+        thead .est-row th:first-child {
+            background-color: #0f172a;
+            color: #f1f5f9;
+            font-weight: 600;
+            border-right: 2px solid #334155;
+        }
+
+        /* 主表格時間列 Sticky Left */
+        tbody td:first-child {
             position: sticky;
             left: 0;
             background: var(--table-header-bg);
             z-index: 5;
             font-weight: 600;
-            border-right: 2px solid var(--border-color); /* 加深右側邊界增強視覺 */
+            border-right: 2px solid var(--border-color);
         }
 
-        /* 標題列 Sticky Top */
-        thead th {
-            position: sticky;
-            top: 0;
-            background: var(--table-header-bg);
-            z-index: 10;
-            font-weight: 700;
-            color: var(--text-main);
-            border-bottom: 2px solid var(--border-color);
-        }
-
-        /* 左上角交叉點，最高 Z-index */
-        thead th:first-child {
-            z-index: 15;
-            border-bottom: 2px solid var(--border-color);
-        }
-
-        /* 第一個 5 分鐘暖身行 (Light Yellow #fef9c3) */
+        /* 前 5 分鐘暖身行黃色高亮區 */
         .warmup td {
             background: var(--warmup-bg);
         }
-
-        /* 暖身行的 Sticky 左側欄位需有獨立顏色 (稍微深一點以區分層次) */
         .warmup td:first-child {
             background: var(--warmup-sticky-bg);
         }
 
-        /* 懸停效果 (不套用於暖身區) */
+        /* 懸停效果 (跳過暖身區) */
         tbody tr:not(.warmup):hover td:not(:first-child) {
             background-color: var(--table-hover);
         }
-
     </style>
 </head>
 <body>
@@ -212,17 +258,16 @@
 </div>
 
 <script>
-    /**
-     * 動態產生目標距離的陣列 (7.0k 到 12.0k，每次增加 0.1k)
-     * 利用整數計算以避免浮點數精確度問題
+    /** 
+     * 預先生成距離陣列 (7.0k - 12.0k)
      */
     const targets = [];
     for (let i = 70; i <= 120; i += 1) {
         targets.push(i / 10);
     }
 
-    /**
-     * 將分鐘數格式化成 "MM-MM" 格式 (如 00-01)
+    /** 
+     * 將分鐘數轉成 MM-MM 格式 
      */
     function formatTimeString(min) {
         const start = String(min).padStart(2, '0');
@@ -231,92 +276,134 @@
     }
 
     /**
-     * 根據訓練模式、目標與分鐘數計算對應的坡度(Incline)與速度(Speed)
-     * @param {number} target 目標總里程 (km)
-     * @param {number} min 經過分鐘數 (0-59)
-     * @param {string} mode 當前選取的訓練模式
-     * @returns {object} { inc: number, spd: number }
+     * 輔助函式：將包含小數的「小時數」格式化為 H:MM:SS
+     */
+    function formatDecimalHoursToHMS(decimalHours) {
+        let h = Math.floor(decimalHours);
+        // 使用 Math.round 防止浮點數計算誤差
+        let totalSeconds = Math.round((decimalHours - h) * 3600);
+        
+        let m = Math.floor(totalSeconds / 60);
+        let s = totalSeconds % 60;
+        
+        // 處理進位情況 (例如 60 秒進位成 1 分鐘)
+        if (s === 60) {
+            s = 0;
+            m += 1;
+        }
+        if (m >= 60) {
+            m -= 60;
+            h += 1;
+        }
+        
+        const mStr = String(m).padStart(2, '0');
+        const sStr = String(s).padStart(2, '0');
+        return `${h}:${mStr}:${sStr}`;
+    }
+
+    /**
+     * 依據模式計算 50 英里的預估時間 (回傳格式化字串)
+     */
+    function calculate50MileTimes(v1hr, mode) {
+        const baseUltraSpeed = v1hr * 0.63; // 計算 1.5kg 負重與衰退係數後的均速
+        const totalMilesInKm = 80.4672;
+        let minSpeedMulti, maxSpeedMulti, minBuffer, maxBuffer;
+
+        switch (mode) {
+            case 'cruise':
+                minSpeedMulti = 0.98; minBuffer = 22 / 60;
+                maxSpeedMulti = 0.94; maxBuffer = 35 / 60;
+                break;
+            case 'climb':
+                minSpeedMulti = 1.01; minBuffer = 20 / 60;
+                maxSpeedMulti = 0.96; maxBuffer = 32 / 60;
+                break;
+            case 'beginner':
+                minSpeedMulti = 0.95; minBuffer = 25 / 60;
+                maxSpeedMulti = 0.91; maxBuffer = 40 / 60;
+                break;
+            case 'interval':
+                minSpeedMulti = 1.02; minBuffer = 21 / 60;
+                maxSpeedMulti = 0.97; maxBuffer = 33 / 60;
+                break;
+            case 'progressive':
+                minSpeedMulti = 0.99; minBuffer = 22 / 60;
+                maxSpeedMulti = 0.95; maxBuffer = 35 / 60;
+                break;
+        }
+
+        const minSpeed = baseUltraSpeed * minSpeedMulti;
+        const maxSpeed = baseUltraSpeed * maxSpeedMulti;
+
+        const finalHoursMin = (totalMilesInKm / minSpeed) + minBuffer;
+        const finalHoursMax = (totalMilesInKm / maxSpeed) + maxBuffer;
+
+        return {
+            minTimeStr: formatDecimalHoursToHMS(finalHoursMin),
+            maxTimeStr: formatDecimalHoursToHMS(finalHoursMax)
+        };
+    }
+
+    /**
+     * 根據訓練模式、目標與分鐘數計算對應的坡度與速度
      */
     function calculateCellData(target, min, mode) {
         // 第一階段：安全暖身區 (前5分鐘 00-05)
-        // 條件：全階段、全模式均固定速度 6.0 kph、坡度 1.0%
         if (min < 5) {
             return { inc: 1.0, spd: 6.0 };
         }
 
-        // 剩餘 55 分鐘所需要達成的距離 (扣掉暖身 0.5km)
         const workDistNeeded = target - 0.5;
         let inc = 0;
         let spd = 0;
         let baseSpeed = 0;
 
-        // 第二階段：主訓練區 (第 05-60 分鐘)
+        // 第二階段：主訓練區 (05-60)
         switch (mode) {
             case 'cruise':
-                // 穩定巡航 (Cruise Mode)
                 spd = (workDistNeeded / 55) * 60;
                 inc = 0.5;
                 break;
 
             case 'climb':
-                // 階梯爬坡 (Climb Mode)
                 baseSpeed = (workDistNeeded * 60 + 18) / 55;
-                if (min < 20) { // 第 05-20 分鐘 (15 min)
-                    inc = 1.0;
-                    spd = baseSpeed;
-                } else if (min < 40) { // 第 20-40 分鐘 (20 min)
-                    inc = 2.0;
-                    spd = baseSpeed - 0.3;
-                } else { // 第 40-60 分鐘 (20 min)
-                    inc = 3.0;
-                    spd = baseSpeed - 0.6;
+                if (min < 20) {
+                    inc = 1.0; spd = baseSpeed;
+                } else if (min < 40) {
+                    inc = 2.0; spd = baseSpeed - 0.3;
+                } else {
+                    inc = 3.0; spd = baseSpeed - 0.6;
                 }
                 break;
 
             case 'beginner':
-                // 安全新手 (Beginner Mode)
                 baseSpeed = (workDistNeeded * 60 - 6) / 55;
-                if (min < 30) { // 第 05-30 分鐘 (25 min)
-                    inc = 0.5;
-                    spd = baseSpeed;
-                } else { // 第 30-60 分鐘 (30 min)
-                    inc = 0.0;
-                    spd = baseSpeed + 0.2;
+                if (min < 30) {
+                    inc = 0.5; spd = baseSpeed;
+                } else {
+                    inc = 0.0; spd = baseSpeed + 0.2;
                 }
                 break;
 
             case 'interval':
-                // 高能間歇 (Interval Mode)
                 baseSpeed = (workDistNeeded * 60 - 11) / 55;
-                // 每 5 分鐘為一循環，扣除暖身 5 分鐘後重新計算週期
-                // cycleMin 會落在 0~4 之間
                 const cycleMin = (min - 5) % 5; 
-                if (cycleMin < 3) { // 3 min Sprint
-                    inc = 1.5;
-                    spd = baseSpeed + 1.0;
-                } else { // 2 min Recovery
-                    inc = 0.5;
-                    spd = baseSpeed - 1.0;
+                if (cycleMin < 3) {
+                    inc = 1.5; spd = baseSpeed + 1.0;
+                } else {
+                    inc = 0.5; spd = baseSpeed - 1.0;
                 }
                 break;
 
             case 'progressive':
-                // 漸進加壓 (Progressive Mode)
                 baseSpeed = (workDistNeeded * 60 - 60) / 55;
                 inc = 0.5;
-                if (min < 10) { // 第 05-10 分鐘 (5 min)
-                    spd = baseSpeed;
-                } else if (min < 20) { // 第 10-20 分鐘 (10 min)
-                    spd = baseSpeed + 0.4;
-                } else if (min < 30) { // 第 20-30 分鐘 (10 min)
-                    spd = baseSpeed + 0.8;
-                } else if (min < 40) { // 第 30-40 分鐘 (10 min)
-                    spd = baseSpeed + 1.2;
-                } else if (min < 50) { // 第 40-50 分鐘 (10 min)
-                    spd = baseSpeed + 1.6;
-                } else { // 第 50-60 分鐘 (10 min)
-                    spd = baseSpeed + 2.0;
-                }
+                if (min < 10) { spd = baseSpeed; }
+                else if (min < 20) { spd = baseSpeed + 0.4; }
+                else if (min < 30) { spd = baseSpeed + 0.8; }
+                else if (min < 40) { spd = baseSpeed + 1.2; }
+                else if (min < 50) { spd = baseSpeed + 1.6; }
+                else { spd = baseSpeed + 2.0; }
                 break;
         }
 
@@ -324,22 +411,40 @@
     }
 
     /**
-     * 核心渲染函數，負責組合 HTML 字串並塞入 DOM
+     * 動態渲染整張表格
      */
     function renderTable(mode) {
         const table = document.getElementById('paceTable');
         
-        // 1. 組裝表頭 (Table Header)
-        let html = '<thead><tr><th>Time \\ Target</th>';
+        // 1. 組裝表頭
+        let html = '<thead>';
+        
+        // Row 1: Target Distances
+        html += '<tr><th>Time \\ Target</th>';
         for (const target of targets) {
             html += `<th>${target.toFixed(1)}K</th>`;
         }
-        html += '</tr></thead>';
+        html += '</tr>';
+
+        // Row 2: 50-Mile Min Estimated Time
+        let rowMin = '<tr class="est-row"><th>最快時間</th>';
+        // Row 3: 50-Mile Max Estimated Time
+        let rowMax = '<tr class="est-row"><th>最慢時間</th>';
+
+        for (const target of targets) {
+            const { minTimeStr, maxTimeStr } = calculate50MileTimes(target, mode);
+            rowMin += `<th>${minTimeStr}</th>`;
+            rowMax += `<th>${maxTimeStr}</th>`;
+        }
+
+        rowMin += '</tr>';
+        rowMax += '</tr>';
+
+        html += rowMin + rowMax + '</thead>';
         
-        // 2. 組裝表身 (Table Body)
+        // 2. 組裝表身
         html += '<tbody>';
         for (let min = 0; min < 60; min++) {
-            // 前 5 分鐘 (0-4) 掛上 warmup 的 class，以套用黃色高亮樣式
             const rowClass = min < 5 ? ' class="warmup"' : '';
             const timeStr = formatTimeString(min);
             
@@ -347,7 +452,6 @@
             
             for (const target of targets) {
                 const { inc, spd } = calculateCellData(target, min, mode);
-                // 格式化輸出要求：Incline 1位小數，Speed 2位小數 (e.g. 0.5% / 10.08k)
                 html += `<td>${inc.toFixed(1)}% / ${spd.toFixed(2)}k</td>`;
             }
             
@@ -360,24 +464,20 @@
     }
 
     /**
-     * 初始化與事件綁定
+     * 初始化與事件監聽
      */
     document.addEventListener('DOMContentLoaded', () => {
-        // 預設載入 Cruise Mode
+        // 預設渲染
         renderTable('cruise');
 
-        // 處理按鈕切換邏輯
+        // 綁定按鈕切換邏輯
         const buttons = document.querySelectorAll('#modeButtons button');
         buttons.forEach(button => {
             button.addEventListener('click', (e) => {
-                // 移除所有 active class
                 buttons.forEach(btn => btn.classList.remove('active'));
-                
-                // 設定當前點擊的為 active
                 const currentBtn = e.target;
                 currentBtn.classList.add('active');
                 
-                // 取得 mode 並重新渲染表格
                 const selectedMode = currentBtn.getAttribute('data-mode');
                 renderTable(selectedMode);
             });
