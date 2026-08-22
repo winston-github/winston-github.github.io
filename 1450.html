@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>冬山河超馬特訓 - 跑步機動態配速矩陣 (無限延展版)</title>
+    <title>冬山河超馬特訓 - 跑步機動態配速與步頻矩陣 (無限延展版)</title>
     <style>
         /* =========================================
            CSS 變數與色彩系統
@@ -76,9 +76,9 @@
         .dash-stars { color: #fbbf24; letter-spacing: 2px; font-size: 1.1rem; }
 
         /* =========================================
-           表格與精簡後 11 層無縫 Sticky Header 控制
+           表格與精準 12 層無縫 Sticky Header 控制
            ========================================= */
-        .table-container { width: 100%; max-height: 85vh; overflow: auto; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-card); }
+        .table-container { width: 100%; max-height: 85vh; overflow-x: auto; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-card); }
         .table-container::-webkit-scrollbar { width: 10px; height: 10px; }
         .table-container::-webkit-scrollbar-track { background: var(--bg-body); border-radius: 8px; }
         .table-container::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 8px; border: 2px solid var(--bg-body); }
@@ -91,7 +91,7 @@
         thead th:first-child { left: 0; z-index: 15; border-right: 2px solid var(--border-dark); }
         tbody td:first-child { position: sticky; left: 0; background: var(--table-header-bg); z-index: 5; font-weight: 600; border-right: 2px solid var(--border-dark); }
 
-        /* 精準 11 行 Sticky Top 疊加高度運算 (總計 328px) */
+        /* 精準 12 行 Sticky Top 疊加高度運算 (總計 356px) */
         thead tr:nth-child(1) th { top: 0px; height: 40px; padding: 6px 14px; background: var(--table-header-bg); font-weight: 700; color: var(--text-main); border-bottom: 2px solid var(--border-color); }
         thead tr:nth-child(2) th { top: 40px; height: 32px; padding: 4px 14px; }
         thead tr:nth-child(3) th { top: 72px; height: 32px; padding: 4px 14px; }
@@ -103,6 +103,7 @@
         thead tr:nth-child(9) th { top: 244px; height: 28px; padding: 4px 14px; } 
         thead tr:nth-child(10) th { top: 272px; height: 28px; padding: 4px 14px; } 
         thead tr:nth-child(11) th { top: 300px; height: 28px; padding: 4px 14px; } 
+        thead tr:nth-child(12) th { top: 328px; height: 28px; padding: 4px 14px; } 
 
         /* 行列專業配色樣式 */
         thead .rank-row th { background: #1e293b; color: #38bdf8; font-weight: 600; font-size: 12px; border-right: 1px solid #334155; border-bottom: 1px solid #334155; }
@@ -125,8 +126,8 @@
 
 <div class="container">
     <div class="header-panel">
-        <h1>冬山河超馬特訓 - 跑步機動態配速矩陣</h1>
-        <p>完整整合分齡對戰與各大超馬賽道特訓，精準掌控心率與配速極限</p>
+        <h1>冬山河超馬特訓 - 動態配速與步頻矩陣 (SPM 科學版)</h1>
+        <p>完整整合分齡對戰與各大超馬賽道特訓，精準掌控配速、坡度與最適步頻 (Cadence) 極限</p>
         
         <!-- 1. 年齡組別 -->
         <div class="selection-group">
@@ -170,23 +171,14 @@
             <h3>⏱️ 選擇單次訓練時間 (Session Duration)</h3>
             <select id="durationSelect" class="styled-select">
                 <option value="30">30 分鐘 (Min)</option>
-                <option value="35">35 分鐘 (Min)</option>
                 <option value="40">40 分鐘 (Min)</option>
                 <option value="45">45 分鐘 (Min)</option>
                 <option value="50">50 分鐘 (Min)</option>
                 <option value="55">55 分鐘 (Min)</option>
                 <option value="60" selected>60 分鐘 (Min)</option>
-                <option value="65">65 分鐘 (Min)</option>
-                <option value="70">70 分鐘 (Min)</option>
                 <option value="75">75 分鐘 (Min)</option>
-                <option value="80">80 分鐘 (Min)</option>
-                <option value="85">85 分鐘 (Min)</option>
                 <option value="90">90 分鐘 (Min)</option>
-                <option value="95">95 分鐘 (Min)</option>
-                <option value="100">100 分鐘 (Min)</option>
                 <option value="105">105 分鐘 (Min)</option>
-                <option value="110">110 分鐘 (Min)</option>
-                <option value="115">115 分鐘 (Min)</option>
                 <option value="120">120 分鐘 (Min)</option>
             </select>
         </div>
@@ -267,13 +259,18 @@
         return `${mins}:${String(secs).padStart(2, '0')}`;
     }
 
-    // 分/公里 轉配速(M:SS) - 專門處理小數點計算出來的平均配速
+    // 分/公里 轉配速(M:SS)
     function formatPaceMinPerKm(minPerKm) {
         if (!minPerKm || minPerKm <= 0) return "0:00";
         let totalSeconds = Math.round(minPerKm * 60);
         let mins = Math.floor(totalSeconds / 60);
         let secs = totalSeconds % 60;
         return `${mins}:${String(secs).padStart(2, '0')}`;
+    }
+
+    // 科學步頻 (SPM) 運算公式
+    function calcSpm(spd, inc) {
+        return Math.round(170 + (spd * 1.2) + (inc * 1.5));
     }
 
     /**
@@ -287,9 +284,10 @@
 
         const tWork = totalMins - 5;
         // 動態里程計算：1小時(55分)的里程負荷，隨時間等比例擴大以維持訓練強度
-        const distWork = (v1hr - 0.5) * (tWork / 55); 
-        let p = {};
+        const dynamicTotalDistance = 0.5 + (v1hr - 0.5) * (tWork / 55);
+        const distWork = dynamicTotalDistance - 0.5; 
         
+        let p = {};
         if (mode === 'cruise') {
             p.baseSpeed = (distWork / tWork) * 60;
         } else if (mode === 'climb') {
@@ -322,9 +320,9 @@
         return p;
     }
 
-    // 計算最終完賽時間與名次 (導入 Stamina Bonus 紅利與 快/平/慢 均值計算)
+    // 計算最終完賽時間與名次 (導入精英校正與 快/平/慢 均值計算)
     function calcRaceOutcomes(v1hr, factor, mode, trackKey, totalMins) {
-        const baseSpeed = v1hr * 0.63; // 依舊採用一小時素質指標做基礎運算
+        const baseSpeed = v1hr * 0.63; 
         const distance = 80.4672;
         let minMod = 1, maxMod = 1, minBuf = 0, maxBuf = 0;
 
@@ -336,23 +334,23 @@
             case 'progressive': minMod = 0.99; minBuf = 22/60; maxMod = 0.95; maxBuf = 35/60; break;
         }
 
+        const avgMod = (minMod + maxMod) / 2;
         const trackPenalty = tracksData[trackKey].penalty / 60;
-        
-        // 導入長時訓練之耐力紅利係數 (最高抵銷至 0.75 倍時間)
         const staminaBonus = Math.max(0.75, 1 - ((totalMins - 60) * 0.0025));
 
         const hrMin = ((distance / (baseSpeed * minMod)) + minBuf + trackPenalty) * staminaBonus;
         const hrMax = ((distance / (baseSpeed * maxMod)) + maxBuf + trackPenalty) * staminaBonus;
-        const hrAvg = (hrMin + hrMax) / 2; // 代數平均值 (平)
+        const hrAvg = ((distance / (baseSpeed * avgMod)) + ((minBuf + maxBuf) / 2) + trackPenalty) * staminaBonus; 
 
-        const rankMin = Math.max(1, Math.round(Math.pow(hrMin / (5.8 * factor), 4.5)));
-        const rankMax = Math.max(1, Math.round(Math.pow(hrMax / (5.8 * factor), 4.5)));
-        const rankAvg = Math.max(1, Math.round(Math.pow(hrAvg / (5.8 * factor), 4.5)));
+        // 嚴格校正菁英名次係數 5.65, 次方 4.8
+        const rankMin = Math.max(1, Math.round(Math.pow(hrMin / (5.65 * factor), 4.8)));
+        const rankAvg = Math.max(1, Math.round(Math.pow(hrAvg / (5.65 * factor), 4.8)));
+        const rankMax = Math.max(1, Math.round(Math.pow(hrMax / (5.65 * factor), 4.8)));
 
         return {
             timeStr: `${formatDecimalHoursToHMS(hrMin)} / ${formatDecimalHoursToHMS(hrAvg)} / ${formatDecimalHoursToHMS(hrMax)}`,
             rankStr: `第 ${rankMin} / ${rankAvg} / ${rankMax} 名`,
-            rawRankMax: rankMax // 新增用於無限擴展動態終止判定
+            rawRankMax: rankMax 
         };
     }
 
@@ -393,33 +391,41 @@
         return { inc, spd };
     }
 
-    // 總結欄位統計與營養學動態計算 (導入坡度 快/平/慢 均值)
+    // 總結欄位統計與營養學及步頻(SPM)動態計算
     function calcColStats(v1hr, mode, totalMins) {
         let maxSpd = 0, minSpd = 999, tElev = 0, tInc = 0;
         let maxInc = -999, minInc = 999;
+        let maxSpm = 0, minSpm = 999, tSpm = 0;
         
         for (let m = 0; m < totalMins; m++) {
             const { inc, spd } = calcCellData(v1hr, m, mode, totalMins);
+            const spm = calcSpm(spd, inc);
+
             tElev += (spd / 60) * 1000 * (inc / 100);
             tInc += inc;
+            tSpm += spm;
             
             if (spd > maxSpd) maxSpd = spd;
             if (spd < minSpd) minSpd = spd;
             
             if (inc > maxInc) maxInc = inc;
             if (inc < minInc) minInc = inc;
+
+            if (spm > maxSpm) maxSpm = spm;
+            if (spm < minSpm) minSpm = spm;
         }
 
         // 動態里程公式計算
         const dynamicTotalDistance = 0.5 + (v1hr - 0.5) * ((totalMins - 5) / 55);
 
-        // 動態營養需求計算 (採用 v1hr 一小時素質作為強度係數基準)
+        // 動態營養需求計算 
         const totalKcal = Math.round(70 * (v1hr * (totalMins / 60)) * 1.05);
         const carbsG = Math.round(totalKcal * 0.12);
         const proteinG = (totalKcal * 0.025).toFixed(1);
         
-        // 取得實際動態均速 (小時制)
+        // 取得實際動態均速 (小時制) 與平均步頻
         const avgSpd = dynamicTotalDistance / (totalMins / 60);
+        const avgSpm = Math.round(tSpm / totalMins);
 
         return {
             distStr: `${dynamicTotalDistance.toFixed(2)} km`,
@@ -427,20 +433,20 @@
             kcal: `${totalKcal} kcal`,
             carbs: `${carbsG} g`,
             protein: `${proteinG} g`,
-            // 順序：快 / 平 / 慢 統一匯流輸出
             paceStr: `${formatPace(maxSpd)} / ${formatPaceMinPerKm(totalMins / dynamicTotalDistance)} / ${formatPace(minSpd)}`,
             kphStr: `${maxSpd.toFixed(2)} / ${avgSpd.toFixed(2)} / ${minSpd.toFixed(2)} kph`,
-            incStr: `${maxInc.toFixed(1)}% / ${(tInc / totalMins).toFixed(2)}% / ${minInc.toFixed(1)}%`
+            incStr: `${maxInc.toFixed(1)}% / ${(tInc / totalMins).toFixed(2)}% / ${minInc.toFixed(1)}%`,
+            spmStr: `${maxSpm} / ${avgSpm} / ${minSpm} SPM`
         };
     }
 
     /**
-     * 4. 渲染邏輯與動態迴圈解構
+     * 4. 渲染邏輯與動態逆向解碼迴圈
      */
     function updateMatrix() {
-        modeParamsCache = {}; // 每次更新重置快取以保障正確重算
+        modeParamsCache = {}; 
         
-        // --- 1. 動態運算能力陣列 (逆向解碼器) ---
+        // --- 1. 動態運算能力陣列 (無限擴展) ---
         let targets = [];
         let currentCapability = 7.0;
         let reachedFirstPlaceAll = false;
@@ -461,8 +467,8 @@
             
             currentCapability += 0.1;
             
-            // 防護網: 避免係數或瀏覽器無限卡死，設置絕對天花板 (25.0K 物理極限)
-            if (currentCapability > 25.0) {
+            // 絕對天花板保護機制
+            if (currentCapability > 26.0) {
                 reachedFirstPlaceAll = true; 
             }
         }
@@ -478,6 +484,7 @@
         const table = document.getElementById('paceTable');
         let html = '<thead>';
         
+        // 嚴格 12 層 Sticky 結構
         let r1 = '<tr><th>時間 (分鐘) \\ 1HR素質</th>';
         let r2 = '<tr class="rank-row"><th>分齡名次(快/平/慢)</th>';
         let r3 = '<tr class="est-row"><th>預估時間(快/平/慢)</th>';
@@ -488,7 +495,8 @@
         let r8 = '<tr class="stat-row"><th>蛋白質需求g</th>';
         let r9 = '<tr class="stat-row"><th>配速(快/平/慢)</th>';
         let r10 = '<tr class="stat-row"><th>kph(快/平/慢)</th>';
-        let r11 = '<tr class="stat-row last-head-row"><th>坡度(快/平/慢)</th>';
+        let r11 = '<tr class="stat-row"><th>坡度(快/平/慢)</th>';
+        let r12 = '<tr class="stat-row last-head-row"><th>步頻(快/平/慢)</th>';
 
         for (const target of targets) {
             r1 += `<th>${target.toFixed(1)}K</th>`;
@@ -506,19 +514,21 @@
             r9 += `<th>${stat.paceStr}</th>`;
             r10 += `<th>${stat.kphStr}</th>`;
             r11 += `<th>${stat.incStr}</th>`;
+            r12 += `<th>${stat.spmStr}</th>`;
         }
         
         html += r1 + '</tr>' + r2 + '</tr>' + r3 + '</tr>' + r4 + '</tr>' + r5 + '</tr>' + 
                 r6 + '</tr>' + r7 + '</tr>' + r8 + '</tr>' + r9 + '</tr>' + r10 + '</tr>' + 
-                r11 + '</tr></thead><tbody>';
+                r11 + '</tr>' + r12 + '</tr></thead><tbody>';
         
-        // 根據選擇時間動態生成相應的分鐘數列
+        // 根據選擇時間動態生成分鐘數列，並注入 Incline% / Speedk / CadenceSPM
         for (let m = 0; m < currentTotalMins; m++) {
             const cls = m < 5 ? ' class="warmup"' : '';
             html += `<tr${cls}><td>${formatTimeString(m)}</td>`;
             for (const target of targets) {
                 const { inc, spd } = calcCellData(target, m, currentMode, currentTotalMins);
-                html += `<td>${inc.toFixed(1)}% / ${spd.toFixed(2)}k</td>`;
+                const spm = calcSpm(spd, inc);
+                html += `<td>${inc.toFixed(1)}% / ${spd.toFixed(2)}k / ${spm}</td>`;
             }
             html += '</tr>';
         }
