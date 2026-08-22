@@ -98,7 +98,7 @@
         /* 表格容器與自訂滾動條 */
         .table-container {
             width: 100%;
-            max-height: 80vh; /* 稍微放大高度以容納多層表頭 */
+            max-height: 80vh; 
             overflow: auto;
             border: 1px solid var(--border-color);
             border-radius: 8px;
@@ -136,7 +136,7 @@
             border-right: 1px solid var(--border-color);
             border-bottom: 1px solid var(--border-color);
             text-align: center;
-            white-space: nowrap; /* 確保不換行，維持高度計算精準度 */
+            white-space: nowrap; 
             font-size: 13px;
         }
 
@@ -269,14 +269,13 @@
         return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     }
 
-    // 將時速 (kph) 轉換為跑者配速格式 (M:SS / km)
+    // [Bug修復] 將時速 (kph) 轉換為跑者配速格式 (M:SS / km)
+    // 傳入的 speedKph 直接用於除以 3600，且以四捨五入計算總秒數避免浮點數誤差
     function formatPace(speedKph) {
         if (speedKph <= 0) return "0:00";
-        let totalSecondsPerKm = 3600 / speedKph;
+        let totalSecondsPerKm = Math.round(3600 / speedKph);
         let mins = Math.floor(totalSecondsPerKm / 60);
-        let secs = Math.round(totalSecondsPerKm % 60);
-        
-        if (secs === 60) { secs = 0; mins += 1; }
+        let secs = totalSecondsPerKm % 60;
         return `${mins}:${String(secs).padStart(2, '0')}`;
     }
 
@@ -307,7 +306,7 @@
         };
     }
 
-    // 計算特定分鐘的配速與坡度
+    // 計算特定分鐘的時速與坡度
     function calculateCellData(target, min, mode) {
         if (min < 5) return { inc: 1.0, spd: 6.0 };
 
@@ -365,9 +364,12 @@
         return {
             dist: `${target.toFixed(2)} km`,
             elev: `${Math.round(totalElev)} m`,
-            maxP: formatPace(maxSpeed), // 最高配速 = 最快速度
-            minP: formatPace(minSpeed), // 最低配速 = 最慢速度
-            avgP: formatPace(60 / target), // 總時間(60m)除以總里程
+            // 最高配速 = 最大時速轉換 (如 12.5 kph -> 4:48)
+            maxP: formatPace(maxSpeed), 
+            // 最低配速 = 最小時速轉換 (通常是 6.0 kph -> 10:00)
+            minP: formatPace(minSpeed), 
+            // [Bug修復] 平均配速 = 直接傳入 1小時的總里程(即平均時速kph)
+            avgP: formatPace(target), 
             avgInc: `${(totalIncline / 60).toFixed(2)}%`
         };
     }
