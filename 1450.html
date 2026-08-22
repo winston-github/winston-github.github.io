@@ -120,6 +120,12 @@
         .warmup td { background: var(--warmup-bg); }
         .warmup td:first-child { background: var(--warmup-sticky-bg); }
         tbody tr:not(.warmup):hover td:not(:first-child) { background-color: var(--table-hover); }
+
+        /* =========================================
+           視覺警示系統 (Visual Limits Alerts)
+           ========================================= */
+        .val-yellow { background-color: #fde047; color: #854d0e; padding: 1px 4px; border-radius: 4px; font-weight: 800; }
+        .val-red { background-color: #fca5a5; color: #7f1d1d; padding: 1px 4px; border-radius: 4px; font-weight: 800; }
     </style>
 </head>
 <body>
@@ -128,7 +134,7 @@
     
     <div class="header-title">
         <h1>全球 100 大超馬環境模擬器</h1>
-        <p>10 大強國 x 100 專屬賽道地形痛點 x 30 種物理特訓模式</p>
+        <p>10 大強國 x 100 專屬賽道痛點 x 30 種物理特訓模式</p>
     </div>
 
     <!-- 戰力儀表板 -->
@@ -137,7 +143,7 @@
         <div class="dash-grid">
             <div class="dash-item">
                 <span class="dash-label">當前選擇特訓組合</span>
-                <span class="dash-value" id="dashCombo">冬山河超級馬拉松 + 穩定巡航 (60 Min)</span>
+                <span class="dash-value" id="dashCombo">載入中...</span>
             </div>
             <div class="dash-item">
                 <span class="dash-label">綜合賽事與特訓難度</span>
@@ -154,7 +160,7 @@
         <!-- 1. 全球賽道選擇 (10 Countries x 10 Tracks = 100) -->
         <div class="selection-group">
             <h3>🌍 選擇全球超馬賽事與環境痛點 (100 Tracks)</h3>
-            <select id="trackSelect" class="styled-select"></select> <!-- JS 動態生成 -->
+            <select id="trackSelect" class="styled-select"></select>
         </div>
 
         <!-- 2. 訓練模式 (30 Modes) -->
@@ -219,21 +225,19 @@
             </select>
         </div>
 
-        <!-- 4. 訓練時長 -->
+        <!-- 4. 訓練時長 (精細至 1 分鐘) -->
         <div class="selection-group">
             <h3>⏱️ 選擇單次訓練時間 (Duration)</h3>
-            <select id="durationSelect" class="styled-select">
-                <option value="30">30 分鐘 (Min)</option>
-                <option value="40">40 分鐘 (Min)</option>
-                <option value="45">45 分鐘 (Min)</option>
-                <option value="50">50 分鐘 (Min)</option>
-                <option value="55">55 分鐘 (Min)</option>
-                <option value="60" selected>60 分鐘 (Min)</option>
-                <option value="75">75 分鐘 (Min)</option>
-                <option value="90">90 分鐘 (Min)</option>
-                <option value="105">105 分鐘 (Min)</option>
-                <option value="120">120 分鐘 (Min)</option>
-            </select>
+            <select id="durationSelect" class="styled-select"></select>
+        </div>
+
+        <!-- 5. 跑步機硬體極限 (Hardware Limits) -->
+        <div class="selection-group">
+            <h3>🏃‍♂️ 跑步機硬體上限 (速度 / 坡度極限防護)</h3>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <select id="maxSpeedSelect" class="styled-select" style="flex: 1; min-width: 150px;"></select>
+                <select id="maxInclineSelect" class="styled-select" style="flex: 1; min-width: 150px;"></select>
+            </div>
         </div>
     </div>
 
@@ -295,7 +299,7 @@
         'fr_6': { name: 'Les Templiers (南部石灰岩峽谷)', stars: 3, penalty: 80, group: '🇫🇷 法國 France', physics: (m,s,i,tw) => ({s, i: i + Math.abs(Math.sin(m/3))*2}) },
         'fr_7': { name: 'CCC (快速阿爾卑斯攀登)', stars: 4, penalty: 100, group: '🇫🇷 法國 France', physics: (m,s,i,tw) => ({s: s-0.1, i: i+1.8}) },
         'fr_8': { name: 'OCC (中距離高強度爆發)', stars: 3, penalty: 50, group: '🇫🇷 法國 France', physics: (m,s,i,tw) => ({s: s+0.2, i: i+1.5}) },
-        'fr_9': { name: '24h of Brive (24小時世錦賽田徑)', stars: 1, penalty: 0, group: '🇫🇷 法國 France', physics: (m,s,i,tw) => ({s, i: 0}) },
+        'fr_9': { name: '24h of Brive (24小時田徑)', stars: 1, penalty: 0, group: '🇫🇷 法國 France', physics: (m,s,i,tw) => ({s, i: 0}) },
         'fr_10': { name: 'French Riviera 100 (蔚藍海岸起伏)', stars: 2, penalty: 30, group: '🇫🇷 法國 France', physics: (m,s,i,tw) => ({s, i: i + (m%10<5?1.0:0)}) },
 
         // --- 🇬🇧 英國 (UK) ---
@@ -378,7 +382,7 @@
         'progressive': { name: '漸進加壓', stars: 1 },
         'interval': { name: '高能間歇', stars: 2 },
         'climb': { name: '階梯爬坡', stars: 2 },
-        // 新增 25 專業模式
+        // 25 專業模式
         'p0': { name: '增肌減脂護肌', stars: 1 },
         'p1': { name: '高效燃脂王', stars: 2 },
         'p2': { name: '有氧耐力底層', stars: 1 },
@@ -410,17 +414,20 @@
     let currentTrack = 'tw_1';
     let currentMode = 'cruise';
     let currentTotalMins = 60;
+    let currentMaxSpeed = 15.0;
+    let currentMaxIncline = 15.0;
     let modeParamsCache = {}; 
 
-    // 初始化 UI: 動態生成 100 大賽道下拉選單
-    function initTrackSelect() {
-        const select = document.getElementById('trackSelect');
+    // UI 動態初始化生成器
+    function initDynamicSelects() {
+        // 1. 初始化 100大賽道
+        const trackSelect = document.getElementById('trackSelect');
         const groups = {};
         for (const [key, track] of Object.entries(tracksData)) {
             if (!groups[track.group]) {
                 groups[track.group] = document.createElement('optgroup');
                 groups[track.group].label = track.group;
-                select.appendChild(groups[track.group]);
+                trackSelect.appendChild(groups[track.group]);
             }
             const option = document.createElement('option');
             option.value = key;
@@ -428,8 +435,57 @@
             if (key === 'tw_1') option.selected = true;
             groups[track.group].appendChild(option);
         }
+
+        // 2. 初始化訓練時長 (20 ~ 180 mins)
+        const durSel = document.getElementById('durationSelect');
+        durSel.innerHTML = '';
+        for(let i=20; i<=180; i++) {
+            let opt = document.createElement('option');
+            opt.value = i;
+            if(i < 60) {
+                opt.textContent = `${i} 分鐘 (Min)`;
+            } else {
+                let h = Math.floor(i/60);
+                let m = i % 60;
+                let timeStr = m === 0 ? `${h}小時` : `${h}小時${m}分鐘`;
+                opt.textContent = `${i} 分鐘 (${timeStr})`;
+            }
+            if(i === 60) opt.selected = true;
+            durSel.appendChild(opt);
+        }
+
+        // 3. 初始化硬體速度極限 (0.1 ~ 30.0 kph)
+        const spdSel = document.getElementById('maxSpeedSelect');
+        spdSel.innerHTML = '';
+        for(let i=1; i<=300; i++) {
+            let val = (i/10).toFixed(1);
+            let opt = document.createElement('option');
+            opt.value = val;
+            opt.textContent = `最高速度 ${val} kph`;
+            if(val === "15.0") opt.selected = true;
+            spdSel.appendChild(opt);
+        }
+        let spdInf = document.createElement('option');
+        spdInf.value = "Infinity";
+        spdInf.textContent = "速度 無上限";
+        spdSel.appendChild(spdInf);
+
+        // 4. 初始化硬體坡度極限 (0.1 ~ 30.0 %)
+        const incSel = document.getElementById('maxInclineSelect');
+        incSel.innerHTML = '';
+        for(let i=1; i<=300; i++) {
+            let val = (i/10).toFixed(1);
+            let opt = document.createElement('option');
+            opt.value = val;
+            opt.textContent = `最高坡度 ${val}%`;
+            if(val === "15.0") opt.selected = true;
+            incSel.appendChild(opt);
+        }
+        let incInf = document.createElement('option');
+        incInf.value = "Infinity";
+        incInf.textContent = "坡度 無上限";
+        incSel.appendChild(incInf);
     }
-    initTrackSelect();
 
     // UI 收合面板邏輯
     const toggleBtn = document.getElementById('togglePanelBtn');
@@ -439,7 +495,7 @@
     });
 
     /** 
-     * 2. 工具與格式化函式
+     * 2. 工具與格式化函式 (含防護極限視覺警示器)
      */
     function formatTimeString(min) {
         return `${String(min).padStart(2, '0')}-${String(min + 1).padStart(2, '0')}`;
@@ -471,13 +527,24 @@
         return `${mins}:${String(secs).padStart(2, '0')}`;
     }
 
-    // SPM 科學步頻
     function calcSpm(spd, inc) {
         return Math.round(170 + (spd * 1.2) + (inc * 1.5));
     }
 
+    // 視覺紅綠燈高光標籤系統 (Visual Overload Highlight)
+    function hl(strVal, limit) {
+        if (limit === Infinity) return strVal;
+        let val = parseFloat(strVal);
+        if (val > limit) {
+            return `<span class="val-red">${strVal}</span>`; // 超過上限 (紅色)
+        } else if (val === limit) {
+            return `<span class="val-yellow">${strVal}</span>`; // 逼近/等於上限 (橘黃色)
+        }
+        return strVal;
+    }
+
     /**
-     * 3. 核心數據運算邏輯 (賽道環境模擬器 + 30 模式神經中樞)
+     * 3. 核心數據運算邏輯
      */
     function getModeParams(v1hr, totalMins, mode) {
         const key = `${v1hr}_${totalMins}_${mode}`;
@@ -490,25 +557,18 @@
         let p = { baseSpeed: (distWork / tWork) * 60 }; 
 
         if (mode === 'climb') {
-            p.L1 = Math.round(tWork * 0.27);
-            p.L2 = Math.round(tWork * 0.365);
-            p.L3 = tWork - p.L1 - p.L2;
+            p.L1 = Math.round(tWork * 0.27); p.L2 = Math.round(tWork * 0.365); p.L3 = tWork - p.L1 - p.L2;
             p.baseSpeed = (distWork * 60 + 0.3 * p.L2 + 0.6 * p.L3) / tWork;
         } else if (mode === 'beginner') {
-            p.L1 = Math.round(tWork * 0.45);
-            p.L2 = tWork - p.L1;
+            p.L1 = Math.round(tWork * 0.45); p.L2 = tWork - p.L1;
             p.baseSpeed = (distWork * 60 - 0.2 * p.L2) / tWork;
         } else if (mode === 'interval') {
             p.Nsprint = 0; p.Nrec = 0;
-            for (let i = 0; i < tWork; i++) {
-                if (i % 5 < 3) p.Nsprint++; else p.Nrec++;
-            }
+            for (let i = 0; i < tWork; i++) { if (i % 5 < 3) p.Nsprint++; else p.Nrec++; }
             p.baseSpeed = (distWork * 60 - p.Nsprint * 1.0 + p.Nrec * 1.0) / tWork;
         } else if (mode === 'progressive') {
-            p.L1 = Math.round(tWork * 0.2);
-            p.L2 = Math.round(tWork * 0.4) - Math.round(tWork * 0.2);
-            p.L3 = Math.round(tWork * 0.6) - Math.round(tWork * 0.4);
-            p.L4 = Math.round(tWork * 0.8) - Math.round(tWork * 0.6);
+            p.L1 = Math.round(tWork * 0.2); p.L2 = Math.round(tWork * 0.4) - p.L1;
+            p.L3 = Math.round(tWork * 0.6) - Math.round(tWork * 0.4); p.L4 = Math.round(tWork * 0.8) - Math.round(tWork * 0.6);
             p.L5 = tWork - Math.round(tWork * 0.8);
             p.baseSpeed = (distWork * 60 - 0.4 * p.L2 - 0.8 * p.L3 - 1.2 * p.L4 - 1.6 * p.L5) / tWork;
         }
@@ -554,12 +614,12 @@
         };
     }
 
-    // 物理引擎：核心 30 模式演算法 + 物件導向賽道痛點注入
+    // 核心物理引擎
     function calcCellData(v1hr, min, mode, totalMins, track) {
         let inc = 0, spd = 0;
         const tWork = totalMins - 5;
         
-        // 1. 基底生成
+        // 1. 訓練模式基底產生
         if (min < 5) {
             inc = 1.0; spd = 6.0;
         } else {
@@ -568,21 +628,14 @@
             const bs = p.baseSpeed;
             
             switch (mode) {
-                // 原版 5 模式
                 case 'cruise': inc = 0.5; spd = bs; break;
                 case 'climb':
                     if (relMin < p.L1) { inc = 1.0; spd = bs; }
                     else if (relMin < p.L1 + p.L2) { inc = 2.0; spd = bs - 0.3; }
                     else { inc = 3.0; spd = bs - 0.6; }
                     break;
-                case 'beginner':
-                    if (relMin < p.L1) { inc = 0.5; spd = bs; }
-                    else { inc = 0.0; spd = bs + 0.2; }
-                    break;
-                case 'interval':
-                    if (relMin % 5 < 3) { inc = 1.5; spd = bs + 1.0; }
-                    else { inc = 0.5; spd = bs - 1.0; }
-                    break;
+                case 'beginner': inc = (relMin < p.L1) ? 0.5 : 0.0; spd = (relMin < p.L1) ? bs : bs+0.2; break;
+                case 'interval': inc = (relMin % 5 < 3) ? 1.5 : 0.5; spd = (relMin % 5 < 3) ? bs+1.0 : bs-1.0; break;
                 case 'progressive':
                     inc = 0.5;
                     if (relMin < p.L1) spd = bs;
@@ -591,8 +644,7 @@
                     else if (relMin < p.L1 + p.L2 + p.L3 + p.L4) spd = bs + 1.2;
                     else spd = bs + 1.6;
                     break;
-
-                // 25 專業模式
+                // 新增 25 專業模式
                 case 'p0': inc = 3.0; spd = bs - 0.5; break;
                 case 'p1': inc = 1.5; spd = bs + (relMin % 10 < 2 ? 1.0 : -0.2); break;
                 case 'p2': inc = 0.5; spd = bs; break;
@@ -621,22 +673,21 @@
             }
         }
 
-        // 2. 注入 100 大賽道的專屬物件導向物理干擾痛點 (Physics Override)
+        // 2. 注入 100 大賽道的專屬物件導向物理干擾痛點
         if (tracksData[track] && tracksData[track].physics) {
             const mod = tracksData[track].physics(min, spd, inc, totalMins);
             spd = mod.s;
             inc = mod.i;
         }
 
-        // 3. 防呆安全邊界保護
+        // 3. 防呆安全邊界保護 (計算引擎不會封頂，讓紅綠燈去警告跑者)
         if (spd < 2.0) spd = 2.0; 
         if (inc < 0) inc = 0;
-        if (inc > 15.0) inc = 15.0; // 跑步機物理極限 15%
-
+        
         return { inc, spd };
     }
 
-    // 總結統計：執行全時段真實運算
+    // 總結統計
     function calcColStats(v1hr, mode, totalMins, track) {
         let maxSpd = 0, minSpd = 999, tElev = 0, tInc = 0;
         let maxInc = -999, minInc = 999;
@@ -668,6 +719,7 @@
         
         const avgSpd = simulatedDistance / (totalMins / 60);
         const avgSpm = Math.round(tSpm / totalMins);
+        const avgInc = tInc / totalMins;
 
         return {
             distStr: `${simulatedDistance.toFixed(2)} km`,
@@ -676,14 +728,14 @@
             carbs: `${carbsG} g`,
             protein: `${proteinG} g`,
             paceStr: `${formatPace(maxSpd)} / ${formatPaceMinPerKm(totalMins / simulatedDistance)} / ${formatPace(minSpd)}`,
-            kphStr: `${maxSpd.toFixed(2)} / ${avgSpd.toFixed(2)} / ${minSpd.toFixed(2)} kph`,
-            incStr: `${maxInc.toFixed(1)}% / ${(tInc / totalMins).toFixed(2)}% / ${minInc.toFixed(1)}%`,
+            kphStr: `${hl(maxSpd.toFixed(2), currentMaxSpeed)} / ${hl(avgSpd.toFixed(2), currentMaxSpeed)} / ${hl(minSpd.toFixed(2), currentMaxSpeed)} kph`,
+            incStr: `${hl(maxInc.toFixed(1), currentMaxIncline)}% / ${hl(avgInc.toFixed(2), currentMaxIncline)}% / ${hl(minInc.toFixed(1), currentMaxIncline)}%`,
             spmStr: `${maxSpm} / ${avgSpm} / ${minSpm} SPM`
         };
     }
 
     /**
-     * 4. 渲染邏輯與動態逆向解碼迴圈 (展延至第 1 名)
+     * 4. 渲染邏輯與無限展延迴圈
      */
     function updateMatrix() {
         modeParamsCache = {}; 
@@ -752,14 +804,18 @@
                 r6 + '</tr>' + r7 + '</tr>' + r8 + '</tr>' + r9 + '</tr>' + r10 + '</tr>' + 
                 r11 + '</tr>' + r12 + '</tr></thead><tbody>';
         
-        // 分鐘數列
+        // 分鐘數列表格主體
         for (let m = 0; m < currentTotalMins; m++) {
             const cls = m < 5 ? ' class="warmup"' : '';
             html += `<tr${cls}><td>${formatTimeString(m)}</td>`;
             for (const target of targets) {
                 const { inc, spd } = calcCellData(target, m, currentMode, currentTotalMins, currentTrack);
                 const spm = calcSpm(spd, inc);
-                html += `<td>${inc.toFixed(1)}% / ${spd.toFixed(2)}k / ${spm}</td>`;
+                
+                let incDisp = hl(inc.toFixed(1), currentMaxIncline) + '%';
+                let spdDisp = hl(spd.toFixed(2), currentMaxSpeed) + 'k';
+                
+                html += `<td>${incDisp} / ${spdDisp} / ${spm}</td>`;
             }
             html += '</tr>';
         }
@@ -768,35 +824,34 @@
     }
 
     /**
-     * 5. 事件監聽綁定
+     * 5. 初始化與事件監聽綁定
      */
     document.addEventListener('DOMContentLoaded', () => {
+        // 先建立動態清單
+        initDynamicSelects();
+
         const selTrack = document.getElementById('trackSelect');
         const selMode = document.getElementById('modeSelect');
         const selAge = document.getElementById('ageGroupSelect');
         const selDuration = document.getElementById('durationSelect');
+        const selMaxSpeed = document.getElementById('maxSpeedSelect');
+        const selMaxIncline = document.getElementById('maxInclineSelect');
 
-        selTrack.addEventListener('change', (e) => {
-            currentTrack = e.target.value;
-            updateMatrix();
+        selTrack.addEventListener('change', (e) => { currentTrack = e.target.value; updateMatrix(); });
+        selMode.addEventListener('change', (e) => { currentMode = e.target.value; updateMatrix(); });
+        selAge.addEventListener('change', (e) => { currentAgeFactor = parseFloat(e.target.value); updateMatrix(); });
+        selDuration.addEventListener('change', (e) => { currentTotalMins = parseInt(e.target.value); updateMatrix(); });
+        
+        selMaxSpeed.addEventListener('change', (e) => { 
+            currentMaxSpeed = e.target.value === "Infinity" ? Infinity : parseFloat(e.target.value); 
+            updateMatrix(); 
+        });
+        selMaxIncline.addEventListener('change', (e) => { 
+            currentMaxIncline = e.target.value === "Infinity" ? Infinity : parseFloat(e.target.value); 
+            updateMatrix(); 
         });
 
-        selMode.addEventListener('change', (e) => {
-            currentMode = e.target.value;
-            updateMatrix();
-        });
-
-        selAge.addEventListener('change', (e) => {
-            currentAgeFactor = parseFloat(e.target.value);
-            updateMatrix();
-        });
-
-        selDuration.addEventListener('change', (e) => {
-            currentTotalMins = parseInt(e.target.value);
-            updateMatrix();
-        });
-
-        // 初始化
+        // 初次渲染
         updateMatrix();
     });
 </script>
