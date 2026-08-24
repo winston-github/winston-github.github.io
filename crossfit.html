@@ -370,3 +370,64 @@
             if (navigator.vibrate) navigator.vibrate(50);
             const wv = document.getElementById('workout-view');
             wv.classList.add('glow-rep'); setTimeout(() => wv.classList.remove('glow-rep'), 150);
+            
+            const left = item.targetReps - currentReps;
+            
+            if (left === 3) speakText("三下，撐住");
+            else if (left <= 0) {
+                currentMoveIndex++; currentReps = 0;
+                if (currentMoveIndex >= currentWOD.length) { speakText("訓練完成"); abortWOD(); return; }
+                else {
+                    updateUI(true); 
+                    speakText("換動作");
+                }
+            } else if (!synth.speaking && Math.random() < 0.3) {
+                updateAndSpeakCue(item.id); 
+            }
+            if(isWorkingOut) updateUI(false);
+        }
+
+        function updateAndSpeakCue(id) {
+            const pool = CUES_DB[MOVE_TYPES[id]];
+            const rCue = pool.cues[Math.floor(Math.random() * pool.cues.length)];
+            const rFault = pool.faults[Math.floor(Math.random() * pool.faults.length)];
+            
+            document.getElementById('hud-txt-good').innerText = rCue.text;
+            document.getElementById('hud-txt-bad').innerText = rFault;
+            speakText(rCue.voice);
+        }
+
+        function speakText(text) {
+            if(synth.speaking) return; 
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = 'zh-TW'; u.rate = 1.1; synth.speak(u);
+        }
+
+        function updateUI(isNewMove = false) {
+            if(currentMoveIndex >= currentWOD.length) return;
+            const currentItem = currentWOD[currentMoveIndex];
+            document.getElementById('current-ch').innerText = MOVES_DB[currentItem.id].ch;
+            document.getElementById('current-en').innerText = MOVES_DB[currentItem.id].en;
+            document.getElementById('rep-counter').innerText = currentReps;
+            if (isNewMove) updateAndSpeakCue(currentItem.id);
+        }
+
+        function startTimer() {
+            workoutStartTime = Date.now();
+            timerInterval = setInterval(() => {
+                const d = Date.now() - workoutStartTime, m = Math.floor(d/60000), s = Math.floor((d%60000)/1000);
+                document.getElementById('timer-display').innerText = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+            }, 1000);
+        }
+
+        function abortWOD() {
+            isWorkingOut = false; clearInterval(timerInterval);
+            if(micStream) micStream.getTracks().forEach(t=>t.stop());
+            if(audioContext && audioContext.state !== 'closed') audioContext.close();
+            micStream = null; analyser = null;
+            document.getElementById('builder-view').style.display = 'flex'; 
+            document.getElementById('workout-view').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
