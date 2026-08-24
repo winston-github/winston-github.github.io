@@ -3,64 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>CrossFit Voice AI</title>
+    <title>CrossFit Voice AI Coach</title>
     <style>
         /* =========================================================
-           [1] 核心佈局與 Mobile 底部防擋優化 (100dvh & Safe-Area)
+           [1] 核心佈局與防護 (100dvh & Safe-Area)
            ========================================================= */
         :root { --bg-color: #050505; --neon-orange: #ff4500; --neon-green: #00ff2a; --dark-gray: #111; --light-gray: #eee; --alert-red: #ff003c; }
         
-        html, body { width: 100%; height: 100dvh; /* 動態視窗高度，防 Safari 底列 */ overflow: hidden; overscroll-behavior: none; -webkit-text-size-adjust: 100%; touch-action: manipulation; background-color: var(--bg-color); color: var(--light-gray); font-family: 'Impact', 'Arial Black', 'Microsoft JhengHei', sans-serif; margin: 0; padding: 0; }
+        html, body { width: 100%; height: 100dvh; overflow: hidden; overscroll-behavior: none; -webkit-text-size-adjust: 100%; touch-action: manipulation; background-color: var(--bg-color); color: var(--light-gray); font-family: 'Impact', 'Arial Black', 'Microsoft JhengHei', sans-serif; margin: 0; padding: 0; }
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         
-        .container { padding: 15px; padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 20px); width: 100%; max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; height: 100dvh; }
+        .container { padding: 10px; padding-bottom: max(10px, env(safe-area-inset-bottom)); width: 100%; max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; height: 100dvh; }
         
-        .header-stats { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 15px; flex-shrink: 0; }
-        
-        /* Builder View */
-        #builder-view { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
-        #btn-start { background: var(--dark-gray); border: 2px solid var(--neon-green); color: var(--neon-green); font-size: 1.5rem; padding: 15px; width: 100%; border-radius: 8px; margin-bottom: 15px; cursor: pointer; flex-shrink: 0; display: flex; justify-content: center; align-items: center; gap: 10px; }
+        /* 頂部控制列與 Presets */
+        .header-stats { display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; margin-bottom: 10px; }
+        .preset-bar { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid #333; flex-shrink: 0; }
+        .preset-bar::-webkit-scrollbar { display: none; }
+        .btn-preset { background: #1a1a1a; color: #aaa; border: 1px solid #444; padding: 8px 15px; border-radius: 20px; font-family: sans-serif; font-weight: bold; white-space: nowrap; cursor: pointer; }
+        .btn-preset:active { background: #333; }
+        .btn-save { border-color: var(--neon-orange); color: var(--neon-orange); }
+
+        #btn-start { background: var(--dark-gray); border: 2px solid var(--neon-green); color: var(--neon-green); font-size: 1.4rem; padding: 12px; width: 100%; border-radius: 8px; margin-bottom: 10px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 10px; flex-shrink: 0; }
         #btn-start:active { background: var(--neon-green); color: #000; }
         
-        .workspace { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; flex: 1; overflow: hidden; }
-        @media(max-width: 768px) { .workspace { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } }
+        /* =========================================================
+           [2] 左右並排工作區 (Side-by-Side Workspace)
+           ========================================================= */
+        .workspace { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; flex: 1; overflow: hidden; }
+        .zone { background: #0a0a0a; border: 1px dashed #333; border-radius: 8px; padding: 8px; overflow-y: auto; touch-action: pan-y; padding-bottom: 60px; /* 避免底部被擋 */ }
+        .zone-title { color: var(--neon-orange); font-size: 1.1rem; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 5px; text-align: center; font-weight: bold;}
         
-        /* 加入 padding-bottom 確保最後一個 item 也能清楚看見 */
-        .zone { background: #0a0a0a; border: 1px dashed #333; border-radius: 8px; padding: 10px; overflow-y: auto; touch-action: pan-y; padding-bottom: 40px; }
-        .zone-title { color: var(--neon-orange); font-size: 1.1rem; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 5px; font-weight: bold;}
-        
-        .card { background: #151515; border-left: 4px solid #333; padding: 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-radius: 4px; }
+        /* 雙層文字動作卡片 */
+        .card { background: #151515; border-left: 4px solid #333; padding: 8px 10px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-radius: 4px; transition: transform 0.1s; }
         .card:active { transform: scale(0.98); }
-        .card-info h3 { margin: 0; font-size: 1.1rem; color: var(--light-gray); font-family: sans-serif; font-weight: bold; }
+        
+        .card-info { flex: 1; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
+        .ch-text { font-size: 1.1rem; color: #fff; font-weight: bold; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .en-text { font-size: 0.75rem; color: #888; font-family: sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        /* 左減右加控制器 */
+        .rep-ctrl { display: flex; align-items: center; background: #000; border-radius: 6px; border: 1px solid #444; margin-left: 5px; }
+        .rep-btn { background: transparent; border: none; color: var(--neon-green); font-size: 1.4rem; width: 32px; height: 35px; cursor: pointer; display: flex; justify-content: center; align-items: center; }
+        .rep-val { color: #fff; font-size: 1.2rem; width: 28px; text-align: center; font-family: 'Impact'; }
+        
+        /* 排序箭頭 */
+        .drag-handle { display: flex; flex-direction: column; justify-content: center; align-items: center; padding-right: 8px; color: #555; font-size: 0.8rem; gap: 5px; }
+        .drag-btn { padding: 5px; border: 1px solid #333; border-radius: 4px; background: #0a0a0a; }
         
         /* =========================================================
-           [2] 訓練畫面與戰術 HUD
+           [3] 訓練畫面與戰術 HUD
            ========================================================= */
         #workout-view { display: none; width: 100vw; height: 100dvh; flex-direction: column; justify-content: center; align-items: center; position: fixed; top: 0; left: 0; background: var(--bg-color); z-index: 100; touch-action: none; transition: box-shadow 0.1s ease-out; }
         .glow-rep { box-shadow: inset 0 0 60px var(--neon-green); border: 4px solid var(--neon-green); }
 
         #blind-touch-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; cursor: pointer; }
-        .workout-content { position: relative; z-index: 20; text-align: center; pointer-events: none; width: 100%; display: flex; flex-direction: column; align-items: center; }
+        .workout-content { position: relative; z-index: 20; text-align: center; pointer-events: none; width: 100%; display: flex; flex-direction: column; align-items: center; padding-bottom: 80px; }
         
-        #timer-display { font-size: 14vw; color: #aaa; }
-        #current-move-name { font-size: 7vw; color: var(--neon-orange); margin-top: 5px; font-weight: 900; }
-        #rep-counter { font-size: 30vw; color: var(--neon-green); line-height: 1; margin: -10px 0; }
+        #timer-display { font-size: 12vw; color: #aaa; }
+        #current-move-name { display: flex; flex-direction: column; align-items: center; margin-top: 5px; }
+        #current-ch { font-size: 8vw; color: var(--neon-orange); font-weight: 900; line-height: 1.2;}
+        #current-en { font-size: 4vw; color: #888; font-family: sans-serif;}
+        
+        #rep-counter { font-size: 35vw; color: var(--neon-green); line-height: 1; margin: 0; }
         
         /* 視覺提示 HUD */
-        #hud-cues { background: rgba(0,0,0,0.7); border: 1px solid #333; padding: 10px 15px; border-radius: 8px; margin: 10px 0; text-align: left; font-family: sans-serif; min-width: 250px; }
+        #hud-cues { background: rgba(0,0,0,0.8); border: 1px solid #333; padding: 10px 15px; border-radius: 8px; margin: 10px 0; text-align: left; font-family: sans-serif; min-width: 250px; }
         .hud-item { font-size: 1.1rem; margin: 5px 0; font-weight: bold; display: flex; align-items: center; gap: 8px; }
-        .hud-good { color: var(--neon-green); }
-        .hud-bad { color: var(--alert-red); }
 
-        #btn-abort { position: absolute; top: max(20px, env(safe-area-inset-top)); left: 20px; z-index: 30; pointer-events: auto; background: transparent; border: 1px solid var(--alert-red); color: var(--alert-red); padding: 8px 15px; border-radius: 4px; font-family: sans-serif; font-weight: bold; cursor: pointer;}
+        #btn-abort { position: absolute; top: max(15px, env(safe-area-inset-top)); left: 15px; z-index: 30; pointer-events: auto; background: transparent; border: 1px solid var(--alert-red); color: var(--alert-red); padding: 8px 15px; border-radius: 4px; font-family: sans-serif; font-weight: bold;}
         
         /* =========================================================
-           [3] 直覺拖曳聲控儀表板 (SVG + Visualizer)
+           [4] 橫向直覺拖曳聲控儀表板 (Horizontal Mic Bar)
            ========================================================= */
-        #mic-control { position: absolute; top: max(20px, env(safe-area-inset-top)); right: 20px; width: 45px; height: 180px; background: rgba(17, 17, 17, 0.85); border-radius: 25px; border: 2px solid #333; display: flex; flex-direction: column; align-items: center; padding: 15px 0; z-index: 30; cursor: ns-resize; touch-action: none; box-shadow: 0 4px 10px rgba(0,0,0,0.5); backdrop-filter: blur(5px); }
-        #vis-area { flex: 1; width: 12px; background: #000; border-radius: 6px; margin-top: 10px; position: relative; pointer-events: none; }
-        #audio-bar { position: absolute; bottom: 0; width: 100%; height: 0%; background: var(--neon-green); border-radius: 6px; transition: height 0.05s ease-out; }
-        #audio-threshold-line { position: absolute; bottom: 30%; left: -6px; width: 24px; height: 4px; background: var(--alert-red); border-radius: 2px; pointer-events: none; }
+        #mic-control { position: absolute; bottom: max(20px, env(safe-area-inset-bottom)); left: 5%; width: 90%; height: 60px; background: rgba(17, 17, 17, 0.9); border-radius: 30px; border: 2px solid #333; display: flex; align-items: center; padding: 0 15px; z-index: 30; cursor: ew-resize; touch-action: none; box-shadow: 0 4px 15px rgba(0,0,0,0.8); }
+        #vis-area { flex: 1; height: 20px; background: #000; border-radius: 10px; margin-left: 15px; position: relative; pointer-events: none; overflow: hidden; }
+        #audio-bar { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: var(--neon-green); transition: width 0.05s ease-out; }
+        #audio-threshold-line { position: absolute; top: -5px; bottom: -5px; width: 4px; background: var(--alert-red); border-radius: 2px; pointer-events: none; }
         
     </style>
 </head>
@@ -68,21 +86,23 @@
 
     <div id="builder-view" class="container">
         <div class="header-stats">
-            <h2 style="color:var(--light-gray); margin:0;">VOICE <span class="text-orange">AI</span> COACH</h2>
+            <h2 style="color:var(--light-gray); margin:0;">VOICE <span class="text-orange">AI</span></h2>
         </div>
         
-        <button id="btn-start" onclick="startWOD()">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
-            START WOD 開始訓練
-        </button>
+        <!-- 客製化 Preset 滑動列 -->
+        <div class="preset-bar" id="preset-container">
+            <!-- 預設按鈕由 JS 渲染 -->
+        </div>
+
+        <button id="btn-start" onclick="startWOD()">START WOD 開始</button>
         
         <div class="workspace">
             <div class="zone" id="library-zone">
-                <div class="zone-title">LIBRARY 動作庫</div>
+                <div class="zone-title">動作庫 LIBRARY</div>
                 <div id="library-list"></div>
             </div>
-            <div class="zone" id="wod-zone" ondragover="event.preventDefault()" ondrop="drop(event)">
-                <div class="zone-title" style="color:var(--neon-green);">TODAY'S WOD 今日排程</div>
+            <div class="zone" id="wod-zone" ondragover="event.preventDefault()" ondrop="dropWodNative(event)">
+                <div class="zone-title" style="color:var(--neon-green);">課表 WOD</div>
                 <div id="wod-list"></div>
             </div>
         </div>
@@ -90,11 +110,11 @@
 
     <div id="workout-view">
         <div id="blind-touch-overlay" onpointerdown="triggerRepManual()"></div>
-        <button id="btn-abort" onclick="abortWOD()">ABORT 放棄</button>
+        <button id="btn-abort" onclick="abortWOD()">ABORT</button>
         
-        <!-- 直覺聲控儀表板 (可上下滑動調整靈敏度) -->
+        <!-- 橫向直覺聲控儀表板 (左右滑動調整靈敏度) -->
         <div id="mic-control" onpointerdown="handleMicDrag(event)" onpointermove="handleMicDrag(event)">
-            <svg viewBox="0 0 24 24" fill="var(--light-gray)" width="22" height="22" style="pointer-events:none;">
+            <svg viewBox="0 0 24 24" fill="var(--light-gray)" width="28" height="28" style="pointer-events:none;">
                 <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
             </svg>
             <div id="vis-area">
@@ -105,11 +125,15 @@
 
         <div class="workout-content">
             <div id="timer-display">00:00</div>
-            <div id="current-move-name">---</div>
+            
+            <div id="current-move-name">
+                <div id="current-ch">---</div>
+                <div id="current-en">---</div>
+            </div>
             
             <div id="hud-cues">
-                <div class="hud-item hud-good">✅ <span id="hud-txt-good">Prepare / 準備</span></div>
-                <div class="hud-item hud-bad">❌ <span id="hud-txt-bad">Stay Focused / 保持專注</span></div>
+                <div class="hud-item" style="color:var(--neon-green);">✅ <span id="hud-txt-good">準備 / Prepare</span></div>
+                <div class="hud-item" style="color:var(--alert-red);">❌ <span id="hud-txt-bad">保持專注 / Stay Focused</span></div>
             </div>
 
             <div id="rep-counter">0</div>
@@ -121,129 +145,174 @@
            [1] 雙語資料庫 (Bilingual Database)
            ========================================================= */
         const MOVES_DB = {
-            'sn': 'Snatch / 抓舉', 'cj': 'Clean & Jerk / 挺舉', 'dl': 'Deadlift / 硬舉',
-            'sq': 'Air Squat / 徒手深蹲', 'fs': 'Front Squat / 前蹲舉', 'thr': 'Thruster / 推進舉',
-            'wb': 'Wall Ball / 藥球', 'pr': 'Shoulder Press / 肩推', 'hrpu': 'Push-Up / 伏地挺身',
-            'burpee': 'Burpees / 波比跳', 'pu': 'Pull-Up / 引體向上', 't2b': 'Toes-to-Bar / 腳趾觸槓'
+            'sn': { ch: '抓舉', en: 'Snatch' }, 'cj': { ch: '挺舉', en: 'Clean & Jerk' }, 'dl': { ch: '硬舉', en: 'Deadlift' },
+            'sq': { ch: '徒手深蹲', en: 'Air Squat' }, 'fs': { ch: '前蹲舉', en: 'Front Squat' }, 'thr': { ch: '推進舉', en: 'Thruster' },
+            'wb': { ch: '藥球', en: 'Wall Ball' }, 'pr': { ch: '肩推', en: 'Shoulder Press' }, 'hrpu': { ch: '伏地挺身', en: 'Push-Up' },
+            'burpee': { ch: '波比跳', en: 'Burpees' }, 'pu': { ch: '引體向上', en: 'Pull-Up' }, 't2b': { ch: '腳趾觸槓', en: 'Toes-to-Bar' }
         };
 
         const MOVE_TYPES = {
-            'sn':'hinge', 'dl':'hinge', 'cj':'hinge',
-            'sq':'squat', 'fs':'squat', 'thr':'squat', 'wb':'squat',
-            'pr':'push', 'hrpu':'push', 'burpee':'push',
-            'pu':'pull', 't2b':'pull'
+            'sn':'hinge', 'dl':'hinge', 'cj':'hinge', 'sq':'squat', 'fs':'squat', 'thr':'squat', 'wb':'squat',
+            'pr':'push', 'hrpu':'push', 'burpee':'push', 'pu':'pull', 't2b':'pull'
         };
 
-        // 資料結構：{ text: "畫面顯示雙語", voice: "語音僅唸中文精簡版" }
         const CUES_DB = {
             squat: {
-                cues: [
-                    { text: "Weight mid-foot / 重心落於足中", voice: "重心足中" },
-                    { text: "Knees track toes / 膝蓋對齊腳尖", voice: "膝蓋向外" },
-                    { text: "Chest up, core tight / 挺胸鎖緊核心", voice: "挺胸收腹" },
-                    { text: "Hips back and down / 臀部向後向下", voice: "臀部向後" },
-                    { text: "Drive the floor / 腳跟推開地板", voice: "推開地板" }
-                ],
-                faults: ["Knees caving in / 膝蓋內傾", "Chest dropping / 彎腰塌胸", "Weight on toes / 重心前傾墊腳"]
+                cues: [{ text: "重心落於足中 / Weight mid-foot", voice: "重心足中" }, { text: "膝蓋對齊腳尖 / Knees track toes", voice: "膝蓋向外" }, { text: "挺胸鎖緊核心 / Chest up", voice: "挺胸收腹" }, { text: "腳跟推開地板 / Drive the floor", voice: "推開地板" }],
+                faults: ["膝蓋內傾 / Knees caving in", "彎腰塌胸 / Chest dropping", "重心前傾墊腳 / Weight on toes"]
             },
             hinge: {
-                cues: [
-                    { text: "Neutral spine / 脊椎保持中立", voice: "背部打直" },
-                    { text: "Hips back / 髖部向後推", voice: "髖部向後" },
-                    { text: "Shoulders over bar / 肩膀超過槓鈴", voice: "肩膀微前傾" },
-                    { text: "Drive heels / 腳跟蹬地", voice: "腳跟發力" },
-                    { text: "Full hip extension / 完全伸展髖部", voice: "完全伸展" }
-                ],
-                faults: ["Cat back / 龜背拱起", "Hips shooting up / 臀部提早抬起", "Bar away from body / 槓鈴遠離小腿"]
+                cues: [{ text: "脊椎保持中立 / Neutral spine", voice: "背部打直" }, { text: "髖部向後推 / Hips back", voice: "髖部向後" }, { text: "腳跟蹬地 / Drive heels", voice: "腳跟發力" }, { text: "完全伸展髖部 / Full hip extension", voice: "完全伸展" }],
+                faults: ["龜背拱起 / Cat back", "臀部提早抬起 / Hips shooting up", "槓鈴遠離小腿 / Bar away"]
             },
             push: {
-                cues: [
-                    { text: "Hollow plank / 身體維持中空", voice: "核心收緊" },
-                    { text: "Press vertical / 垂直向上推", voice: "垂直向上" },
-                    { text: "Lockout top / 頂部鎖定關節", voice: "頂部鎖定" },
-                    { text: "Head through / 頭部穿過手臂", voice: "頭部穿過" },
-                    { text: "Pecs engaged / 胸肌前鋸肌發力", voice: "胸肌發力" }
-                ],
-                faults: ["Arching lower back / 下背過度凹陷", "Elbows flaring / 手肘過度外翻", "Snaking up / 像蟲一樣起身"]
+                cues: [{ text: "身體維持中空 / Hollow plank", voice: "核心收緊" }, { text: "垂直向上推 / Press vertical", voice: "垂直向上" }, { text: "頂部鎖定關節 / Lockout top", voice: "頂部鎖定" }, { text: "頭部穿過手臂 / Head through", voice: "頭部穿過" }],
+                faults: ["下背過度凹陷 / Arching lower back", "手肘過度外翻 / Elbows flaring", "像蟲一樣起身 / Snaking up"]
             },
             pull: {
-                cues: [
-                    { text: "Active shoulders / 肩膀啟動下壓", voice: "肩胛下壓" },
-                    { text: "Elbows back and down / 手肘向後向下拉", voice: "手肘向後" },
-                    { text: "Aggressive hip hinge / 髖部強烈折疊", voice: "髖部彈震" },
-                    { text: "Lats contracted / 背闊肌收縮", voice: "背闊肌發力" },
-                    { text: "Chin over bar / 下巴過槓", voice: "下巴過槓" }
-                ],
-                faults: ["Blind swinging / 盲目無張力擺盪", "Early arm pull / 提早屈臂發力", "Muted hips / 髖部死板未參與"]
+                cues: [{ text: "肩膀啟動下壓 / Active shoulders", voice: "肩胛下壓" }, { text: "手肘向後向下拉 / Elbows back and down", voice: "手肘向後" }, { text: "髖部強烈折疊 / Aggressive hip hinge", voice: "髖部彈震" }, { text: "下巴過槓 / Chin over bar", voice: "下巴過槓" }],
+                faults: ["盲目無張力擺盪 / Blind swinging", "提早屈臂發力 / Early arm pull", "髖部死板未參與 / Muted hips"]
             }
         };
 
         let currentWOD = [];
+        let customPresets = JSON.parse(localStorage.getItem('cf_presets')) || [];
+        
         let isWorkingOut = false, currentMoveIndex = 0, currentReps = 0;
         let lastRepTime = 0, workoutStartTime = 0, timerInterval = null;
-        
-        // 聲控與 UI 拖曳變數
         let audioContext = null, analyser = null, micStream = null, pcmData = null;
-        let micThreshold = parseInt(localStorage.getItem('cf_mic_thresh_v2')) || 70; 
+        let micThreshold = parseInt(localStorage.getItem('cf_mic_thresh_v3')) || 70; 
         const synth = window.speechSynthesis;
 
-        window.onload = () => { renderLibrary(); renderWOD(); };
+        window.onload = () => { renderLibrary(); renderWOD(); renderPresets(); };
 
         /* =========================================================
-           [2] 介面渲染與排程
+           [2] 渲染引擎與拖拉排序邏輯
            ========================================================= */
         function renderLibrary() {
             document.getElementById('library-list').innerHTML = Object.keys(MOVES_DB).map(id => 
-                `<div class="card" draggable="true" ondragstart="event.dataTransfer.setData('text/plain','${id}')" onclick="addMove('${id}')">
-                    <div class="card-info"><h3>${MOVES_DB[id]}</h3></div>
-                    <div style="color:var(--neon-green); font-weight:bold; font-size:1.2rem;">+</div>
+                `<div class="card" onclick="addMove('${id}')">
+                    <div class="card-info">
+                        <div class="ch-text">${MOVES_DB[id].ch}</div>
+                        <div class="en-text">${MOVES_DB[id].en}</div>
+                    </div>
+                    <div style="color:var(--neon-green); font-size:1.5rem; font-weight:bold;">+</div>
                 </div>`
             ).join('');
         }
 
         function renderWOD() {
             document.getElementById('wod-list').innerHTML = currentWOD.map((item, i) => 
-                `<div class="card" onclick="currentWOD.splice(${i},1); renderWOD();">
-                    <div class="card-info"><h3>${i+1}. ${MOVES_DB[item.id]}</h3></div>
-                    <input type="number" value="${item.targetReps}" style="width:60px; background:#000; color:var(--neon-green); border:1px solid #444; border-radius:4px; font-size:1.2rem; text-align:center;" onchange="currentWOD[${i}].targetReps=parseInt(this.value); event.stopPropagation();" onclick="event.stopPropagation();">
+                `<div class="card" draggable="true" ondragstart="dragWodStart(event, ${i})" ondragover="event.preventDefault()" ondrop="dropWodNative(event, ${i})">
+                    <div class="drag-handle">
+                        <div class="drag-btn" onclick="moveWod(${i}, -1); event.stopPropagation();">▲</div>
+                        <div class="drag-btn" onclick="moveWod(${i}, 1); event.stopPropagation();">▼</div>
+                    </div>
+                    <div class="card-info">
+                        <div class="ch-text">${MOVES_DB[item.id].ch}</div>
+                        <div class="en-text">${MOVES_DB[item.id].en}</div>
+                    </div>
+                    <div class="rep-ctrl" onclick="event.stopPropagation()">
+                        <button class="rep-btn" onclick="changeRep(${i}, -1)">-</button>
+                        <div class="rep-val">${item.targetReps}</div>
+                        <button class="rep-btn" onclick="changeRep(${i}, 1)">+</button>
+                    </div>
                 </div>`
             ).join('');
         }
 
-        function drop(e) { e.preventDefault(); addMove(e.dataTransfer.getData('text/plain')); }
-        function addMove(id) { if(!MOVE_TYPES[id]) return; currentWOD.push({ id: id, targetReps: 10 }); renderWOD(); }
+        function addMove(id, reps=10) { if(!MOVE_TYPES[id]) return; currentWOD.push({ id: id, targetReps: reps }); renderWOD(); }
+        
+        function changeRep(index, delta) {
+            currentWOD[index].targetReps += delta;
+            // 當下數減到 0 時，自動從課表中刪除 (直覺 UX)
+            if (currentWOD[index].targetReps <= 0) currentWOD.splice(index, 1);
+            renderWOD();
+        }
 
-        /* =========================================================
-           [3] 人因聲控儀表板：直覺滑動條 (Pointer Events)
-           ========================================================= */
-        function handleMicDrag(e) {
-            // 確保只有按下並拖動時才觸發，並攔截事件防止滑動衝突
-            if (e.buttons !== 1) return;
+        // HTML5 原生拖拉排序 (Desktop / Android)
+        let draggedIndex = -1;
+        function dragWodStart(e, i) { draggedIndex = i; }
+        function dropWodNative(e, targetIndex) {
             e.preventDefault();
-            const micCtrl = document.getElementById('mic-control');
-            micCtrl.setPointerCapture(e.pointerId); // 鎖定滑動目標，滑出框外也能繼續追蹤
-            
-            const visArea = document.getElementById('vis-area');
-            const rect = visArea.getBoundingClientRect();
-            // 計算 Y 軸相對位置 (底部為 0，頂部為 1)
-            let pct = 1 - ((e.clientY - rect.top) / rect.height);
-            pct = Math.max(0.05, Math.min(1, pct)); // 限制在 5%~100% 之間
-            
-            micThreshold = pct * 255;
-            localStorage.setItem('cf_mic_thresh_v2', micThreshold);
-            document.getElementById('audio-threshold-line').style.bottom = (pct * 100) + '%';
+            if(draggedIndex === -1 || targetIndex === undefined || draggedIndex === targetIndex) return;
+            const item = currentWOD.splice(draggedIndex, 1)[0];
+            currentWOD.splice(targetIndex, 0, item);
+            draggedIndex = -1; renderWOD();
+        }
+
+        // 實體按鈕排序 (iOS Safari 必備防呆)
+        function moveWod(index, direction) {
+            if (index + direction < 0 || index + direction >= currentWOD.length) return;
+            const temp = currentWOD[index];
+            currentWOD[index] = currentWOD[index + direction];
+            currentWOD[index + direction] = temp;
+            renderWOD();
         }
 
         /* =========================================================
-           [4] 聲控邊緣運算 (Volume Envelope Computing)
+           [3] Preset 引擎 (內建 + 客製)
+           ========================================================= */
+        function renderPresets() {
+            let html = `<button class="btn-preset" onclick="loadTemplate('fran')">FRAN</button>
+                        <button class="btn-preset" onclick="loadTemplate('cindy')">CINDY</button>
+                        <button class="btn-preset" onclick="currentWOD=[]; renderWOD();">CLEAR</button>
+                        <button class="btn-preset btn-save" onclick="savePreset()">💾 SAVE</button>`;
+            customPresets.forEach((p, idx) => {
+                html += `<button class="btn-preset" style="border-color:#00d2ff;" oncontextmenu="deletePreset(${idx}); return false;" onclick="loadCustom(${idx})">${p.name}</button>`;
+            });
+            document.getElementById('preset-container').innerHTML = html;
+        }
+
+        function loadTemplate(type) {
+            currentWOD = [];
+            if (type === 'fran') { ['thr','pu','thr','pu','thr','pu'].forEach((m,i)=>addMove(m, i<2?21:i<4?15:9)); }
+            else if (type === 'cindy') { addMove('pu',5); addMove('hrpu',10); addMove('sq',15); }
+        }
+
+        function loadCustom(idx) { currentWOD = JSON.parse(JSON.stringify(customPresets[idx].data)); renderWOD(); }
+        function savePreset() {
+            if(currentWOD.length === 0) return;
+            const name = prompt("為這組課表命名 (Name this WOD):", "My WOD");
+            if(name) { customPresets.push({ name: name, data: JSON.parse(JSON.stringify(currentWOD)) }); localStorage.setItem('cf_presets', JSON.stringify(customPresets)); renderPresets(); }
+        }
+        function deletePreset(idx) {
+            if(confirm("刪除此課表？ (Delete this WOD?)")) { customPresets.splice(idx, 1); localStorage.setItem('cf_presets', JSON.stringify(customPresets)); renderPresets(); }
+        }
+
+        /* =========================================================
+           [4] 橫向拖曳聲波儀 (Horizontal Mic Bar)
+           ========================================================= */
+        function handleMicDrag(e) {
+            if (e.buttons !== 1 && e.type !== 'touchmove' && e.type !== 'touchstart') return;
+            e.preventDefault();
+            const micCtrl = document.getElementById('mic-control');
+            if(e.pointerId) micCtrl.setPointerCapture(e.pointerId); 
+            
+            let clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            if(!clientX) return;
+            
+            const visArea = document.getElementById('vis-area');
+            const rect = visArea.getBoundingClientRect();
+            // 左端為 0%，右端為 100%
+            let pct = (clientX - rect.left) / rect.width;
+            pct = Math.max(0.05, Math.min(1, pct)); 
+            
+            micThreshold = pct * 255;
+            localStorage.setItem('cf_mic_thresh_v3', micThreshold);
+            document.getElementById('audio-threshold-line').style.left = (pct * 100) + '%';
+        }
+
+        /* =========================================================
+           [5] 聲控邊緣運算與動態引擎
            ========================================================= */
         async function startWOD() {
             if(currentWOD.length === 0) return;
             document.getElementById('builder-view').style.display = 'none'; 
             document.getElementById('workout-view').style.display = 'flex';
             
-            // 初始化儀表板紅線位置
-            document.getElementById('audio-threshold-line').style.bottom = Math.min((micThreshold/255)*100, 100) + '%';
+            // 橫向設定紅線位置
+            document.getElementById('audio-threshold-line').style.left = Math.min((micThreshold/255)*100, 100) + '%';
 
             isWorkingOut = true; currentMoveIndex = 0; currentReps = 0;
             
@@ -256,11 +325,8 @@
                 const source = audioContext.createMediaStreamSource(micStream);
                 source.connect(analyser);
                 pcmData = new Uint8Array(analyser.frequencyBinCount);
-                
                 processAudio();
-            } catch(e) { 
-                console.warn("麥克風存取失敗，使用手動觸控模式", e);
-            }
+            } catch(e) { }
             
             startTimer(); updateUI(true);
         }
@@ -272,10 +338,10 @@
             let sum = 0; for (let i = 0; i < pcmData.length; i++) sum += pcmData[i];
             let avgVolume = sum / pcmData.length; 
             
+            // 橫向增長
             const bar = document.getElementById('audio-bar');
-            bar.style.height = Math.min((avgVolume / 255) * 100, 100) + '%';
+            bar.style.width = Math.min((avgVolume / 255) * 100, 100) + '%';
             
-            // 防抖 600ms + 避免 TTS 自己觸發自己
             if (avgVolume > micThreshold && !synth.speaking && (Date.now() - lastRepTime) > 600) {
                 bar.style.backgroundColor = 'var(--alert-red)';
                 triggerRep();
@@ -286,9 +352,6 @@
             requestAnimationFrame(processAudio);
         }
 
-        /* =========================================================
-           [5] 訓練邏輯、觸覺防護與動態 HUD 提示
-           ========================================================= */
         function triggerRepManual() { if ((Date.now() - lastRepTime) > 350) triggerRep(); }
 
         function triggerRep() {
@@ -297,7 +360,6 @@
             const item = currentWOD[currentMoveIndex];
             currentReps++;
             
-            // 物理觸覺與邊緣脈衝
             if (navigator.vibrate) navigator.vibrate(50);
             const wv = document.getElementById('workout-view');
             wv.classList.add('glow-rep'); setTimeout(() => wv.classList.remove('glow-rep'), 150);
@@ -307,9 +369,9 @@
             if (left === 3) speakText("三下，撐住");
             else if (left <= 0) {
                 currentMoveIndex++; currentReps = 0;
-                if (currentMoveIndex >= currentWOD.length) { speakText("訓練完成，太棒了"); abortWOD(); return; }
+                if (currentMoveIndex >= currentWOD.length) { speakText("訓練完成"); abortWOD(); return; }
                 else {
-                    updateUI(true); // 換動作時強制更新 HUD
+                    updateUI(true); 
                     speakText("換動作");
                 }
             } else if (!synth.speaking && Math.random() < 0.3) {
@@ -318,12 +380,8 @@
             if(isWorkingOut) updateUI(false);
         }
 
-        // 抽取並更新 HUD，並朗讀簡短中文提示
         function updateAndSpeakCue(id) {
-            const mType = MOVE_TYPES[id];
-            const pool = CUES_DB[mType];
-            
-            // 隨機抽取 Good Cue 與 Bad Fault
+            const pool = CUES_DB[MOVE_TYPES[id]];
             const rCue = pool.cues[Math.floor(Math.random() * pool.cues.length)];
             const rFault = pool.faults[Math.floor(Math.random() * pool.faults.length)];
             
@@ -336,18 +394,16 @@
         function speakText(text) {
             if(synth.speaking) return; 
             const u = new SpeechSynthesisUtterance(text);
-            u.lang = 'zh-TW'; // 統一使用中文發音
-            u.rate = 1.1; 
-            synth.speak(u);
+            u.lang = 'zh-TW'; u.rate = 1.1; synth.speak(u);
         }
 
         function updateUI(isNewMove = false) {
             if(currentMoveIndex >= currentWOD.length) return;
             const currentItem = currentWOD[currentMoveIndex];
-            document.getElementById('current-move-name').innerText = MOVES_DB[currentItem.id];
+            document.getElementById('current-ch').innerText = MOVES_DB[currentItem.id].ch;
+            document.getElementById('current-en').innerText = MOVES_DB[currentItem.id].en;
             document.getElementById('rep-counter').innerText = currentReps;
             
-            // 當切換新動作時，重置一次 HUD 提示
             if (isNewMove) updateAndSpeakCue(currentItem.id);
         }
 
@@ -361,12 +417,9 @@
 
         function abortWOD() {
             isWorkingOut = false; clearInterval(timerInterval);
-            
-            // 安全釋放硬體資源
             if(micStream) micStream.getTracks().forEach(t=>t.stop());
             if(audioContext && audioContext.state !== 'closed') audioContext.close();
             micStream = null; analyser = null;
-            
             document.getElementById('builder-view').style.display = 'flex'; 
             document.getElementById('workout-view').style.display = 'none';
         }
