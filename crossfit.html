@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>CrossFit Voice AI Coach</title>
+    <style>
+        :root { --bg-color: #050505; --neon-orange: #ff4500; --neon-green: #00ff2a; --dark-gray: #111; --light-gray: #eee; --alert-red: #ff003c; }
+        html, body { width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; -webkit-text-size-adjust: 100%; touch-action: manipulation; background-color: var(--bg-color); color: var(--light-gray); font-family: 'Impact', 'Arial Black', sans-serif; margin: 0; padding: 0; }
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+        
+        .container { padding: 15px; width: 100%; max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; height: 100vh; }
+        .header-stats { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 15px; }
+        select { background: #111; color: #eee; border: 1px solid var(--neon-orange); padding: 5px; font-family: sans-serif; border-radius: 4px; }
+        
+        /* Builder View */
+        #builder-view { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+        #btn-start { background: var(--dark-gray); border: 2px solid var(--neon-green); color: var(--neon-green); font-size: 1.5rem; padding: 15px; width: 100%; border-radius: 8px; margin-bottom: 10px; cursor: pointer; text-transform: uppercase; }
+        #btn-start:active { background: var(--neon-green); color: #000; }
+        
+        /* 麥克風靈敏度調節 */
+        .mic-settings { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; background: #151515; padding: 10px; border-radius: 8px; border: 1px solid #333; }
+        .mic-settings label { color: var(--neon-orange); font-size: 0.9rem; font-family: sans-serif; font-weight: bold; white-space: nowrap; }
+        input[type=range] { flex: 1; accent-color: var(--neon-orange); }
+
+        .workspace { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; flex: 1; overflow: hidden; }
+        .zone { background: #0a0a0a; border: 1px dashed #333; border-radius: 8px; padding: 10px; overflow-y: auto; touch-action: pan-y; }
+        .zone-title { color: var(--neon-orange); font-size: 1.2rem; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 5px;}
+        .card { background: #151515; border-left: 4px solid #333; padding: 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        .card-info h3 { margin: 0; font-size: 1.1rem; color: var(--light-gray); font-family: sans-serif; font-weight: bold; }
+        
+        /* Workout View */
+        #workout-view { display: none; width: 100vw; height: 100vh; flex-direction: column; justify-content: center; align-items: center; position: fixed; top: 0; left: 0; background: var(--bg-color); z-index: 100; touch-action: none; transition: box-shadow 0.1s ease-out; }
+        .glow-rep { box-shadow: inset 0 0 50px var(--neon-green); border: 4px solid var(--neon-green); }
+
+        #blind-touch-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; cursor: pointer; }
+        .workout-content { position: relative; z-index: 20; text-align: center; pointer-events: none; width: 100%; }
+        
+        #timer-display { font-size: 15vw; color: #aaa; }
+        #current-move-name { font-size: 8vw; color: var(--neon-orange); margin-top: 5px; font-family: sans-serif; font-weight: 900; }
+        #rep-counter { font-size: 30vw; color: var(--neon-green); line-height: 1; margin: -5px 0; }
+        
+        /* 動態聲波視覺器 (取代原本的相機) */
+        #audio-visualizer-container { position: absolute; top: 20px; right: 20px; width: 25px; height: 80px; background: #111; border-radius: 5px; border: 2px solid #333; z-index: 20; overflow: hidden; display: flex; align-items: flex-end; }
+        #audio-bar { width: 100%; height: 0%; background: var(--neon-green); transition: height 0.05s ease-out, background-color 0.1s; }
+        #audio-threshold-line { position: absolute; bottom: 50%; left: 0; width: 100%; height: 2px; background: var(--alert-red); z-index: 21; }
+
+        #btn-abort { position: absolute; top: 20px; left: 20px; z-index: 30; pointer-events: auto; background: transparent; border: 1px solid var(--alert-red); color: var(--alert-red); padding: 5px 10px; border-radius: 4px; font-family: sans-serif; font-weight: bold;}
+    </style>
+</head>
+<body>
+
+    <div id="builder-view" class="container">
+        <div class="header-stats">
+            <h2 style="color:var(--light-gray); margin:0;">VOICE <span class="text-orange">AI</span></h2>
+            <select id="lang-switcher" onchange="applyLanguage(this.value)">
+                <option value="zh-TW">🇹🇼 中文</option><option value="en">🇺🇸 EN</option><option value="ja">🇯🇵 JP</option>
+            </select>
+        </div>
+        
+        <!-- 聲控靈敏度調節 -->
+        <div class="mic-settings">
+            <label id="lbl-mic">MIC SENSITIVITY: <span id="mic-val">50</span></label>
+            <input type="range" id="mic-slider" min="10" max="150" value="50">
+        </div>
+
+        <button id="btn-start" onclick="startWOD()">START WOD</button>
+        
+        <div class="workspace">
+            <div class="zone" id="library-zone">
+                <div class="zone-title" id="title-lib">LIBRARY</div>
+                <div id="library-list"></div>
+            </div>
+            <div class="zone" id="wod-zone" ondragover="event.preventDefault()" ondrop="drop(event)">
+                <div class="zone-title" id="title-wod" style="color:var(--neon-green);">TODAY'S WOD</div>
+                <div id="wod-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="workout-view">
+        <!-- 盲觸區依舊保留，供無法發聲時使用 -->
+        <div id="blind-touch-overlay" onpointerdown="triggerRepManual()"></div>
+        <button id="btn-abort" onclick="abortWOD()">ABORT</button>
+        
+        <!-- 戰術收音波形 -->
+        <div id="audio-visualizer-container">
+            <div id="audio-threshold-line"></div>
+            <div id="audio-bar"></div>
+        </div>
+
+        <div class="workout-content">
+            <div id="timer-display">00:00</div>
+            <div id="current-move-name">---</div>
+            <div id="rep-counter">0</div>
+        </div>
+    </div>
+
+    <script>
+        /* =========================================================
+           [1] 全局 i18n 矩陣與解剖學資料
+           ========================================================= */
+        const KINETIC_DB = {
+            'zh-TW': {
+                ui: { start: "開始訓練 (START)", lib: "動作庫 (LIBRARY)", wod: "今日排程 (WOD)", abort: "放棄 (ABORT)", mic: "聲控靈敏度" },
+                moves: {
+                    'sn':'抓舉', 'cj':'挺舉', 'dl':'硬舉',
+                    'sq':'徒手深蹲', 'fs':'前蹲舉', 'thr':'推進舉', 'wb':'藥球',
+                    'pr':'肩推', 'hrpu':'伏地挺身', 'burpee':'波比跳',
+                    'pu':'引體向上', 't2b':'腳趾觸槓'
+                },
+                squat: {
+                    setup: ["站距與肩同寬。","重心落於足中。","挺胸，鎖緊核心。"],
+                    vector: ["臀部向後向下。","垂直向下。","重心，腳跟！","推開地板！"],
+                    muscle: ["足中發力。","夾緊臀大肌。","啟動股四頭。","背部維持張力。"]
+                },
+                hinge: {
+                    setup: ["雙腳位於髖部正下方。","肩胛骨下壓。","脊椎保持中立。"],
+                    vector: ["髖部向後推。","肩膀超過槓鈴。","完全伸展髖部！"],
+                    muscle: ["腳跟蹬地。","啟動腿後側。","收緊背闊肌。","臀部爆發。"]
+                },
+                push: {
+                    setup: ["手肘微內收。","身體維持中空平板。","視線看正前方。"],
+                    vector: ["垂直向上推。","軌跡向後鎖定。","頭部穿過手臂。","身體同步起降。"],
+                    muscle: ["胸大肌發力。","收緊前鋸肌。","核心抗伸展。"]
+                },
+                pull: {
+                    setup: ["懸吊保持中空。","肩膀啟動下壓。","視線微向上。"],
+                    vector: ["手肘向後向下拉。","下巴過槓。","髖部強烈折疊。"],
+                    muscle: ["背闊肌收縮。","啟動斜方肌。","腹直肌爆發。"]
+                },
+                system: { next: "切換：", left: "下" }
+            },
+            'en': {
+                ui: { start: "START WOD", lib: "LIBRARY", wod: "TODAY'S WOD", abort: "ABORT", mic: "MIC SENSITIVITY" },
+                moves: {
+                    'sn':'Snatch', 'cj':'Clean & Jerk', 'dl':'Deadlift',
+                    'sq':'Air Squat', 'fs':'Front Squat', 'thr':'Thruster', 'wb':'Wall Ball',
+                    'pr':'Shoulder Press', 'hrpu':'Push-Up', 'burpee':'Burpees',
+                    'pu':'Pull-Up', 't2b':'Toes-to-Bar'
+                },
+                squat: {
+                    setup: ["Shoulder width stance.","Weight mid-foot.","Chest up, core tight."],
+                    vector: ["Hips back and down.","Vertical drop.","Heels!","Drive the floor!"],
+                    muscle: ["Mid-foot pressure.","Squeeze glutes.","Quads engaged.","Back tension."]
+                },
+                hinge: {
+                    setup: ["Feet under hips.","Scapula depressed.","Neutral spine."],
+                    vector: ["Hips back.","Shoulders over bar.","Full hip extension!"],
+                    muscle: ["Drive heels.","Hamstrings engaged.","Lats tight.","Glute pop."]
+                },
+                push: {
+                    setup: ["Elbows tucked.","Hollow plank.","Eyes forward."],
+                    vector: ["Press vertical.","Lockout behind neck.","Head through.","Body moves as one."],
+                    muscle: ["Pecs engaged.","Serratus punch.","Anti-extension core."]
+                },
+                pull: {
+                    setup: ["Hollow hang.","Active shoulders.","Eyes slightly up."],
+                    vector: ["Elbows back and down.","Chin over.","Aggressive hip hinge."],
+                    muscle: ["Lats contracted.","Traps engaged.","Abs explode."]
+                },
+                system: { next: "Next:", left: "left" }
+            },
+            'ja': {
+                ui: { start: "トレーニング開始", lib: "ライブラリ", wod: "今日のメニュー", abort: "中止", mic: "マイク感度" },
+                moves: {
+                    'sn':'スナッチ', 'cj':'クリーン＆ジャーク', 'dl':'デッドリフト',
+                    'sq':'エアスクワット', 'fs':'フロントスクワット', 'thr':'スラスター', 'wb':'ウォールボール',
+                    'pr':'ショルダープレス', 'hrpu':'プッシュアップ', 'burpee':'バーピー',
+                    'pu':'懸垂', 't2b':'トーズ・トゥ・バー'
+                },
+                squat: {
+                    setup: ["スタンスは肩幅。","重心は足の中心。","胸を張り体幹を締める。"],
+                    vector: ["お尻を後ろ下へ。","垂直にしゃがむ。","かかと！","床を押せ！"],
+                    muscle: ["足の裏全体で押す。","大臀筋を締める。","大腿四頭筋を意識。","背中の張りを維持。"]
+                },
+                hinge: {
+                    setup: ["足は腰幅。","肩甲骨を下げる。","背骨はニュートラル。"],
+                    vector: ["お尻を後ろへ。","肩をバーの前に。","股関節を完全に伸ばす！"],
+                    muscle: ["かかとで床を蹴る。","ハムストリングス稼働。","広背筋を締める。","お尻を弾く。"]
+                },
+                push: {
+                    setup: ["肘を少し閉じる。","体を一直線に。","まっすぐ前を見る。"],
+                    vector: ["垂直に押す。","トップでロック。","頭を入れる。","体全体を同時に動かす。"],
+                    muscle: ["大胸筋を使う。","前鋸筋を締める。","体幹を反らさない。"]
+                },
+                pull: {
+                    setup: ["ホロウ姿勢を保つ。","肩を下げる。","視線はやや上。"],
+                    vector: ["肘を後ろ下へ引く。","あごをバーの上に。","股関節を強く弾く。"],
+                    muscle: ["広背筋を収縮。","僧帽筋を使う。","腹直筋を爆発させる。"]
+                },
+                system: { next: "次は：", left: "回" }
+            }
+        };
+
+        const MOVE_TYPES = {
+            'sn':'hinge', 'dl':'hinge', 'cj':'hinge',
+            'sq':'squat', 'fs':'squat', 'thr':'squat', 'wb':'squat',
+            'pr':'push', 'hrpu':'push', 'burpee':'push',
+            'pu':'pull', 't2b':'pull'
+        };
+        const ALL_MOVES = Object.keys(MOVE_TYPES);
+
+        let currentLang = 'zh-TW', currentWOD = [];
+        let isWorkingOut = false, currentMoveIndex = 0, currentReps = 0;
+        let lastRepTime = 0, workoutStartTime = 0, timerInterval = null;
+        let playedCues = {}; 
+        
+        // 聲控專屬變數
+        let audioContext = null;
+        let analyser = null;
+        let micStream = null;
+        let pcmData = null;
+        let micThreshold = parseInt(localStorage.getItem('cf_mic_threshold')) || 50;
+
+        const synth = window.speechSynthesis;
+
+        window.onload = () => { 
+            document.getElementById('mic-slider').value = micThreshold;
+            document.getElementById('mic-val').innerText = micThreshold;
+            applyLanguage('zh-TW'); 
+        };
+
+        // 靈敏度滑桿事件
+        document.getElementById('mic-slider').addEventListener('input', (e) => {
+            micThreshold = parseInt(e.target.value);
+            document.getElementById('mic-val').innerText = micThreshold;
+            localStorage.setItem('cf_mic_threshold', micThreshold);
+        });
+
+        /* =========================================================
+           [2] 動態 UI 渲染與全域 i18n
+           ========================================================= */
+        function applyLanguage(lang) { 
+            currentLang = lang; 
+            document.getElementById('btn-start').innerText = KINETIC_DB[lang].ui.start;
+            document.getElementById('title-lib').innerText = KINETIC_DB[lang].ui.lib;
+            document.getElementById('title-wod').innerText = KINETIC_DB[lang].ui.wod;
+            document.getElementById('btn-abort').innerText = KINETIC_DB[lang].ui.abort;
+            document.getElementById('lbl-mic').innerHTML = `${KINETIC_DB[lang].ui.mic}: <span id="mic-val">${micThreshold}</span>`;
+            
+            renderLibrary(); renderWOD();
+            if (isWorkingOut) updateUI();
+        }
+
+        function renderLibrary() {
+            document.getElementById('library-list').innerHTML = ALL_MOVES.map(id => {
+                const moveName = KINETIC_DB[currentLang].moves[id];
+                return `<div class="card" draggable="true" ondragstart="event.dataTransfer.setData('text/plain','${id}')" onclick="addMove('${id}')">
+                            <div class="card-info"><h3>${moveName}</h3></div>
+                            <div style="color:var(--neon-green); font-weight:bold;">+</div>
+                        </div>`;
+            }).join('');
+        }
+
+        function renderWOD() {
+            document.getElementById('wod-list').innerHTML = currentWOD.map((item, i) => {
+                const moveName = KINETIC_DB[currentLang].moves[item.id];
+                return `<div class="card" onclick="currentWOD.splice(${i},1); renderWOD();">
+                            <div class="card-info"><h3>${i+1}. ${moveName}</h3></div>
+                            <input type="number" value="${item.targetReps}" style="width:55px; background:#000; color:var(--neon-green); border:1px solid #444; border-radius:4px; font-size:1.1rem; text-align:center;" onchange="currentWOD[${i}].targetReps=parseInt(this.value); event.stopPropagation();" onclick="event.stopPropagation();">
+                        </div>`;
+            }).join('');
+        }
+
+        function drop(e) { e.preventDefault(); addMove(e.dataTransfer.getData('text/plain')); }
+        function addMove(id) {
+            if(!MOVE_TYPES[id]) return;
+            currentWOD.push({ id: id, targetReps: 10 }); renderWOD();
+        }
+
+        /* =========================================================
+           [3] 聲控邊緣運算 (Volume Envelope Computing)
+           ========================================================= */
+        async function startWOD() {
+            if(currentWOD.length === 0) return;
+            document.getElementById('builder-view').style.display = 'none'; 
+            document.getElementById('workout-view').style.display = 'flex';
+            
+            // 動態設置視覺器的紅線位置 (Threshold)
+            document.getElementById('audio-threshold-line').style.bottom = Math.min((micThreshold/255)*100, 100) + '%';
+
+            isWorkingOut = true; currentMoveIndex = 0; currentReps = 0; playedCues = {};
+            
+            try {
+                if ('wakeLock' in navigator) navigator.wakeLock.request('screen');
+                // 請求麥克風權限 (不開相機)
+                micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+                const source = audioContext.createMediaStreamSource(micStream);
+                source.connect(analyser);
+                pcmData = new Uint8Array(analyser.frequencyBinCount);
+                
+                processAudio();
+            } catch(e) { 
+                console.warn("麥克風存取失敗，轉為手動盲觸模式", e);
+            }
+            
+            startTimer(); updateUI();
+            speakSetupCue(currentWOD[0].id);
+        }
+
+        function processAudio() {
+            if(!isWorkingOut || !analyser) return;
+            
+            analyser.getByteFrequencyData(pcmData);
+            let sum = 0;
+            for (let i = 0; i < pcmData.length; i++) sum += pcmData[i];
+            let avgVolume = sum / pcmData.length; // 計算平均音量 (0~255)
+            
+            // UI 視覺回饋
+            const bar = document.getElementById('audio-bar');
+            const heightPct = Math.min((avgVolume / 255) * 100, 100);
+            bar.style.height = heightPct + '%';
+            
+            // [核心人因防護] 
+            // 1. 若教練正在講話 (synth.speaking)，麥克風雖然收音，但【不計次】，防止自己觸發自己。
+            // 2. 音量必須大於設定的閾值 (micThreshold)
+            // 3. 聲波防抖 (Debounce) 拉長到 600ms，防止單一次大聲喊叫被算成兩下。
+            if (avgVolume > micThreshold && !synth.speaking && (Date.now() - lastRepTime) > 600) {
+                bar.style.backgroundColor = 'var(--alert-red)'; // 觸發瞬間變紅
+                triggerRep();
+            } else {
+                bar.style.backgroundColor = 'var(--neon-green)';
+            }
+            
+            requestAnimationFrame(processAudio);
+        }
+
+        /* =========================================================
+           [4] 訓練邏輯與低認知語音引擎
+           ========================================================= */
+        function triggerRepManual() { if ((Date.now() - lastRepTime) > 350) triggerRep(); }
+
+        function triggerRep() {
+            if(!isWorkingOut) return;
+            lastRepTime = Date.now();
+            const item = currentWOD[currentMoveIndex];
+            currentReps++;
+            
+            // 物理觸覺與脈衝視覺
+            if (navigator.vibrate) navigator.vibrate(50);
+            const wv = document.getElementById('workout-view');
+            wv.classList.add('glow-rep'); setTimeout(() => wv.classList.remove('glow-rep'), 150);
+            
+            const left = item.targetReps - currentReps;
+            
+            if (left === 3) speakSystem(`3 ${KINETIC_DB[currentLang].system.left}`);
+            else if (left <= 0) {
+                currentMoveIndex++; currentReps = 0;
+                if (currentMoveIndex >= currentWOD.length) { speakSystem("Done"); abortWOD(); return; }
+                else {
+                    updateUI();
+                    const nextMoveName = KINETIC_DB[currentLang].moves[currentWOD[currentMoveIndex].id];
+                    speakSystem(`${KINETIC_DB[currentLang].system.next} ${nextMoveName}`);
+                    setTimeout(() => speakSetupCue(currentWOD[currentMoveIndex].id), 1500);
+                }
+            } else if (!synth.speaking && Math.random() < 0.3) {
+                speakKineticCue(item.id); 
+            }
+            if(isWorkingOut) updateUI();
+        }
+
+        function speakSetupCue(id) {
+            const mType = MOVE_TYPES[id];
+            const cues = KINETIC_DB[currentLang][mType].setup;
+            speakSystem(cues[Math.floor(Math.random() * cues.length)]);
+        }
+
+        function speakKineticCue(id) {
+            const mType = MOVE_TYPES[id];
+            const poolType = Math.random() > 0.5 ? 'vector' : 'muscle';
+            const cues = KINETIC_DB[currentLang][mType][poolType];
+            
+            let key = currentLang + mType + poolType;
+            if(!playedCues[key]) playedCues[key] = [];
+            let available = cues.filter(c => !playedCues[key].includes(c));
+            if(available.length === 0) { playedCues[key] = []; available = cues; }
+            
+            const pick = available[Math.floor(Math.random() * available.length)];
+            playedCues[key].push(pick);
+            speakSystem(pick);
+        }
+
+        function speakSystem(text) {
+            if(synth.speaking) return; 
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = currentLang === 'en' ? 'en-US' : (currentLang === 'ja' ? 'ja-JP' : 'zh-TW');
+            u.rate = 1.1; synth.speak(u);
+        }
+
+        function updateUI() {
+            if(currentMoveIndex >= currentWOD.length) return;
+            const currentMoveName = KINETIC_DB[currentLang].moves[currentWOD[currentMoveIndex].id];
+            document.getElementById('current-move-name').innerText = currentMoveName;
+            document.getElementById('rep-counter').innerText = currentReps;
+        }
+
+        function startTimer() {
+            workoutStartTime = Date.now();
+            timerInterval = setInterval(() => {
+                const d = Date.now() - workoutStartTime, m = Math.floor(d/60000), s = Math.floor((d%60000)/1000);
+                document.getElementById('timer-display').innerText = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+            }, 1000);
+        }
+
+        function abortWOD() {
+            isWorkingOut = false; clearInterval(timerInterval);
+            
+            // 安全釋放麥克風與 AudioContext 資源
+            if(micStream) micStream.getTracks().forEach(t=>t.stop());
+            if(audioContext && audioContext.state !== 'closed') audioContext.close();
+            micStream = null; analyser = null;
+            
+            document.getElementById('builder-view').style.display = 'flex'; 
+            document.getElementById('workout-view').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
