@@ -24,34 +24,35 @@
         .btn-save { border-color: var(--neon-orange); color: var(--neon-orange); }
 
         /* =========================================================
-           [2] 左右比例調整 (40% / 60%) 與工作區
+           [2] 比例微調 (35% / 65%) 與修復文字截斷
            ========================================================= */
-        .workspace { display: grid; grid-template-columns: 4fr 6fr; gap: 10px; flex: 1; overflow: hidden; }
+        .workspace { display: grid; grid-template-columns: 3.5fr 6.5fr; gap: 10px; flex: 1; overflow: hidden; }
         .zone { background: #0a0a0a; border: 1px dashed #333; border-radius: 8px; padding: 8px; overflow-y: auto; touch-action: pan-y; padding-bottom: 20px; }
         .zone-title { color: var(--neon-orange); font-size: 1.1rem; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 5px; text-align: center; font-weight: bold;}
         
-        /* 雙層文字動作卡片 */
-        .card { background: #151515; border-left: 4px solid #333; padding: 8px 10px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-radius: 4px; transition: opacity 0.2s; }
-        .card:active { background: #222; }
+        .card { background: #151515; border-left: 4px solid #333; padding: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-radius: 4px; transition: transform 0.1s, opacity 0.1s; }
+        .card:active { background: #222; transform: scale(0.98); }
+        .card.dragging { opacity: 0.5; transform: scale(1.02); z-index: 10; border-color: var(--neon-green); } /* 拖曳時的視覺反饋 */
         
-        .card-info { flex: 1; display: flex; flex-direction: column; justify-content: center; overflow: hidden; min-width: 0; /* 讓文字順利截斷 */ }
-        .ch-text { font-size: 1.1rem; color: #fff; font-weight: bold; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .en-text { font-size: 0.75rem; color: #888; font-family: sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        /* 文字區域自然換行，拒絕截斷 */
+        .card-info { flex: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; padding-right: 5px; }
+        .ch-text { font-size: 1.05rem; color: #fff; font-weight: bold; line-height: 1.2; white-space: normal; word-break: break-word; }
+        .en-text { font-size: 0.75rem; color: #888; font-family: sans-serif; white-space: normal; word-break: break-word; margin-top: 2px;}
         
-        /* 課表專用元件 (三條線與左減右加) */
-        .drag-handle { display: flex; align-items: center; justify-content: center; padding-right: 12px; color: #666; font-size: 1.6rem; cursor: grab; touch-action: none; }
+        /* 三條線把手 */
+        .drag-handle { display: flex; align-items: center; justify-content: center; padding-right: 8px; color: #666; font-size: 1.5rem; cursor: grab; touch-action: none; }
         .drag-handle:active { color: var(--neon-green); }
 
-        .rep-ctrl { display: flex; align-items: center; background: #000; border-radius: 6px; border: 1px solid #444; margin-left: 5px; flex-shrink: 0; }
-        .rep-btn { background: transparent; border: none; color: var(--neon-green); font-size: 1.4rem; width: 30px; height: 35px; cursor: pointer; display: flex; justify-content: center; align-items: center; padding: 0; }
-        .rep-val { color: #fff; font-size: 1.2rem; width: 28px; text-align: center; font-family: 'Impact'; }
+        /* 縮小按鈕佔比，釋放空間給文字 */
+        .rep-ctrl { display: flex; align-items: center; background: #000; border-radius: 6px; border: 1px solid #444; flex-shrink: 0; }
+        .rep-btn { background: transparent; border: none; color: var(--neon-green); font-size: 1.3rem; width: 28px; height: 32px; cursor: pointer; display: flex; justify-content: center; align-items: center; padding: 0; }
+        .rep-val { color: #fff; font-size: 1.1rem; width: 24px; text-align: center; font-family: 'Impact'; }
         
-        /* 開始按鈕 (置底) */
         #btn-start { background: var(--dark-gray); border: 2px solid var(--neon-green); color: var(--neon-green); font-size: 1.4rem; padding: 12px; width: 100%; border-radius: 8px; margin-top: 10px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 10px; flex-shrink: 0; }
         #btn-start:active { background: var(--neon-green); color: #000; }
 
         /* =========================================================
-           [3] 訓練畫面與戰術 HUD
+           [3] 訓練畫面與戰術 HUD (包含置底目標次數)
            ========================================================= */
         #workout-view { display: none; width: 100vw; height: 100dvh; flex-direction: column; justify-content: center; align-items: center; position: fixed; top: 0; left: 0; background: var(--bg-color); z-index: 100; touch-action: none; transition: box-shadow 0.1s ease-out; }
         .glow-rep { box-shadow: inset 0 0 60px var(--neon-green); border: 4px solid var(--neon-green); }
@@ -63,7 +64,11 @@
         #current-move-name { display: flex; flex-direction: column; align-items: center; margin-top: 5px; }
         #current-ch { font-size: 8vw; color: var(--neon-orange); font-weight: 900; line-height: 1.2;}
         #current-en { font-size: 4vw; color: #888; font-family: sans-serif;}
-        #rep-counter { font-size: 35vw; color: var(--neon-green); line-height: 1; margin: 0; }
+        
+        /* 置底對齊的計次區塊 */
+        #rep-display { display: flex; align-items: baseline; justify-content: center; margin: 0; }
+        #rep-counter { font-size: 35vw; color: var(--neon-green); line-height: 1; font-weight: 900;}
+        #rep-target { font-size: 10vw; color: #666; margin-left: 10px; font-weight: bold; }
         
         #hud-cues { background: rgba(0,0,0,0.8); border: 1px solid #333; padding: 10px 15px; border-radius: 8px; margin: 10px 0; text-align: left; font-family: sans-serif; min-width: 250px; }
         .hud-item { font-size: 1.1rem; margin: 5px 0; font-weight: bold; display: flex; align-items: center; gap: 8px; }
@@ -80,27 +85,24 @@
 <body>
 
     <div id="builder-view" class="container">
-        <!-- 標題 -->
         <div class="header-stats">
             <h2 style="color:var(--light-gray); margin:0;">CROSSFIT <span class="text-orange">AI</span></h2>
         </div>
         
-        <!-- 客製化 Preset 滑動列 -->
         <div class="preset-bar" id="preset-container"></div>
 
-        <!-- 4:6 工作區 -->
         <div class="workspace">
             <div class="zone" id="library-zone">
                 <div class="zone-title">動作庫</div>
                 <div id="library-list"></div>
             </div>
-            <div class="zone" id="wod-zone" ondragover="event.preventDefault()" ondrop="dropWodNative(event)">
+            <!-- WOD 區域註冊原生拖放事件 (供桌機版使用) -->
+            <div class="zone" id="wod-zone" ondragover="dragOverWod(event)" ondrop="dropWodNative(event)">
                 <div class="zone-title" style="color:var(--neon-green);">課表 WOD</div>
                 <div id="wod-list"></div>
             </div>
         </div>
 
-        <!-- 開始按鈕移至最下 -->
         <button id="btn-start" onclick="startWOD()">START WOD 開始</button>
     </div>
 
@@ -108,7 +110,6 @@
         <div id="blind-touch-overlay" onpointerdown="triggerRepManual()"></div>
         <button id="btn-abort" onclick="abortWOD()">ABORT</button>
         
-        <!-- 橫向聲控儀表板 -->
         <div id="mic-control" onpointerdown="handleMicDrag(event)" onpointermove="handleMicDrag(event)">
             <svg viewBox="0 0 24 24" fill="var(--light-gray)" width="28" height="28" style="pointer-events:none;">
                 <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
@@ -132,13 +133,17 @@
                 <div class="hud-item" style="color:var(--alert-red);">❌ <span id="hud-txt-bad">保持專注 / Stay Focused</span></div>
             </div>
 
-            <div id="rep-counter">0</div>
+            <!-- 計次顯示區塊 (包含目標次數) -->
+            <div id="rep-display">
+                <div id="rep-counter">0</div>
+                <div id="rep-target">/ 0</div>
+            </div>
         </div>
     </div>
 
     <script>
         /* =========================================================
-           [1] 雙語資料庫 (Bilingual Database)
+           [1] 雙語資料庫 
            ========================================================= */
         const MOVES_DB = {
             'sn': { ch: '抓舉', en: 'Snatch' }, 'cj': { ch: '挺舉', en: 'Clean & Jerk' }, 'dl': { ch: '硬舉', en: 'Deadlift' },
@@ -183,7 +188,7 @@
         window.onload = () => { renderLibrary(); renderWOD(); renderPresets(); };
 
         /* =========================================================
-           [2] 渲染引擎與觸控拖拉邏輯 (Mobile Friendly)
+           [2] 渲染引擎
            ========================================================= */
         function renderLibrary() {
             document.getElementById('library-list').innerHTML = Object.keys(MOVES_DB).map(id => 
@@ -199,9 +204,9 @@
 
         function renderWOD() {
             document.getElementById('wod-list').innerHTML = currentWOD.map((item, i) => 
-                `<div class="card" data-index="${i}" draggable="true" ondragstart="dragWodStart(event, ${i})" ondragover="event.preventDefault()" ondrop="dropWodNative(event, ${i})">
-                    <!-- 三條線觸控拖曳把手 -->
-                    <div class="drag-handle" ontouchstart="handleTouchStart(event, ${i})" ontouchmove="handleTouchMove(event)" ontouchend="handleTouchEnd(event, ${i})">☰</div>
+                `<div class="card" data-uid="${item.uid}" draggable="true" ondragstart="dragWodStart(event)">
+                    <!-- 三條線拖拉手柄 -->
+                    <div class="drag-handle" ontouchstart="handleTouchStart(event)" ontouchmove="handleTouchMove(event)" ontouchend="handleTouchEnd(event)">☰</div>
                     <div class="card-info">
                         <div class="ch-text">${MOVES_DB[item.id].ch}</div>
                         <div class="en-text">${MOVES_DB[item.id].en}</div>
@@ -215,7 +220,12 @@
             ).join('');
         }
 
-        function addMove(id, reps=10) { if(!MOVE_TYPES[id]) return; currentWOD.push({ id: id, targetReps: reps }); renderWOD(); }
+        function addMove(id, reps=10) { 
+            if(!MOVE_TYPES[id]) return; 
+            // 賦予每個卡片專屬的 UID 確保拖拉辨識準確
+            currentWOD.push({ uid: Date.now() + Math.random(), id: id, targetReps: reps }); 
+            renderWOD(); 
+        }
         
         function changeRep(index, delta) {
             currentWOD[index].targetReps += delta;
@@ -223,45 +233,73 @@
             renderWOD();
         }
 
-        // --- HTML5 Desktop Drag ---
-        let draggedIndex = -1;
-        function dragWodStart(e, i) { draggedIndex = i; if(e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; } }
-        function dropWodNative(e, targetIndex) {
-            e.preventDefault();
-            if(draggedIndex === -1 || targetIndex === undefined || draggedIndex === targetIndex) return;
-            const item = currentWOD.splice(draggedIndex, 1)[0];
-            currentWOD.splice(targetIndex, 0, item);
-            draggedIndex = -1; renderWOD();
-        }
+        /* =========================================================
+           [3] 完美拖拉排序引擎 (Desktop + Mobile)
+           ========================================================= */
+        let dragSrcEl = null;
 
-        // --- Mobile Touch Drag (專為手機優化) ---
-        let touchStartIndex = -1;
-        function handleTouchStart(e, index) {
-            touchStartIndex = index;
-            e.target.closest('.card').style.opacity = '0.5';
+        // --- 桌機版 (HTML5 Native Drag) ---
+        function dragWodStart(e) {
+            dragSrcEl = e.target.closest('.card');
+            if(e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/html', ''); }
+        }
+        function dragOverWod(e) {
+            e.preventDefault(); // 允許 Drop
+            const targetCard = e.target.closest('.card');
+            if(targetCard && targetCard !== dragSrcEl && dragSrcEl) {
+                // 視覺即時擠開
+                const rect = targetCard.getBoundingClientRect();
+                const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+                targetCard.parentNode.insertBefore(dragSrcEl, next ? targetCard.nextSibling : targetCard);
+            }
+        }
+        function dropWodNative(e) { e.preventDefault(); syncArrayFromDOM(); dragSrcEl = null; }
+
+        // --- 手機版 (Touch Event 即時換位) ---
+        function handleTouchStart(e) {
+            dragSrcEl = e.target.closest('.card');
+            dragSrcEl.classList.add('dragging');
         }
         function handleTouchMove(e) {
-            e.preventDefault(); // 防止滾動，確保能拖曳
-        }
-        function handleTouchEnd(e, index) {
-            e.target.closest('.card').style.opacity = '1';
-            let touch = e.changedTouches[0];
-            let targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
-            let targetCard = targetEl ? targetEl.closest('.card') : null;
+            if(!dragSrcEl) return;
+            e.preventDefault(); // 防止畫面跟著滾動
+            const touch = e.touches[0];
             
-            if(targetCard && targetCard.dataset.index !== undefined) {
-                let targetIndex = parseInt(targetCard.dataset.index);
-                if(touchStartIndex !== -1 && targetIndex !== touchStartIndex) {
-                    const item = currentWOD.splice(touchStartIndex, 1)[0];
-                    currentWOD.splice(targetIndex, 0, item);
-                    renderWOD();
+            // 暫時隱藏被拖曳的物件，才能偵測到手指下方覆蓋的卡片
+            dragSrcEl.style.visibility = 'hidden'; 
+            const targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
+            dragSrcEl.style.visibility = 'visible';
+            
+            if(targetEl) {
+                const targetCard = targetEl.closest('.card');
+                if(targetCard && targetCard !== dragSrcEl && targetCard.parentNode === dragSrcEl.parentNode) {
+                    const rect = targetCard.getBoundingClientRect();
+                    const next = (touch.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+                    targetCard.parentNode.insertBefore(dragSrcEl, next ? targetCard.nextSibling : targetCard);
                 }
             }
-            touchStartIndex = -1;
+        }
+        function handleTouchEnd(e) {
+            if(!dragSrcEl) return;
+            dragSrcEl.classList.remove('dragging');
+            dragSrcEl = null;
+            syncArrayFromDOM(); // 放開瞬間將 DOM 順序寫回 WOD 陣列
+        }
+
+        // 核心同步邏輯：依照畫面上最新的卡片順序重組陣列
+        function syncArrayFromDOM() {
+            const list = document.getElementById('wod-list');
+            const newWOD = [];
+            Array.from(list.children).forEach(card => {
+                const uid = card.dataset.uid;
+                const item = currentWOD.find(w => w.uid == uid);
+                if(item) newWOD.push(item);
+            });
+            currentWOD = newWOD;
         }
 
         /* =========================================================
-           [3] Preset 快選引擎
+           [4] Preset 快選引擎
            ========================================================= */
         function renderPresets() {
             let html = `<button class="btn-preset" onclick="loadTemplate('fran')">FRAN</button>
@@ -278,10 +316,13 @@
             currentWOD = [];
             if (type === 'fran') { ['thr','pu','thr','pu','thr','pu'].forEach((m,i)=>addMove(m, i<2?21:i<4?15:9)); }
             else if (type === 'cindy') { addMove('pu',5); addMove('hrpu',10); addMove('sq',15); }
-            renderWOD();
         }
 
-        function loadCustom(idx) { currentWOD = JSON.parse(JSON.stringify(customPresets[idx].data)); renderWOD(); }
+        function loadCustom(idx) { 
+            // 複製物件並重新賦予 UID
+            currentWOD = customPresets[idx].data.map(item => ({ ...item, uid: Date.now() + Math.random() })); 
+            renderWOD(); 
+        }
         
         function savePreset() {
             if(currentWOD.length === 0) return;
@@ -290,7 +331,7 @@
         }
 
         /* =========================================================
-           [4] 橫向直覺聲控儀表板 (Horizontal Mic Bar)
+           [5] 橫向直覺聲控儀表板 (Horizontal Mic Bar)
            ========================================================= */
         function handleMicDrag(e) {
             if (e.buttons !== 1 && e.type !== 'touchmove' && e.type !== 'touchstart') return;
@@ -303,7 +344,6 @@
             
             const visArea = document.getElementById('vis-area');
             const rect = visArea.getBoundingClientRect();
-            // 左端為 0%，右端為 100%
             let pct = (clientX - rect.left) / rect.width;
             pct = Math.max(0.05, Math.min(1, pct)); 
             
@@ -313,7 +353,7 @@
         }
 
         /* =========================================================
-           [5] 聲控邊緣運算與動態引擎
+           [6] 聲控運算與訓練引擎
            ========================================================= */
         async function startWOD() {
             if(currentWOD.length === 0) return;
@@ -406,9 +446,14 @@
         function updateUI(isNewMove = false) {
             if(currentMoveIndex >= currentWOD.length) return;
             const currentItem = currentWOD[currentMoveIndex];
+            
             document.getElementById('current-ch').innerText = MOVES_DB[currentItem.id].ch;
             document.getElementById('current-en').innerText = MOVES_DB[currentItem.id].en;
+            
             document.getElementById('rep-counter').innerText = currentReps;
+            // 置底更新：顯示目標次數
+            document.getElementById('rep-target').innerText = '/ ' + currentItem.targetReps;
+            
             if (isNewMove) updateAndSpeakCue(currentItem.id);
         }
 
