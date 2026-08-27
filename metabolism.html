@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>史詩級全景人體代謝模擬器 (全域引擎 100% 修復版)</title>
+    <style>
+        :root {
+            --bg-dark: #070a10; --panel-bg: #111827; --border-color: #374151;
+            --text-main: #f3f4f6; --text-muted: #9ca3af;
+            --accent-blue: #3b82f6; --accent-green: #10b981; --accent-red: #ef4444;
+            --accent-purple: #8b5cf6; --accent-yellow: #f59e0b;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; user-select: none; }
+        body { background-color: var(--bg-dark); color: var(--text-main); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        /* 標題與時間控制列 */
+        header { padding: 6px 15px; background: linear-gradient(90deg, #0f172a, #1e3a8a, #0f172a); display: flex; flex-direction: column; gap: 6px; z-index: 100; border-bottom: 1px solid var(--border-color);}
+        .header-top { display: flex; justify-content: space-between; align-items: center; }
+        .header-top h1 { font-size: 1.1rem; color: #60a5fa; margin: 0;}
+        
+        .time-bar { display: flex; justify-content: center; align-items: center; gap: 15px; background: rgba(0,0,0,0.4); padding: 4px; border-radius: 8px; border: 1px solid #334155;}
+        .clock-display { font-size: 1.6rem; color: #10b981; font-family: 'Courier New', Courier, monospace; font-weight: bold; text-shadow: 0 0 10px rgba(16,185,129,0.5); width: 90px; text-align: center;}
+        
+        .speed-btns { display: flex; gap: 4px; }
+        .btn-speed { background: #1f2937; color: #d1d5db; border: 1px solid #374151; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; font-weight: bold; transition: 0.2s;}
+        .btn-speed:hover { background: #374151; }
+        .btn-speed.active { background: #3b82f6; color: white; border-color: #60a5fa; box-shadow: 0 0 8px #3b82f6;}
+        .btn-play { background: #10b981; color: #000; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.8rem; transition: 0.2s;}
+        .btn-play.paused { background: #ef4444; color: #fff; }
+
+        .auto-selects { display: flex; gap: 8px; align-items: center; }
+        .auto-selects select { background: #1f2937; color: #e5e7eb; border: 1px solid #4b5563; padding: 3px; border-radius: 4px; font-size: 0.7rem; cursor: pointer; }
+
+        .main-container { display: flex; flex: 1; overflow: hidden; position: relative; }
+        
+        /* 側邊欄 (左) */
+        .sidebar { width: 270px; background-color: var(--panel-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; padding: 6px; overflow-y: auto; z-index: 50; gap: 6px;}
+        .control-group { background: #1f2937; border-radius: 6px; padding: 6px; border: 1px solid var(--border-color); }
+        .control-group h3 { font-size: 0.75rem; margin-bottom: 4px; color: #93c5fd; border-bottom: 1px solid #374151; padding-bottom: 2px;}
+        .slider-row { display: flex; flex-direction: column; margin-bottom: 4px; padding: 2px 4px; border-radius: 4px; transition: background 0.3s, box-shadow 0.3s;}
+        .slider-label { display: flex; justify-content: space-between; font-size: 0.65rem; color: #d1d5db; margin-bottom: 1px;}
+        input[type=range] { width: 100%; accent-color: var(--accent-blue); height: 3px; cursor: pointer;}
+        
+        /* 自動排程列表 (左下) */
+        .schedule-panel { background: #022c22; border: 1px solid #10b981; border-radius: 6px; padding: 6px; flex: 1; display: flex; flex-direction: column; overflow: hidden;}
+        .schedule-panel h3 { font-size: 0.75rem; color: #34d399; margin-bottom: 4px; text-align: center;}
+        .schedule-list { overflow-y: auto; flex: 1; font-size: 0.7rem;}
+        .sch-item { display: flex; justify-content: space-between; padding: 4px; background: rgba(0,0,0,0.3); margin-bottom: 3px; border-radius: 3px; cursor: pointer; transition: 0.2s; border-left: 3px solid transparent;}
+        .sch-item:hover { background: #1e3a8a; border-left: 3px solid #60a5fa; }
+        .sch-time { color: #fcd34d; font-family: monospace; font-weight: bold;}
+        .sch-name { color: #f3f4f6; }
+
+        /* 中央動態佈局 */
+        .canvas-area { flex: 1; display: flex; flex-direction: column; background-color: #030712; padding: 6px; gap: 6px; overflow: hidden; }
+        .zone-wrapper { flex: 1.1; position: relative; min-height: 0; }
+        #simCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+        
+        .zone-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; grid-template-rows: 22% 15% 63%; height: 100%; gap: 6px; position: relative; z-index: 5; }
+        .zone { border: 1px solid var(--border-color); border-radius: 6px; position: relative; background: rgba(31, 41, 55, 0.4); overflow: visible;}
+        .zone-title { position: absolute; top: 2px; left: 2px; font-size: 0.65rem; font-weight: bold; color: #e5e7eb; background: rgba(0,0,0,0.6); padding: 2px 4px; border-radius: 4px; z-index: 20;}
+        
+        #z-brain { grid-column: 2 / 4; border-bottom: 2px dashed #8b5cf6; display: flex; flex-direction: column;}
+        #z-gut { grid-column: 4 / 5; border: 1px solid #a3e635; }
+        #z-blood { grid-column: 1 / 5; background: rgba(220, 38, 38, 0.03); border-top: 2px solid #ef4444; border-bottom: 2px solid #ef4444; display: flex; justify-content: center; align-items: center;}
+        #z-muscle { grid-column: 1 / 3; border: 2px solid rgba(16, 185, 129, 0.4); }
+        #z-liver { grid-column: 3 / 4; border: 2px solid rgba(245, 158, 11, 0.4); }
+        #z-fat { grid-column: 4 / 5; border: 2px solid rgba(253, 224, 71, 0.4); display: flex; flex-direction: column; gap: 4px; }
+        #z-fat-white { flex: 3; border-bottom: 1px dashed #666; position:relative;}
+        #z-fat-brown { flex: 1; position:relative; background: rgba(180, 83, 9, 0.1);}
+        
+        #z-pancreas { position: absolute; width: 100px; height: 45px; right: 5px; top: -20px; background: #4a044e; border-radius: 6px; border: 2px solid #d946ef; z-index: 15; text-align: center;}
+        #z-kidney { position: absolute; width: 70px; height: 70px; left: 5px; bottom: 5px; background: #7c2d12; border-radius: 35px; border: 2px solid #ea580c; z-index: 15; text-align: center; padding-top: 10px;}
+        
+        .brain-meters { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 8px; padding: 20px 4px 2px 4px; flex: 1;}
+        .brain-meter-row { display: flex; align-items: center; justify-content: space-between; font-size: 0.55rem; color: #d1d5db; }
+        .b-meter-bg { width: 45px; height: 5px; background: #111827; border-radius: 2px; border: 1px solid #374151;}
+        .b-meter-fill { height: 100%; width: 0%; transition: width 0.3s; }
+
+        /* 受體與實體 */
+        .entity { position: absolute; padding: 3px 5px; border-radius: 4px; font-size: 0.65rem; font-weight: bold; text-align: center; border: 1px solid var(--border-color); background: rgba(17, 24, 39, 0.9); z-index: 25; cursor: pointer;}
+        .ent-sub { display: block; font-size: 0.45rem; color: var(--accent-yellow); font-weight: normal;}
+        
+        #e-irs1 { top: -2px; left: 15%; transform: translateY(-50%); border-color: #10b981; }
+        #e-glut4 { top: 20px; left: 55%; border-color: #3b82f6; }
+        #e-ampk { bottom: 40px; left: 5%; border-color: #8b5cf6;}
+        #e-mito { bottom: 5px; right: 5px; width: 100px; height: 45px; border-radius: 20px; background: rgba(16, 185, 129, 0.15); border: 2px solid #10b981;}
+        #e-cpt1 { position: absolute; top: -8px; left: -8px; background: #065f46; border: 2px solid #34d399;}
+        #e-acc { bottom: 40px; right: 5px; border-color: #ef4444; background: #450a0a;}
+        #e-sglt2 { top: -8px; right: -5px; border-color: #3b82f6;}
+        #e-mtrec { top: 5px; right: 5px; border-color: #8b5cf6; background: #2e1065; z-index: 25;}
+        
+        /* 底部卡片區 (全顯) */
+        .bottom-panel { flex: 0.9; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px; z-index: 50; overflow-y: auto;}
+        .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(95px, 1fr)); gap: 4px; }
+        .card { background: #1f2937; border: 1px solid #374151; padding: 3px 5px; border-radius: 4px; cursor: pointer; display: flex; flex-direction: column; transition: 0.2s;}
+        .card:hover { border-color: #60a5fa; background: #1e3a8a; }
+        
+        .c-zh { font-weight: bold; color: #f3f4f6; font-size: 0.65rem;} .c-en { font-size: 0.5rem; color: #9ca3af;} .c-func { color: var(--accent-yellow); font-size: 0.55rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+        .meter-box { margin-top: 2px; display: flex; align-items: center; gap: 3px; }
+        .meter-bg { flex: 1; height: 5px; background: #111827; border-radius: 2px; }
+        .meter-fill { height: 100%; width: 0%; border-radius: 2px;}
+        .meter-val { font-size: 0.55rem; color: #e5e7eb; min-width: 20px; text-align: right;}
+
+        .card.glow-mild { border-color: #3b82f6; background: rgba(59, 130, 246, 0.2); box-shadow: 0 0 5px rgba(59, 130, 246, 0.3); }
+        .card.glow-bright { border-color: #f59e0b; background: rgba(245, 158, 11, 0.3); box-shadow: 0 0 10px rgba(245, 158, 11, 0.8);}
+        .pb-item.glow-bright { border-color: #10b981; background: rgba(16, 185, 129, 0.5); font-weight: bold;}
+
+        /* 右側劇本區 */
+        .playbook-panel { width: 280px; background-color: var(--panel-bg); border-left: 1px solid var(--border-color); display: flex; flex-direction: column; z-index: 60;}
+        .pb-header { padding: 6px; background: #1e3a8a; font-weight: bold; font-size: 0.8rem; text-align: center;}
+        .pb-list { flex: 1; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 3px;}
+        .pb-item { font-size: 0.65rem; padding: 4px 6px; background: #1f2937; border-radius: 3px; cursor: pointer; border: 1px solid transparent;}
+        .pb-item:hover { border-color: #3b82f6; }
+        .pb-item.active { border-color: #10b981; background: rgba(16,185,129,0.2); border-left: 3px solid #10b981;}
+        
+        .toast { position: fixed; top: 15%; left: 50%; transform: translateX(-50%); background: rgba(16, 185, 129, 0.9); color: #000; padding: 8px 16px; border-radius: 20px; font-weight: bold; font-size: 0.9rem; pointer-events: none; opacity: 0; transition: 0.3s; z-index: 1000;}
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-top">
+            <h1>🔬 史詩級全景人體代謝模擬器 (全域引擎 100% 修復版)</h1>
+            <div style="font-size: 0.7rem; color: var(--accent-yellow);">點擊左下角排程可【自動跳轉時間並觸發】</div>
+        </div>
+        <div class="time-bar">
+            <button id="btn-play" class="btn-play">⏸ 暫停</button>
+            <div class="clock-display" id="clock-display">00:00</div>
+            <div class="speed-btns">
+                <button class="btn-speed active" data-speed="1">1x</button>
+                <button class="btn-speed" data-speed="10">10x</button>
+                <button class="btn-speed" data-speed="50">50x</button>
+                <button class="btn-speed" data-speed="100">100x</button>
+                <button class="btn-speed" data-speed="300">300x</button>
+                <button class="btn-speed" data-speed="1000">1000x</button>
+            </div>
+            <div class="auto-selects">
+                <select id="auto-diet">
+                    <option value="none">-- 飲食模式 --</option>
+                    <option value="normal" selected>正常一日三餐</option>
+                    <option value="4meals">一日四餐(含宵夜)</option>
+                    <option value="168">168 斷食 (12點起)</option>
+                    <option value="vegan">全素食</option>
+                    <option value="sugar">三餐+狂吃甜食</option>
+                </select>
+                <select id="auto-exercise">
+                    <option value="none">-- 運動模式 --</option>
+                    <option value="none" selected>不運動</option>
+                    <option value="regular">規律運動 (18:00 Zone2)</option>
+                    <option value="intense">劇烈運動 (18:00 HIIT)</option>
+                </select>
+                <select id="auto-sleep">
+                    <option value="8" selected>8 小時 (理想)</option>
+                    <option value="6">6 小時 (疲勞起點)</option>
+                    <option value="4">4 小時 (極度危險)</option>
+                </select>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <!-- 左側：拉桿控制區 -->
+        <div class="sidebar" id="control-panel">
+            <div class="control-group"><h3>🥦 飲食營養</h3>
+                <div class="slider-row" id="row-carb"><div class="slider-label"><span>碳水</span><span id="v-carb">0</span></div><input type="range" id="s-carb" min="0" max="100" value="0"></div>
+                <div class="slider-row" id="row-fruc"><div class="slider-label"><span>果糖</span><span id="v-fruc">0%</span></div><input type="range" id="s-fruc" min="0" max="100" value="0"></div>
+                <div class="slider-row" id="row-fat"><div class="slider-label"><span>脂肪</span><span id="v-fat">0</span></div><input type="range" id="s-fat" min="0" max="100" value="0"></div>
+                <div class="slider-row" id="row-pro"><div class="slider-label"><span style="color:#f43f5e">蛋白</span><span id="v-pro">0</span></div><input type="range" id="s-pro" min="0" max="100" value="0"></div>
+                <div class="slider-row" id="row-min"><div class="slider-label"><span style="color:#a8a29e">礦物</span><span id="v-min">0</span></div><input type="range" id="s-min" min="0" max="100" value="0"></div>
+            </div>
+            <div class="control-group"><h3>🏃 運動睡眠</h3>
+                <div class="slider-row" id="row-z2"><div class="slider-label"><span>有氧</span><span id="v-z2">0</span></div><input type="range" id="s-z2" min="0" max="100" value="0"></div>
+                <div class="slider-row" id="row-hiit"><div class="slider-label"><span>無氧</span><span id="v-hiit">0</span></div><input type="range" id="s-hiit" min="0" max="100" value="0"></div>
+                <div class="slider-row" id="row-sleep"><div class="slider-label"><span style="color:#a7f3d0">睡眠時間</span><span id="v-sleep">8h</span></div><input type="range" id="s-sleep" min="0" max="24" value="8"></div>
+                <div class="slider-row" id="row-depth"><div class="slider-label"><span style="color:#8b5cf6">入睡深度</span><span id="v-depth">50%</span></div><input type="range" id="s-depth" min="0" max="100" value="50"></div>
+                <div class="slider-row" id="row-fatigue"><div class="slider-label"><span style="color:#fca5a5">工作疲勞</span><span id="v-fatigue">10</span></div><input type="range" id="s-fatigue" min="0" max="100" value="10"></div>
+            </div>
+            <div class="control-group"><h3>💊 藥理干預</h3>
+                <div class="slider-row" id="row-stress"><div class="slider-label"><span>壓力</span><span id="v-stress">10</span></div><input type="range" id="s-stress" min="0" max="100" value="10"></div>
+                <div class="slider-row" id="row-tirz"><div class="slider-label"><span style="color:#c084fc">猛健樂</span><span id="v-tirz">0</span></div><input type="range" id="s-tirz" min="0" max="15" step="2.5" value="0"></div>
+            </div>
+            
+            <!-- 自動排程列表 -->
+            <div class="schedule-panel">
+                <h3>📅 今日自動排程 (點擊強制執行)</h3>
+                <div class="schedule-list" id="schedule-list"></div>
+            </div>
+        </div>
+
+        <!-- 中央：畫布 + 卡片 -->
+        <div class="canvas-area">
+            <div class="zone-wrapper" id="zone-wrapper">
+                <div class="zone-grid" id="zone-grid">
+                    <div class="zone" id="z-brain">
+                        <div class="zone-title">大腦下視丘 (10 大體感)</div>
+                        <div class="entity" id="e-mtrec">MT 受體 🌙<span class="ent-sub">接收褪黑激素</span></div>
+                        <div class="brain-meters" id="brain-meters-container"></div>
+                    </div>
+                    <div class="zone" id="z-gut"><div class="zone-title">腸道 (Gut)</div></div>
+                    
+                    <div class="zone" id="z-blood">
+                        <div class="zone-title">血液循環 (Bloodstream)</div>
+                        <div id="blood-sugar-display" style="font-size:1.8rem; color:rgba(255,255,255,0.2); font-weight:bold;">90 mg/dL</div>
+                        <div class="entity" id="z-pancreas">
+                            胰島<br>
+                            <span style="display:inline-block; padding:1px 3px; background:#064e3b; color:#34d399; font-size:0.5rem; border-radius:2px;">Beta(胰島素)</span>
+                            <span style="display:inline-block; padding:1px 3px; background:#78350f; color:#fbbf24; font-size:0.5rem; border-radius:2px;">Alpha(升糖素)</span>
+                        </div>
+                    </div>
+
+                    <div class="zone" id="z-muscle">
+                        <div class="zone-title">骨骼肌 (Muscle)</div>
+                        <div class="entity" id="e-irs1">IRS-1 📡</div>
+                        <div class="entity" id="e-glut4">GLUT4 🚪</div>
+                        <div class="entity" id="e-ampk">AMPK ⚡</div>
+                        <div id="e-mito">
+                            <div class="entity" id="e-cpt1">CPT-1 🚛</div>
+                            <div style="position:absolute; right:5px; bottom:5px; font-size:0.6rem; color:#6ee7b7; font-weight:bold;">粒線體 🏭</div>
+                        </div>
+                    </div>
+
+                    <div class="zone" id="z-liver">
+                        <div class="zone-title">肝臟 (Liver)</div>
+                        <div class="entity" id="e-acc">ACC 🏭</div>
+                    </div>
+
+                    <div class="zone" id="z-fat">
+                        <div class="zone" id="z-fat-white" style="border:none;">
+                            <div class="zone-title">白脂肪</div>
+                            <div class="entity" id="e-hsl" style="bottom:5px; left:5px;">HSL 🪓</div>
+                        </div>
+                        <div class="zone" id="z-fat-brown" style="border:none;">
+                            <div class="zone-title">棕脂肪</div>
+                            <div class="entity" id="e-ucp1" style="bottom:5px; left:5px; border-color:#ef4444;">UCP1 🔥</div>
+                        </div>
+                    </div>
+                    
+                    <div class="entity" id="z-kidney">
+                        <div class="entity" id="e-sglt2">SGLT2</div>
+                        <span style="display:block; margin-top:25px; font-size:0.6rem; color:#fdba74; font-weight:bold;">腎臟 🚽</span>
+                    </div>
+                </div>
+                <canvas id="simCanvas"></canvas>
+            </div>
+            
+            <!-- 實體卡片區 (34個) -->
+            <div class="bottom-panel"><div class="cards-grid" id="cards-container"></div></div>
+        </div>
+
+        <!-- 右側：劇本區 (40 個全展開) -->
+        <div class="playbook-panel">
+            <div class="pb-header">📋 教科書級 40 大生理劇本</div>
+            <div class="pb-list" id="pb-list"></div>
+        </div>
+    </div>
+    
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // ==========================================
+        // 1. 全域變數與初始化控制
+        // ==========================================
+        let simDate = new Date();
+        let timeSpeed = 1; 
+        let isPlaying = true;
+        let lastFrameTime = 0;
+        let eventsFiredToday = new Set();
+        let lastSimDay = simDate.getDate();
+        let currentSchedules = [];
+
+        document.getElementById('btn-play').addEventListener('click', function() {
+            isPlaying = !isPlaying;
+            this.innerText = isPlaying ? '⏸ 暫停' : '▶ 播放';
+            this.className = isPlaying ? 'btn-play' : 'btn-play paused';
+        });
+
+        document.querySelectorAll('.btn-speed').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.btn-speed').forEach(b => b.classList.remove('active'));
+                this.classList.add('active'); 
+                timeSpeed = parseInt(this.dataset.speed);
+                if (!isPlaying) document.getElementById('btn-play').click();
+            });
+        });
+
+        // ==========================================
+        // 2. 數值庫與實體定義
+        // ==========================================
+        let levels = {
+            glucose: 90, insulin: 5, glucagon: 10, fructose: 0, fat: 15, protein: 0, mineral: 0, vldl: 5, ketone: 0, lactate: 0, uric_acid: 0, tnfa: 0, ros: 0,
+            tryptophan: 0, melatonin: 0, mt_rec: 0, 
+            cortisol: 10, ghrelin: 10, leptin: 50, glp1: 5, adrenaline: 5, tirzepatide: 0, metformin: 0, statin: 0,
+            beta_cell: 100, irs1: 100, glut4: 0, ampk: 0, cpt1: 100, acc: 20, malonyl_coa: 0, hsl: 0, ucp1: 0, sglt2: 0,
+            sleep: 8, depth: 50, fatigue: 10, hiit: 0, z2: 0,
+            s_hunger: 0, s_satiety: 0, s_sleepy: 0, s_stress: 0, s_craving: 0, s_thermo: 0, s_thirst: 0, s_nausea: 0, s_sympath: 0, s_focus: 0
+        };
+
+        const sensationsDB = [
+            {id:'s_hunger', zh:'飢餓程度', c:'#ef4444'}, {id:'s_satiety', zh:'飽足感', c:'#10b981'},
+            {id:'s_sleepy', zh:'愛睏倦怠', c:'#8b5cf6'}, {id:'s_stress', zh:'心血壓力', c:'#ef4444'},
+            {id:'s_craving', zh:'糖分渴望', c:'#f59e0b'}, {id:'s_thermo', zh:'體溫產熱', c:'#ef4444'},
+            {id:'s_thirst', zh:'口渴脫水', c:'#facc15'}, {id:'s_nausea', zh:'噁心反胃', c:'#10b981'},
+            {id:'s_sympath', zh:'交感興奮', c:'#f59e0b'}, {id:'s_focus', zh:'腦清晰度', c:'#3b82f6'}
+        ];
+        
+        const brainMeters = document.getElementById('brain-meters-container');
+        sensationsDB.forEach(s => {
+            brainMeters.innerHTML += `<div class="brain-meter-row"><span>${s.zh}</span><div style="display:flex; align-items:center;"><span id="b-val-${s.id}" style="width:16px; text-align:right; margin-right:2px; font-weight:bold; color:${s.c}">0</span><div class="b-meter-bg"><div class="b-meter-fill" id="b-fill-${s.id}" style="background-color:${s.c}"></div></div></div></div>`;
+        });
+
+        const entityDB = [
+            { id:"glucose", zh:"葡萄糖", en:"Glucose", func:"血液核心能量", max:300, type:'sugar' },
+            { id:"fructose", zh:"果糖", en:"Fructose", func:"直塞肝臟的毒蘋果", max:100, type:'bad' },
+            { id:"fat", zh:"游離脂肪", en:"FFA", func:"儲存備用能源", max:100, type:'bad' },
+            { id:"protein", zh:"胺基酸", en:"Amino", func:"肌肉合成/前驅物", max:100, type:'good' },
+            { id:"mineral", zh:"礦物質", en:"Minerals", func:"輔酶/清除氧化", max:100, type:'good' },
+            { id:"tryptophan", zh:"色胺酸", en:"Tryptophan", func:"褪黑激素前驅物", max:100, type:'good' },
+            { id:"melatonin", zh:"褪黑激素", en:"Melatonin", func:"睡眠引導與修復", max:100, type:'activity' },
+            { id:"insulin", zh:"胰島素", en:"Insulin", func:"降糖與儲存指令", max:100, type:'activity' },
+            { id:"glucagon", zh:"升糖素", en:"Glucagon", func:"飢餓升糖救援者", max:100, type:'activity' },
+            { id:"ghrelin", zh:"飢餓素", en:"Ghrelin", func:"引發飢餓感", max:100, type:'bad' },
+            { id:"leptin", zh:"瘦素", en:"Leptin", func:"抑制食慾", max:100, type:'good' },
+            { id:"glp1", zh:"腸泌素", en:"GLP-1", func:"超前分泌胰島素", max:100, type:'good' },
+            { id:"adrenaline", zh:"腎上腺素", en:"Adrenaline", func:"炸開能量庫", max:100, type:'activity' },
+            { id:"cortisol", zh:"皮質醇", en:"Cortisol", func:"壓力暴君強制造糖", max:100, type:'bad' },
+            { id:"vldl", zh:"VLDL", en:"VLDL", func:"肝臟打包脂肪貨輪", max:100, type:'bad' },
+            { id:"malonyl_coa", zh:"大鎖", en:"Malonyl-CoA", func:"CPT-1絕對大鎖", max:100, type:'bad' },
+            { id:"ketone", zh:"酮體", en:"Ketones", func:"斷食大腦特規電池", max:100, type:'good' },
+            { id:"lactate", zh:"乳酸", en:"Lactate", func:"無氧運動代謝廢料", max:100, type:'bad' },
+            { id:"uric_acid", zh:"尿酸", en:"Uric Acid", func:"果糖副產物(痛風)", max:100, type:'bad' },
+            { id:"tnfa", zh:"發炎因子", en:"TNF-α", func:"破壞天線燃燒彈", max:100, type:'bad' },
+            { id:"ros", zh:"自由基", en:"ROS", func:"粒線體廢氣", max:100, type:'bad' },
+            { id:"tirzepatide", zh:"猛健樂", en:"Tirzepatide", func:"GLP雙效神藥", max:15, type:'good' },
+            { id:"metformin", zh:"二甲雙胍", en:"Metformin", func:"抑制肝造糖", max:100, type:'good' },
+            { id:"statin", zh:"他汀類", en:"Statins", func:"關閉膽固醇工廠", max:100, type:'good' },
+            { id:"beta_cell", zh:"Beta 細胞", en:"β-cell", func:"胰島素兵工廠", max:100, type:'health' },
+            { id:"irs1", zh:"IRS-1天線", en:"IRS-1", func:"天線健康度", max:100, type:'health' },
+            { id:"glut4", zh:"GLUT4閘門", en:"GLUT4", func:"開門吸糖度", max:100, type:'activity' },
+            { id:"ampk", zh:"AMPK激酶", en:"AMPK", func:"能量危機警報器", max:100, type:'activity' },
+            { id:"cpt1", zh:"CPT-1", en:"CPT-1", func:"運鈔車轉速", max:100, type:'activity' },
+            { id:"acc", zh:"ACC", en:"ACC", func:"製鎖廠活躍度", max:100, type:'activity' },
+            { id:"hsl", zh:"HSL", en:"HSL", func:"破壞斧活躍度", max:100, type:'activity' },
+            { id:"ucp1", zh:"UCP1", en:"UCP1", func:"漏電產熱閥", max:100, type:'activity' },
+            { id:"sglt2", zh:"SGLT2", en:"SGLT2", func:"尿糖排放閥", max:100, type:'activity' },
+            { id:"mt_rec", zh:"MT受體", en:"MT-Rec", func:"接收褪黑激素入睡", max:100, type:'activity' }
+        ];
+
+        const cardsContainer = document.getElementById('cards-container');
+        entityDB.forEach(e => {
+            cardsContainer.innerHTML += `<div class="card" id="card-${e.id}" onclick="handleCardClick('${e.id}')">
+                <span class="c-zh">${e.zh}</span><span class="c-en">${e.en}</span><span class="c-func">${e.func}</span>
+                <div class="meter-box"><div class="meter-bg"><div class="meter-fill" id="meter-fill-${e.id}"></div></div><div class="meter-val" id="meter-val-${e.id}">0</div></div>
+            </div>`;
+        });
+
+        // ==========================================
+        // 3. Canvas 粒子引擎 (新增視覺同頻與平滑目標)
+        // ==========================================
+        const canvas = document.getElementById('simCanvas'); const ctx = canvas.getContext('2d');
+        let particles = []; let effects = [];
+
+        function resizeCanvas() {
+            const wr = document.getElementById('zone-wrapper');
+            if(wr) {
+                const rect = wr.getBoundingClientRect();
+                canvas.width = rect.width; 
+                canvas.height = rect.height;
+            }
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        function getRect(id) {
+            const el = document.getElementById(id); if (!el) return { x:0, y:0, w:0, h:0, cx:0, cy:0 };
+            const rect = el.getBoundingClientRect(); const wr = document.getElementById('zone-wrapper').getBoundingClientRect();
+            return { x: rect.left-wr.left, y: rect.top-wr.top, w: rect.width, h: rect.height, cx: (rect.left-wr.left)+rect.width/2, cy: (rect.top-wr.top)+rect.height/2 };
+        }
+
+        const pStyles = {
+            'glucose': {c:'#3b82f6', s:14, sp:1.5, txt:"糖"}, 'fructose':{c:'#a855f7', s:14, sp:1.5, txt:"果"},
+            'fat':     {c:'#f59e0b', s:14, sp:1.2, txt:"脂"}, 'protein': {c:'#f43f5e', s:14, sp:1.5, txt:"胺"},
+            'mineral': {c:'#a8a29e', s:14, sp:1.5, txt:"礦"}, 'tryp':    {c:'#fbcfe8', s:12, sp:1.5, txt:"色"},
+            'mel':     {c:'#8b5cf6', s:14, sp:2.0, txt:"褪"}, 'insulin': {c:'#10b981', s:14, sp:2.5, txt:"胰"},
+            'glucagon':{c:'#eab308', s:14, sp:2.5, txt:"升"}, 'atp':     {c:'#10b981', s:12, sp:3.0, txt:"⚡"},
+            'vldl':    {c:'#fde047', s:16, sp:0.8, txt:"船"}, 'ketone':  {c:'#06b6d4', s:14, sp:2.0, txt:"酮"},
+            'lactate': {c:'#ec4899', s:14, sp:1.5, txt:"酸"}, 'tnfa':    {c:'#ef4444', s:14, sp:3.0, txt:"炎"},
+            'uric':    {c:'#78350f', s:14, sp:1.0, txt:"尿"}, 'tirz':    {c:'#c084fc', s:14, sp:3.0, txt:"藥"},
+            'glp1':    {c:'#84cc16', s:14, sp:2.0, txt:"腸"}, 'ros':   {c:'#ffffff', s:12, sp:2.0, txt:"毒"},
+            'met':     {c:'#2dd4bf', s:14, sp:3.0, txt:"Met"}, 'statin': {c:'#6366f1', s:14, sp:2.0, txt:"Stat"}
+        };
+
+        class Particle {
+            constructor(type, startId, targetId, options={}) {
+                this.type = type; this.life = 1.0;
+                const sr = getRect(startId); this.x = sr.cx + (Math.random()*40-20); this.y = sr.cy + (Math.random()*40-20);
+                let st = pStyles[type] || {c:'#fff', s:12, sp:1, txt:'?'};
+                this.c = st.c; this.s = st.s; this.sp = st.sp; this.txt = st.txt;
+                this.targetId = targetId; this.options = options; this.setTarget();
+            }
+            setTarget() {
+                if(this.options.forceTarget) { this.tx = this.options.forceTarget.x; this.ty = this.options.forceTarget.y; } 
+                else if(this.targetId) { const tr = getRect(this.targetId); this.tx = tr.x + Math.random()*tr.w; this.ty = tr.y + Math.random()*tr.h; }
+            }
+            update(tick) {
+                if (this.tx !== undefined && this.ty !== undefined) {
+                    const dx = this.tx-this.x; const dy = this.ty-this.y; const dist = Math.sqrt(dx*dx+dy*dy);
+                    let step = this.sp * tick;
+                    if (dist < step && !this.options.gravity) {
+                        this.life = 0; this.x = this.tx; this.y = this.ty;
+                    } else if (dist > 0) { 
+                        this.x += (dx/dist)*step; 
+                        this.y += (dy/dist)*step; 
+                    }
+                }
+                if(this.type === 'atp' || this.type === 'ros') this.life -= 0.02 * tick; 
+                if(this.options.gravity) { this.y += 4 * tick; this.life -= 0.015 * tick; } 
+                if(this.y > canvas.height + 20) this.life = 0;
+            }
+            draw() {
+                ctx.globalAlpha = Math.max(0, this.life); ctx.beginPath(); ctx.arc(this.x, this.y, this.s, 0, Math.PI*2);
+                ctx.fillStyle = this.c; ctx.fill();
+                ctx.fillStyle = (this.c==='#ffffff'||this.c==='#fde047'||this.c==='#f59e0b'||this.c==='#10b981'||this.c==='#84cc16'||this.c==='#eab308'||this.c==='#fbcfe8') ? '#000' : '#fff';
+                ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(this.txt, this.x, this.y+1); ctx.globalAlpha = 1.0;
+            }
+        }
+        function createParticles(t, c, s, tgt, opt={}) { for(let i=0; i<c; i++) particles.push(new Particle(t, s, tgt, opt)); }
+        
+        class Effect {
+            constructor(type, x, y, color, target) { this.type = type; this.x = x; this.y = y; this.c = color; this.target = target; this.life = 1.0; this.r = 5; }
+            update(tick) { this.life -= 0.03 * tick; if(this.type==='ripple') this.r += 2 * tick; }
+            draw() {
+                ctx.globalAlpha = Math.max(0, this.life);
+                if (this.type === 'ripple') { 
+                    ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI*2); ctx.strokeStyle = this.c; ctx.lineWidth = 3; ctx.stroke(); 
+                } else if (this.type === 'lightning' && this.target) { 
+                    ctx.beginPath(); ctx.moveTo(this.x, this.y); 
+                    let steps=4; 
+                    for(let i=1;i<=steps;i++){ 
+                        let nx = this.x + (this.target.cx - this.x)*(i/steps) + (Math.random()*30-15); 
+                        let ny = this.y + (this.target.cy - this.y)*(i/steps) + (Math.random()*30-15); 
+                        if(i===steps){nx=this.target.cx; ny=this.target.cy;} 
+                        ctx.lineTo(nx, ny); 
+                    } 
+                    ctx.strokeStyle = this.c; ctx.lineWidth = 4; ctx.stroke(); 
+                } 
+                ctx.globalAlpha = 1.0;
+            }
+        }
+        function createEffect(t, s, c, tgt=null) { const sr = getRect(s); effects.push(new Effect(t, sr.cx, sr.cy, c, tgt?getRect(tgt):null)); }
+
+        // ==========================================
+        // 4. 動態排程 (完全修復防跳事件機制與時間跳轉)
+        // ==========================================
+        const schedulesDef = {
+            diet: {
+                'normal': [{t:8, n:'早餐', a:'meal', c:30,f:10,p:20,m:10}, {t:12.5, n:'午餐', a:'meal', c:40,f:15,p:25,m:15}, {t:18.5, n:'晚餐', a:'meal', c:30,f:15,p:20,m:10}],
+                '4meals': [{t:8, n:'早餐', a:'meal', c:30,f:10,p:20}, {t:12.5, n:'午餐', a:'meal', c:40,f:15,p:25}, {t:18.5, n:'晚餐', a:'meal', c:30,f:15,p:20}, {t:22.5, n:'宵夜', a:'meal', c:20,f:15,p:5}],
+                '168':    [{t:12.5, n:'第一餐', a:'meal', c:50,f:25,p:35,m:20}, {t:16, n:'點心', a:'meal', c:20,f:10,p:10}, {t:19.5, n:'晚餐', a:'meal', c:50,f:20,p:30,m:20}],
+                'vegan':  [{t:8, n:'全素早', a:'meal', c:50,f:5,p:10,m:30}, {t:12.5, n:'全素午', a:'meal', c:60,f:10,p:15,m:30}, {t:18.5, n:'全素晚', a:'meal', c:50,f:10,p:10,m:20}],
+                'sugar':  [{t:8, n:'早餐', a:'meal', c:40,f:10}, {t:10.5, n:'手搖飲', a:'sugar', c:30,fr:40}, {t:12.5, n:'午餐', a:'meal', c:50,f:20}, {t:15.5, n:'甜點', a:'sugar', c:40,fr:30}, {t:18.5, n:'晚餐', a:'meal', c:40,f:20}, {t:21, n:'宵夜', a:'sugar', c:30,fr:20}]
+            },
+            exercise: {
+                'none': [],
+                'regular': [{t:18, n:'Zone 2 慢跑', a:'ex_z2'}],
+                'intense': [{t:18, n:'HIIT 重訓', a:'ex_hiit'}]
+            }
+        };
+
+        function syncFiredEvents() {
+            eventsFiredToday.clear();
+            let curFloat = simDate.getHours() + simDate.getMinutes()/60;
+            currentSchedules.forEach(sch => {
+                if (curFloat >= sch.t) eventsFiredToday.add(sch.idx);
+            });
+        }
+
+        function updateScheduleUI() {
+            let d = document.getElementById('auto-diet').value;
+            let e = document.getElementById('auto-exercise').value;
+            let sHrs = parseInt(document.getElementById('auto-sleep').value);
+            let sStart = 7 - sHrs; if(sStart < 0) sStart += 24;
+
+            currentSchedules = [];
+            if(d !== 'none' && schedulesDef.diet[d]) currentSchedules.push(...schedulesDef.diet[d]);
+            if(e !== 'none' && schedulesDef.exercise[e]) currentSchedules.push(...schedulesDef.exercise[e]);
+            currentSchedules.push({t: sStart, n:'就寢 (睡眠)', a:'sleep_start'});
+            currentSchedules.push({t: 7, n:'起床', a:'sleep_end'});
+
+            currentSchedules.sort((a,b) => a.t - b.t);
+
+            const list = document.getElementById('schedule-list');
+            list.innerHTML = '';
+            currentSchedules.forEach((sch, i) => {
+                let hr = Math.floor(sch.t); let min = Math.round((sch.t-hr)*60);
+                let timeStr = String(hr).padStart(2,'0') + ':' + String(min).padStart(2,'0');
+                
+                let hIds = [];
+                if(sch.a==='meal') hIds = ['row-carb','row-fat','row-pro','row-min'];
+                if(sch.a==='sugar') hIds = ['row-carb','row-fruc'];
+                if(sch.a==='ex_z2') hIds = ['row-z2'];
+                if(sch.a==='ex_hiit') hIds = ['row-hiit'];
+                if(sch.a.startsWith('sleep')) hIds = ['row-sleep','row-depth'];
+
+                let item = document.createElement('div'); item.className = 'sch-item';
+                item.innerHTML = `<span class="sch-time">${timeStr}</span><span class="sch-name">${sch.n}</span>`;
+                
+                // 【核心升級】：點擊不只強制執行，系統時間也會精準跳躍過去！
+                item.onclick = () => { 
+                    // 1. 時間跳躍
+                    let jumpHr = Math.floor(sch.t);
+                    let jumpMin = Math.round((sch.t - jumpHr) * 60);
+                    simDate.setHours(jumpHr, jumpMin, 0, 0);
+                    
+                    // 2. 重新校準已觸發的事件，防止跳躍時產生暴衝
+                    syncFiredEvents();
+                    
+                    // 3. 強制執行被點擊的特效與數值加成
+                    triggerAction(sch); 
+                    
+                    // 4. UI 視覺反饋
+                    highlightSliders(hIds); 
+                    setTimeout(clearSliderHighlights, 1500); 
+                };
+                
+                item.onmouseenter = () => highlightSliders(hIds);
+                item.onmouseleave = clearSliderHighlights;
+                list.appendChild(item);
+                sch.idx = i;
+            });
+        }
+
+        function highlightSliders(ids) {
+            clearSliderHighlights();
+            ids.forEach(id => { const el = document.getElementById(id); if(el) { el.style.background = 'rgba(16,185,129,0.2)'; el.style.boxShadow = '0 0 8px #10b981'; } });
+        }
+        function clearSliderHighlights() { document.querySelectorAll('.slider-row').forEach(el => { el.style.background = ''; el.style.boxShadow = ''; }); }
+
+        document.querySelectorAll('.auto-selects select').forEach(s => s.addEventListener('change', () => { 
+            updateScheduleUI(); 
+            syncFiredEvents(); // 動態切換時立刻重整已觸發狀態防錯
+        }));
+
+        function showToast(msg) { const el = document.getElementById('toast'); el.innerText = msg; el.style.opacity = 1; setTimeout(()=> el.style.opacity = 0, 2500); }
+
+        function triggerAction(sch) {
+            showToast("排程執行: " + sch.n);
+            if(sch.a==='meal' || sch.a==='sugar') {
+                levels.glucose += sch.c||0; levels.fat += sch.f||0; levels.protein += sch.p||0; levels.mineral += sch.m||0; levels.fructose += sch.fr||0;
+                levels.tryptophan += (sch.p||0) * 0.5;
+                levels.glp1 += ((sch.c||0)+(sch.f||0)+(sch.p||0))*0.3;
+                if(sch.c) createParticles('glucose', Math.ceil(sch.c/10), 'z-gut', 'z-blood');
+                if(sch.f) createParticles('fat', Math.ceil(sch.f/10), 'z-gut', 'z-blood');
+                if(sch.p) { createParticles('protein', Math.ceil(sch.p/10), 'z-gut', 'z-muscle'); createParticles('tryp', Math.ceil(sch.p/15), 'z-gut', 'z-blood'); }
+                if(sch.m) createParticles('mineral', Math.ceil(sch.m/10), 'z-gut', 'z-liver');
+                if(sch.fr) { createParticles('fructose', Math.ceil(sch.fr/10), 'z-gut', 'z-liver'); createEffect('ripple', 'z-liver', '#ef4444'); }
+            }
+            if(sch.a==='ex_z2') { levels.ampk = 80; createEffect('ripple','z-muscle','#3b82f6'); }
+            if(sch.a==='ex_hiit') { levels.hiit = 100; levels.adrenaline = 80; levels.lactate = 60; createEffect('ripple','z-muscle','#ef4444'); }
+            if(sch.a.startsWith('sleep')) createEffect('ripple', 'z-brain', '#8b5cf6');
+        }
+
+        // ==========================================
+        // 5. 核心物理引擎 (時間連動)
+        // ==========================================
+        function clamp(min, max, val) { return Math.max(min, Math.min(max, val)); }
+
+        function physicsLoop(tickSpeed) {
+            if (!window.pbRunning && tickSpeed > 0) {
+                levels.glucose = clamp(80, 300, levels.glucose - 0.05 * tickSpeed);
+                levels.insulin = clamp(5, 100, levels.insulin - 0.2 * tickSpeed);
+                levels.glucagon = clamp(5, 100, levels.glucagon - 0.1 * tickSpeed);
+                levels.fructose = clamp(0, 100, levels.fructose - 0.2 * tickSpeed);
+                levels.fat = clamp(5, 100, levels.fat - 0.05 * tickSpeed);
+                levels.protein = clamp(0, 100, levels.protein - 0.1 * tickSpeed);
+                levels.mineral = clamp(0, 100, levels.mineral - 0.05 * tickSpeed);
+                levels.vldl = clamp(0, 100, levels.vldl - 0.1 * tickSpeed);
+                levels.tnfa = clamp(0, 100, levels.tnfa - 0.1 * tickSpeed);
+                levels.ros = clamp(0, 100, levels.ros - 0.5 * tickSpeed);
+                levels.ampk = clamp(0, 100, levels.ampk - 0.5 * tickSpeed);
+                levels.malonyl_coa = clamp(0, 100, levels.malonyl_coa - 0.2 * tickSpeed);
+                levels.glut4 = clamp(0, 100, (levels.insulin>20 || levels.ampk>50) ? 100 : levels.glut4 - 1*tickSpeed);
+                levels.glp1 = clamp(0, 100, levels.glp1 - 0.2 * tickSpeed);
+                levels.adrenaline = clamp(0, 100, levels.adrenaline - 0.5 * tickSpeed);
+                levels.ketone = clamp(0, 100, levels.ketone - 0.1 * tickSpeed);
+                levels.lactate = clamp(0, 100, levels.lactate - 0.2 * tickSpeed);
+                levels.tryptophan = clamp(0, 100, levels.tryptophan - 0.1 * tickSpeed);
+                levels.melatonin = clamp(0, 100, levels.melatonin - 0.2 * tickSpeed);
+
+                if(levels.mineral > 20) levels.ros = clamp(0, 100, levels.ros - 1 * tickSpeed);
+                
+                if(levels.glucose > 130) levels.insulin = clamp(0, 100, levels.insulin + 0.5 * tickSpeed);
+                if(levels.glucose < 85) levels.glucagon = clamp(0, 100, levels.glucagon + 0.5 * tickSpeed);
+                if(levels.glucagon > 50) { levels.glucose += 0.2 * tickSpeed; levels.fat += 0.1 * tickSpeed; } 
+                
+                let sHrs = parseInt(document.getElementById('auto-sleep').value);
+                let floatHour = simDate.getHours() + simDate.getMinutes()/60;
+                let sStart = 7 - sHrs; if(sStart < 0) sStart += 24;
+                let isSleeping = (sStart > 7) ? (floatHour >= sStart || floatHour < 7) : (floatHour >= sStart && floatHour < 7);
+                let sDepth = parseInt(document.getElementById('s-depth').value);
+                
+                if(floatHour > 20 || floatHour < 5) {
+                    if(levels.tryptophan > 5) { levels.tryptophan -= 0.1 * tickSpeed; levels.melatonin += 0.3 * tickSpeed; }
+                }
+
+                if(isSleeping) {
+                    levels.mt_rec = levels.melatonin; 
+                    levels.fatigue = clamp(0, 100, levels.fatigue - (sDepth/100)*0.5 * tickSpeed);
+                    levels.cortisol = clamp(5, 100, levels.cortisol - (sDepth/100)*0.3 * tickSpeed);
+                    if(sDepth > 60) levels.irs1 = clamp(0, 100, levels.irs1 + 0.1 * tickSpeed);
+                    if(Math.random()<0.02*tickSpeed && levels.melatonin>50) createParticles('mel',1,'z-blood','e-mtrec',{forceTarget:getRect('e-mtrec')});
+                } else {
+                    levels.mt_rec = 0;
+                    levels.fatigue = clamp(0, 100, levels.fatigue + 0.05 * tickSpeed);
+                }
+            }
+
+            levels.s_hunger = clamp(0, 100, 60 + levels.ghrelin*1.5 - levels.leptin - levels.glp1*2 - levels.tirzepatide*5 - levels.protein*0.5);
+            levels.s_satiety = clamp(0, 100, levels.leptin + levels.glp1*2 + levels.protein + levels.tirzepatide*5);
+            levels.s_sleepy = clamp(0, 100, levels.fatigue - levels.mt_rec*0.5 + (levels.glucose>150?30:0));
+            levels.s_stress = clamp(0, 100, levels.cortisol + levels.adrenaline - levels.melatonin*0.3);
+            levels.s_craving = clamp(0, 100, levels.cortisol*0.5 + levels.fructose*0.5 + (levels.glucose<75?40:0));
+            levels.s_thermo = clamp(0, 100, levels.ucp1 + levels.ampk*0.3);
+            levels.s_thirst = clamp(0, 100, levels.sglt2*0.8 + levels.ketone*0.5 + (levels.glucose>180?20:0));
+            levels.s_nausea = clamp(0, 100, levels.tirzepatide*4);
+            levels.s_sympath = clamp(0, 100, levels.adrenaline + levels.hiit*0.5);
+            levels.s_focus = clamp(0, 100, levels.ketone*0.8 - levels.fatigue*0.5 + 50 - (levels.glucose>160?20:0) - (levels.glucose<65?30:0));
+
+            levels.cpt1 = clamp(0, 100, 100 - levels.malonyl_coa);
+            levels.irs1 = clamp(0, 100, 100 - levels.tnfa * 1.5 - levels.ros * 0.5); 
+            
+            document.getElementById('blood-sugar-display').innerText = Math.round(levels.glucose) + ' mg/dL';
+            document.getElementById('e-glut4').style.backgroundColor = levels.glut4 > 50 ? '#1d4ed8' : 'rgba(17, 24, 39, 0.9)';
+
+            sensationsDB.forEach(s => { const v=Math.round(levels[s.id]); document.getElementById(`b-val-${s.id}`).innerText=v; document.getElementById(`b-fill-${s.id}`).style.width=v+'%'; });
+
+            entityDB.forEach(e => {
+                const val = clamp(0, e.max, levels[e.id] || 0);
+                const fill = document.getElementById(`meter-fill-${e.id}`);
+                const txt = document.getElementById(`meter-val-${e.id}`);
+                if(fill && txt) {
+                    fill.style.width = (val/e.max*100) + '%'; txt.innerText = val.toFixed(0);
+                    let c = '#3b82f6'; let pct = val/e.max;
+                    if(e.type==='sugar'){ c = val<=110 ? '#10b981' : val<=140 ? '#facc15' : '#ef4444'; }
+                    else if(e.type==='bad'){ c = pct<0.2 ? '#10b981' : pct<0.6 ? '#f59e0b' : '#ef4444'; }
+                    else if(e.type==='good' || e.type==='activity'){ c = pct>0.1 ? '#06b6d4' : '#6b7280'; }
+                    else if(e.type==='health'){ c = pct>0.7 ? '#10b981' : pct>0.3 ? '#f59e0b' : '#ef4444'; }
+                    fill.style.backgroundColor = c;
+                }
+            });
+        }
+
+        // ==========================================
+        // 6. 100% 安全觸發的 Game Loop (防呆防閃退升級版)
+        // ==========================================
+        function loop(timestamp) {
+            let currentTimestamp = timestamp || performance.now();
+            if (!lastFrameTime) lastFrameTime = currentTimestamp;
+            let dt = currentTimestamp - lastFrameTime;
+            if (dt > 100) dt = 16; 
+            lastFrameTime = currentTimestamp;
+
+            if(isPlaying && !window.pbRunning) {
+                let simDt = dt * timeSpeed;
+                simDate.setTime(simDate.getTime() + simDt);
+                
+                // 天數更換時重整觸發池
+                let curDay = simDate.getDate();
+                if(curDay !== lastSimDay) { 
+                    syncFiredEvents(); 
+                    lastSimDay = curDay; 
+                }
+
+                // 完美絕對時間排程檢查 (防高速掠過不觸發)
+                let floatHour = simDate.getHours() + simDate.getMinutes()/60;
+                currentSchedules.forEach(sch => {
+                    if (floatHour >= sch.t && !eventsFiredToday.has(sch.idx)) {
+                        eventsFiredToday.add(sch.idx);
+                        triggerAction(sch);
+                    }
+                });
+                
+                // 物理視覺緩衝：極高速下不讓資料瞬間被扣光產生「閃爍斷連」感
+                let baseTick = dt / 16.666;
+                let rawTickSpeed = baseTick * timeSpeed;
+                let physicsTick = rawTickSpeed;
+                if (timeSpeed > 5) {
+                    physicsTick = baseTick * (5 + Math.pow(timeSpeed - 5, 0.6));
+                }
+                physicsLoop(physicsTick);
+            } else {
+                physicsLoop(0); 
+            }
+
+            // 更新時間字串
+            let hrDisp = simDate.getHours(); let minDisp = simDate.getMinutes();
+            document.getElementById('clock-display').innerText = String(hrDisp).padStart(2,'0') + ':' + String(minDisp).padStart(2,'0');
+
+            // 粒子動態連動：讓高倍速下不僅數值動，動畫也會合理倍增 (最高10倍防破圖穿牆)
+            let pTick = 1;
+            if (isPlaying && timeSpeed > 1) {
+                pTick = Math.min(10, Math.pow(timeSpeed, 0.4));
+            }
+            
+            ctx.clearRect(0,0, canvas.width, canvas.height);
+            for (let i = particles.length - 1; i >= 0; i--) { particles[i].update(pTick); particles[i].draw(); if (particles[i].life <= 0) particles.splice(i, 1); }
+            for (let i = effects.length - 1; i >= 0; i--) { effects[i].update(pTick); effects[i].draw(); if (effects[i].life <= 0) effects.splice(i, 1); }
+            
+            requestAnimationFrame(loop);
+        }
+
+        // ==========================================
+        // 7. 40 大教科書級劇本 (完全原汁原味保留)
+        // ==========================================
+        const pbBase = [
+            {id:'pb1', n:"1. 標準進食 (腸泌與胰島)", t:'glucose', r:['insulin','glp1','glut4'], f:()=>{levels.glucose=160; createParticles('glucose',15,'z-gut','z-blood'); setTimeout(()=>{levels.glp1=80; createParticles('glp1',5,'z-gut','z-pancreas'); setTimeout(()=>{levels.insulin=80; createParticles('insulin',10,'z-pancreas','e-irs1',{forceTarget:getRect('e-irs1')});},800);},500);}},
+            {id:'pb2', n:"2. 高果糖炸彈 (脂肪肝)", t:'fructose', r:['uric_acid','vldl'], f:()=>{levels.fructose=90; levels.uric_acid=70; createParticles('fructose',15,'z-gut','z-liver'); createParticles('uric',10,'z-liver','z-blood');}},
+            {id:'pb3', n:"3. 168 斷食 (升糖救援)", t:'glucagon', r:['glucose'], f:()=>{levels.insulin=0; levels.glucagon=80; createParticles('glucagon',10,'z-pancreas','z-liver'); setTimeout(()=>{levels.glucose=90; createParticles('glucose',10,'z-liver','z-blood');},1000);}},
+            {id:'pb4', n:"4. 72h 深度斷食 (生酮)", t:'ketone', r:['fat','hsl'], f:()=>{levels.hsl=100; levels.fat=80; createParticles('fat',15,'z-fat-white','z-liver'); setTimeout(()=>{levels.ketone=90; createParticles('ketone',15,'z-liver','z-brain');},1000);}},
+            {id:'pb5', n:"5. 飯後低血糖崩潰 (Crash)", t:'glucose', r:['adrenaline','insulin'], f:()=>{levels.insulin=100; levels.glucose=55; levels.adrenaline=90; createEffect('ripple','z-brain','#ef4444');}},
+            {id:'pb6', n:"6. 瘦素飽足信號", t:'leptin', r:['ghrelin'], f:()=>{levels.leptin=90; levels.ghrelin=0; createEffect('ripple','z-brain','#10b981');}},
+            {id:'pb7', n:"7. 飢餓素狂暴", t:'ghrelin', r:['leptin'], f:()=>{levels.ghrelin=100; levels.leptin=0; createEffect('ripple','z-brain','#ef4444');}},
+            {id:'pb8', n:"8. 全素飲食抗發炎", t:'mineral', r:['ros'], f:()=>{levels.mineral=90; levels.ros=0; createParticles('mineral',15,'z-gut','z-blood');}},
+            {id:'pb9', n:"9. 高蛋白肌肉修復", t:'protein', r:['tryptophan'], f:()=>{levels.protein=90; levels.tryptophan=50; createParticles('protein',15,'z-gut','z-muscle');}},
+            {id:'pb10', n:"10. 宵夜脂肪累積", t:'fat', r:['vldl'], f:()=>{levels.fat=80; levels.vldl=80; createParticles('vldl',10,'z-liver','z-fat-white');}},
+            {id:'pb11', n:"11. Zone 2 燃脂發電", t:'ampk', r:['cpt1','fat'], f:()=>{levels.ampk=100; levels.malonyl_coa=0; createEffect('lightning','e-ampk','#8b5cf6','e-acc'); setTimeout(()=>{createParticles('fat',10,'z-blood','e-mito'); setTimeout(()=>createParticles('atp',15,'e-mito','z-muscle'),800);},800);}},
+            {id:'pb12', n:"12. HIIT 乳酸循環", t:'lactate', r:['adrenaline','glucose'], f:()=>{levels.adrenaline=100; levels.lactate=90; createParticles('lactate',15,'z-muscle','z-liver'); setTimeout(()=>createParticles('glucose',10,'z-liver','z-blood'),1000);}},
+            {id:'pb13', n:"13. 寒冷產熱 BAT", t:'ucp1', r:['fat'], f:()=>{levels.ucp1=100; createEffect('ripple','z-fat-brown','#ef4444'); createParticles('fat',10,'z-blood','z-fat-brown');}},
+            {id:'pb14', n:"14. 訓練後無胰吸糖", t:'glut4', r:['glucose'], f:()=>{levels.glut4=100; createParticles('glucose',15,'z-gut','z-muscle',{forceTarget:getRect('e-glut4')});}},
+            {id:'pb15', n:"15. 馬拉松撞牆期", t:'fatigue', r:['cortisol'], f:()=>{levels.fatigue=100; levels.glucose=60; createEffect('ripple','z-brain','#ef4444');}},
+            {id:'pb16', n:"16. 飯後散步清糖", t:'glucose', r:['glut4'], f:()=>{levels.glucose=90; levels.glut4=80; createParticles('glucose',10,'z-blood','z-muscle');}},
+            {id:'pb17', n:"17. 慢性壓力耗竭", t:'cortisol', r:['adrenaline'], f:()=>{levels.cortisol=100; levels.adrenaline=80; createEffect('ripple','z-brain','#f59e0b');}},
+            {id:'pb18', n:"18. 粒線體老化廢氣", t:'ros', r:['ampk'], f:()=>{levels.ros=90; levels.ampk=0; createParticles('ros',15,'e-mito','z-muscle');}},
+            {id:'pb19', n:"19. 久坐異位脂肪", t:'fat', r:['irs1'], f:()=>{levels.fat=80; levels.irs1=40; createParticles('fat',15,'z-blood','z-muscle');}},
+            {id:'pb20', n:"20. EPOC 後燃效應", t:'atp', r:['fat'], f:()=>{levels.fat=30; createParticles('fat',10,'z-blood','e-mito'); setTimeout(()=>createParticles('atp',15,'e-mito','z-muscle'),800);}},
+            {id:'pb21', n:"21. 胰島素阻抗起始", t:'irs1', r:['fat','insulin'], f:()=>{levels.irs1=20; levels.insulin=90; createEffect('ripple','e-irs1','#ef4444');}},
+            {id:'pb22', n:"22. 發炎風暴 (TNFa)", t:'tnfa', r:['irs1'], f:()=>{levels.tnfa=100; createParticles('tnfa',20,'z-fat-white','e-irs1',{forceTarget:getRect('e-irs1')});}},
+            {id:'pb23', n:"23. 黎明現象 (糖尿空腹)", t:'cortisol', r:['glucose'], f:()=>{levels.cortisol=90; levels.glucose=160; createParticles('glucose',15,'z-liver','z-blood');}},
+            {id:'pb24', n:"24. 酮酸中毒 DKA", t:'ketone', r:['glucose','fat'], f:()=>{levels.glucose=250; levels.insulin=0; levels.ketone=100; createParticles('ketone',25,'z-liver','z-blood');}},
+            {id:'pb25', n:"25. 高尿酸血症(痛風)", t:'uric_acid', r:['fructose'], f:()=>{levels.uric_acid=100; createParticles('uric',20,'z-liver','z-blood');}},
+            {id:'pb26', n:"26. Beta細胞過勞衰竭", t:'beta_cell', r:['glucose'], f:()=>{levels.beta_cell=10; levels.glucose=200; createEffect('ripple','z-pancreas','#ef4444');}},
+            {id:'pb27', n:"27. 內臟脂肪堆積", t:'vldl', r:['fat'], f:()=>{levels.vldl=100; levels.fat=100; createParticles('vldl',15,'z-liver','z-fat-white');}},
+            {id:'pb28', n:"28. 脂肪肝惡化", t:'fructose', r:['tnfa'], f:()=>{levels.fructose=90; levels.tnfa=80; createEffect('ripple','z-liver','#ef4444');}},
+            {id:'pb29', n:"29. 神經病變(糖毒)", t:'ros', r:['glucose'], f:()=>{levels.glucose=250; levels.ros=100; createParticles('ros',15,'z-blood','z-brain');}},
+            {id:'pb30', n:"30. 肌肉流失(肌少症)", t:'fatigue', r:['protein'], f:()=>{levels.fatigue=90; levels.protein=0; createEffect('ripple','z-muscle','#fca5a5');}},
+            {id:'pb31', n:"31. SGLT2i 尿糖瀑布", t:'sglt2', r:['glucose'], f:()=>{levels.sglt2=100; createParticles('glucose',15,'e-sglt2',null,{gravity:true});}},
+            {id:'pb32', n:"32. 猛健樂 雙效神藥", t:'tirzepatide', r:['beta_cell','glp1'], f:()=>{levels.tirzepatide=15; levels.beta_cell=100; createParticles('tirz',10,'z-blood','z-pancreas');}},
+            {id:'pb33', n:"33. 二甲雙胍 壓制造糖", t:'metformin', r:['ampk','glucose'], f:()=>{levels.metformin=100; levels.ampk=80; createParticles('met',10,'z-gut','z-liver');}},
+            {id:'pb34', n:"34. 他汀類 降膽固醇", t:'statin', r:['vldl'], f:()=>{levels.statin=100; levels.vldl=0; createParticles('statin',10,'z-gut','z-liver');}},
+            {id:'pb35', n:"35. 降血壓 釋放壓力", t:'adrenaline', r:['cortisol'], f:()=>{levels.adrenaline=0; levels.cortisol=30; createEffect('ripple','z-blood','#6ee7b7');}},
+            {id:'pb36', n:"36. 類固醇 醫源性糖尿", t:'cortisol', r:['glucose','irs1'], f:()=>{levels.cortisol=100; levels.irs1=0; levels.glucose=200; createParticles('glucose',15,'z-liver','z-blood');}},
+            {id:'pb37', n:"37. 羅氏鮮 排油丸", t:'fat', r:[], f:()=>{createParticles('fat',15,'z-gut',null,{gravity:true});}},
+            {id:'pb38', n:"38. 色胺酸合成褪黑激素", t:'tryptophan', r:['melatonin'], f:()=>{levels.tryptophan=90; createParticles('tryp',10,'z-gut','z-brain'); setTimeout(()=>{levels.melatonin=80; createEffect('ripple','z-brain','#8b5cf6');},1000);}},
+            {id:'pb39', n:"39. 深度睡眠大腦抗炎", t:'melatonin', r:['irs1','mt_rec'], f:()=>{levels.melatonin=100; levels.mt_rec=100; levels.irs1=100; createParticles('mel',10,'z-brain','e-mtrec',{forceTarget:getRect('e-mtrec')});}},
+            {id:'pb40', n:"40. 終極健康巔峰循環", t:'ampk', r:['ketone','melatonin'], f:()=>{levels.ampk=100; levels.ketone=50; levels.melatonin=80; createEffect('ripple','z-brain','#3b82f6');}}
+        ];
+
+        function renderPlaybooks() {
+            const lst = document.getElementById('pb-list'); lst.innerHTML='';
+            pbBase.forEach(pb=>{
+                const div = document.createElement('div'); div.className='pb-item'; div.id=`pb-item-${pb.id}`; div.innerText=pb.n;
+                div.onclick = ()=>{
+                    window.pbRunning=true; document.querySelectorAll('.pb-item').forEach(el=>el.classList.remove('active'));
+                    div.classList.add('active'); 
+                    updateGlows(pb.t, pb.r); pb.f();
+                    setTimeout(()=>{window.pbRunning=false; updateGlows(null,[]);}, 2500);
+                }; lst.appendChild(div);
+            });
+        }
+        renderPlaybooks();
+
+        window.handleCardClick = function(eid) {
+            if(window.pbRunning) return;
+            document.querySelectorAll('.pb-item').forEach(el=>el.classList.remove('glow-mild','glow-bright'));
+            document.querySelectorAll('.card').forEach(el=>el.classList.remove('glow-bright'));
+            document.getElementById(`card-${eid}`).classList.add('glow-bright');
+            pbBase.forEach(pb=>{ const el=document.getElementById(`pb-item-${pb.id}`);
+                if(el){ if(pb.t===eid)el.classList.add('glow-bright'); else if(pb.r.includes(eid))el.classList.add('glow-mild'); }
+            });
+        };
+
+        function updateGlows(act, rels) {
+            document.querySelectorAll('.card').forEach(el=>el.classList.remove('glow-mild','glow-bright'));
+            rels.forEach(t=>{ const el=document.getElementById(`card-${t}`); if(el)el.classList.add('glow-mild'); });
+            if(act){ const ae=document.getElementById(`card-${act}`); if(ae){ ae.classList.remove('glow-mild'); ae.classList.add('glow-bright'); } }
+        }
+
+        const slCfg = [
+            { id:'s-carb', valId:'v-carb', act:(v)=>{levels.glucose+=v/10; createParticles('glucose',1,'z-gut','z-blood');} },
+            { id:'s-fruc', valId:'v-fruc', suffix:'%', act:(v)=>{levels.fructose=v; createParticles('fructose',1,'z-gut','z-liver');} },
+            { id:'s-fat',  valId:'v-fat',  act:(v)=>{levels.fat+=v/10; createParticles('fat',1,'z-gut','z-blood');} },
+            { id:'s-pro',  valId:'v-pro',  act:(v)=>{levels.protein+=v/10; levels.tryptophan+=v/20; createParticles('protein',1,'z-gut','z-muscle');} },
+            { id:'s-min',  valId:'v-min',  act:(v)=>{levels.mineral+=v/10; createParticles('mineral',1,'z-gut','z-blood');} },
+            { id:'s-z2',   valId:'v-z2',   act:(v)=>{levels.ampk=v; if(v>50){createEffect('lightning','e-ampk','#8b5cf6','e-acc'); levels.malonyl_coa=0;} } },
+            { id:'s-hiit', valId:'v-hiit', act:(v)=>{levels.hiit=v; levels.adrenaline=v;} },
+            { id:'s-sleep',valId:'v-sleep',suffix:'h', act:()=>updateScheduleUI() },
+            { id:'s-depth',valId:'v-depth',suffix:'%', act:(v)=>{levels.depth=v;} },
+            { id:'s-fatigue',valId:'v-fatigue',act:(v)=>levels.fatigue=v },
+            { id:'s-stress',valId:'v-stress', act:(v)=>{levels.cortisol=v; if(v>70){levels.glucose+=2; createParticles('glucose',1,'z-liver','z-blood');}} },
+            { id:'s-tirz', valId:'v-tirz', suffix:'', act:(v)=>{levels.tirzepatide=v; if(v>0)createParticles('tirz',1,'z-blood','z-pancreas');} }
+        ];
+        slCfg.forEach(c => { document.getElementById(c.id).addEventListener('input', (e) => {
+            let v=parseFloat(e.target.value); document.getElementById(c.valId).innerText=v+(c.suffix||'');
+            if(!window.pbRunning) c.act(v);
+        });});
+
+        // ==========================================
+        // 8. 絕對安全的引擎初始化
+        // ==========================================
+        function initEngine() {
+            if (window.engineStarted) return;
+            window.engineStarted = true;
+            resizeCanvas(); 
+            updateScheduleUI();
+            
+            simDate = new Date(); // 捕捉正確現實時間起點
+            syncFiredEvents(); // 根據當前時刻載入過濾，防止載入瞬間排程暴衝
+            
+            lastFrameTime = performance.now();
+            requestAnimationFrame(loop);
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initEngine);
+            window.addEventListener('load', initEngine);
+        } else {
+            initEngine();
+        }
+
+    </script>
+</body>
+</html>
