@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>冬山河 50 英里 - 核心備賽計畫</title>
+    <style>
+        :root {
+            --bg-color: #0d0d0d;
+            --text-main: #ffffff;
+            --text-muted: #888888;
+            --work-color: #00e5ff; /* Cyan for Work */
+            --rest-color: #ffea00; /* Yellow for Rest */
+            --btn-day1: linear-gradient(135deg, #ff416c, #ff4b2b);
+            --btn-day2: linear-gradient(135deg, #00b0ff, #005cff);
+            --btn-day3: linear-gradient(135deg, #ff9800, #ff5722);
+            --btn-control: #333333;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Helvetica Neue', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden; /* Prevent pull-to-refresh on mobile */
+            touch-action: none;
+            display: flex;
+            flex-direction: column;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Screen Management */
+        .screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.4s ease, transform 0.4s ease;
+            z-index: 10;
+        }
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(0.95);
+        }
+
+        /* HOME SCREEN */
+        #home-screen { z-index: 30; background-color: var(--bg-color); padding: 20px; }
+        h1.main-title { font-size: 2rem; text-align: center; margin-bottom: 5px; font-weight: 800; letter-spacing: 1px;}
+        p.subtitle { color: var(--text-muted); margin-bottom: 40px; text-align: center; }
+        
+        .menu-btn {
+            width: 100%;
+            max-width: 350px;
+            padding: 25px 20px;
+            margin-bottom: 20px;
+            border-radius: 20px;
+            border: none;
+            color: white;
+            font-size: 1.4rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+            transition: transform 0.1s;
+        }
+        .menu-btn:active { transform: scale(0.96); }
+        #btn-d1 { background: var(--btn-day1); }
+        #btn-d2 { background: var(--btn-day2); }
+        #btn-d3 { background: var(--btn-day3); }
+
+        /* WORKOUT SCREEN */
+        #workout-screen { z-index: 20; background: transparent; justify-content: flex-start; padding-top: 8vh; pointer-events: none; }
+        canvas {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1; /* Behind UI */
+        }
+        
+        .ui-header {
+            text-align: center;
+            z-index: 25;
+            width: 100%;
+            padding: 0 20px;
+            pointer-events: auto;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 1rem;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            background: rgba(255,255,255,0.1);
+        }
+        .workout-info { font-size: 1.2rem; color: var(--text-muted); margin-bottom: 5px; }
+        .exercise-title { font-size: 2.8rem; font-weight: 900; text-shadow: 0 2px 10px rgba(0,0,0,0.8); line-height: 1.2; min-height: 3.5rem; }
+        .next-exercise { font-size: 1.2rem; color: var(--text-muted); margin-top: 5px; height: 1.5rem;}
+        
+        .timer-display {
+            font-size: 6.5rem;
+            font-weight: 900;
+            font-variant-numeric: tabular-nums;
+            margin-top: 10px;
+            text-shadow: 0 4px 15px rgba(0,0,0,0.8);
+            line-height: 1;
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 40px;
+            display: flex;
+            gap: 20px;
+            z-index: 25;
+            pointer-events: auto;
+        }
+        .ctrl-btn {
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(5px);
+            border: 2px solid rgba(255,255,255,0.1);
+            color: white;
+            width: 70px; height: 70px;
+            border-radius: 35px;
+            font-size: 1rem;
+            font-weight: bold;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .ctrl-btn:active { background: rgba(255,255,255,0.3); }
+
+        /* Color States */
+        .color-work { color: var(--work-color); }
+        .color-rest { color: var(--rest-color); }
+
+        /* DONE SCREEN */
+        #done-screen { z-index: 40; background-color: var(--bg-color); }
+        .trophy { font-size: 5rem; margin-bottom: 20px; }
+        #done-msg { font-size: 1.5rem; color: var(--text-muted); margin: 20px 0 40px 0; text-align: center; padding: 0 20px;}
+
+    </style>
+</head>
+<body>
+    
+    <!-- UI: Home Screen -->
+    <div id="home-screen" class="screen">
+        <h1 class="main-title">冬山河 50 英里</h1>
+        <p class="subtitle">核心肌肥大與穩定度備賽計畫</p>
+        
+        <button class="menu-btn" id="btn-d1" onclick="startProgram(1)">DAY 1: 腹直肌增厚</button>
+        <button class="menu-btn" id="btn-d2" onclick="startProgram(2)">DAY 2: 側腹與抗旋轉</button>
+        <button class="menu-btn" id="btn-d3" onclick="startProgram(3)">DAY 3: 動態與高消耗</button>
+        
+        <p style="margin-top: 20px; font-size: 0.8rem; color: #555;">(請確保手機未靜音，並開啟媒體音量)</p>
+    </div>
+
+    <!-- UI: Workout Screen -->
+    <canvas id="animCanvas"></canvas>
+    
+    <div id="workout-screen" class="screen hidden">
+        <div class="ui-header">
+            <div id="status-badge" class="status-badge">準備</div>
+            <div id="workout-info" class="workout-info">Round 1 / 4 | Exercise 1 / 5</div>
+            <div id="exercise-title" class="exercise-title color-work">--</div>
+            <div id="next-exercise" class="next-exercise"></div>
+            <div id="timer-display" class="timer-display color-work">00</div>
+        </div>
+        
+        <div class="controls">
+            <button class="ctrl-btn" onclick="togglePause()" id="btn-pause">暫停</button>
+            <button class="ctrl-btn" onclick="quitWorkout()">結束</button>
+        </div>
+    </div>
+
+    <!-- UI: Done Screen -->
+    <div id="done-screen" class="screen hidden">
+        <div class="trophy">🏆</div>
+        <h1 class="main-title">訓練完成！</h1>
+        <p id="done-msg">強悍的核心是超馬的基石。<br>請好好休息，準備迎接下一次挑戰。</p>
+        <button class="menu-btn" style="background: var(--btn-control);" onclick="showHome()">回首頁</button>
+    </div>
+
+    <script>
+        // --- DATA & CONFIG ---
+        const WORK_SEC = 45;
+        const REST_SEC = 15;
+        const TOTAL_ROUNDS = 4;
+        const EXERCISES_PER_ROUND = 5;
+
+        const SCHEDULE = {
+            1: [ // Day 1
+                { id: 'v_ups', name: 'V字仰臥起坐' },
+                { id: 'rev_crunch', name: '反向捲腹' },
+                { id: 'toe_touch', name: '直腿觸踝' },
+                { id: 'dead_bug', name: '死蟲式' },
+                { id: 'plank', name: '棒式撐體' }
+            ],
+            2: [ // Day 2
+                { id: 'russian_twist', name: '俄羅斯轉體' },
+                { id: 'bike_crunch', name: '腳踏車捲腹' },
+                { id: 'side_plank_r', name: '側棒式 (右)' },
+                { id: 'side_plank_l', name: '側棒式 (左)' },
+                { id: 'side_v_up', name: '側躺捲腹' }
+            ],
+            3: [ // Day 3
+                { id: 'mt_climber', name: '登山者' },
+                { id: 'flutter_kick', name: '剪刀腿' },
+                { id: 'plank_jack', name: '棒式開合跳' },
+                { id: 'heel_touch', name: '交替摸腳踝' },
+                { id: 'hollow_hold', name: '大字伸展收縮' }
+            ]
+        };
+
+        // --- STATE ---
+        let state = {
+            active: false,
+            paused: false,
+            day: 1,
+            round: 1,
+            exIndex: 0,
+            status: 'PREPARE', // PREPARE, WORK, REST, DONE
+            timeLeft: 0,
+            lastTime: 0,
+            lastBeepSec: -1
+        };
+
+        // --- DOM Elements ---
+        const screenHome = document.getElementById('home-screen');
+        const screenWorkout = document.getElementById('workout-screen');
+        const screenDone = document.getElementById('done-screen');
+        
+        const elStatus = document.getElementById('status-badge');
+        const elInfo = document.getElementById('workout-info');
+        const elTitle = document.getElementById('exercise-title');
+        const elNext = document.getElementById('next-exercise');
+        const elTimer = document.getElementById('timer-display');
+        const btnPause = document.getElementById('btn-pause');
+        
+        const canvas = document.getElementById('animCanvas');
+        const ctx = canvas.getContext('2d');
+        let cx, cy;
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            cx = canvas.width / 2;
+            cy = canvas.height * 0.75; // Floor level lower to accommodate large UI
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        let audioCtx;
+        function initAudioAndTTS() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            // Unlock TTS on mobile by speaking an empty string on user interaction
+            if ('speechSynthesis' in window) {
+                let u = new SpeechSynthesisUtterance("");
+                u.volume = 0;
+                window.speechSynthesis.speak(u);
+            }
+        }
+
+        function playTone(freq, type, duration, vol=1) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        function playBeep(type) {
+            if (type === 'start') playTone(880, 'sine', 0.6, 1);       // High long
+            else if (type === 'rest') playTone(440, 'triangle', 0.6, 0.8); // Low long
+            else if (type === 'count') playTone(600, 'square', 0.15, 0.5); // Sharp short
+            else if (type === 'done') {
+                playTone(440, 'sine', 0.2);
+                setTimeout(()=>playTone(554, 'sine', 0.2), 200);
+                setTimeout(()=>playTone(659, 'sine', 0.4), 400);
+                setTimeout(()=>playTone(880, 'sine', 0.8), 600);
+            }
+        }
+
+        function speakText(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel(); // Clear queue
+                let msg = new SpeechSynthesisUtterance(text);
+                msg.lang = 'zh-TW';
+                msg.rate = 1.1; // slightly faster for workout pace
+                window.speechSynthesis.speak(msg);
+            }
+        }
+
+        function startProgram(day) {
+            initAudioAndTTS();
+            state.day = day;
+            state.active = true;
+            state.paused = false;
+            state.round = 1;
+            state.exIndex = 0;
+            state.status = 'PREPARE';
+            state.timeLeft = 5.0; // 5 seconds intro
+            state.lastTime = Date.now();
+            state.lastBeepSec = -1;
+            
+            screenHome.classList.add('hidden');
+            screenWorkout.classList.remove('hidden');
+            screenDone.classList.add('hidden');
+            
+            updateUI();
+            speakText(`第${day}天訓練即將開始，請準備。`);
+            
+            if(!requestAnimationFrameId) loop(); // start engine
+        }
+
+        function showHome() {
+            state.active = false;
+            screenHome.classList.remove('hidden');
+            screenWorkout.classList.add('hidden');
+            screenDone.classList.add('hidden');
+        }
+
+        function quitWorkout() {
+            if(confirm("確定要提早結束訓練嗎？")) showHome();
+        }
+
+        function togglePause() {
+            state.paused = !state.paused;
+            btnPause.innerText = state.paused ? "繼續" : "暫停";
+            if(!state.paused) {
+                state.lastTime = Date.now(); // reset delta calculation
+            }
+        }
+
+        function getNextExName() {
+            let nextId = state.exIndex + 1;
+            if (nextId < EXERCISES_PER_ROUND) {
+                return SCHEDULE[state.day][nextId].name;
+            } else if (state.round < TOTAL_ROUNDS) {
+                return SCHEDULE[state.day][0].name; // First of next round
+            }
+            return "";
+        }
+
+        function handlePhaseTransition() {
+            if (state.status === 'PREPARE' || state.status === 'REST') {
+                // Enter WORK
+                state.status = 'WORK';
+                state.timeLeft = WORK_SEC;
+                playBeep('start');
+            } else if (state.status === 'WORK') {
+                // End of Work phase
+                if (state.exIndex === EXERCISES_PER_ROUND - 1) {
+                    if (state.round >= TOTAL_ROUNDS) {
+                        // Workout Complete
+                        state.status = 'DONE';
+                        state.active = false;
+                        playBeep('done');
+                        screenWorkout.classList.add('hidden');
+                        screenDone.classList.remove('hidden');
+                        speakText("恭喜完成今天的訓練！");
+                        return;
+                    }
+                }
+                
+                // Enter REST
+                state.status = 'REST';
+                state.timeLeft = REST_SEC;
+                playBeep('rest');
+                
+                // Announce next after 1 sec to let beep finish
+                let nextName = getNextExName();
+                setTimeout(() => {
+                    if(state.active && !state.paused) speakText("下一個動作：" + nextName);
+                }, 1000);
+            }
+            
+            if (state.status === 'WORK' && state.timeLeft === WORK_SEC) {
+                 // Nothing to increment immediately, already set
+            } else if (state.status === 'REST') {
+                 // Check if need to increment counters for next WORK
+            }
+            
+            // Advance counters AFTER rest finishes (when transitioning REST -> WORK)
+            if(state.status === 'WORK' && state.timeLeft === WORK_SEC && state.active) {
+                if(state.lastBeepSec !== -1) { // not the very first run
+                   state.exIndex++;
+                   if(state.exIndex >= EXERCISES_PER_ROUND) {
+                       state.exIndex = 0;
+                       state.round++;
+                   }
+                }
+            }
+
+            state.lastBeepSec = -1;
+            updateUI();
+        }
+
+        function updateUI() {
+            if(!state.active) return;
+            
+            let currentEx = SCHEDULE[state.day][state.exIndex];
+            elInfo.innerText = `Round ${state.round} / ${TOTAL_ROUNDS} | 動作 ${state.exIndex + 1} / 5`;
+            
+            if (state.status === 'PREPARE') {
+                elStatus.innerText = '準備';
+                elStatus.style.color = '#fff';
+                elTitle.innerText = "準備中";
+                elTitle.className = "exercise-title";
+                elTimer.className = "timer-display";
+                elNext.innerText = `即將開始: ${currentEx.name}`;
+            } 
+            else if (state.status === 'WORK') {
+                elStatus.innerText = '作動 (WORK)';
+                elStatus.style.color = 'var(--work-color)';
+                elTitle.innerText = currentEx.name;
+                elTitle.className = "exercise-title color-work";
+                elTimer.className = "timer-display color-work";
+                elNext.innerText = "";
+            } 
+            else if (state.status === 'REST') {
+                elStatus.innerText = '休息 (REST)';
+                elStatus.style.color = 'var(--rest-color)';
+                elTitle.innerText = "休息";
+                elTitle.className = "exercise-title color-rest";
+                elTimer.className = "timer-display color-rest";
+                let nextName = getNextExName();
+                elNext.innerText = nextName ? `下一個: ${nextName}` : "";
+            }
+        }
+
+        const PROPS = { head: 18, torso: 65, uArm: 35, lArm: 35, uLeg: 45, lLeg: 45 };
+
+        function getPt(start, angle, len) {
+            return { x: start.x + Math.cos(angle) * len, y: start.y + Math.sin(angle) * len };
+        }
+
+        function drawLine(p1, p2, w, color) {
+            ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+            ctx.lineWidth = w; ctx.strokeStyle = color;
+            ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke();
+        }
+        function drawCircle(p, r, color) {
+            ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+            ctx.fillStyle = color; ctx.fill();
+        }
+
+        // Base render function mapping joint angles
+        function renderMan(hips, a) {
+            const cFg = (state.status === 'REST') ? '#ffea00' : '#00e5ff'; // Match UI color
+            const cBg = '#555555'; // Background limbs
+            const wT = 9, wL = 7;
+
+            const neck = getPt(hips, a.torso, PROPS.torso);
+            const head = getPt(neck, a.torso, PROPS.head);
+            
+            const lElbow = getPt(neck, a.lArmU, PROPS.uArm);
+            const lHand = getPt(lElbow, a.lArmL, PROPS.lArm);
+            const rElbow = getPt(neck, a.rArmU, PROPS.uArm);
+            const rHand = getPt(rElbow, a.rArmL, PROPS.lArm);
+
+            const lKnee = getPt(hips, a.lLegU, PROPS.uLeg);
+            const lFoot = getPt(lKnee, a.lLegL, PROPS.lLeg);
+            const rKnee = getPt(hips, a.rLegU, PROPS.uLeg);
+            const rFoot = getPt(rKnee, a.rLegL, PROPS.lLeg);
+
+            // Draw Background (Right side)
+            drawLine(hips, rKnee, wL, cBg); drawLine(rKnee, rFoot, wL, cBg);
+            drawLine(neck, rElbow, wL, cBg); drawLine(rElbow, rHand, wL, cBg);
+            // Draw Core
+            drawLine(hips, neck, wT, '#ffffff'); drawCircle(head, PROPS.head, '#ffffff');
+            // Draw Foreground (Left side)
+            drawLine(hips, lKnee, wL, cFg); drawLine(lKnee, lFoot, wL, cFg);
+            drawLine(neck, lElbow, wL, cFg); drawLine(lElbow, lHand, wL, cFg);
+        }
+
+        // Helper: returns 0.0 to 1.0 oscillating based on time and speed
+        function wave(speed, offset = 0) {
+            return (Math.sin((Date.now() / 1000 * speed) + offset) + 1) / 2;
+        }
+
+        const POSES = {
+            _rest: () => {
+                const w = wave(2) * 0.05; // Breathe
+                return {
+                    hips: { x: cx, y: cy - 5 },
+                    angles: {
+                        torso: Math.PI * 1.35 + w,
+                        lArmU: Math.PI*0.8, lArmL: Math.PI*0.9, rArmU: Math.PI*0.7, rArmL: Math.PI*0.8, // Props
+                        lLegU: -0.1, lLegL: 0.3, rLegU: -0.15, rLegL: 0.25 // Bent knees
+                    }
+                };
+            },
+            // --- DAY 1 ---
+            v_ups: () => {
+                let p = wave(3); p = p*p*(3-2*p); // smooth ease
+                return { hips: { x: cx, y: cy - 10 }, angles: {
+                    torso: Math.PI - p*Math.PI*0.35,
+                    lArmU: Math.PI - p*Math.PI, lArmL: Math.PI - p*Math.PI, rArmU: Math.PI - p*Math.PI, rArmL: Math.PI - p*Math.PI,
+                    lLegU: -p*Math.PI*0.45, lLegL: -p*Math.PI*0.45, rLegU: -p*Math.PI*0.45, rLegL: -p*Math.PI*0.45
+                }};
+            },
+            rev_crunch: () => {
+                let p = wave(2.5); let hL = p*15;
+                return { hips: { x: cx+20-hL, y: cy-10-hL }, angles: {
+                    torso: Math.PI - p*0.1,
+                    lArmU: Math.PI*1.1, lArmL: Math.PI*1.1, rArmU: Math.PI*1.1, rArmL: Math.PI*1.1, // floor
+                    lLegU: -Math.PI*0.4 + p*Math.PI*0.8, lLegL: Math.PI*0.1 + p*Math.PI*0.8,
+                    rLegU: -Math.PI*0.4 + p*Math.PI*0.8, rLegL: Math.PI*0.1 + p*Math.PI*0.8
+                }};
+            },
+            toe_touch: () => {
+                let p = wave(3.5);
+                return { hips: { x: cx+20, y: cy-10 }, angles: {
+                    torso: Math.PI - p*Math.PI*0.25, // crunch
+                    lArmU: -Math.PI*0.6, lArmL: -Math.PI*0.6, rArmU: -Math.PI*0.6, rArmL: -Math.PI*0.6,
+                    lLegU: -Math.PI*0.55, lLegL: -Math.PI*0.55, rLegU: -Math.PI*0.55, rLegL: -Math.PI*0.55
+                }};
+            },
+            dead_bug: () => {
+                let p1 = wave(3); let p2 = wave(3, Math.PI);
+                return { hips: { x: cx+20, y: cy-10 }, angles: {
+                    torso: Math.PI,
+                    lArmU: -Math.PI/2 + p1*1.7, lArmL: -Math.PI/2 + p1*1.7,
+                    rLegU: -Math.PI/2 + p1*1.5, rLegL: -Math.PI/2 + p1*1.5,
+                    rArmU: -Math.PI/2 + p2*1.7, rArmL: -Math.PI/2 + p2*1.7,
+                    lLegU: -Math.PI/2 + p2*1.5, lLegL: -Math.PI/2 + p2*1.5
+                }};
+            },
+            plank: () => {
+                let shake = (Math.random()-0.5) * wave(5) * 2;
+                return { hips: { x: cx, y: cy-35+shake }, angles: {
+                    torso: 0.1, lArmU: Math.PI*0.6, lArmL: Math.PI, rArmU: Math.PI*0.6, rArmL: Math.PI,
+                    lLegU: Math.PI*1.05, lLegL: Math.PI*1.05, rLegU: Math.PI*1.05, rLegL: Math.PI*1.05
+                }};
+            },
+            // --- DAY 2 ---
+            russian_twist: () => {
+                let tw = wave(6) * 2 - 1; // -1 to 1
+                return { hips: { x: cx+10, y: cy-10 }, angles: {
+                    torso: Math.PI*1.25 + (tw*0.05),
+                    lLegU: Math.PI*0.85, lLegL: Math.PI*1.05, rLegU: Math.PI*0.85, rLegL: Math.PI*1.05, // legs up
+                    lArmU: Math.PI*0.9 + tw*0.4, lArmL: Math.PI*0.9 + tw*0.4, rArmU: Math.PI*0.9 + tw*0.4, rArmL: Math.PI*0.9 + tw*0.4 // swing
+                }};
+            },
+            bike_crunch: () => {
+                let p1 = wave(4); let p2 = wave(4, Math.PI);
+                return { hips: { x: cx+20, y: cy-10 }, angles: {
+                    torso: Math.PI-0.15,
+                    lArmU: -Math.PI*0.7, lArmL: Math.PI*0.9, rArmU: -Math.PI*0.7, rArmL: Math.PI*0.9, // behind head
+                    lLegU: Math.PI - p1*Math.PI*0.6, lLegL: Math.PI - p1*Math.PI*0.3 + Math.PI/2,
+                    rLegU: Math.PI - p2*Math.PI*0.6, rLegL: Math.PI - p2*Math.PI*0.3 + Math.PI/2
+                }};
+            },
+            side_plank_r: () => { // Facing Right Side Profile
+                let shake = (Math.random()-0.5) * wave(5) * 2;
+                return { hips: { x: cx, y: cy-40+shake }, angles: {
+                    torso: -Math.PI*0.15, lLegU: Math.PI*0.85, lLegL: Math.PI*0.85, rLegU: Math.PI*0.85, rLegL: Math.PI*0.85,
+                    rArmU: Math.PI/2, rArmL: Math.PI, lArmU: -Math.PI*0.5, lArmL: -Math.PI*0.5
+                }};
+            },
+            side_plank_l: () => { // Facing Left Side Profile
+                let shake = (Math.random()-0.5) * wave(5) * 2;
+                return { hips: { x: cx, y: cy-40+shake }, angles: {
+                    torso: Math.PI*1.15, lLegU: Math.PI*0.15, lLegL: Math.PI*0.15, rLegU: Math.PI*0.15, rLegL: Math.PI*0.15,
+                    lArmU: Math.PI/2, lArmL: 0, rArmU: -Math.PI*0.5, rArmL: -Math.PI*0.5
+                }};
+            },
+            side_v_up: () => {
+                let p = wave(3); p = p*p*(3-2*p);
+                return { hips: { x: cx+15, y: cy-10 }, angles: {
+                    torso: -p*Math.PI*0.35, // head rises
+                    lLegU: Math.PI + p*Math.PI*0.35, lLegL: Math.PI + p*Math.PI*0.35, rLegU: Math.PI + p*Math.PI*0.35, rLegL: Math.PI + p*Math.PI*0.35,
+                    rArmU: Math.PI/2, rArmL: Math.PI, // bottom arm
+                    lArmU: p*Math.PI*0.8, lArmL: p*Math.PI*0.8 // top crunch arm
+                }};
+            },
+            // --- DAY 3 ---
+            mt_climber: () => {
+                let p1 = wave(8)*2-1; let p2 = wave(8, Math.PI)*2-1; // fast
+                let lu = p1>0 ? 0.9*Math.PI : 0.9*Math.PI - Math.abs(p1)*0.6*Math.PI;
+                let ru = p2>0 ? 0.9*Math.PI : 0.9*Math.PI - Math.abs(p2)*0.6*Math.PI;
+                return { hips: { x: cx+25, y: cy-30 }, angles: {
+                    torso: 0.15*Math.PI, lArmU: 0.6*Math.PI, lArmL: 0.5*Math.PI, rArmU: 0.6*Math.PI, rArmL: 0.5*Math.PI,
+                    lLegU: lu, lLegL: p1>0 ? 0.95*Math.PI : lu - 0.4*Math.PI,
+                    rLegU: ru, rLegL: p2>0 ? 0.95*Math.PI : ru - 0.4*Math.PI
+                }};
+            },
+            flutter_kick: () => {
+                let p1 = wave(7)*2-1; let p2 = wave(7, Math.PI)*2-1;
+                return { hips: { x: cx+15, y: cy-10 }, angles: {
+                    torso: Math.PI-0.15, lArmU: Math.PI+0.1, lArmL: Math.PI+0.1, rArmU: Math.PI+0.1, rArmL: Math.PI+0.1,
+                    lLegU: -0.15 + p1*0.15, lLegL: -0.15 + p1*0.15, rLegU: -0.15 + p2*0.15, rLegL: -0.15 + p2*0.15
+                }};
+            },
+            plank_jack: () => {
+                let bounce = wave(5, 0, 1); // math abs sin equivalent
+                let spr = bounce*0.2;
+                return { hips: { x: cx+20, y: cy-35 - (bounce*10) }, angles: {
+                    torso: 0.1*Math.PI, lArmU: 0.6*Math.PI, lArmL: 0.5*Math.PI, rArmU: 0.6*Math.PI, rArmL: 0.5*Math.PI,
+                    lLegU: 0.9*Math.PI + spr, lLegL: 0.9*Math.PI + spr, rLegU: 0.9*Math.PI - spr, rLegL: 0.9*Math.PI - spr
+                }};
+            },
+            heel_touch: () => {
+                let tw = wave(4)*2-1;
+                return { hips: { x: cx+15, y: cy-10 }, angles: {
+                    torso: Math.PI-0.25, lLegU: -0.4*Math.PI, lLegL: 0.1*Math.PI, rLegU: -0.4*Math.PI, rLegL: 0.1*Math.PI,
+                    lArmU: Math.PI-0.2 + tw*0.15, lArmL: Math.PI-0.2 + tw*0.15, rArmU: Math.PI-0.2 - tw*0.15, rArmL: Math.PI-0.2 - tw*0.15
+                }};
+            },
+            hollow_hold: () => {
+                let shake = (Math.random()-0.5)*wave(12)*2;
+                let sa = (Math.random()-0.5)*0.02;
+                return { hips: { x: cx+10, y: cy-10+shake }, angles: {
+                    torso: Math.PI-0.2+sa, lArmU: Math.PI-0.8, lArmL: Math.PI-0.8, rArmU: Math.PI-0.8, rArmL: Math.PI-0.8,
+                    lLegU: -0.15+sa, lLegL: -0.15+sa, rLegU: -0.15+sa, rLegL: -0.15+sa
+                }};
+            }
+        };
+
+        let requestAnimationFrameId = null;
+        
+        function loop() {
+            if (!state.active) {
+                requestAnimationFrameId = null;
+                return;
+            }
+
+            // Time Math
+            const now = Date.now();
+            if (!state.paused) {
+                let dt = (now - state.lastTime) / 1000;
+                state.timeLeft -= dt;
+                
+                if (state.timeLeft <= 0) {
+                    handlePhaseTransition();
+                } else {
+                    // Beep on 3, 2, 1
+                    let secRound = Math.ceil(state.timeLeft);
+                    if (secRound <= 3 && secRound > 0 && secRound !== state.lastBeepSec) {
+                        playBeep('count');
+                        state.lastBeepSec = secRound;
+                    }
+                }
+            }
+            state.lastTime = now;
+
+            // Update UI Timer text
+            let tDisp = Math.max(0, Math.ceil(state.timeLeft)).toString().padStart(2, '0');
+            if (elTimer.innerText !== tDisp) elTimer.innerText = tDisp;
+
+            // Render Canvas
+            ctx.fillStyle = '#0d0d0d';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Floor line
+            ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(canvas.width, cy);
+            ctx.strokeStyle = '#222'; ctx.lineWidth = 4; ctx.stroke();
+
+            // Draw Figure
+            let pData;
+            if (state.status === 'PREPARE' || state.status === 'REST') {
+                pData = POSES._rest();
+            } else if (state.status === 'WORK') {
+                let currentExId = SCHEDULE[state.day][state.exIndex].id;
+                if(POSES[currentExId]) pData = POSES[currentExId]();
+            }
+
+            if (pData) renderMan(pData.hips, pData.angles);
+
+            requestAnimationFrameId = requestAnimationFrame(loop);
+        }
+
+    </script>
+</body>
+</html>
