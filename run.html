@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="format-detection" content="telephone=no">
-    <title>Pro Treadmill OS - Ultimate Edition (v51)</title>
+    <title>Pro Treadmill OS - Ultimate Edition (v52)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.85); 
@@ -39,10 +39,18 @@
 
         #header { flex: none; display: flex; flex-direction: column; background: var(--bg-dark); position: relative; z-index: var(--z-header); }
         .tabs-row { display: flex; height: 50px; position: relative; width: 100%; }
-        .tab-btn { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; font-weight: 700; color: var(--gray); background: transparent; border: none; cursor: pointer; outline: none; transition: color 0.2s; }
+        .tab-btn { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; font-weight: 700; color: var(--gray); background: transparent; border: none; cursor: pointer; outline: none; transition: color 0.2s; position: relative; }
         .tab-btn.active { color: var(--text-main); }
         .tab-indicator { position: absolute; bottom: 0; height: 3px; background: var(--text-main); width: 50%; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); border-radius: 3px 3px 0 0;}
         
+        /* 雙層 DOM 沉浸導航 */
+        .tab-text { transition: opacity 0.2s; }
+        .tab-immersive-text { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); opacity: 0; transition: opacity 0.2s, color var(--gait-fade-dur) ease-out, text-shadow var(--gait-fade-dur) ease-out; white-space: nowrap; pointer-events: none; font-size: 1.25rem; font-weight: 900; color: #FFF; }
+        .tab-immersive-text.strike { transition: none; color: var(--current-gait-color); text-shadow: 0 0 15px var(--current-gait-color); }
+        
+        .immersive-tabs .tab-settings-active #tabSettings .tab-text { opacity: 0 !important; }
+        .immersive-tabs .tab-settings-active #tabSettings .tab-immersive-text { opacity: 1 !important; }
+
         .progress-row { display: none; height: 44px; align-items: center; padding: 0 15px; width: 100%; background: var(--bg-card); border-bottom: 1px solid var(--border-color); animation: slideDown 0.3s ease-out; cursor: pointer;}
         .progress-row.show { display: flex; }
         @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
@@ -86,10 +94,7 @@
         .offset-val { font-size: 1.1rem; font-weight: 800; color: var(--text-main); width: 45px; }
 
         .prog-carousel-wrap { width: 100%; position: relative; }
-        .prog-carousel-wrap::after {
-            content: ''; position: absolute; top: 0; right: 0; bottom: 0; width: 40px;
-            background: linear-gradient(to right, rgba(0,0,0,0), var(--bg-dark)); pointer-events: none; z-index: 2;
-        }
+        .prog-carousel-wrap::after { content: ''; position: absolute; top: 0; right: 0; bottom: 0; width: 40px; background: linear-gradient(to right, rgba(0,0,0,0), var(--bg-dark)); pointer-events: none; z-index: 2; }
         .category-tabs { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; padding-bottom: 5px; margin-bottom: 5px; position: relative;}
         .category-tabs::-webkit-scrollbar { display: none; }
         .cat-btn { flex: 0 0 auto; padding: 6px 14px; border-radius: 16px; background: #222; color: var(--gray); font-size: 0.85rem; font-weight: 700; border: 1px solid #333; cursor: pointer; transition: all 0.2s; }
@@ -146,11 +151,8 @@
         .run-val-center { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; pointer-events: none; }
         .run-big-val { font-size: clamp(3rem, 12vw, 4.2rem); font-weight: 900; line-height: 1; letter-spacing: -1px; color: #FFFFFF; transition: transform 0.1s, color 0.2s, text-shadow 0.2s; position: relative; z-index: 2; pointer-events: auto; cursor: pointer; display: flex; align-items: baseline;}
         .run-big-val:active { transform: scale(0.92); opacity: 0.8; }
-        /* 讓全部數字具備漸變動畫準備 */
         .run-big-val span { transition: color var(--gait-fade-dur) ease-out, text-shadow var(--gait-fade-dur) ease-out; color: #FFF; text-shadow: none; }
-        /* 第一階段：只有小數點閃 */
         .run-big-val .dot.strike { transition: none; color: var(--current-gait-color); text-shadow: 0 0 15px var(--current-gait-color); }
-        /* 第二階段：全部數字一起閃 */
         .run-big-val.strike-all span { transition: none; color: var(--current-gait-color); text-shadow: 0 0 15px var(--current-gait-color); }
         
         .run-lbl { font-size: 0.8rem; color: var(--gray); font-weight: 700; margin-top: 2px; letter-spacing: 1px; position: relative; z-index: 2;}
@@ -212,7 +214,6 @@
         .preview-list li.active-row { background: var(--bg-card); border-left: 4px solid var(--neon-green); color: #FFF; transform: scale(1.02); box-shadow: 0 4px 12px rgba(0,0,0,0.5); font-weight: 800; }
         .preview-list li.max-lac-row { background: rgba(255, 69, 58, 0.15); color: #FFF; }
         
-        /* Auto-Peek Highlighting */
         .preview-list li.peek-row { background: rgba(10, 132, 255, 0.15); border-left: 4px solid var(--neon-blue); color: #FFF; transform: scale(1.02); }
         .pulse-spd-active { color: var(--neon-green) !important; font-weight: 900; background: rgba(50,215,75,0.2) !important; border-radius: 4px; box-shadow: 0 0 10px rgba(50,215,75,0.3); padding: 2px; }
         .pulse-inc-active { color: var(--neon-yellow) !important; font-weight: 900; background: rgba(255,214,10,0.2) !important; border-radius: 4px; box-shadow: 0 0 10px rgba(255,214,10,0.3); padding: 2px; }
@@ -371,11 +372,17 @@
 <video id="wakeLockVideo" playsinline muted loop style="position:fixed; opacity:0; pointer-events:none; width:1px; height:1px;" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA"></video>
 <div id="wakeLockCatcher" style="display:none; position:fixed; inset:0; z-index:99999; background:transparent;"></div>
 
-<div id="app-shell">
+<div id="app-shell" class="tab-settings-active">
     <header id="header">
-        <div class="tabs-row">
-            <button class="tab-btn active" data-action="tab-settings" id="tabSettings" data-i18n="tab_settings">---</button>
-            <button class="tab-btn" data-action="tab-matrix" id="tabMatrix" data-i18n="tab_pace">---</button>
+        <div class="tabs-row" id="tabsRow">
+            <button class="tab-btn active" data-action="tab-settings" id="tabSettings">
+                <span class="tab-text" data-i18n="tab_settings">---</span>
+                <span class="tab-immersive-text" id="tabImmersiveBpm"></span>
+            </button>
+            <button class="tab-btn" data-action="tab-matrix" id="tabMatrix">
+                <span class="tab-text" data-i18n="tab_pace">---</span>
+                <span class="tab-immersive-text" id="tabImmersivePace"></span>
+            </button>
             <div class="tab-indicator" id="tabIndicator"></div>
         </div>
         <div class="progress-row" id="runProgressRow" data-action="open-adj-time">
@@ -669,10 +676,20 @@
                             <button class="seg-btn active" data-val="on" data-idx="0" id="btnGaitOn" data-i18n="opt_gait_on"></button>
                             <button class="seg-btn" data-val="off" data-idx="1" id="btnGaitOff" data-i18n="opt_gait_off"></button>
                         </div>
+                        <div class="segmented-control" id="segStep">
+                            <div class="seg-indicator" style="left: 4px;"></div>
+                            <button class="seg-btn active" data-val="on" data-idx="0" id="btnStepOn" data-i18n="opt_step_on"></button>
+                            <button class="seg-btn" data-val="off" data-idx="1" id="btnStepOff" data-i18n="opt_step_off"></button>
+                        </div>
                         <div class="segmented-control" id="segVoice">
                             <div class="seg-indicator" style="left: 4px;"></div>
                             <button class="seg-btn active" data-val="on" data-idx="0" id="btnVoiceOn" data-i18n="opt_voice_on"></button>
                             <button class="seg-btn" data-val="off" data-idx="1" id="btnVoiceOff" data-i18n="opt_voice_off"></button>
+                        </div>
+                        <div class="segmented-control" id="segBeat">
+                            <div class="seg-indicator" style="left: 4px;"></div>
+                            <button class="seg-btn active" data-val="on" data-idx="0" id="btnBeatOn" data-i18n="opt_beat_on"></button>
+                            <button class="seg-btn" data-val="off" data-idx="1" id="btnBeatOff" data-i18n="opt_beat_off"></button>
                         </div>
                     </div>
                 </div>
@@ -801,7 +818,7 @@
 </div>
 
 <script>
-/** PRO TREADMILL OS (ULTIMATE EDITION v51) */
+/** PRO TREADMILL OS (ULTIMATE EDITION v52 - Conductor Pattern) */
 
 const i18n = {
     zh: {
@@ -818,7 +835,12 @@ const i18n = {
         rm_hw_title: "硬體限制 (實體極限不可超過)", rm_hw_mxs: "機台硬體-最高速", rm_hw_mns: "機台硬體-最低速", rm_hw_mxi: "機台硬體-最高坡", rm_hw_mni: "機台硬體-最低坡",
         rm_pref: "偏好設定", btn_cancel: "取消", btn_save: "儲存", btn_add: "+ 新增跑者", err_name: "名稱已存在",
         lbl_inc_step: "坡度精度",
-        lang_zh: "中文", lang_en: "EN", opt_voice_on: "語音 ON", opt_voice_off: "語音 OFF", opt_gait_on: "步頻 ON", opt_gait_off: "步頻 OFF", opt_met: "公制", opt_imp: "英制", opt_m: "男", opt_f: "女",
+        lang_zh: "中文", lang_en: "EN", 
+        opt_voice_on: "語音 ON", opt_voice_off: "語音 OFF", 
+        opt_gait_on: "步頻 ON", opt_gait_off: "步頻 OFF", 
+        opt_step_on: "步法 ON", opt_step_off: "步法 OFF",
+        opt_beat_on: "節拍 ON", opt_beat_off: "節拍 OFF",
+        opt_met: "公制", opt_imp: "英制", opt_m: "男", opt_f: "女",
         hist_title: "歷史紀錄", hist_empty: "尚無訓練紀錄", hist_clear: "確認清空所有歷史紀錄？此操作無法復原。",
         zones: ["Z1 恢復", "Z2 燃脂", "Z3 節奏", "Z4 乳酸", "Z5 無氧"], unit_min: "分",
         phases: { warmup: "暖身", steep: "爬坡", sprint: "衝刺", recovery: "恢復", steady: "巡航", exhaust: "力竭", cooldown: "緩和", base: "基底" },
@@ -878,7 +900,12 @@ const i18n = {
         rm_hw_title: "Hardware Limits (Absolute Max)", rm_hw_mxs: "Hardware Max Spd", rm_hw_mns: "Hardware Min Spd", rm_hw_mxi: "Hardware Max Inc", rm_hw_mni: "Hardware Min Inc",
         rm_pref: "Preferences", btn_cancel: "Cancel", btn_save: "Save", btn_add: "+ Add Runner", err_name: "Name Exists",
         lbl_inc_step: "Incline Precision",
-        lang_zh: "中文", lang_en: "EN", opt_voice_on: "Voice ON", opt_voice_off: "Voice OFF", opt_gait_on: "Gait ON", opt_gait_off: "Gait OFF", opt_met: "Metric", opt_imp: "Imperial", opt_m: "M", opt_f: "F",
+        lang_zh: "中文", lang_en: "EN", 
+        opt_voice_on: "Voice ON", opt_voice_off: "Voice OFF", 
+        opt_gait_on: "Gait ON", opt_gait_off: "Gait OFF", 
+        opt_step_on: "Step ON", opt_step_off: "Step OFF",
+        opt_beat_on: "Beat ON", opt_beat_off: "Beat OFF",
+        opt_met: "Metric", opt_imp: "Imperial", opt_m: "M", opt_f: "F",
         hist_title: "History", hist_empty: "No workout history yet.", hist_clear: "Clear all history? This cannot be undone.",
         zones: ["Z1 Rec", "Z2 Fat", "Z3 Tempo", "Z4 Lac", "Z5 Anaer"], unit_min: "m",
         phases: { warmup: "Warmup", steep: "Steep", sprint: "Sprint", recovery: "Recovery", steady: "Steady", exhaust: "Exhaust", cooldown: "Cool", base: "Base" },
@@ -1425,7 +1452,7 @@ const Utils = {
         let speed = isMet ? speedKph : speedKph / 1.609344; let pace = 60 / speed; 
         if (pace >= 100) return `99:59`; 
         let pM = Math.floor(pace); let pS = Math.floor((pace - pM) * 60);
-        return `${String(pM).padStart(2,'0')}:${String(pS).padStart(2,'0')}`;
+        return `${String(pM).padStart(2,'0')}'${String(pS).padStart(2,'0')}"`;
     },
     clamp: (val, min, max) => Math.max(min, Math.min(max, val)),
     round: (val) => Math.round(val * 10000) / 10000,
@@ -1475,7 +1502,7 @@ const AppState = new ReactiveState({
     activeP: 'Runner', profiles: {}, hw: { maxSpd: 20.0, minSpd: 0.8, maxInc: 15.0, minInc: 0.0 },
     runStatus: 'STOPPED', accumMs: 0, matrix: [], snapshot: [], activeTab: 'settings',
     isTimeWarping: false, minimalVoice: false, estTotKm: 0,
-    fabMode: 'NORMAL', tempVoiceLang: null
+    fabMode: 'NORMAL', tempVoiceLang: null, previousFabMode: null
 });
 
 const RunAcc = { 
@@ -1497,6 +1524,175 @@ const resetRunAcc = () => {
         gaitPhase: 0, lastGaitBPM: -1, lastGaitPulseTime: 0
     });
 };
+
+/* 總指揮家：音訊引擎 (The Conductor Audio Engine) */
+class AudioEngine {
+    constructor() {
+        this.ctx = null;
+        this.masterGain = null;
+        this.duckGain = null;
+        this.isUnlocked = false;
+        this.bpm = 120;
+        this.isPlaying = false;
+        this.beatCount = 0;
+        this.nextNoteTime = 0;
+        this.lookahead = 25.0; // ms
+        this.scheduleAheadTime = 0.1; // s
+        this.timerID = null;
+        this.audioStartTime = 0;
+        
+        this.pendingSync = null; // 'left' or 'right'
+        this.isArmed = false;    // 冷啟動待命
+        
+        this.isMuted = false;
+        this.isBeatMuted = false;
+        this.isDucking = false;
+    }
+
+    unlock() {
+        if (this.isUnlocked) return;
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        this.ctx = new AudioContext();
+        
+        this.duckGain = this.ctx.createGain();
+        this.masterGain = this.ctx.createGain();
+        
+        this.duckGain.connect(this.masterGain);
+        this.masterGain.connect(this.ctx.destination);
+        
+        this.masterGain.gain.value = 1.0;
+        this.duckGain.gain.value = 1.0;
+
+        let osc = this.ctx.createOscillator();
+        osc.connect(this.masterGain);
+        osc.start(); osc.stop(this.ctx.currentTime + 0.001);
+        
+        this.isUnlocked = true;
+    }
+
+    setMute(mute) {
+        if (!this.masterGain) return;
+        this.isMuted = mute;
+        const now = this.ctx.currentTime;
+        this.masterGain.gain.cancelScheduledValues(now);
+        this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now);
+        if (mute) {
+            this.masterGain.gain.linearRampToValueAtTime(0.0, now + 0.05); // 模態框瞬間靜音
+        } else {
+            this.masterGain.gain.linearRampToValueAtTime(1.0, now + 0.1);
+        }
+    }
+
+    setDuck(duck) {
+        if (!this.duckGain) return;
+        this.isDucking = duck;
+        const now = this.ctx.currentTime;
+        this.duckGain.gain.cancelScheduledValues(now);
+        this.duckGain.gain.setValueAtTime(this.duckGain.gain.value, now);
+        if (duck) {
+            this.duckGain.gain.linearRampToValueAtTime(0.25, now + 0.2); // 語音平滑閃避
+        } else {
+            this.duckGain.gain.linearRampToValueAtTime(1.0, now + 0.5); // 語音結束平滑還原
+        }
+    }
+
+    setBeatMute(mute) {
+        this.isBeatMuted = mute;
+    }
+
+    start(bpm) {
+        if (!this.isUnlocked) this.unlock();
+        this.bpm = bpm || 120;
+        this.isArmed = false; // 每次起跑進入冷啟動待命
+        if (this.isPlaying) return;
+        this.isPlaying = true;
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        
+        this.audioStartTime = this.ctx.currentTime;
+        this.nextNoteTime = this.audioStartTime + 0.05;
+        this.beatCount = 0;
+        this.scheduler();
+    }
+
+    stop() {
+        this.isPlaying = false;
+        clearTimeout(this.timerID);
+        this.pendingSync = null;
+        this.isArmed = false;
+    }
+
+    updateBPM(bpm) {
+        this.bpm = bpm;
+    }
+
+    armSync(side) {
+        this.pendingSync = side;
+        this.isArmed = true; // 解除冷啟動封印
+    }
+
+    scheduleNote(time) {
+        if (this.isBeatMuted || !this.isArmed) {
+            this.beatCount = (this.beatCount + 1) % 3;
+            return;
+        }
+
+        let freq = (this.beatCount === 0) ? 500 : 1000; 
+        
+        let osc = this.ctx.createOscillator();
+        let env = this.ctx.createGain();
+        
+        osc.connect(env);
+        env.connect(this.duckGain);
+        
+        osc.frequency.value = freq;
+        env.gain.value = 0;
+        
+        // 極短 ADSR 封包，防止高步頻泥濘
+        env.gain.setValueAtTime(0, time);
+        env.gain.linearRampToValueAtTime(1.0, time + 0.005);
+        env.gain.exponentialRampToValueAtTime(0.001, time + 0.05); 
+        
+        osc.start(time);
+        osc.stop(time + 0.06);
+        
+        this.beatCount = (this.beatCount + 1) % 3;
+    }
+
+    scheduler() {
+        if (!this.isPlaying) return;
+        
+        let secondsPerBeat = 60.0 / Math.max(1, this.bpm);
+        
+        if (this.pendingSync) {
+            let now = this.ctx.currentTime;
+            // 相位鎖定：強制設定音訊啟動時間，讓當下成為所求的相位
+            if (this.pendingSync === 'left') {
+                this.audioStartTime = now;
+            } else {
+                this.audioStartTime = now - secondsPerBeat;
+            }
+            this.nextNoteTime = now + 0.01; 
+            this.beatCount = 0; // 下一個強制為重音
+            this.pendingSync = null;
+        }
+
+        while (this.nextNoteTime < this.ctx.currentTime + this.scheduleAheadTime) {
+            this.scheduleNote(this.nextNoteTime);
+            this.nextNoteTime += secondsPerBeat;
+        }
+        this.timerID = setTimeout(() => this.scheduler(), this.lookahead);
+    }
+
+    getVisualPhase() {
+        if (!this.isPlaying || !this.isUnlocked) return null;
+        let elapsed = this.ctx.currentTime - this.audioStartTime;
+        let beats = Math.max(0, elapsed * (this.bpm / 60.0));
+        return (beats % 2) / 2.0; 
+    }
+}
+const AudioApp = new AudioEngine();
+
 class PhysioEngine {
     static sanitize(raw) {
         let m = { ...raw }; 
@@ -1529,6 +1725,14 @@ class PhysioEngine {
         
         let incStep = m.incStep ?? 0.5;
 
+        let pGaitOn = m.gaitOn !== false;
+        let pStepOn = m.stepOn !== false;
+        let pBeatOn = m.beatOn !== false;
+
+        // 父子連動防護
+        if (!pGaitOn) { pStepOn = false; pBeatOn = false; }
+        if (!pStepOn) { pBeatOn = false; }
+
         return { 
             wKG, bf, smm, ecw, vo2, mHR, rHR, pMaxLac, 
             maxSpd: ms, minSpd: Math.max(0.1, m.minSpd ?? 2.0), 
@@ -1537,7 +1741,8 @@ class PhysioEngine {
             tKm: Math.max(0.1, m.tKm ?? 5.0), tTime: Math.max(20, m.tTime ?? 30), 
             age: Math.max(15, m.age ?? 40), gender: m.gender ?? 'M', 
             name: m.name ?? 'Runner', unit: m.unit ?? 'metric', 
-            lang: m.lang ?? 'zh', voiceOn: m.voiceOn ?? true, gaitOn: m.gaitOn ?? true,
+            lang: m.lang ?? 'zh', voiceOn: m.voiceOn ?? true, 
+            gaitOn: pGaitOn, stepOn: pStepOn, beatOn: pBeatOn,
             lastProg: m.lastProg ?? 0, lastCat: m.lastCat ?? 'FAT_BURN', 
             spdOffset: m.spdOffset ?? 0, incOffset: Utils.roundInc(m.incOffset ?? 0, incStep), 
             incStep: incStep, catMemory: m.catMemory 
@@ -1681,7 +1886,6 @@ class PhysioEngine {
         let maxReq = futureM.slice(startMinute).length > 0 ? Math.max(...futureM.slice(startMinute).map(m => m.rawSpd)) : 0;
         let baseProtect = Math.min(6.0, hw.maxSpd);
         
-        // 物理起點重置，避免時空跳躍
         cHR = p.rHR; cLac = 1.0; let vSpd = 0; let vInc = 0;
         
         if (startMinute > 0 && existingMatrix && existingMatrix[startMinute - 1]) {
@@ -1718,7 +1922,6 @@ class PhysioEngine {
                 cHR += (tHR - cHR) * 0.1; 
                 let hrIntensity = (cHR - p.rHR) / HRR;
                 
-                // --- 雙軌代謝生理模型 (Two-Compartment Lactate Model) ---
                 let prodBuffer = Math.max(0.01, 1.0 - (cLac / p.pMaxLac)); 
                 let lacProd = Math.pow(Math.max(0, hrIntensity - 0.45), 3) * 0.3 * prodBuffer; 
                 
@@ -1848,14 +2051,35 @@ class VoiceEngine {
         if (Date.now() - job.ts > 15000 && job.pri > 1) { if(job.cb) job.cb(); this._process(); return; }
         
         this.state = 'SPEAKING';
+        AudioApp.setDuck(true); // 平滑閃避
+        
         try {
             let msg = new SpeechSynthesisUtterance(job.txt); msg.lang = job.lang; msg.rate = 1.15;
             let voices = this.synth.getVoices(); if (voices.length > 0) { let v = voices.find(x => x.lang.includes(job.lang) && (x.name.includes('Siri') || x.name.includes('Google'))); if(v) msg.voice = v; }
-            const finish = () => { clearTimeout(this.wd); this.state = 'IDLE'; if(job.cb) job.cb(); setTimeout(() => this._process(), 100); };
-            this.wd = setTimeout(() => { this.synth.cancel(); finish(); }, 12000); 
+            
+            const finish = () => { 
+                clearTimeout(this.wd); 
+                this.state = 'IDLE'; 
+                AudioApp.setDuck(false); // 平滑還原
+                if(job.cb) job.cb(); 
+                setTimeout(() => this._process(), 100); 
+            };
+            
+            // Watchdog 計時器防護
+            this.wd = setTimeout(() => { 
+                this.synth.cancel(); 
+                finish(); 
+            }, 12000); 
+            
             msg.onend = finish; msg.onerror = finish;
             this.synth.speak(msg);
-        } catch(e) { clearTimeout(this.wd); this.state = 'IDLE'; if(job.cb) job.cb(); this._process(); }
+        } catch(e) { 
+            clearTimeout(this.wd); 
+            this.state = 'IDLE'; 
+            AudioApp.setDuck(false);
+            if(job.cb) job.cb(); 
+            this._process(); 
+        }
     }
     
     evaluateAndSpeak(data, age, maxLac) {
@@ -1890,13 +2114,13 @@ class VoiceEngine {
         if (arr && arr.length > 0) this.speakText(Utils.PRNG.get(curLang, key, arr), 3, ttsLang);
     }
 
-    clear() { this.q = []; if (this.synth) this.synth.cancel(); clearTimeout(this.wd); this.state = 'IDLE'; }
+    clear() { this.q = []; if (this.synth) this.synth.cancel(); clearTimeout(this.wd); this.state = 'IDLE'; AudioApp.setDuck(false); }
 }
 const VoiceApp = new VoiceEngine();
 
 const DB = {
     db: null,
-    init: async () => { return new Promise((res, rej) => { let req = indexedDB.open('ProTreadmillDB_U51', 1); req.onupgradeneeded = e => { let d = e.target.result; if(!d.objectStoreNames.contains('history')) d.createObjectStore('history', {keyPath: 'id', autoIncrement: true}); }; req.onsuccess = e => { DB.db = e.target.result; res(); }; req.onerror = rej; }); },
+    init: async () => { return new Promise((res, rej) => { let req = indexedDB.open('ProTreadmillDB_U52', 1); req.onupgradeneeded = e => { let d = e.target.result; if(!d.objectStoreNames.contains('history')) d.createObjectStore('history', {keyPath: 'id', autoIncrement: true}); }; req.onsuccess = e => { DB.db = e.target.result; res(); }; req.onerror = rej; }); },
     saveHist: async (data) => { if(!DB.db) return; return new Promise((res) => { try { let tx = DB.db.transaction('history', 'readwrite'); let st = tx.objectStore('history'); st.add(data); st.getAll().onsuccess = e => { let runnerHists = e.target.result.filter(x => x.runnerName === data.runnerName).sort((a,b)=>a.date - b.date); if(runnerHists.length > 500) { let dTx = DB.db.transaction('history', 'readwrite'); runnerHists.slice(0, runnerHists.length - 500).forEach(x => dTx.objectStore('history').delete(x.id)); } if(runnerHists.length > 100) { let cTx = DB.db.transaction('history', 'readwrite'); let toCompress = runnerHists.slice(0, runnerHists.length - 100); toCompress.forEach(x => { if(x.matrix) { x.matrix = []; cTx.objectStore('history').put(x); } }); } }; tx.oncomplete = res; tx.onerror = res; } catch(e) { res(); } }); },
     renameRunnerHistory: async (oldName, newName) => { if(!DB.db) return; return new Promise(res => { try { let tx = DB.db.transaction('history', 'readwrite'); let st = tx.objectStore('history'); st.getAll().onsuccess = e => { e.target.result.forEach(r => { if(r.runnerName === oldName) { r.runnerName = newName; st.put(r); } }); }; tx.oncomplete = res; tx.onerror = res; } catch (err) { res(); } }); },
     getHist: async (runnerName) => { return new Promise((res) => { if(!DB.db) return res([]); let tx = DB.db.transaction('history', 'readonly'); let st = tx.objectStore('history'); st.getAll().onsuccess = e => res(e.target.result.filter(x => x.runnerName === runnerName).sort((a,b) => b.id - a.id)); }); },
@@ -2057,11 +2281,15 @@ class InAppNumpad {
     }
     open(inputEl, title, isDecimal) {
         if(document.activeElement) document.activeElement.blur();
+        AudioApp.setMute(true); // Suppressor
         this.targetInput = inputEl; this.titleEl.textContent = title; this.isDecimal = isDecimal;
         this.valStr = inputEl.value; this.valEl.textContent = this.valStr || '0';
         this.overlay.classList.add('show'); this.catcher.classList.add('show');
     }
-    close() { this.overlay.classList.remove('show'); this.catcher.classList.remove('show'); this.targetInput = null; }
+    close() { 
+        this.overlay.classList.remove('show'); this.catcher.classList.remove('show'); this.targetInput = null; 
+        AudioApp.setMute(false);
+    }
 }
 const Numpad = new InAppNumpad();
 
@@ -2125,6 +2353,7 @@ class AppController {
         this.holdTimer = null; this.isHolding = false; this.swipeStartX = 0; this.swipeStartY = 0;
         this.viewingProfile = null; this._syncing = false; 
         this.lastInteraction = 0;
+        this.lastVisualPhase = 0;
 
         const setVH = () => document.documentElement.style.setProperty('--vh', `${(window.visualViewport ? window.visualViewport.height : window.innerHeight) * 0.01}px`);
         if(window.visualViewport) window.visualViewport.addEventListener('resize', setVH); setVH();
@@ -2199,7 +2428,7 @@ class AppController {
             if(r && r.accumMs > 0 && r.snapshot && r.snapshot.length > 0) { 
                 let restoredStatus = r.runStatus || 'PAUSED';
                 let dtGap = Date.now() - (r.lastTimestamp || Date.now());
-                AppState.batch({ runStatus: restoredStatus, accumMs: r.accumMs, matrix: r.matrix, snapshot: r.snapshot, activeP: r.activeP, minimalVoice: r.minimalVoice || false, fabMode: 'NORMAL', tempVoiceLang: null }); 
+                AppState.batch({ runStatus: restoredStatus, accumMs: r.accumMs, matrix: r.matrix, snapshot: r.snapshot, activeP: r.activeP, minimalVoice: r.minimalVoice || false, fabMode: 'NORMAL', tempVoiceLang: null, previousFabMode: r.previousFabMode || null }); 
                 if(r.acc) { Object.assign(RunAcc, r.acc); }
                 if(r.tempVoiceLang) { AppState.state.tempVoiceLang = r.tempVoiceLang; }
                 
@@ -2214,7 +2443,7 @@ class AppController {
             console.error('Fatal Init Error', fatalError);
             let sysLang = navigator.language.includes('zh') ? 'zh' : 'en';
             let p = PhysioEngine.sanitize({ name: 'Runner', gender: 'M', unit: 'metric', lang: sysLang, voiceOn: true, gaitOn: true, lastProg: 0, lastCat: 'FAT_BURN' }); 
-            AppState.batch({ activeP: 'Runner', profiles: { 'Runner': p }, fabMode: 'NORMAL', tempVoiceLang: null });
+            AppState.batch({ activeP: 'Runner', profiles: { 'Runner': p }, fabMode: 'NORMAL', tempVoiceLang: null, previousFabMode: null });
             this.setupSubscribers();
             needsRecalc = true;
         }
@@ -2271,6 +2500,7 @@ class AppController {
 
     openModal(id) {
         if(AppState.state.runStatus !== 'STOPPED' && id === 'runnerModal') return;
+        AudioApp.setMute(true); // Suppressor ON
         const el = document.getElementById(id);
         if(!el) return;
         el.classList.add('show');
@@ -2283,6 +2513,9 @@ class AppController {
         const el = document.getElementById(id);
         if(el) el.classList.remove('show');
         this.modalStack = this.modalStack.filter(x => x !== id);
+        if (this.modalStack.length === 0 && !document.getElementById('numpadOverlay').classList.contains('show')) {
+            AudioApp.setMute(false); // Suppressor OFF
+        }
     }
 
     closeTopModal() {
@@ -2484,7 +2717,15 @@ class AppController {
                     isLongPress = true;
                     if(navigator.vibrate) navigator.vibrate(50);
                     btn.style.transform = ''; 
-                    this.setFabMode(side === 'left' ? 'GAIT_IMMERSIVE' : 'VOICE_SELECT');
+                    
+                    // 解鎖沈浸與武裝音效
+                    let p = AppState.state.profiles[AppState.state.activeP];
+                    p.gaitOn = true; p.stepOn = true; p.beatOn = true;
+                    this.saveData();
+                    this.setFabMode('GAIT_IMMERSIVE');
+                    this.updateGaitHubState();
+                    AudioApp.armSync(side); // 音效相位鎖定
+                    
                 }, 400);
             });
             const cancelFab = e => {
@@ -2506,6 +2747,7 @@ class AppController {
                     } else {
                         if(side === 'left') {
                             p.gaitOn = !p.gaitOn;
+                            if(!p.gaitOn) { p.stepOn = false; p.beatOn = false; }
                             this.saveData(); this.setFabMode('NORMAL');
                             NotificationManager.show(p.gaitOn ? dStr.opt_gait_on : dStr.opt_gait_off, false);
                         } else {
@@ -2532,6 +2774,7 @@ class AppController {
             if(vL) vL.play().catch(()=>{});
 
             VoiceApp.unlock(); this.charts.teardown();
+            AudioApp.unlock(); // User Gesture Unlock
             
             history.pushState(null, null, location.href);
 
@@ -2613,29 +2856,41 @@ class AppController {
                     c.querySelector('.seg-indicator').style.left = idx === 0 ? '4px' : 'calc(50% + 0px)';
                 }
 
-                if(c.id === 'segLang' || c.id === 'segUnit' || c.id === 'segGait' || c.id === 'segSex' || c.id === 'segVoice') { 
+                let p = AppState.state.profiles[AppState.state.activeP];
+
+                if(c.id === 'segLang' || c.id === 'segUnit' || c.id === 'segGait' || c.id === 'segStep' || c.id === 'segVoice' || c.id === 'segBeat' || c.id === 'segSex') { 
                     if(c.id === 'segUnit') { 
                         this.syncFormToProfile(); 
-                        AppState.state.profiles[AppState.state.activeP].unit = b.dataset.val; 
+                        p.unit = b.dataset.val; 
                         this.saveData(); 
-                        this.populateRunnerForm(AppState.state.profiles[AppState.state.activeP]); 
+                        this.populateRunnerForm(p); 
                     } else if (c.id === 'segLang') { 
-                        AppState.state.profiles[AppState.state.activeP].lang = b.dataset.val; 
+                        p.lang = b.dataset.val; 
                         this.saveData(); 
                         VoiceApp.clear(); 
-                    } else if (c.id === 'segGait') {
-                        AppState.state.profiles[AppState.state.activeP].gaitOn = b.dataset.val === 'on';
-                        this.saveData();
                     } else if (c.id === 'segVoice') {
-                        AppState.state.profiles[AppState.state.activeP].voiceOn = b.dataset.val === 'on';
+                        p.voiceOn = b.dataset.val === 'on';
                         this.saveData();
                     } else if (c.id === 'segSex') {
-                        AppState.state.profiles[AppState.state.activeP].gender = b.dataset.val;
+                        p.gender = b.dataset.val;
                         this.saveData();
+                    } else if (c.id === 'segGait') {
+                        p.gaitOn = b.dataset.val === 'on';
+                        if(!p.gaitOn) { p.stepOn = false; p.beatOn = false; }
+                        this.saveData(); this.populateRunnerForm(p);
+                    } else if (c.id === 'segStep') {
+                        p.stepOn = b.dataset.val === 'on';
+                        if(!p.stepOn) p.beatOn = false;
+                        if(p.stepOn) p.gaitOn = true;
+                        this.saveData(); this.populateRunnerForm(p);
+                    } else if (c.id === 'segBeat') {
+                        p.beatOn = b.dataset.val === 'on';
+                        if(p.beatOn) { p.stepOn = true; p.gaitOn = true; }
+                        this.saveData(); this.populateRunnerForm(p);
                     }
                     this.updateI18n(); this.updateUIDataOnly(); this.charts.drawAll();
                 } else if (c.id === 'segIncStep') {
-                    AppState.state.profiles[AppState.state.activeP].incStep = parseFloat(b.dataset.val);
+                    p.incStep = parseFloat(b.dataset.val);
                     this.saveData();
                     this.recalc(true);
                 }
@@ -2749,7 +3004,7 @@ class AppController {
 
         setV('hwMxS', isMet?hw.maxSpd:hw.maxSpd/1.609344); setV('hwMnS', isMet?hw.minSpd:hw.minSpd/1.609344); setV('hwMxI', hw.maxInc); setV('hwMnI', hw.minInc);
         const setS = (id, v) => { let c=document.getElementById(id); c.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active')); let b=c.querySelector(`[data-val="${v}"]`); if(b) { b.classList.add('active'); if(c.id==='segIncStep'){ c.querySelector('.seg-indicator').style.left= `calc(${b.dataset.idx * 33.33}% + 2px)`; } else { c.querySelector('.seg-indicator').style.left= b.dataset.idx === '0' ? '4px' : 'calc(50% + 0px)'; } } };
-        setS('segLang', p.lang||'zh'); setS('segVoice', p.voiceOn?'on':'off'); setS('segGait', p.gaitOn?'on':'off'); setS('segUnit', p.unit); setS('segSex', p.gender); setS('segIncStep', p.incStep || 0.5); this.validateRunnerForm();
+        setS('segLang', p.lang||'zh'); setS('segVoice', p.voiceOn?'on':'off'); setS('segGait', p.gaitOn?'on':'off'); setS('segStep', p.stepOn?'on':'off'); setS('segBeat', p.beatOn?'on':'off'); setS('segUnit', p.unit); setS('segSex', p.gender); setS('segIncStep', p.incStep || 0.5); this.validateRunnerForm();
     }
 
     renderRunnerSelector() {
@@ -2823,22 +3078,37 @@ class AppController {
             if (R) { 
                 BgWorker.postMessage('START'); 
                 if(navigator.wakeLock) navigator.wakeLock.request('screen').catch(()=>{}); 
-                this.setFabMode('NORMAL');
+                
+                let mode = AppState.state.previousFabMode || 'NORMAL';
+                this.setFabMode(mode);
+                AppState.state.previousFabMode = null;
+                
+                AudioApp.start(RunAcc.lastGaitBPM || 120);
             }
             else if (P || S) { 
                 BgWorker.postMessage('STOP'); 
+                AppState.state.previousFabMode = AppState.state.fabMode;
+                this.setFabMode('NORMAL');
                 this.silenceGaitHub();
+                AudioApp.stop();
             }
             
             if (S || P) {
-                this.setFabMode('NORMAL');
                 AppState.state.tempVoiceLang = null;
             }
         });
 
         AppState.subscribe('activeTab', t => {
-            let isS = t === 'settings'; document.getElementById('tabSettings').classList.toggle('active', isS); document.getElementById('tabMatrix').classList.toggle('active', !isS);
-            document.getElementById('tabIndicator').style.transform = isS ? 'translateX(0)' : 'translateX(100%)'; document.getElementById('viewsSlider').style.transform = isS ? 'translateX(0)' : 'translateX(-50%)';
+            let isS = t === 'settings'; 
+            document.getElementById('tabSettings').classList.toggle('active', isS); 
+            document.getElementById('tabMatrix').classList.toggle('active', !isS);
+            document.getElementById('tabIndicator').style.transform = isS ? 'translateX(0)' : 'translateX(100%)'; 
+            document.getElementById('viewsSlider').style.transform = isS ? 'translateX(0)' : 'translateX(-50%)';
+            
+            let shell = document.getElementById('app-shell');
+            if (isS) { shell.classList.add('tab-settings-active'); shell.classList.remove('tab-matrix-active'); }
+            else { shell.classList.add('tab-matrix-active'); shell.classList.remove('tab-settings-active'); }
+            
             if(!isS) { this.scrollToRow(); }
         });
     }
@@ -2887,21 +3157,28 @@ class AppController {
     triggerFlash(side) {
         if (Numpad.targetInput !== null || AppState.state.isTimeWarping) return; 
         let p = AppState.state.profiles[AppState.state.activeP];
-        if(!p.gaitOn) return;
+        if(!p.stepOn) return;
 
         let now = performance.now();
         let el = document.getElementById(side === 'left' ? 'runValInc' : 'runValSpd');
         if (el) {
             if (AppState.state.fabMode === 'GAIT_IMMERSIVE') {
-                // 第二階段：全部數字一起閃爍
                 if (!el.dataset.lastF || now - parseFloat(el.dataset.lastF) >= 200) {
                     el.dataset.lastF = now;
                     el.classList.add('strike-all');
                     void el.offsetWidth;
                     requestAnimationFrame(() => el.classList.remove('strike-all'));
                 }
+                
+                let tabTxt = document.getElementById(side === 'left' ? 'tabImmersiveBpm' : 'tabImmersivePace');
+                if (tabTxt && (!tabTxt.dataset.lastF || now - parseFloat(tabTxt.dataset.lastF) >= 200)) {
+                    tabTxt.dataset.lastF = now;
+                    tabTxt.classList.add('strike');
+                    void tabTxt.offsetWidth;
+                    requestAnimationFrame(() => tabTxt.classList.remove('strike'));
+                }
+
             } else {
-                // 第一階段：只閃爍小數點
                 let dot = el.querySelector('.dot'); 
                 if (dot && (!dot.dataset.lastF || now - parseFloat(dot.dataset.lastF) >= 200)) {
                     dot.dataset.lastF = now;
@@ -2937,26 +3214,21 @@ class AppController {
     }
 
     renderGaitFrame(ts) {
-        if (AppState.state.runStatus !== 'RUNNING' || AppState.state.isTimeWarping) {
-            this.lastGaitFrame = ts; return;
-        }
-        let dt = ts - this.lastGaitFrame;
-        this.lastGaitFrame = ts;
-        if (dt > 100) return; 
-
+        if (AppState.state.runStatus !== 'RUNNING' || AppState.state.isTimeWarping) return;
+        
         let p = AppState.state.profiles[AppState.state.activeP];
         if (!p || !p.gaitOn) return;
 
         let targetSpd = RunAcc.curSpd || 0;
         let targetInc = RunAcc.curInc || 0;
+        let currentBPM = this.calculateBPM(targetSpd, targetInc);
         
         let numLayer = document.getElementById('fabLeftGaitNum');
         if (targetSpd <= 0.1) {
             if (numLayer && RunAcc.lastGaitBPM !== 0) { numLayer.textContent = 0; RunAcc.lastGaitBPM = 0; }
             return; 
         }
-        
-        let currentBPM = this.calculateBPM(targetSpd, targetInc);
+
         let currentHue = this.getGaitHSL(currentBPM);
         document.documentElement.style.setProperty('--current-gait-color', `hsl(${currentHue}, 100%, 60%)`);
         let fadeMs = 60000 / currentBPM;
@@ -2975,14 +3247,33 @@ class AppController {
             RunAcc.lastGaitBPM = intBPM;
         }
 
-        let prevPhase = RunAcc.gaitPhase;
-        let phaseIncrement = ((currentBPM / 2) / 60) * (dt / 1000);
-        RunAcc.gaitPhase = (RunAcc.gaitPhase + phaseIncrement) % 1.0;
-        
-        if (prevPhase < 0.5 && RunAcc.gaitPhase >= 0.5) {
-            this.triggerFlash('right'); 
-        } else if (prevPhase > RunAcc.gaitPhase) {
-            this.triggerFlash('left'); 
+        let isMet = p.unit !== 'imperial';
+        if (AppState.state.fabMode === 'GAIT_IMMERSIVE' && p.stepOn) {
+            let shell = document.getElementById('app-shell');
+            shell.classList.add('immersive-tabs');
+            document.getElementById('tabImmersiveBpm').textContent = `${intBPM} bpm`;
+            document.getElementById('tabImmersivePace').textContent = `${Utils.getPaceStr(isMet?targetSpd:targetSpd/1.609344, isMet)}`;
+        } else {
+            document.getElementById('app-shell').classList.remove('immersive-tabs');
+        }
+
+        if (AudioApp.isPlaying) {
+            AudioApp.updateBPM(currentBPM);
+            AudioApp.setBeatMute(!p.beatOn);
+            
+            if (p.stepOn) {
+                let aPhase = AudioApp.getVisualPhase();
+                if (aPhase !== null) {
+                    let prevPhase = this.lastVisualPhase !== undefined ? this.lastVisualPhase : aPhase;
+                    this.lastVisualPhase = aPhase;
+                    
+                    let didFlashLeft = (prevPhase > 0.8 && aPhase < 0.2); 
+                    let didFlashRight = (prevPhase < 0.5 && aPhase >= 0.5);
+
+                    if (didFlashLeft) this.triggerFlash('left');
+                    if (didFlashRight) this.triggerFlash('right');
+                }
+            }
         }
     }
 
@@ -3054,7 +3345,6 @@ class AppController {
         let hrIntensity = (RunAcc.curHr - pClean.rHR) / HRR;
         if(RunAcc.curLac === 0) RunAcc.curLac = 1.0; 
         
-        // --- 實戰雙軌代謝生理同步運算 ---
         let prodBuffer = Math.max(0.01, 1.0 - (RunAcc.curLac / pClean.pMaxLac));
         let lacProd = Math.pow(Math.max(0, hrIntensity - 0.45), 3) * 0.3 * prodBuffer; 
         
@@ -3316,7 +3606,7 @@ class AppController {
         const getV = (id, f) => (parseFloat(document.getElementById(id).value)||0)*f;
 
         let p = { 
-            name, gender: document.querySelector('#segSex .seg-btn.active').dataset.val, unit: isMet?'metric':'imperial', lang: document.querySelector('#segLang .seg-btn.active').dataset.val, voiceOn: document.querySelector('#segVoice .seg-btn.active').dataset.val==='on', gaitOn: document.querySelector('#segGait .seg-btn.active').dataset.val==='on',
+            name, gender: document.querySelector('#segSex .seg-btn.active').dataset.val, unit: isMet?'metric':'imperial', lang: document.querySelector('#segLang .seg-btn.active').dataset.val, voiceOn: document.querySelector('#segVoice .seg-btn.active').dataset.val==='on', gaitOn: document.querySelector('#segGait .seg-btn.active').dataset.val==='on', stepOn: document.querySelector('#segStep .seg-btn.active').dataset.val==='on', beatOn: document.querySelector('#segBeat .seg-btn.active').dataset.val==='on',
             age: parseFloat(document.getElementById('rmAge').value)||40, tTime: isNew ? 30 : actP.tTime, tKm: isNew ? 5.0 : actP.tKm, lastProg: isNew ? 0 : actP.lastProg, lastCat: isNew ? 'FAT_BURN' : actP.lastCat, 
             spdOffset: isNew?0:actP.spdOffset, incOffset: isNew?0:actP.incOffset, catMemory: actP.catMemory || {} 
         };
@@ -3373,7 +3663,7 @@ class AppController {
     
     persistRun() { 
         if (AppState.state.accumMs > 0) {
-            sessionStorage.setItem('runState_v50', JSON.stringify({ runStatus: AppState.state.runStatus, lastTimestamp: Date.now(), activeP: AppState.state.activeP, accumMs: AppState.state.accumMs, matrix: AppState.state.matrix, snapshot: AppState.state.snapshot, acc: RunAcc, minimalVoice: AppState.state.minimalVoice, tempVoiceLang: AppState.state.tempVoiceLang })); 
+            sessionStorage.setItem('runState_v50', JSON.stringify({ runStatus: AppState.state.runStatus, lastTimestamp: Date.now(), activeP: AppState.state.activeP, accumMs: AppState.state.accumMs, matrix: AppState.state.matrix, snapshot: AppState.state.snapshot, acc: RunAcc, minimalVoice: AppState.state.minimalVoice, tempVoiceLang: AppState.state.tempVoiceLang, previousFabMode: AppState.state.previousFabMode })); 
         } else { sessionStorage.removeItem('runState_v50'); }
     }
     
@@ -3399,7 +3689,7 @@ class AppController {
         } else { NotificationManager.show(d.warn_short, true); }
         
         AppState.state.runStatus = 'STOPPED'; AppState.state.accumMs = 0; AppState.state.activeTab = 'settings';
-        AppState.state.tempVoiceLang = null;
+        AppState.state.tempVoiceLang = null; AppState.state.previousFabMode = null;
         this.setFabMode('NORMAL');
         
         document.getElementById('topProgressText').textContent = '0.00 / 0.00 (0%)'; document.getElementById('topProgressBar').style.width = '0%'; document.getElementById('topRemainingTime').textContent = '-00:00';
