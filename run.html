@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="format-detection" content="telephone=no">
-    <title>Pro Treadmill OS - Ultimate Edition (v52)</title>
+    <title>Pro Treadmill OS - Ultimate Edition (v53)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.85); 
@@ -13,7 +13,7 @@
             --gray: #8E8E93; --gray-light: #D1D1D6; --text-main: #FFFFFF; 
             --border-color: #222222; 
             --safe-bottom: env(safe-area-inset-bottom, 20px); --safe-top: env(safe-area-inset-top, 20px);
-            --z-splash: 20000; --z-numpad: 15000; --z-toast: 10000; --z-modal: 9000; --z-header: 500; --z-footer: 100;
+            --z-splash: 20000; --z-numpad: 15000; --z-toast: 10000; --z-modal: 9000; --z-header: 500; --z-footer: 15010;
             --current-gait-color: hsl(200, 100%, 60%);
             --gait-fade-dur: 400ms;
         }
@@ -27,8 +27,14 @@
             -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
         }
         
-        input, textarea, .modal-content-scroll, #summaryContent, .est-bottom-row { 
-            -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; 
+        /* 根除 iOS 雙擊放大與點擊延遲陷阱 */
+        button, select, .seg-btn, .dial-item, .cat-btn, .prog-card, .np-btn, .param-item.readonly, .run-big-val, .dial-window-wrap, .offset-btn {
+            touch-action: manipulation !important;
+            -webkit-user-select: none; user-select: none;
+        }
+
+        input[type="text"], textarea, .modal-content-scroll, #summaryContent, .est-bottom-row { 
+            -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; touch-action: manipulation;
         }
 
         #splashScreen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-dark); z-index: var(--z-splash); display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.5s ease; }
@@ -43,7 +49,6 @@
         .tab-btn.active { color: var(--text-main); }
         .tab-indicator { position: absolute; bottom: 0; height: 3px; background: var(--text-main); width: 50%; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); border-radius: 3px 3px 0 0;}
         
-        /* 雙層 DOM 沉浸導航 */
         .tab-text { transition: opacity 0.2s; }
         .tab-immersive-text { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); opacity: 0; transition: opacity 0.2s, color var(--gait-fade-dur) ease-out, text-shadow var(--gait-fade-dur) ease-out; white-space: nowrap; pointer-events: none; font-size: 1.25rem; font-weight: 900; color: #FFF; }
         .tab-immersive-text.strike { transition: none; color: var(--current-gait-color); text-shadow: 0 0 15px var(--current-gait-color); }
@@ -72,14 +77,14 @@
 
         .dial-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 15px; position: relative; }
         .dial-group { display: flex; flex-direction: column; align-items: center; background: var(--bg-card); border-radius: 12px; padding: 10px 4px; border: 1px solid var(--border-color); position: relative;}
-        .dial-label { font-size: 0.8rem; font-weight: 600; color: var(--gray-light); margin-bottom: 8px; letter-spacing: 0.5px; text-align: center; width: 100%;}
+        .dial-label { font-size: 0.8rem; font-weight: 600; color: var(--gray-light); margin-bottom: 8px; letter-spacing: 0.5px; text-align: center; width: 100%; pointer-events: none;}
         
-        .dial-window-wrap { display: flex; flex-direction: column; align-items: center; width: 80%; }
-        .dial-btn-mini { width: 100%; height: 24px; display: flex; justify-content: center; align-items: center; color: var(--gray); font-size: 1.2rem; cursor: pointer; background: rgba(255,255,255,0.05); border-radius: 4px; margin: 2px 0; touch-action: manipulation; }
+        .dial-window-wrap { display: flex; flex-direction: column; align-items: center; width: 80%; cursor: pointer;}
+        .dial-btn-mini { width: 100%; height: 24px; display: flex; justify-content: center; align-items: center; color: var(--gray); font-size: 1.2rem; cursor: pointer; background: rgba(255,255,255,0.05); border-radius: 4px; margin: 2px 0; touch-action: manipulation; pointer-events: auto;}
         .dial-btn-mini:active { background: rgba(255,255,255,0.2); color: #FFF; }
         .dial-btn-mini svg { width: 16px; height: 16px; fill: currentColor; }
         
-        .dial-window { height: 36px; width: 100%; position: relative; overflow: hidden; background: #000; border-radius: 8px; border: 1px solid #333; touch-action: none;}
+        .dial-window { height: 36px; width: 100%; position: relative; overflow: hidden; background: #000; border-radius: 8px; border: 1px solid #333; touch-action: none; pointer-events: auto;}
         .dial-scroll { height: 100%; overflow-y: scroll; scroll-snap-type: y mandatory; scrollbar-width: none; scroll-behavior: smooth; touch-action: pan-y;}
         .dial-scroll::-webkit-scrollbar { display: none; }
         .dial-item { height: 36px; display: flex; justify-content: center; align-items: center; font-size: 1.3rem; font-weight: 900; color: var(--text-main); scroll-snap-align: center; cursor: pointer; transition: color 0.1s; user-select: none;}
@@ -104,8 +109,8 @@
         .prog-carousel::-webkit-scrollbar { display: none; }
         .prog-card { scroll-snap-align: start; flex: 0 0 160px; height: auto; min-height: 85px; align-self: stretch; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; transition: all 0.2s; cursor: pointer; position: relative; overflow: hidden;}
         .prog-card.hide { display: none; }
-        .prog-card .p-title { font-size: 0.95rem; font-weight: 800; color: var(--text-main); margin-bottom: 6px; }
-        .prog-card .p-desc { font-size: 0.75rem; color: var(--gray); font-weight: 500; line-height: 1.3; }
+        .prog-card .p-title { font-size: 0.95rem; font-weight: 800; color: var(--text-main); margin-bottom: 6px; pointer-events: none;}
+        .prog-card .p-desc { font-size: 0.75rem; color: var(--gray); font-weight: 500; line-height: 1.3; pointer-events: none;}
         .prog-card.selected { border-color: var(--neon-blue); background: #1a2233; box-shadow: 0 0 8px rgba(10,132,255,0.25); }
 
         .chart-card { flex: 1; min-height: 270px; display: flex; flex-direction: column; background: var(--bg-card); border-radius: 12px; padding: 12px; border: 1px solid var(--border-color); position: relative; transition: min-height 0.4s ease; overflow-y: auto; scrollbar-width: none; overscroll-behavior: contain;}
@@ -133,7 +138,6 @@
         .est-bottom-row { flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #222; font-size: 0.85rem; font-weight: 700; color: var(--gray-light); }
         .est-zones { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 15px; font-size: 0.8rem; text-align: left; }
         
-        /* Run Screen */
         .massive-time-container { position: relative; display: flex; justify-content: center; align-items: center; width: 100%; flex-shrink: 0;}
         .massive-time { font-size: clamp(4rem, 18vw, 6rem); font-weight: 900; line-height: 1; text-align: center; letter-spacing: -1px; padding: 15px 0; color: #FFFFFF; cursor: pointer; transition: opacity 0.2s; position: relative; z-index: 10;}
         .massive-time:active { opacity: 0.7; }
@@ -149,9 +153,9 @@
         .overlay-btn:active svg { fill: rgba(255,255,255,0.9); }
 
         .run-val-center { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; pointer-events: none; }
-        .run-big-val { font-size: clamp(3rem, 12vw, 4.2rem); font-weight: 900; line-height: 1; letter-spacing: -1px; color: #FFFFFF; transition: transform 0.1s, color 0.2s, text-shadow 0.2s; position: relative; z-index: 2; pointer-events: auto; cursor: pointer; display: flex; align-items: baseline;}
+        .run-big-val { font-size: clamp(3rem, 12vw, 4.2rem); font-weight: 900; line-height: 1; letter-spacing: -1px; color: #FFFFFF; transition: transform 0.1s, color 0.2s, text-shadow 0.2s; position: relative; z-index: 2; pointer-events: auto; cursor: pointer; display: flex; align-items: baseline; touch-action: manipulation;}
         .run-big-val:active { transform: scale(0.92); opacity: 0.8; }
-        .run-big-val span { transition: color var(--gait-fade-dur) ease-out, text-shadow var(--gait-fade-dur) ease-out; color: #FFF; text-shadow: none; }
+        .run-big-val span { transition: color var(--gait-fade-dur) ease-out, text-shadow var(--gait-fade-dur) ease-out; color: #FFF; text-shadow: none; pointer-events: none;}
         .run-big-val .dot.strike { transition: none; color: var(--current-gait-color); text-shadow: 0 0 15px var(--current-gait-color); }
         .run-big-val.strike-all span { transition: none; color: var(--current-gait-color); text-shadow: 0 0 15px var(--current-gait-color); }
         
@@ -163,7 +167,6 @@
         .r-s-val { font-size: clamp(1.1rem, 4.5vw, 1.4rem); font-weight: 900; color: #FFFFFF; display: flex; align-items: baseline;}
         .r-s-lbl { font-size: 0.7rem; color: var(--gray); font-weight: 700; margin-top: 6px; white-space: nowrap; }
 
-        /* Floating Buttons State Machine CSS */
         .run-float-btn { 
             position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 22px; 
             background: rgba(30,30,30,0.8); border: 1px solid #444; display: flex; justify-content: center; align-items: center; 
@@ -191,7 +194,7 @@
 
         .gait-layer { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; z-index: 2; }
         .gait-layer.active { opacity: 1; pointer-events: auto; }
-        .gait-layer svg { fill: var(--text-main); transition: fill 0.3s; width: 22px; height: 22px; }
+        .gait-layer svg { fill: var(--text-main); transition: fill 0.3s; width: 22px; height: 22px; pointer-events:none;}
         
         .fab-lang-btn { font-size: 1.15rem; font-weight: 900; color: #FFF; transition: color 0.3s; z-index: 3;}
         .gait-num { font-weight: 900; font-size: 1.15rem; transition: transform 0.15s, filter 0.15s; color: var(--current-gait-color); text-shadow: 0 0 8px rgba(0,0,0,0.5); }
@@ -203,7 +206,6 @@
         
         .run-float-btn.minimal svg { fill: var(--gray); }
 
-        /* Matrix / Tab 2 */
         #tabContent2 { overflow-y: auto; scrollbar-width: none; scroll-behavior: smooth; }
         .pace-grid-row { display: grid; grid-template-columns: 1.2fr 1.2fr 1.2fr 1.5fr 1.1fr 1.1fr; align-items: center; text-align: center; }
         .list-header { padding: 12px 10px; color: var(--gray-light); font-size: 0.8rem; font-weight: 700; border-bottom: 1px solid #333; position: sticky; top: 0; background: rgba(0,0,0,0.95); z-index: 10;}
@@ -225,7 +227,6 @@
         .list-col-hr { font-weight: 800;}
         .list-col-lac { font-weight: 800; }
 
-        /* Footer Controls */
         #footer { flex: 0 0 auto; background: var(--bg-dark); border-top: 1px solid var(--border-color); padding: 15px 20px calc(15px + var(--safe-bottom)) 20px; z-index: var(--z-footer); position: relative; }
         .bottom-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
         .btn-ctrl { height: 64px; border-radius: 32px; border: none; font-size: 1.25rem; font-weight: 900; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 10px; outline: none; touch-action: manipulation; transition: transform 0.1s;}
@@ -241,7 +242,6 @@
         
         .btn-hide { display: none !important; }
 
-        /* Modals */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-overlay); display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: auto; transition: opacity 0.2s ease; backdrop-filter: blur(5px); transform: translateZ(0); visibility: hidden;}
         .modal-overlay.show { opacity: 1; visibility: visible; }
         
@@ -253,7 +253,7 @@
         .modal-header-actions { display: flex; gap: 15px; align-items: center; }
         .btn-icon { background: transparent; border: none; fill: var(--gray-light); width: 24px; height: 24px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: transform 0.1s; outline:none; padding:0;}
         .btn-icon:disabled { opacity: 0.3; cursor: not-allowed; }
-        .btn-icon svg { width: 24px; height: 24px; }
+        .btn-icon svg { width: 24px; height: 24px; pointer-events:none;}
         .btn-icon:active:not(:disabled) { transform: scale(0.85); }
         
         .modal-content-scroll { overflow-y: auto; padding: 20px; flex: 1; overscroll-behavior: contain; scrollbar-width: none; position: relative;}
@@ -298,7 +298,7 @@
         .param-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px;}
         .param-item { background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); padding: 10px 15px; display: flex; flex-direction: column; position: relative;}
         .param-item.readonly { background: #1a1a1a; cursor: text; }
-        .param-item label { color: var(--gray); font-size: 0.75rem; font-weight: 600; margin-bottom: 4px; }
+        .param-item label { color: var(--gray); font-size: 0.75rem; font-weight: 600; margin-bottom: 4px; pointer-events: none;}
         .param-item input { background: transparent; border: none; color: #FFF; font-size: 1.3rem; font-weight: 900; outline: none; width: 100%; pointer-events: none;}
         .param-item input:focus { outline: none; }
         .param-item .unit { position: absolute; right: 12px; bottom: 12px; font-size: 0.75rem; font-weight: 700; color: #555; pointer-events: none;}
@@ -334,18 +334,16 @@
         .notif-bar-bg { width: 100%; height: 3px; background: #222; }
         .notif-bar-fill { height: 100%; background: var(--text-main); width: 100%; transform-origin: left; }
         
-        /* In-App Numpad */
-        #numpadOverlay { position: fixed; bottom: -100%; left: 0; width: 100%; height: 45vh; min-height: 300px; background: rgba(15, 15, 15, 0.95); backdrop-filter: blur(10px); z-index: var(--z-numpad); border-top: 1px solid #333; transition: bottom 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; flex-direction: column; padding-bottom: var(--safe-bottom); box-shadow: 0 -10px 30px rgba(0,0,0,0.5);}
+        #numpadOverlay { position: fixed; bottom: -100%; left: 0; width: 100%; height: 45vh; min-height: 300px; background: rgba(15, 15, 15, 0.95); backdrop-filter: blur(10px); z-index: var(--z-numpad); border-top: 1px solid #333; transition: bottom 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; flex-direction: column; box-shadow: 0 -10px 30px rgba(0,0,0,0.5); padding-bottom: calc(var(--safe-bottom) + 100px);}
         #numpadOverlay.show { bottom: 0; }
-        .numpad-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; border-bottom: 1px solid #222; }
+        .numpad-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; border-bottom: 1px solid #222; flex-shrink: 0;}
         .numpad-title { font-size: 1rem; color: var(--gray-light); font-weight: 700; }
         .numpad-val { font-size: 1.5rem; font-weight: 900; color: #FFF; letter-spacing: 1px; }
         .numpad-grid { display: grid; grid-template-columns: repeat(3, 1fr); flex: 1; gap: 1px; background: #222; }
-        .np-btn { background: #000; color: #FFF; font-size: 1.8rem; font-weight: 800; border: none; outline: none; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: background 0.1s;}
+        .np-btn { background: #000; color: #FFF; font-size: 1.8rem; font-weight: 800; border: none; outline: none; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: background 0.1s; touch-action: manipulation; -webkit-user-select: none; user-select: none;}
         .np-btn:active { background: #333; }
-        .np-btn svg { width: 28px; height: 28px; fill: currentColor; }
-        .np-btn-action { color: var(--neon-blue); font-size: 1.2rem; }
-        #numpadClickCatcher { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: calc(var(--z-numpad) - 1); display: none; }
+        .np-btn svg { width: 28px; height: 28px; fill: currentColor; pointer-events: none;}
+        #numpadClickCatcher { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 14999; display: none; }
         #numpadClickCatcher.show { display: block; }
 
         .svg-icon { width: 20px; height: 20px; fill: currentColor; vertical-align: middle; margin-right: 6px; flex-shrink:0;}
@@ -402,15 +400,15 @@
                         <div class="dial-grid">
                             <div class="dial-group">
                                 <div class="dial-label" id="lblTotalTime" data-i18n="lbl_tot_time">---</div>
-                                <div class="dial-window-wrap">
-                                    <div class="dial-btn-mini" data-action="dial-up" data-target="ds-time" data-step="1"><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg></div>
+                                <div class="dial-window-wrap" data-action="open-numpad-time">
+                                    <div class="dial-btn-mini" data-action="dial-up" data-target="ds-time" data-step="10"><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg></div>
                                     <div class="dial-window" id="dw-time"><div class="dial-scroll" id="ds-time"></div></div>
-                                    <div class="dial-btn-mini" data-action="dial-down" data-target="ds-time" data-step="1"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></div>
+                                    <div class="dial-btn-mini" data-action="dial-down" data-target="ds-time" data-step="10"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></div>
                                 </div>
                             </div>
                             <div class="dial-group">
                                 <div class="dial-label" id="lblTargetKm" data-i18n="lbl_tgt_km">---</div>
-                                <div class="dial-window-wrap">
+                                <div class="dial-window-wrap" data-action="open-numpad-dist">
                                     <div class="dial-btn-mini" data-action="dial-up" data-target="ds-dist" data-step="0.1"><svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg></div>
                                     <div class="dial-window" id="dw-dist"><div class="dial-scroll" id="ds-dist"></div></div>
                                     <div class="dial-btn-mini" data-action="dial-down" data-target="ds-dist" data-step="0.1"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></div>
@@ -818,7 +816,7 @@
 </div>
 
 <script>
-/** PRO TREADMILL OS (ULTIMATE EDITION v52 - Conductor Pattern) */
+/** PRO TREADMILL OS (ULTIMATE EDITION v53 - Corrected Human Factors) */
 
 const i18n = {
     zh: {
@@ -879,11 +877,11 @@ const i18n = {
         inc_same: "坡度不變", inc_up: "坡度調升為 {v}", inc_down: "坡度調降為 {v}",
         msg_resume: "繼續訓練。",
         lbl_fat: "脂肪消耗", lbl_carb: "碳水消耗", lbl_tot_dist: "總跑量", lbl_mon_dist: "本月跑量", lbl_tot_cal: "總燃燒",
-        warn_hr: "心率突破安全紅線！已自動限制最高配速並強迫拉長吐氣。",
+        warn_hr: ["警告！心率突破安全紅線！請強迫拉長吐氣！若胸悶請立刻手動暫停！", "心跳接近極限！心臟負荷極高，請注意安全並手動降低配速！"],
         err_time_short: "設定時間不可低於已跑時間加一分鐘",
         sys_sleep: "系統休眠過久，已啟動靜默回溯結算。",
         warn_cheat: "偵測到過度中斷或危險暫停，破壞了持續氧化，訓練效果已降級。",
-        warn_warmup: "偵測到長時暫停，心肺已冷卻，已暫時降速以策安全，請手動恢復。",
+        warn_warmup: "偵測到長時暫停，心肺已冷卻，請小心恢復訓練，建議手動降速。",
         lbl_offset_spd: "速度偏移量", lbl_offset_inc: "坡度偏移量"
     },
     en: {
@@ -948,11 +946,11 @@ const i18n = {
         inc_same: "Incline unchanged", inc_up: "Incline increased to {v}", inc_down: "Incline decreased to {v}",
         msg_resume: "Resuming workout.",
         lbl_fat: "Fat Cal", lbl_carb: "Carb Cal", lbl_tot_dist: "Total Dist", lbl_mon_dist: "Month Dist", lbl_tot_cal: "Total Burn",
-        warn_hr: "Heart rate over safety line. Pace capped. Watch your breathing.",
+        warn_hr: ["Warning! Heart rate redline breached! Elongate your exhales immediately. Reduce speed manually!", "Cardiac load critical! Please manually lower the incline or speed for safety!"],
         err_time_short: "Time cannot be less than elapsed + 1 minute.",
         sys_sleep: "Time-warp detected. Silent simulation applied.",
         warn_cheat: "Excessive pauses disrupted fat oxidation. Efficacy degraded.",
-        warn_warmup: "Long pause detected. Speed reduced for safe resume. Adjust manually.",
+        warn_warmup: "Long pause detected. Cardiovascular system cooled down. Please lower speed manually for safety.",
         lbl_offset_spd: "Speed Offset", lbl_offset_inc: "Incline Offset"
     }
 };
@@ -973,7 +971,7 @@ const VoiceDB = {
         psy_focus: ["採用解離策略！不專注痛苦，專注吐氣，數著，一、二、吐盡。","想像是一台無情機械，沒有痛覺沒有感情，只有規律步頻。","閉眼三秒，切斷視覺輸入，只聽呼吸聲找回身體主導權。","不想終點還有多遠，專注在此時此刻，這一步踩穩再踩下一步。","意識抽離燃燒的大腿，你是身體的冷酷駕駛員，指令一下就得動。","注意力集中手臂擺動，用上半身強行帶動已經疲勞的下半身。","想像跑在沒有盡頭光滑軌道上，輕輕滑過毫無摩擦。","把意識放在心臟的跳動上，感受它強大不屈的推進力。","把你的大腦想成第三人稱視角，俯視著這具正在奔跑的軀殼。","痛覺只是神經的電流訊號，你可以選擇拒絕讀取它。","將意識鎖定在鼻腔吸入冷空氣的觸感，摒除一切雜念。","把痛苦具象化為一道煙霧，隨著每一次用力吐氣把它排出體外。","你是這場訓練的旁觀者，冷靜地監控著機體的每一項數據運作。","縮小你的視野，只看眼前履帶的轉動，其餘的世界與你無關。","化身為絕對理性的觀察者，感受肌肉的收縮，但不帶入情緒。","將所有的意志力灌注在核心，讓那裡成為不可撼動的能量源。","切斷對未來時間的恐懼，你現在唯一擁有的就是這一秒鐘。","想像身體被一層冷靜的藍光包圍，隔離掉所有的高溫與不適。"],
         psy_micro: ["不想還有多少分鐘！撐過眼前十秒，十秒鐘你絕對做得到！","痛苦路程切成五等份，現在只征服眼前這一小段，踩下去！","只要不按停止鍵你就是贏家！配速掉一點也沒關係，繼續動！","跟我倒數五秒，五四三二一，你看，又成功撐過地獄時刻！","把大目標丟進垃圾桶，唯一目標只有眼前的下一個十步！","別看時間！那會摧毀意志，看著前方，專注吸進的每一口氣！","只要撐過這一個坡！過坡我們再說，咬緊牙關把它吃下來！","告訴自己再撐三步就好，然後再騙自己三步，就這樣熬過去！","只要你還在履帶上，每一秒你都在擊敗過去的自己！","不要去想明天會多痠痛，我只要你把這一分鐘跑完！","撐過這一次的呼吸循環，只要一次！然後我們再來下一次！","把專注力縮小到這三步之內，不要讓未來壓垮現在的你。","再跑十公尺就好，對，就是這種自我欺騙帶遇到極限！","時間是虛無的，唯有你腳下踩出的這一步是絕對真實的。","忘掉里程！忘掉配速！你現在的任務就是不讓這台機器停下！","把剩下的時間切成五秒一局的微型遊戲，贏下眼前的這一局！","現在看手錶只會剝奪你的勇氣，看著前方，你是無畏的挑戰者！","每一次落地都在累積勝利的籌碼，不要在最後關頭掀牌認輸！"],
         psy_over: ["科學證明大腦說不行，肌肉其實還有百分之三十儲備電力！","痛苦是防止受傷的保護謊言，告訴大腦我很安全我做主，跑！","擁抱不適感！頂尖選手的蛻變，全發生在想放棄的瞬間！","意志力絕對比跑步機馬達堅強。打破大腦限制器，釋放野性！","這就是重塑自我的高溫火爐，不經過鍛打怎麼可能成為鋼鐵？","感覺像快死了？但你不會死！跨越恐懼邊界將迎來新生！","記住為什麼站在這裡！把質疑聲音踩在腳下，用實力輾壓過去！","當痛苦離開身體的時候，就是軟弱離開身體的時候！","你的極限遠比你大腦設定的底線還要遙遠，去觸碰它！","真正的突破，永遠發生在你覺得自己絕對辦不到的那一秒！","人類的基因是在大草原上獵殺獵物演化來的，喚醒你的原始本能！","痛苦是一道門，推開它，背後就是你夢寐以求的強大自我。","別讓潛意識裡的舒適圈綁架你，暴力地撕碎大腦的警告！","這是對靈魂強度的最高測試，向整個世界證明你的硬度！","大腦會說謊，但數據不會！你的身體完全有能力繼續，給我衝！","在放棄的懸崖邊緣跳舞吧！跨越這道界線，你將再也不平庸！","不要對妥協讓步！今天在這裡低頭，明天就會在人生中低頭！","你是掌控這具軀殼的暴君，命令你的肌肉繼續收縮，絕對服從！"],
-        warn_hr: ["警告！心率突破安全紅線！請強迫拉長吐氣！若胸悶請立刻暫停！","心跳接近機體極限！心臟負荷極高，專注深吐氣，安全第一！"],
+        warn_hr: ["警告！心率突破安全紅線！請強迫拉長吐氣！若胸悶請立刻手動暫停！", "心跳接近極限！心臟負荷極高，請注意安全並手動降低配速！"],
         warn_lac: ["氫離子大量堆積，絕不憋氣！氧氣是你現在唯一的解藥！","乳酸濃度瘋狂飆升！肌肉正在哀嚎，用深層的腹式呼吸去代謝它！"]
     },
     en: {
@@ -1404,8 +1402,8 @@ const VoiceDB = {
             "You are the tyrant commanding this biological vessel. Order your muscles to contract. Total obedience!"
         ],
         warn_hr: [
-            "Warning! Heart rate has breached the redline! Force deep, elongated exhales immediately! If you feel chest pressure, hit pause!",
-            "Heart rate is approaching absolute biological limits! Cardiac load is severe. Focus entirely on deep exhales. Safety first!"
+            "Warning! Heart rate redline breached! Elongate your exhales immediately. Reduce speed manually!", 
+            "Cardiac load critical! Please manually lower the incline or speed for safety!"
         ],
         warn_lac: [
             "Massive hydrogen ion accumulation! Do not hold your breath! Oxygen is the only antidote right now!",
@@ -1525,7 +1523,6 @@ const resetRunAcc = () => {
     });
 };
 
-/* 總指揮家：音訊引擎 (The Conductor Audio Engine) */
 class AudioEngine {
     constructor() {
         this.ctx = null;
@@ -1536,13 +1533,13 @@ class AudioEngine {
         this.isPlaying = false;
         this.beatCount = 0;
         this.nextNoteTime = 0;
-        this.lookahead = 25.0; // ms
-        this.scheduleAheadTime = 0.1; // s
+        this.lookahead = 25.0; 
+        this.scheduleAheadTime = 0.1; 
         this.timerID = null;
         this.audioStartTime = 0;
         
-        this.pendingSync = null; // 'left' or 'right'
-        this.isArmed = false;    // 冷啟動待命
+        this.pendingSync = null;
+        this.isArmed = false;    
         
         this.isMuted = false;
         this.isBeatMuted = false;
@@ -1578,7 +1575,7 @@ class AudioEngine {
         this.masterGain.gain.cancelScheduledValues(now);
         this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now);
         if (mute) {
-            this.masterGain.gain.linearRampToValueAtTime(0.0, now + 0.05); // 模態框瞬間靜音
+            this.masterGain.gain.linearRampToValueAtTime(0.0, now + 0.05);
         } else {
             this.masterGain.gain.linearRampToValueAtTime(1.0, now + 0.1);
         }
@@ -1591,9 +1588,9 @@ class AudioEngine {
         this.duckGain.gain.cancelScheduledValues(now);
         this.duckGain.gain.setValueAtTime(this.duckGain.gain.value, now);
         if (duck) {
-            this.duckGain.gain.linearRampToValueAtTime(0.25, now + 0.2); // 語音平滑閃避
+            this.duckGain.gain.linearRampToValueAtTime(0.25, now + 0.2); 
         } else {
-            this.duckGain.gain.linearRampToValueAtTime(1.0, now + 0.5); // 語音結束平滑還原
+            this.duckGain.gain.linearRampToValueAtTime(1.0, now + 0.5); 
         }
     }
 
@@ -1604,7 +1601,7 @@ class AudioEngine {
     start(bpm) {
         if (!this.isUnlocked) this.unlock();
         this.bpm = bpm || 120;
-        this.isArmed = false; // 每次起跑進入冷啟動待命
+        this.isArmed = false;
         if (this.isPlaying) return;
         this.isPlaying = true;
         if (this.ctx.state === 'suspended') this.ctx.resume();
@@ -1628,7 +1625,7 @@ class AudioEngine {
 
     armSync(side) {
         this.pendingSync = side;
-        this.isArmed = true; // 解除冷啟動封印
+        this.isArmed = true; 
     }
 
     scheduleNote(time) {
@@ -1648,7 +1645,6 @@ class AudioEngine {
         osc.frequency.value = freq;
         env.gain.value = 0;
         
-        // 極短 ADSR 封包，防止高步頻泥濘
         env.gain.setValueAtTime(0, time);
         env.gain.linearRampToValueAtTime(1.0, time + 0.005);
         env.gain.exponentialRampToValueAtTime(0.001, time + 0.05); 
@@ -1666,14 +1662,13 @@ class AudioEngine {
         
         if (this.pendingSync) {
             let now = this.ctx.currentTime;
-            // 相位鎖定：強制設定音訊啟動時間，讓當下成為所求的相位
             if (this.pendingSync === 'left') {
                 this.audioStartTime = now;
             } else {
                 this.audioStartTime = now - secondsPerBeat;
             }
             this.nextNoteTime = now + 0.01; 
-            this.beatCount = 0; // 下一個強制為重音
+            this.beatCount = 0;
             this.pendingSync = null;
         }
 
@@ -1729,7 +1724,6 @@ class PhysioEngine {
         let pStepOn = m.stepOn !== false;
         let pBeatOn = m.beatOn !== false;
 
-        // 父子連動防護
         if (!pGaitOn) { pStepOn = false; pBeatOn = false; }
         if (!pStepOn) { pBeatOn = false; }
 
@@ -1745,7 +1739,7 @@ class PhysioEngine {
             gaitOn: pGaitOn, stepOn: pStepOn, beatOn: pBeatOn,
             lastProg: m.lastProg ?? 0, lastCat: m.lastCat ?? 'FAT_BURN', 
             spdOffset: m.spdOffset ?? 0, incOffset: Utils.roundInc(m.incOffset ?? 0, incStep), 
-            incStep: incStep, catMemory: m.catMemory 
+            incStep: incStep, catMemory: m.catMemory, offsetMemory: m.offsetMemory || {}
         };
     }
 
@@ -1768,7 +1762,7 @@ class PhysioEngine {
 
     static getHardcodedState(pid, pct) {
         let prog = HARDCODED_PROGS[pid];
-        if (!prog) return { s: 4.0, i: 0 };
+        if (!prog) return { s: 4.0, i: 0};
         for (let i = 0; i < prog.length; i++) { if (pct <= prog[i][0] + 0.001) return { s: prog[i][1], i: prog[i][2] }; }
         return { s: prog[prog.length-1][1], i: prog[prog.length-1][2] };
     }
@@ -2051,7 +2045,7 @@ class VoiceEngine {
         if (Date.now() - job.ts > 15000 && job.pri > 1) { if(job.cb) job.cb(); this._process(); return; }
         
         this.state = 'SPEAKING';
-        AudioApp.setDuck(true); // 平滑閃避
+        AudioApp.setDuck(true); 
         
         try {
             let msg = new SpeechSynthesisUtterance(job.txt); msg.lang = job.lang; msg.rate = 1.15;
@@ -2060,12 +2054,11 @@ class VoiceEngine {
             const finish = () => { 
                 clearTimeout(this.wd); 
                 this.state = 'IDLE'; 
-                AudioApp.setDuck(false); // 平滑還原
+                AudioApp.setDuck(false); 
                 if(job.cb) job.cb(); 
                 setTimeout(() => this._process(), 100); 
             };
             
-            // Watchdog 計時器防護
             this.wd = setTimeout(() => { 
                 this.synth.cancel(); 
                 finish(); 
@@ -2120,7 +2113,7 @@ const VoiceApp = new VoiceEngine();
 
 const DB = {
     db: null,
-    init: async () => { return new Promise((res, rej) => { let req = indexedDB.open('ProTreadmillDB_U52', 1); req.onupgradeneeded = e => { let d = e.target.result; if(!d.objectStoreNames.contains('history')) d.createObjectStore('history', {keyPath: 'id', autoIncrement: true}); }; req.onsuccess = e => { DB.db = e.target.result; res(); }; req.onerror = rej; }); },
+    init: async () => { return new Promise((res, rej) => { let req = indexedDB.open('ProTreadmillDB_U53', 1); req.onupgradeneeded = e => { let d = e.target.result; if(!d.objectStoreNames.contains('history')) d.createObjectStore('history', {keyPath: 'id', autoIncrement: true}); }; req.onsuccess = e => { DB.db = e.target.result; res(); }; req.onerror = rej; }); },
     saveHist: async (data) => { if(!DB.db) return; return new Promise((res) => { try { let tx = DB.db.transaction('history', 'readwrite'); let st = tx.objectStore('history'); st.add(data); st.getAll().onsuccess = e => { let runnerHists = e.target.result.filter(x => x.runnerName === data.runnerName).sort((a,b)=>a.date - b.date); if(runnerHists.length > 500) { let dTx = DB.db.transaction('history', 'readwrite'); runnerHists.slice(0, runnerHists.length - 500).forEach(x => dTx.objectStore('history').delete(x.id)); } if(runnerHists.length > 100) { let cTx = DB.db.transaction('history', 'readwrite'); let toCompress = runnerHists.slice(0, runnerHists.length - 100); toCompress.forEach(x => { if(x.matrix) { x.matrix = []; cTx.objectStore('history').put(x); } }); } }; tx.oncomplete = res; tx.onerror = res; } catch(e) { res(); } }); },
     renameRunnerHistory: async (oldName, newName) => { if(!DB.db) return; return new Promise(res => { try { let tx = DB.db.transaction('history', 'readwrite'); let st = tx.objectStore('history'); st.getAll().onsuccess = e => { e.target.result.forEach(r => { if(r.runnerName === oldName) { r.runnerName = newName; st.put(r); } }); }; tx.oncomplete = res; tx.onerror = res; } catch (err) { res(); } }); },
     getHist: async (runnerName) => { return new Promise((res) => { if(!DB.db) return res([]); let tx = DB.db.transaction('history', 'readonly'); let st = tx.objectStore('history'); st.getAll().onsuccess = e => res(e.target.result.filter(x => x.runnerName === runnerName).sort((a,b) => b.id - a.id)); }); },
@@ -2281,7 +2274,7 @@ class InAppNumpad {
     }
     open(inputEl, title, isDecimal) {
         if(document.activeElement) document.activeElement.blur();
-        AudioApp.setMute(true); // Suppressor
+        AudioApp.setMute(true); 
         this.targetInput = inputEl; this.titleEl.textContent = title; this.isDecimal = isDecimal;
         this.valStr = inputEl.value; this.valEl.textContent = this.valStr || '0';
         this.overlay.classList.add('show'); this.catcher.classList.add('show');
@@ -2407,7 +2400,7 @@ class AppController {
     initData() {
         let needsRecalc = true;
         try {
-            let s = null; try { s = JSON.parse(localStorage.getItem('pro_treadmill_v50')); } catch(e){}
+            let s = null; try { s = JSON.parse(localStorage.getItem('pro_treadmill_v53')); } catch(e){}
             if(s && s.profiles && Object.keys(s.profiles).length > 0) { 
                 AppState.batch({ activeP: s.activeP || Object.keys(s.profiles)[0], profiles: s.profiles, hw: s.hw }); 
             } else { 
@@ -2424,7 +2417,7 @@ class AppController {
 
             this.setupSubscribers();
 
-            let r = null; try { r = JSON.parse(sessionStorage.getItem('runState_v50')); } catch(e){} 
+            let r = null; try { r = JSON.parse(sessionStorage.getItem('runState_v53')); } catch(e){} 
             if(r && r.accumMs > 0 && r.snapshot && r.snapshot.length > 0) { 
                 let restoredStatus = r.runStatus || 'PAUSED';
                 let dtGap = Date.now() - (r.lastTimestamp || Date.now());
@@ -2458,7 +2451,7 @@ class AppController {
                 if (this._syncing || AppState.state.runStatus !== 'STOPPED') return;
                 let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
                 let v = isFloat ? (isMet ? val : Utils.round(val * 1.609344)) : val;
-                if (key === 'tTime') { v = Math.max(20, v); p.tTime = v; }
+                if (key === 'tTime') { v = Math.max(20, v); p.tTime = Utils.clamp(v, 20, 1800); }
                 if (key === 'tKm') { p.tKm = v; }
                 this.saveData(); this.recalc();
             });
@@ -2469,7 +2462,7 @@ class AppController {
 
     syncDialsToProfile() {
         this._syncing = true; let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
-        this.dials.time.build(20, 180, 1); this.dials.time.setValue(p.tTime, true);
+        this.dials.time.build(20, 1800, 10); this.dials.time.setValue(p.tTime, true);
         this.dials.dist.build(1.0, 100.0, 0.1); this.dials.dist.setValue(isMet ? p.tKm : p.tKm / 1.609344, true);
         setTimeout(() => { this._syncing = false; }, 100);
     }
@@ -2500,7 +2493,7 @@ class AppController {
 
     openModal(id) {
         if(AppState.state.runStatus !== 'STOPPED' && id === 'runnerModal') return;
-        AudioApp.setMute(true); // Suppressor ON
+        AudioApp.setMute(true); 
         const el = document.getElementById(id);
         if(!el) return;
         el.classList.add('show');
@@ -2514,7 +2507,7 @@ class AppController {
         if(el) el.classList.remove('show');
         this.modalStack = this.modalStack.filter(x => x !== id);
         if (this.modalStack.length === 0 && !document.getElementById('numpadOverlay').classList.contains('show')) {
-            AudioApp.setMute(false); // Suppressor OFF
+            AudioApp.setMute(false); 
         }
     }
 
@@ -2531,6 +2524,31 @@ class AppController {
     }
 
     bindEvents() {
+        let progHoldTimer = null, progHoldFired = false;
+        document.body.addEventListener('pointerdown', e => {
+            let t = e.target.closest('[data-action="select-prog"]');
+            if (t && AppState.state.runStatus === 'STOPPED') {
+                progHoldFired = false;
+                progHoldTimer = setTimeout(() => {
+                    progHoldFired = true;
+                    let pid = parseInt(t.dataset.pid);
+                    let p = AppState.state.profiles[AppState.state.activeP];
+                    if (p.lastProg === pid) {
+                        if (navigator.vibrate) navigator.vibrate(50);
+                        t.style.opacity = '0.5'; setTimeout(() => t.style.opacity = '1', 150);
+                        p.spdOffset = 0; p.incOffset = 0;
+                        if (!p.offsetMemory) p.offsetMemory = {};
+                        p.offsetMemory[pid] = { spd: 0, inc: 0 };
+                        this.saveData(); this.recalc();
+                        let dStr = i18n[p.lang] || i18n['zh'];
+                        NotificationManager.show(p.lang==='zh'?"偏移量已重置":"Offset Reset", false);
+                    }
+                }, 500);
+            }
+        });
+        document.body.addEventListener('pointerup', () => clearTimeout(progHoldTimer));
+        document.body.addEventListener('pointercancel', () => clearTimeout(progHoldTimer));
+
         document.body.addEventListener('click', e => {
             if(e.target.classList.contains('modal-overlay')) { e.stopPropagation(); this.closeTopModal(); return; }
             const t = e.target.closest('[data-action]'); if (!t) return; const a = t.dataset.action; 
@@ -2542,12 +2560,19 @@ class AppController {
                 let cat = t.dataset.cat; p.lastCat = cat; 
                 if(!p.catMemory) p.catMemory = {}; 
                 p.lastProg = p.catMemory[cat] !== undefined ? p.catMemory[cat] : PROG_CATEGORIES[cat][0];
-                p.spdOffset = 0; p.incOffset = 0; this.saveData(); this.recalc(); 
+                if (!p.offsetMemory) p.offsetMemory = {};
+                let mem = p.offsetMemory[p.lastProg] || { spd: 0, inc: 0 };
+                p.spdOffset = mem.spd; p.incOffset = mem.inc; 
+                this.saveData(); this.recalc(); 
             }
             else if(a === 'select-prog' && AppState.state.runStatus === 'STOPPED') { 
+                if (progHoldFired) return;
                 let pid = parseInt(t.dataset.pid); p.lastProg = pid; 
                 if(!p.catMemory) p.catMemory = {}; p.catMemory[p.lastCat] = pid;
-                p.spdOffset = 0; p.incOffset = 0; this.saveData(); this.recalc(); 
+                if (!p.offsetMemory) p.offsetMemory = {};
+                let mem = p.offsetMemory[pid] || { spd: 0, inc: 0 };
+                p.spdOffset = mem.spd; p.incOffset = mem.inc;
+                this.saveData(); this.recalc(); 
             }
             else if(a === 'pause') { 
                 if(AppState.state.runStatus === 'RUNNING') { 
@@ -2585,16 +2610,35 @@ class AppController {
             else if(a === 'toggle-accordion') { t.classList.toggle('open'); document.getElementById(t.dataset.target).classList.toggle('show'); }
             
             else if(a === 'dial-up' || a === 'dial-down') {
+                e.stopPropagation();
                 let dial = this.dials[t.dataset.target.replace('ds-', '')]; if(!dial) return;
                 let step = parseFloat(t.dataset.step) * (a === 'dial-up' ? 1 : -1); dial.setValue(dial.currentVal + step);
             }
             else if(a === 'time-plus' || a === 'time-minus') {
                 let dType = t.dataset.target === 'th' ? this.adjDials.timeH : this.adjDials.timeM; let step = a.includes('minus') ? -1 : 1; dType.setValue(dType.currentVal + step);
             }
+            else if(a === 'open-numpad-time') {
+                if (e.target.closest('.dial-btn-mini') || AppState.state.runStatus !== 'STOPPED') return;
+                let hiddenInput = document.createElement('input'); hiddenInput.type = 'text';
+                hiddenInput.value = p.tTime.toString();
+                hiddenInput.addEventListener('input', (ev) => {
+                    let val = parseInt(ev.target.value); if(!isNaN(val)) { p.tTime = Utils.clamp(val, 20, 1800); this.saveData(); this.recalc(); }
+                });
+                Numpad.open(hiddenInput, dStr.lbl_tot_time, false);
+            }
+            else if(a === 'open-numpad-dist') {
+                if (e.target.closest('.dial-btn-mini') || AppState.state.runStatus !== 'STOPPED') return;
+                let hiddenInput = document.createElement('input'); hiddenInput.type = 'text';
+                hiddenInput.value = (isMet ? p.tKm : p.tKm/1.609344).toFixed(1);
+                hiddenInput.addEventListener('input', (ev) => {
+                    let val = parseFloat(ev.target.value); if(!isNaN(val)) { p.tKm = isMet ? val : val * 1.609344; this.saveData(); this.recalc(); }
+                });
+                Numpad.open(hiddenInput, dStr.lbl_tgt_km, true);
+            }
             else if(a === 'open-adj-time') {
                 if(AppState.state.runStatus !== 'RUNNING' && AppState.state.runStatus !== 'PAUSED') return;
                 let curMins = p.tTime; this.charts.teardown();
-                this.adjDials.timeH.build(0, 5, 1); this.adjDials.timeM.build(0, 59, 1);
+                this.adjDials.timeH.build(0, 30, 1); this.adjDials.timeM.build(0, 59, 1);
                 this.adjDials.timeH.setValue(Math.floor(curMins / 60), true); this.adjDials.timeM.setValue(curMins % 60, true);
                 this.openModal('timeModal');
             }
@@ -2615,8 +2659,6 @@ class AppController {
             }
             else if(a === 'open-run-numpad' && (AppState.state.runStatus === 'RUNNING' || AppState.state.runStatus === 'PAUSED')) {
                 let isSpd = t.dataset.target === 'spd';
-                let p = AppState.state.profiles[AppState.state.activeP];
-                let isMet = p.unit !== 'imperial';
                 let title = isSpd ? (isMet ? 'Target Speed (kph)' : 'Target Speed (mph)') : 'Target Incline (%)';
 
                 let hiddenInput = document.createElement('input');
@@ -2624,8 +2666,8 @@ class AppController {
                 let targetDom = document.getElementById(`runVal${isSpd ? 'Spd' : 'Inc'}`);
                 hiddenInput.value = targetDom.dataset.raw || '0.0';
 
-                hiddenInput.addEventListener('input', (e) => {
-                    let val = parseFloat(e.target.value);
+                hiddenInput.addEventListener('input', (ev) => {
+                    let val = parseFloat(ev.target.value);
                     if(isNaN(val)) return;
 
                     let cM = Math.floor(AppState.state.accumMs / 60000);
@@ -2646,6 +2688,8 @@ class AppController {
                     } else {
                         p.incOffset = val - baseInc;
                     }
+                    if (!p.offsetMemory) p.offsetMemory = {};
+                    p.offsetMemory[p.lastProg] = { spd: p.spdOffset, inc: p.incOffset };
                     this.saveData();
                     this.performMatrixSplicing();
                 });
@@ -2672,8 +2716,11 @@ class AppController {
                 
                 if(isSpd) { p.spdOffset += (isUp ? step : -step); p.spdOffset = Utils.clamp(p.spdOffset, -15.0, 15.0); } 
                 else { p.incOffset += (isUp ? step : -step); p.incOffset = Utils.clamp(p.incOffset, -15.0, 15.0); p.incOffset = Utils.roundInc(p.incOffset, incStep); }
-                this.saveData(); this.recalc(AppState.state.runStatus === 'STOPPED');
-                if (AppState.state.runStatus !== 'STOPPED') this.performMatrixSplicing();
+                if (!p.offsetMemory) p.offsetMemory = {};
+                p.offsetMemory[p.lastProg] = { spd: p.spdOffset, inc: p.incOffset };
+                this.saveData(); 
+                if (AppState.state.runStatus === 'STOPPED') this.recalc(true);
+                else this.performMatrixSplicing();
             }
         });
 
@@ -2692,6 +2739,8 @@ class AppController {
                     
                     if(isSpd) { p.spdOffset += (isUp ? step : -step); p.spdOffset = Utils.clamp(p.spdOffset, -15.0, 15.0); } 
                     else { p.incOffset += (isUp ? step : -step); p.incOffset = Utils.clamp(p.incOffset, -15.0, 15.0); p.incOffset = Utils.roundInc(p.incOffset, incStep); }
+                    if (!p.offsetMemory) p.offsetMemory = {};
+                    p.offsetMemory[p.lastProg] = { spd: p.spdOffset, inc: p.incOffset };
                     this.saveData(); 
                     if(AppState.state.runStatus === 'STOPPED') this.recalc(true); else this.performMatrixSplicing();
                 };
@@ -2718,13 +2767,13 @@ class AppController {
                     if(navigator.vibrate) navigator.vibrate(50);
                     btn.style.transform = ''; 
                     
-                    // 解鎖沈浸與武裝音效
                     let p = AppState.state.profiles[AppState.state.activeP];
                     p.gaitOn = true; p.stepOn = true; p.beatOn = true;
+                    AudioApp.setBeatMute(!p.beatOn);
                     this.saveData();
                     this.setFabMode('GAIT_IMMERSIVE');
                     this.updateGaitHubState();
-                    AudioApp.armSync(side); // 音效相位鎖定
+                    AudioApp.armSync(side); 
                     
                 }, 400);
             });
@@ -2748,6 +2797,7 @@ class AppController {
                         if(side === 'left') {
                             p.gaitOn = !p.gaitOn;
                             if(!p.gaitOn) { p.stepOn = false; p.beatOn = false; }
+                            AudioApp.setBeatMute(!p.beatOn); 
                             this.saveData(); this.setFabMode('NORMAL');
                             NotificationManager.show(p.gaitOn ? dStr.opt_gait_on : dStr.opt_gait_off, false);
                         } else {
@@ -2774,7 +2824,7 @@ class AppController {
             if(vL) vL.play().catch(()=>{});
 
             VoiceApp.unlock(); this.charts.teardown();
-            AudioApp.unlock(); // User Gesture Unlock
+            AudioApp.unlock(); 
             
             history.pushState(null, null, location.href);
 
@@ -2789,7 +2839,6 @@ class AppController {
 
                 let curM = AppState.state.snapshot[Math.floor(AppState.state.accumMs/60000)];
                 if (pauseDuration > 60000 && curM && curM.spd > 7.0) {
-                    p.spdOffset -= 3.0; this.saveData(); this.performMatrixSplicing();
                     VoiceApp.speakText(dStr.warn_warmup, 3, AppState.state.tempVoiceLang==='zh'||p.lang==='zh'?'zh-TW':'en-US', () => { AppState.state.runStatus = 'RUNNING'; });
                 } else {
                     VoiceApp.speakText(dStr.msg_resume, 3, AppState.state.tempVoiceLang==='zh'||p.lang==='zh'?'zh-TW':'en-US', () => { AppState.state.runStatus = 'RUNNING'; });
@@ -2886,6 +2935,7 @@ class AppController {
                     } else if (c.id === 'segBeat') {
                         p.beatOn = b.dataset.val === 'on';
                         if(p.beatOn) { p.stepOn = true; p.gaitOn = true; }
+                        AudioApp.setBeatMute(!p.beatOn); 
                         this.saveData(); this.populateRunnerForm(p);
                     }
                     this.updateI18n(); this.updateUIDataOnly(); this.charts.drawAll();
@@ -3084,6 +3134,7 @@ class AppController {
                 AppState.state.previousFabMode = null;
                 
                 AudioApp.start(RunAcc.lastGaitBPM || 120);
+                AudioApp.setBeatMute(!p.beatOn);
             }
             else if (P || S) { 
                 BgWorker.postMessage('STOP'); 
@@ -3124,16 +3175,13 @@ class AppController {
         let isMet = p.unit !== 'imperial';
         Binder.updateBatch({ uiSpdOff: (isMet ? p.spdOffset : p.spdOffset/1.609344).toFixed(1), uiIncOff: p.incOffset.toFixed(1) });
         
-        if (AppState.state.runStatus === 'RUNNING') {
-            let cS = Math.floor(AppState.state.accumMs) % 60000;
-            if(cS < 45000) {
-                let immediateSpd = Utils.clamp(res.matrix[cM].rawSpd + p.spdOffset, AppState.state.hw.minSpd, AppState.state.hw.maxSpd);
-                let immediateInc = Utils.clamp(res.matrix[cM].rawInc + p.incOffset, AppState.state.hw.minInc, AppState.state.hw.maxInc);
-                AppState.state.snapshot[cM].spd = Utils.round(immediateSpd);
-                AppState.state.snapshot[cM].inc = Utils.roundInc(immediateInc, p.incStep);
-                TweenApp.to('runValSpd', isMet?immediateSpd:immediateSpd/1.609344, v => v.toFixed(1), true); 
-                TweenApp.to('runValInc', immediateInc, v => v.toFixed(1), true); 
-            }
+        if (AppState.state.runStatus === 'RUNNING' || AppState.state.runStatus === 'PAUSED') {
+            let immediateSpd = Utils.clamp(res.matrix[cM].rawSpd + p.spdOffset, AppState.state.hw.minSpd, AppState.state.hw.maxSpd);
+            let immediateInc = Utils.clamp(res.matrix[cM].rawInc + p.incOffset, AppState.state.hw.minInc, AppState.state.hw.maxInc);
+            AppState.state.snapshot[cM].spd = Utils.round(immediateSpd);
+            AppState.state.snapshot[cM].inc = Utils.roundInc(immediateInc, p.incStep);
+            TweenApp.to('runValSpd', isMet?immediateSpd:immediateSpd/1.609344, v => v.toFixed(1), true); 
+            TweenApp.to('runValInc', immediateInc, v => v.toFixed(1), true); 
         }
     }
 
@@ -3259,7 +3307,6 @@ class AppController {
 
         if (AudioApp.isPlaying) {
             AudioApp.updateBPM(currentBPM);
-            AudioApp.setBeatMute(!p.beatOn);
             
             if (p.stepOn) {
                 let aPhase = AudioApp.getVisualPhase();
@@ -3361,7 +3408,7 @@ class AppController {
             RunAcc.cappedMs[safeM] = true;
             let curLang = AppState.state.tempVoiceLang || p.lang;
             let ttsLang = curLang === 'zh' ? 'zh-TW' : 'en-US';
-            VoiceApp.speakText(dStr.warn_hr, 1, ttsLang);
+            VoiceApp.speakText(Utils.PRNG.get(curLang, 'warn_hr', VoiceDB[curLang].warn_hr), 1, ttsLang);
         }
 
         RunAcc.sec += dt/1000; RunAcc.sumSpd += RunAcc.curSpd * (dt/1000); if(RunAcc.curSpd > RunAcc.mxS) RunAcc.mxS = RunAcc.curSpd;
@@ -3387,8 +3434,8 @@ class AppController {
             document.getElementById('topProgressBar').style.width = pct.toFixed(1) + '%'; 
             document.getElementById('topRemainingTime').textContent = '-' + Utils.fmtTime(rMs); 
             Binder.update('massiveTime', Utils.fmtTime(ms, false));
-            TweenApp.to('runValSpd', isMet?targetSpd:targetSpd/1.609344, v => v.toFixed(1), cS >= 45000); 
-            TweenApp.to('runValInc', targetInc, v => v.toFixed(1), cS >= 45000); 
+            TweenApp.to('runValSpd', isMet?targetSpd:targetSpd/1.609344, v => v.toFixed(1), false); 
+            TweenApp.to('runValInc', targetInc, v => v.toFixed(1), false); 
         }
         
         let eElev = isMet ? RunAcc.dElev : RunAcc.dElev * 3.28084;
@@ -3513,7 +3560,7 @@ class AppController {
     recalc(fullReset = true) {
         let p = AppState.state.profiles[AppState.state.activeP]; let hw = AppState.state.hw;
         let res = PhysioEngine.solveBlueprint(p, hw);
-        if (res.newTime > p.tTime) { p.tTime = res.newTime; this.saveData(); }
+        if (res.newTime > p.tTime) { p.tTime = Utils.clamp(res.newTime, 20, 1800); this.saveData(); }
         AppState.batch({ matrix: res.matrix, snapshot: JSON.parse(JSON.stringify(res.matrix)) });
         AppState.state.estTotKm = PhysioEngine.simulatePhysics(res.matrix, hw).dist;
         if(fullReset) this.updateUIDataOnly();
@@ -3533,7 +3580,18 @@ class AppController {
         let nextSpdChanged = isPeeking ? Math.abs(m[cM+1].spd - m[cM].spd) > 0.05 : false;
         let nextIncChanged = isPeeking ? Math.abs(m[cM+1].inc - m[cM].inc) > 0.05 : false;
 
-        m.forEach((r, i) => {
+        let renderCount = 0;
+        // Limit total render size for performance if needed, but innerHTML is fast enough for ~300.
+        // For 1800 elements, we should render only a window to avoid DOM bomb.
+        // A simple windowing approach for the preview list if array is too large:
+        let startIdx = 0; let endIdx = m.length;
+        if (m.length > 500) {
+            startIdx = Math.max(0, cM - 100);
+            endIdx = Math.min(m.length, cM + 200);
+        }
+
+        for (let i = startIdx; i < endIdx; i++) {
+            let r = m[i];
             let rowClass = 'pace-grid-row';
             let spdClass = 'list-col-spd';
             let incClass = 'list-col-inc';
@@ -3557,7 +3615,8 @@ class AppController {
                 <span class="list-col-hr" style="${isMaxLac?'color:var(--neon-red);':''}">${Math.round(r.hr)}</span>
                 <span class="list-col-lac">${r.lac.toFixed(1)}</span>
             </li>`;
-        });
+        }
+        
         ul.innerHTML = currentHTML;
     }
 
@@ -3608,7 +3667,7 @@ class AppController {
         let p = { 
             name, gender: document.querySelector('#segSex .seg-btn.active').dataset.val, unit: isMet?'metric':'imperial', lang: document.querySelector('#segLang .seg-btn.active').dataset.val, voiceOn: document.querySelector('#segVoice .seg-btn.active').dataset.val==='on', gaitOn: document.querySelector('#segGait .seg-btn.active').dataset.val==='on', stepOn: document.querySelector('#segStep .seg-btn.active').dataset.val==='on', beatOn: document.querySelector('#segBeat .seg-btn.active').dataset.val==='on',
             age: parseFloat(document.getElementById('rmAge').value)||40, tTime: isNew ? 30 : actP.tTime, tKm: isNew ? 5.0 : actP.tKm, lastProg: isNew ? 0 : actP.lastProg, lastCat: isNew ? 'FAT_BURN' : actP.lastCat, 
-            spdOffset: isNew?0:actP.spdOffset, incOffset: isNew?0:actP.incOffset, catMemory: actP.catMemory || {} 
+            spdOffset: isNew?0:actP.spdOffset, incOffset: isNew?0:actP.incOffset, catMemory: actP.catMemory || {}, offsetMemory: actP.offsetMemory || {}
         };
         
         p.weight = getV('rmWeight', isMet?1:1/2.20462); p.smm = getV('rmSMM', isMet?1:1/2.20462); p.bf = parseFloat(document.getElementById('rmBF').value) || null; p.ecw = parseFloat(document.getElementById('rmECW').value) || null;
@@ -3659,12 +3718,12 @@ class AppController {
         });
     }
 
-    saveData() { try { localStorage.setItem('pro_treadmill_v50', JSON.stringify({ activeP: AppState.state.activeP, profiles: AppState.state.profiles, hw: AppState.state.hw, schemaVersion: 1 })); } catch(e){} }
+    saveData() { try { localStorage.setItem('pro_treadmill_v53', JSON.stringify({ activeP: AppState.state.activeP, profiles: AppState.state.profiles, hw: AppState.state.hw, schemaVersion: 1 })); } catch(e){} }
     
     persistRun() { 
         if (AppState.state.accumMs > 0) {
-            sessionStorage.setItem('runState_v50', JSON.stringify({ runStatus: AppState.state.runStatus, lastTimestamp: Date.now(), activeP: AppState.state.activeP, accumMs: AppState.state.accumMs, matrix: AppState.state.matrix, snapshot: AppState.state.snapshot, acc: RunAcc, minimalVoice: AppState.state.minimalVoice, tempVoiceLang: AppState.state.tempVoiceLang, previousFabMode: AppState.state.previousFabMode })); 
-        } else { sessionStorage.removeItem('runState_v50'); }
+            sessionStorage.setItem('runState_v53', JSON.stringify({ runStatus: AppState.state.runStatus, lastTimestamp: Date.now(), activeP: AppState.state.activeP, accumMs: AppState.state.accumMs, matrix: AppState.state.matrix, snapshot: AppState.state.snapshot, acc: RunAcc, minimalVoice: AppState.state.minimalVoice, tempVoiceLang: AppState.state.tempVoiceLang, previousFabMode: AppState.state.previousFabMode })); 
+        } else { sessionStorage.removeItem('runState_v53'); }
     }
     
     endWorkout() {
@@ -3672,7 +3731,7 @@ class AppController {
         let ms = AppState.state.accumMs;
         let p = AppState.state.profiles[AppState.state.activeP]; let d = i18n[p.lang] || i18n['zh'];
         
-        sessionStorage.removeItem('runState_v50'); 
+        sessionStorage.removeItem('runState_v53'); 
         this.updateStatsBlock('rAct', ms, true);
 
         if(RunAcc.sec >= 10 && ms >= 10000) {
