@@ -1009,29 +1009,29 @@
     window.onload = initGame;
 </script>
 
-<!-- 系統防禦與「顯示版」存取計數模組 --> 
+<!-- 系統防禦與「顯示版」存取計數模組 (支援 V2 格式) --> 
 <script>
 (async function(){
-    // 1. 自動精準萃取檔名作為 ID
     var file = window.location.pathname.split('/').pop();
     var pageId = file ? file.split('.')[0] : 'bopomofo'; 
-    if (!pageId) pageId = 'bopomofo'; // 容錯機制
+    if (!pageId) pageId = 'bopomofo'; 
 
-    // 2. 判斷是否為正式網域 (防止你在本機測試時瘋狂灌水計數)
     var isOfficial = (window.location.hostname === 'winston-github.github.io');
     var endpoint = isOfficial ? '/up' : '/'; 
     
-    // 3. 呼叫你的 Cloudflare 跑腿小弟，要求最新資料
     var url = 'https://bitter-pond-98f0.lyc-asia.workers.dev/v2/winston-github-io/page-' + pageId + endpoint + '?_=' + new Date().getTime();
     
     try {
         let res = await fetch(url);
         if(res.ok) {
-            let data = await res.json();
+            let json = await res.json();
             let countEl = document.getElementById('page-view-count');
-            // 如果拿到的資料是正常的數字，就直接顯示在畫面上！
-            if(countEl && data && typeof data.count === 'number') {
-                countEl.innerText = data.count.toLocaleString();
+            
+            // 【關鍵修復】: 抓取 V2 格式的 up_count
+            let currentCount = json?.data?.up_count ?? json?.count; 
+            
+            if(countEl && typeof currentCount === 'number') {
+                countEl.innerText = currentCount.toLocaleString();
             }
         }
     } catch(e) {
