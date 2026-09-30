@@ -603,7 +603,7 @@
                     <label class="rm-label" id="lblRmPhysio" data-i18n="rm_phy"></label>
                     <div class="param-grid">
                         <div class="param-item readonly" data-action="open-numpad" data-target="rmAge" data-title="Age"><label id="lblAge" data-i18n="rm_age"></label><input type="text" id="rmAge" readonly tabindex="-1"><span class="unit" id="unitAge"></span></div>
-                        <div class="param-item readonly" data-action="open-numpad" data-target="rmWeight" data-decimal="true" data-title="Weight"><label id="lblWgt" data-i18n="rm_wgt"></label><input type="text" id="rmWeight" readonly tabindex="-1"><span class="unit" id="unitWgt"></span></div>
+                        <div class="param-item readonly" data-action="open-numpad" data-target="rmWeight" data-decimal="" data-title="Weight"><label id="lblWgt" data-i18n="rm_wgt"></label><input type="text" id="rmWeight" readonly tabindex="-1"><span class="unit" id="unitWgt"></span></div>
                     </div>
                 </div>
 
@@ -1611,6 +1611,10 @@ class AudioEngine {
             this.beatCount = (this.beatCount + 1) % 3;
             return;
         }
+
+        // 防護 Web Audio API 的「歷史排程陷阱」，強制修正掉落到過去的時間
+        let now = this.ctx.currentTime;
+        if (time < now) time = now + 0.005;
 
         let freq = (this.beatCount === 0) ? 500 : 1000; 
         
@@ -2891,6 +2895,10 @@ class AppController {
                             this.setFabState(p, nextState);
                             this.saveData(); 
                             this.setFabMode('NORMAL');
+                            
+                            // UX優化：單擊進入狀態4時，自動瞬間對齊腳步！
+                            if (nextState === 4) AudioApp.armSync('left');
+                            
                         } else {
                             // Right Click
                             let curState = this.getFabState(p);
@@ -2902,9 +2910,13 @@ class AppController {
                                 NotificationManager.show(p.voiceOn ? dStr.opt_voice_on : dStr.opt_voice_off, false);
                             } else {
                                 // Toggle Beat (3 <-> 4)
-                                this.setFabState(p, curState === 3 ? 4 : 3);
+                                let nextState = curState === 3 ? 4 : 3;
+                                this.setFabState(p, nextState);
                                 this.saveData();
                                 this.setFabMode('NORMAL');
+                                
+                                // UX優化：單擊進入狀態4時，自動瞬間對齊腳步！
+                                if (nextState === 4) AudioApp.armSync('right');
                             }
                         }
                     }
