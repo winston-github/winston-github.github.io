@@ -186,10 +186,8 @@
            📱 行動裝置與窄版螢幕自適應：終極防切割防遮擋
            ======================================================= */
         @media (max-width: 768px) {
-            /* 1. 隱藏全螢幕按鈕，手機不需要且不支援 */
             #corner-fullscreen-btn { display: none !important; }
 
-            /* 2. 大幅垂直壓縮上半部區域高度，將虛擬鍵盤推至安全區域 */
             #game-container { padding: 8px; gap: 4px; padding-bottom: max(15px, env(safe-area-inset-bottom, 15px)); }
             #top-bar { flex-direction: column; padding: 10px 12px; border-radius: 12px; }
             .title-section { width: 100%; align-items: center; text-align: center; gap: 4px; }
@@ -201,7 +199,7 @@
             .stat-value { font-size: 16px; }
             .btn-history { padding: 4px 10px; font-size: 12px; }
             
-            #lyrics-board { height: 90px; } /* 極限壓縮歌詞顯示區 */
+            #lyrics-board { height: 90px; } 
             #curr-line { font-size: 24px; height: 35px; letter-spacing: 1px; margin: 5px 0; }
             #prev-line, #next-line { font-size: 16px; height: 22px; }
             
@@ -212,7 +210,6 @@
             .zhuyin-symbol.tone-mark { right: -12px; font-size: 14px; }
             #type-target { font-size: 45px; width: 60px; }
 
-            /* 3. 鍵盤底座優化：推升邊距與放大觸控面積 */
             #keyboard-zone { padding-bottom: 10px; }
             #virtual-keyboard { padding: 6px; gap: 4px; border-radius: 10px; margin-bottom: 5px; }
             .kbd-row { padding-left: 0 !important; justify-content: center; gap: 3px; }
@@ -266,6 +263,10 @@
         <div class="title-section">
             <h1 id="main-title" title="點擊更換詩詞">等待抽取中...</h1>
             <div id="metadata-bar"></div>
+            <!-- 新增：顯示頁面總造訪人次 (整合於詩詞資訊下方) -->
+            <div id="view-counter" style="font-size: 13px; color: #9ca3af; margin-top: 2px; letter-spacing: 1px;">
+                🔥 總挑戰人次: <span id="page-view-count" style="color: #38bdf8; font-family: monospace; font-weight: bold; font-size: 16px;">...</span>
+            </div>
         </div>
         <div id="pro-stats">
             <div class="stat-box"><span class="stat-label">競賽計時</span><span class="stat-value" id="stat-time" style="color: #60a5fa;">00:00</span></div>
@@ -382,7 +383,6 @@
     // iOS Safari 雙指放大防呆與全螢幕機制
     // ==========================================
     function toggleFullscreen() {
-        // 電腦版才允許切換全螢幕
         if (window.innerWidth <= 768) return; 
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch(err => console.log(err));
@@ -391,7 +391,6 @@
         }
     }
     
-    // 防護 1：電腦版雙擊空白處全螢幕 (手機版已透過判斷攔截)
     document.body.addEventListener('dblclick', (e) => {
         if (window.innerWidth <= 768) {
             e.preventDefault();
@@ -402,7 +401,6 @@
         }
     });
 
-    // 防護 2：iOS 底層防護，偵測連續觸控時間差，徹底抹殺雙指或快速連點的放大 Bug
     let lastTouchEnd = 0;
     document.addEventListener('touchend', function (event) {
         let now = (new Date()).getTime();
@@ -503,7 +501,6 @@
 
                     if (!contentStr) continue;
                     
-                    // 【零英數高階篩選器】：完全阻擋網址 (http)、英文、數字，與「三百首」前言簡介
                     if (/[a-zA-Z0-9]/.test(contentStr)) continue;
                     if (title && /三百首/.test(title)) continue;
                     
@@ -862,7 +859,6 @@
     const tooltipEl = document.getElementById('custom-tooltip');
     
     function showTooltip(e, content) {
-        // 電腦版才顯示 Tooltip
         if (window.innerWidth <= 768) return; 
         tooltipEl.innerHTML = content;
         tooltipEl.style.display = 'block';
@@ -1012,20 +1008,35 @@
 
     window.onload = initGame;
 </script>
-<!-- 系統防禦與存取計數模組 (完全靜默 / 防拷貝 / 防衝突) --> 
-<script>
-(function(){
-    // 1. 嚴格網域白名單檢查 (防止原始碼被盜用執行)
-    if (window.location.hostname !== 'winston-github.github.io') return;
-    
-    // 2. 自動精準萃取檔名作為 ID (支援任意路徑與任意副檔名)
-    var file = window.location.pathname.split('/').pop();
-    var pageId = file ? file.split('.')[0] : 'index';
-    if (!pageId) return;
 
-    // 3. 靜默發送破快取請求 (已替換為 Cloudflare Worker 網址)
-    var url = 'https://bitter-pond-98f0.lyc-asia.workers.dev/v2/winston-github-io/page-' + pageId + '/up?_=' + new Date().getTime();
-    fetch(url).catch(function(){});
+<!-- 系統防禦與「顯示版」存取計數模組 --> 
+<script>
+(async function(){
+    // 1. 自動精準萃取檔名作為 ID
+    var file = window.location.pathname.split('/').pop();
+    var pageId = file ? file.split('.')[0] : 'bopomofo'; 
+    if (!pageId) pageId = 'bopomofo'; // 容錯機制
+
+    // 2. 判斷是否為正式網域 (防止你在本機測試時瘋狂灌水計數)
+    var isOfficial = (window.location.hostname === 'winston-github.github.io');
+    var endpoint = isOfficial ? '/up' : '/'; 
+    
+    // 3. 呼叫你的 Cloudflare 跑腿小弟，要求最新資料
+    var url = 'https://bitter-pond-98f0.lyc-asia.workers.dev/v2/winston-github-io/page-' + pageId + endpoint + '?_=' + new Date().getTime();
+    
+    try {
+        let res = await fetch(url);
+        if(res.ok) {
+            let data = await res.json();
+            let countEl = document.getElementById('page-view-count');
+            // 如果拿到的資料是正常的數字，就直接顯示在畫面上！
+            if(countEl && data && typeof data.count === 'number') {
+                countEl.innerText = data.count.toLocaleString();
+            }
+        }
+    } catch(e) {
+        console.warn('Counter fetch failed', e);
+    }
 })();
 </script>
 </body>
