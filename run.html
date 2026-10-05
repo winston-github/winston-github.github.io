@@ -2872,9 +2872,10 @@ class AppController {
                 Numpad.open(inputEl, title, isDec);
             }
             else if(a === 'open-run-numpad' && (AppState.state.runStatus === 'RUNNING' || AppState.state.runStatus === 'PAUSED')) {
+                // 核心修復：語音播報期間，禁止開啟數字鍵盤
+                if (VoiceApp.state === 'SPEAKING') return;
                 let isSpd = t.dataset.target === 'spd';
                 let title = isSpd ? (isMet ? 'Target Speed (kph)' : 'Target Speed (mph)') : 'Target Incline (%)';
-
                 let hiddenInput = document.createElement('input');
                 hiddenInput.type = 'text';
                 let targetDom = document.getElementById(`runVal${isSpd ? 'Spd' : 'Inc'}`);
@@ -2915,10 +2916,11 @@ class AppController {
             }
             else if(a === 'offset-spd-minus' || a === 'offset-spd-plus' || a === 'offset-inc-minus' || a === 'offset-inc-plus' || a === 'btn-spd-up' || a === 'btn-spd-down' || a === 'btn-inc-up' || a === 'btn-inc-down') {
                 if (AppState.state.runStatus === 'STOPPED' && a.includes('btn-')) return;
+                // 核心修復：語音播報期間，強制屏蔽所有單擊加減速操作
+                if (VoiceApp.state === 'SPEAKING') return;
                 
                 let isSpd = a.includes('spd'); let isUp = a.includes('plus') || a.includes('up');
                 if(navigator.vibrate) navigator.vibrate(10);
-                
                 let incStep = p.incStep || 0.5;
                 let step = isSpd ? (isMet ? 0.1 : Utils.round(0.1 * 1.609344)) : incStep;
                 
@@ -2938,6 +2940,9 @@ class AppController {
                 const exec = () => {
                     firedByRepeat = true;
                     if (AppState.state.runStatus === 'STOPPED' && actionName.includes('btn-')) return;
+                    // 核心修復：語音播報期間，強制屏蔽所有長按加減速操作
+                    if (VoiceApp.state === 'SPEAKING') return;
+
                     let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
                     
                     if(navigator.vibrate) navigator.vibrate(10);
@@ -2952,7 +2957,15 @@ class AppController {
                     this.saveData(); 
                     if(AppState.state.runStatus === 'STOPPED') this.recalc(true); else this.performMatrixSplicing();
                 };
-                const start = (e) => { e.preventDefault(); firedByRepeat = false; tRef = setTimeout(function repeat() { exec(); speed = Math.max(100, speed - 20); tRef = setTimeout(repeat, speed); }, speed); };
+                const start = (e) => { 
+                    e.preventDefault(); 
+                    // 雙重防禦：即使是長按按鈕被 e.preventDefault 擋掉，也能確保音訊喚醒
+                    if (AudioApp.ctx && AudioApp.ctx.state === 'suspended' && AppState.state.runStatus === 'RUNNING') {
+                        AudioApp.ctx.resume().then(() => AudioApp.reAnchor());
+                    }
+                    firedByRepeat = false; 
+                    tRef = setTimeout(function repeat() { exec(); speed = Math.max(100, speed - 20); tRef = setTimeout(repeat, speed); }, speed); 
+                };
                 const stop = () => { clearTimeout(tRef); speed = 300; };
                 btn.addEventListener('pointerdown', start); btn.addEventListener('pointerup', stop); btn.addEventListener('pointerleave', stop); btn.addEventListener('pointercancel', stop);
                 btn.addEventListener('click', (e) => { if(firedByRepeat) { e.stopPropagation(); firedByRepeat = false; } }, true);
@@ -2969,9 +2982,14 @@ class AppController {
             btn.addEventListener('pointerdown', e => {
                 if(AppState.state.runStatus === 'STOPPED') return;
                 e.preventDefault(); e.stopPropagation();
+                
+                // 核心修復：因為阻擋了冒泡，必須手動喚醒沉睡的音訊，避免陷入黑洞
+                if (AudioApp.ctx && AudioApp.ctx.state === 'suspended' && AppState.state.runStatus === 'RUNNING') {
+                    AudioApp.ctx.resume().then(() => AudioApp.reAnchor());
+                }
+
                 pDown = true; isLongPress = false;
                 btn.style.transform = 'translateY(-50%) scale(0.9)';
-                
                 timer = setTimeout(() => {
                     isLongPress = true;
                     if(navigator.vibrate) navigator.vibrate(50);
