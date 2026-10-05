@@ -1718,10 +1718,6 @@ class AudioEngine {
         let status = AppState.state.runStatus;
         
         if (status === 'PRE_FLIGHT') {
-            if (this.heartbeatNextTime < now + 0.1) {
-                this.playHeartbeat(this.heartbeatNextTime);
-                this.heartbeatNextTime += 1.0; 
-            }
             this.nextNoteTime = now + 0.1; 
         } 
         else if (status === 'RUNNING') {
@@ -3078,22 +3074,23 @@ class AppController {
                 let pauseDuration = Date.now() - RunAcc.lastPauseMs; if(pauseDuration > 180000) RunAcc.pausePenalty = true;
                 if(RunAcc.pauseCount > 3) RunAcc.pausePenalty = true;
 
+                this.setFabState(p, 4); this.saveData(); this.setFabMode('NORMAL');
+
                 let curM = AppState.state.snapshot[Math.floor(AppState.state.accumMs/60000)];
                 if (pauseDuration > 60000 && curM && curM.spd > 7.0) {
                     VoiceApp.speakText(dStr.warn_warmup, 3, AppState.state.tempVoiceLang==='zh'||p.lang==='zh'?'zh-TW':'en-US', () => { AppState.state.runStatus = 'RUNNING'; });
                 } else {
                     VoiceApp.speakText(dStr.msg_resume, 3, AppState.state.tempVoiceLang==='zh'||p.lang==='zh'?'zh-TW':'en-US', () => { AppState.state.runStatus = 'RUNNING'; });
                 }
-
             } else {
+                this.setFabState(p, 4); this.saveData(); this.setFabMode('NORMAL');
                 AppState.state.runStatus = 'PRE_FLIGHT';
                 this.dials.time.forceSnap(); this.dials.dist.forceSnap();
                 await new Promise(r => setTimeout(r, 200)); if (AppState.state.runStatus !== 'PRE_FLIGHT') return; 
 
                 resetRunAcc();
                 this.lastVisualPhase = 0.99;
-                AppState.state.tempVoiceLang = null; 
-                
+                AppState.state.tempVoiceLang = null;
                 AppState.state.estTotKm = PhysioEngine.simulatePhysics(AppState.state.snapshot, AppState.state.hw).dist;
 
                 let startM = AppState.state.snapshot[0];
@@ -3564,13 +3561,20 @@ class AppController {
     }
 
     renderGaitFrame(ts) {
-        if (AppState.state.runStatus !== 'RUNNING' || AppState.state.isTimeWarping) return;
+        if ((AppState.state.runStatus !== 'RUNNING' && AppState.state.runStatus !== 'PRE_FLIGHT') || AppState.state.isTimeWarping) return;
         
         let p = AppState.state.profiles[AppState.state.activeP];
         if (!p || !p.gaitOn) return;
 
         let targetSpd = RunAcc.curSpd || 0;
         let targetInc = RunAcc.curInc || 0;
+        
+        // 核心修復：在語音階段，提前抓取未來的速度來渲染畫面 BPM
+        if (AppState.state.runStatus === 'PRE_FLIGHT' && AppState.state.snapshot && AppState.state.snapshot.length > 0) {
+            targetSpd = AppState.state.snapshot[0].spd + (p.spdOffset || 0);
+            targetInc = AppState.state.snapshot[0].inc + (p.incOffset || 0);
+        }
+
         let currentBPM = this.calculateBPM(targetSpd, targetInc);
         
         let numLayer = document.getElementById('fabLeftGaitNum');
@@ -3578,7 +3582,6 @@ class AppController {
             if (numLayer && RunAcc.lastGaitBPM !== 0) { numLayer.textContent = 0; RunAcc.lastGaitBPM = 0; }
             return; 
         }
-
         let currentHue = this.getGaitHSL(currentBPM);
         document.documentElement.style.setProperty('--current-gait-color', `hsl(${currentHue}, 100%, 60%)`);
         let fadeMs = 60000 / currentBPM;
@@ -3607,7 +3610,7 @@ class AppController {
             document.getElementById('app-shell').classList.remove('immersive-tabs');
         }
 
-        if (AudioApp.isPlaying) {
+        if (AudioApp.isPlaying && AppState.state.runStatus === 'RUNNING') {
             AudioApp.updateBPM(currentBPM);
             
             // 核心修復：視覺相位直接向 AudioEngine 索取，保證毫秒級的音視訊同步
@@ -3625,7 +3628,6 @@ class AppController {
             }
         }
     }
-
     logicTick(dt) {
         if (AppState.state.runStatus === 'STOPPED' || AppState.state.runStatus === 'PAUSED' || AppState.state.runStatus === 'PRE_FLIGHT') return;
 
