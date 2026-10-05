@@ -1606,7 +1606,22 @@ class AudioEngine {
     }
 
     updateBPM(bpm) {
+        if (this.bpm === bpm) return;
+        // 核心修復：BPM改變時，必須按比例回推 audioStartTime，確保相位完美連續不斷層
+        if (this.ctx && this.isPlaying) {
+            let now = this.ctx.currentTime;
+            let currentBeats = (now - this.audioStartTime) * (this.bpm / 60.0);
+            this.audioStartTime = now - (currentBeats / (bpm / 60.0));
+        }
         this.bpm = bpm;
+    }
+
+    getVisualPhase() {
+        if (!this.isPlaying || !this.isUnlocked || !this.gunFired) return null;
+        let elapsed = this.ctx.currentTime - this.audioStartTime;
+        let beats = Math.max(0, elapsed * (this.bpm / 60.0));
+        // 強制每 2 拍循環一次 (左腳=0, 右腳=1)，與 3 拍子的咚大大完美錯位交織
+        return (beats % 2) / 2.0; 
     }
 
     armSync(side) {
@@ -3059,13 +3074,13 @@ class AppController {
                 } else {
                     VoiceApp.speakText(dStr.msg_resume, 3, AppState.state.tempVoiceLang==='zh'||p.lang==='zh'?'zh-TW':'en-US', () => { AppState.state.runStatus = 'RUNNING'; });
                 }
+
             } else {
                 AppState.state.runStatus = 'PRE_FLIGHT';
                 this.dials.time.forceSnap(); this.dials.dist.forceSnap();
                 await new Promise(r => setTimeout(r, 200)); if (AppState.state.runStatus !== 'PRE_FLIGHT') return; 
 
                 resetRunAcc();
-                RunAcc.visualPhase = 0;
                 AppState.state.tempVoiceLang = null; 
                 
                 AppState.state.estTotKm = PhysioEngine.simulatePhysics(AppState.state.snapshot, AppState.state.hw).dist;
@@ -3569,9 +3584,10 @@ class AppController {
         if (AudioApp.isPlaying) {
             AudioApp.updateBPM(currentBPM);
             
-            let aPhase = (RunAcc.visualPhase % 2) / 2.0;
+            // 核心修復：視覺相位直接向 AudioEngine 索取，保證毫秒級的音視訊同步
+            let aPhase = AudioApp.getVisualPhase();
 
-            if (p.stepOn) {
+            if (p.stepOn && aPhase !== null) {
                 let prevPhase = this.lastVisualPhase !== undefined ? this.lastVisualPhase : aPhase;
                 this.lastVisualPhase = aPhase;
                 
@@ -3678,19 +3694,16 @@ class AppController {
             baseSpd = curM.rawSpd + (nextM.rawSpd - curM.rawSpd) * progress;
             baseInc = curM.rawInc + (nextM.rawInc - curM.rawInc) * progress;
         }
-
+    
         let targetSpd = Utils.clamp(baseSpd + p.spdOffset, AppState.state.hw.minSpd, AppState.state.hw.maxSpd);
         let targetInc = Utils.roundInc(Utils.clamp(baseInc + p.incOffset, AppState.state.hw.minInc, AppState.state.hw.maxInc), p.incStep);
         targetSpd = Utils.round(targetSpd);
 
         RunAcc.curSpd = targetSpd; RunAcc.curInc = targetInc;
 
-        let currentBPM = this.calculateBPM(RunAcc.curSpd, RunAcc.curInc);
-        if (RunAcc.visualPhase === undefined) RunAcc.visualPhase = 0;
-        RunAcc.visualPhase += (dt / 60000) * currentBPM;
-
         let sm = RunAcc.curSpd * 16.6667; let id = RunAcc.curInc / 100;
-        let RE = pClean.gender === 'F' ? 1.05 : 1.0; if(pClean.smm / pClean.wKG > (pClean.gender==='M' ? 0.4 : 0.35)) RE -= 0.05; 
+        let RE = pClean.gender === 'F' ? 1.05 : 1.0; if(pClean.smm / pClean.wKG > (pClean.gender==='M' ? 0.4 : 0.35)) RE -= 0.05;
+        
         let vo2D = (RunAcc.curSpd <= 7.0 ? (3.5 + 0.1*sm + 1.8*sm*id) : (3.5 + 0.2*sm + 0.9*sm*id)) * RE;
         if (!Number.isFinite(vo2D)) vo2D = 10; if(safeM < 3) vo2D *= 0.9;
         
