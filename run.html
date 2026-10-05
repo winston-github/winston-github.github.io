@@ -1660,16 +1660,14 @@ class AudioEngine {
         osc.start(time);
         osc.stop(time + 0.35);
     }
-    
     playAnchorGun(time) {
         if (!this.ctx) return;
         let osc = this.ctx.createOscillator();
         let env = this.ctx.createGain();
         osc.connect(env);
         env.connect(this.duckGain); 
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(1500, time);
-        osc.frequency.exponentialRampToValueAtTime(100, time + 0.2);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, time);
         env.gain.value = 0;
         env.gain.setValueAtTime(0, time);
         env.gain.linearRampToValueAtTime(1.0, time + 0.01);
@@ -1729,11 +1727,14 @@ class AudioEngine {
         else if (status === 'RUNNING') {
             if (this.ctx.state === 'suspended') {
                 this.nextNoteTime = now + 0.1;
+                this.audioStartTime = now;
+                this.gunFired = false;
             } else if (!this.gunFired) {
                 this.gunFired = true;
-                this.playAnchorGun(now + 0.05);
-                this.nextNoteTime = now + 0.5; 
+                this.audioStartTime = now;
                 this.beatCount = 0;
+                this.playAnchorGun(now + 0.05);
+                this.nextNoteTime = now + (60.0 / Math.max(1, this.bpm));
             } else {
                 let secondsPerBeat = 60.0 / Math.max(1, this.bpm);
                 
@@ -2565,12 +2566,13 @@ class AppController {
                     document.body.appendChild(catcher);
                 }
                 catcher.style.display = 'block'; 
-                
                 let p = AppState.state.profiles[AppState.state.activeP];
                 let currentBPM = this.calculateBPM(RunAcc.curSpd || 0, RunAcc.curInc || 0);
                 AudioApp.updateBPM(currentBPM);
 
-                this.setFabMode(AppState.state.fabMode);
+                this.setFabState(p, 2);
+                this.saveData();
+                this.setFabMode('NORMAL');
             }
         });
         
@@ -3089,6 +3091,7 @@ class AppController {
                 await new Promise(r => setTimeout(r, 200)); if (AppState.state.runStatus !== 'PRE_FLIGHT') return; 
 
                 resetRunAcc();
+                this.lastVisualPhase = 0.99;
                 AppState.state.tempVoiceLang = null; 
                 
                 AppState.state.estTotKm = PhysioEngine.simulatePhysics(AppState.state.snapshot, AppState.state.hw).dist;
@@ -3388,11 +3391,26 @@ class AppController {
                 let mode = AppState.state.previousFabMode || 'NORMAL';
                 this.setFabMode(mode);
                 AppState.state.previousFabMode = null;
-                
                 AudioApp.start(RunAcc.lastGaitBPM || 120);
                 AudioApp.setBeatMute(!p.beatOn);
             }
-            else if (P || S) { 
+            else if (P) { 
+                BgWorker.postMessage('STOP'); 
+                AppState.state.previousFabMode = AppState.state.fabMode;
+                this.setFabState(p, 2);
+                this.saveData();
+                this.setFabMode('NORMAL');
+                AudioApp.stop();
+            }
+            else if (S) { 
+                BgWorker.postMessage('STOP'); 
+                AppState.state.previousFabMode = AppState.state.fabMode;
+                this.setFabMode('NORMAL');
+                this.silenceGaitHub();
+                AudioApp.stop();
+            }
+            
+            if (S || P) {
                 BgWorker.postMessage('STOP'); 
                 AppState.state.previousFabMode = AppState.state.fabMode;
                 this.setFabMode('NORMAL');
