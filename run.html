@@ -1545,15 +1545,17 @@ class AudioEngine {
         
         this.duckGain.connect(this.masterGain);
         this.masterGain.connect(this.ctx.destination);
-        
         this.masterGain.gain.value = 1.0;
-        this.duckGain.gain.value = 1.0;
+            this.duckGain.gain.value = 1.0;
 
-        let osc = this.ctx.createOscillator();
-        osc.connect(this.masterGain);
-        osc.start(); osc.stop(this.ctx.currentTime + 0.001);
-        
-        this.isUnlocked = true;
+            let osc = this.ctx.createOscillator();
+            let silentGain = this.ctx.createGain();
+            silentGain.gain.value = 0;
+            osc.connect(silentGain);
+            silentGain.connect(this.masterGain);
+            osc.start(); osc.stop(this.ctx.currentTime + 0.01);
+            
+            this.isUnlocked = true;
     }
 
     setMute(mute) {
@@ -2938,10 +2940,8 @@ class AppController {
             document.querySelectorAll(`[data-action="${actionName}"]`).forEach(btn => {
                 let tRef = null; let speed = 300; let firedByRepeat = false; let isUp = actionName.includes('-up') || actionName.includes('-plus'); let isSpd = actionName.includes('spd');
                 const exec = () => {
+                    if (VoiceApp.state === 'SPEAKING' || (AppState.state.runStatus === 'STOPPED' && actionName.includes('btn-'))) return;
                     firedByRepeat = true;
-                    if (AppState.state.runStatus === 'STOPPED' && actionName.includes('btn-')) return;
-                    // 核心修復：語音播報期間，強制屏蔽所有長按加減速操作
-                    if (VoiceApp.state === 'SPEAKING') return;
 
                     let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
                     
@@ -2958,6 +2958,7 @@ class AppController {
                     if(AppState.state.runStatus === 'STOPPED') this.recalc(true); else this.performMatrixSplicing();
                 };
                 const start = (e) => { 
+                    if (VoiceApp.state === 'SPEAKING') return;
                     e.preventDefault(); 
                     // 雙重防禦：即使是長按按鈕被 e.preventDefault 擋掉，也能確保音訊喚醒
                     if (AudioApp.ctx && AudioApp.ctx.state === 'suspended' && AppState.state.runStatus === 'RUNNING') {
