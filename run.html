@@ -2657,19 +2657,23 @@ class AppController {
                     catcher.id = 'wakeLockCatcher';
                     document.body.appendChild(catcher);
                 }
+                
                 catcher.style.display = 'block'; 
                 let p = AppState.state.profiles[AppState.state.activeP];
                 let currentBPM = this.calculateBPM(RunAcc.curSpd || 0, RunAcc.curInc || 0);
                 AudioApp.updateBPM(currentBPM);
 
-                this.setFabState(p, 2);
-                this.saveData();
+                // Removed forced setFabState(p, 2) to preserve User's Immersive/Beat mode
                 this.setFabMode('NORMAL');
                 
-                // --- STATE AUDIT: Clear old Voice state on return ---
-                VoiceApp.clear();
+                // --- STATE AUDIT ---
+                // Do NOT forcefully VoiceApp.clear() here on iOS, it permanently wedges window.speechSynthesis.
+                VoiceApp.q = []; 
+                VoiceApp.state = 'IDLE';
+                VoiceApp.releaseDuck();
                 
                 // Safe context resume if locked
+                
                 if(AppState.state.isScreenLocked && AudioApp.ctx && AudioApp.ctx.state === 'suspended') {
                     // Requires interaction. The lock screen Omni-Gesture proxy will handle it.
                 }
@@ -3176,9 +3180,10 @@ class AppController {
             else if(a === 'dial-up' || a === 'dial-down') {
                 e.stopPropagation();
                 let dial = this.dials[t.dataset.target.replace('ds-', '')]; if(!dial) return;
-                let step = parseFloat(t.dataset.step) * (a === 'dial-up' ? 1 : -1); dial.setValue(dial.currentVal + step);
+                let step = (dial.step || parseFloat(t.dataset.step)) * (a === 'dial-up' ? 1 : -1); dial.setValue(dial.currentVal + step);
             }
             else if(a === 'time-plus' || a === 'time-minus') {
+                
                 let dType = t.dataset.target === 'th' ? this.adjDials.timeH : this.adjDials.timeM; let step = a.includes('minus') ? -1 : 1; dType.setValue(dType.currentVal + step);
             }
             else if(a === 'open-numpad-time') {
