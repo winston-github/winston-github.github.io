@@ -48,9 +48,15 @@
 
         #header { flex: none; display: flex; flex-direction: column; background: var(--bg-dark); position: relative; z-index: var(--z-header); }
         .tabs-row { display: flex; height: 50px; position: relative; width: 100%; }
+
+        .tabs-row { display: flex; height: 50px; position: relative; width: 100%; touch-action: none; }
         .tab-btn { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; font-weight: 700; color: var(--gray); background: transparent; border: none; cursor: pointer; outline: none; transition: color 0.2s; position: relative; }
         .tab-btn.active { color: var(--text-main); }
-        .tab-indicator { position: absolute; bottom: 0; height: 3px; background: var(--text-main); width: 50%; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); border-radius: 3px 3px 0 0;}
+        .tab-indicator { position: absolute; bottom: 0; height: 3px; background: var(--text-main); width: 50%; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), width 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); border-radius: 3px 3px 0 0;}
+        .tab-indicator.lock-anim { transition: transform 0.5s linear, width 0.5s linear !important; }
+        .tab-lock-icon { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 20px; height: 20px; fill: #666; opacity: 0; transition: opacity 0.5s linear; pointer-events: none; }
+        .tab-btn.locking .tab-text, .tab-btn.locking .tab-immersive-text { opacity: 0 !important; transition: opacity 0.5s linear; }
+        .tab-btn.locking .tab-lock-icon { opacity: 1; }
         
         .tab-text { transition: opacity 0.2s; }
         .tab-immersive-text { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); opacity: 0; transition: opacity 0.2s, color var(--gait-fade-dur) ease-out, text-shadow var(--gait-fade-dur) ease-out; white-space: nowrap; pointer-events: none; font-size: 1.25rem; font-weight: 900; color: #FFF; }
@@ -145,11 +151,10 @@
         .massive-time { font-size: clamp(4rem, 18vw, 6rem); font-weight: 900; line-height: 1; text-align: center; letter-spacing: -1px; padding: 15px 0; color: #FFFFFF; cursor: pointer; transition: opacity 0.2s; position: relative; z-index: 10;}
         .massive-time:active { opacity: 0.7; }
         
-        .massive-time::before { content: ''; position: absolute; top: -10px; left: -10px; right: -10px; bottom: -10px; border-radius: 20px; border: 4px solid transparent; opacity: 0; pointer-events: none; transition: opacity 0.1s; z-index: 1; }
-        .massive-time.holding-lock::before { opacity: 1; border-color: rgba(255,255,255,0.05); border-top-color: rgba(255,255,255,0.8); animation: fl-ring-fill-mt 1s linear forwards; }
-        @keyframes fl-ring-fill-mt { 0% { transform: rotate(-90deg); } 100% { transform: rotate(270deg); } }
+        .massive-time:active { opacity: 0.7; }
 
         .run-primary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; flex: none; position: relative; z-index: 3; }
+        
         .run-val-box { position: relative; display: flex; flex-direction: column; justify-content: space-between; align-items: center; background: var(--bg-card); height: 160px; border-radius: 16px; border: 1px solid var(--border-color); overflow: hidden; }
         
         .overlay-btn { width: 100%; flex: 0 0 45px; display: flex; justify-content: center; align-items: center; background: rgba(255,255,255,0.02); z-index: 5; transition: background 0.1s; touch-action: manipulation; cursor: pointer;}
@@ -428,17 +433,21 @@
 
 <div id="app-shell" class="tab-settings-active">
     <header id="header">
+        
         <div class="tabs-row" id="tabsRow">
             <button class="tab-btn active" data-action="tab-settings" id="tabSettings">
                 <span class="tab-text" data-i18n="tab_settings">---</span>
                 <span class="tab-immersive-text" id="tabImmersiveBpm"></span>
+                <svg class="tab-lock-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
             </button>
             <button class="tab-btn" data-action="tab-matrix" id="tabMatrix">
                 <span class="tab-text" data-i18n="tab_pace">---</span>
                 <span class="tab-immersive-text" id="tabImmersivePace"></span>
+                <svg class="tab-lock-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
             </button>
             <div class="tab-indicator" id="tabIndicator"></div>
         </div>
+        
         <div class="progress-row" id="runProgressRow" data-action="open-adj-time">
             <div id="topProgressText" class="prg-text">0.00 / 0.00 (0%)</div>
             <div class="prg-track"><div id="topProgressBar" class="prg-fill"></div></div>
@@ -2644,6 +2653,9 @@ class AppController {
                 if(AppState.state.isScreenLocked && AudioApp.ctx && AudioApp.ctx.state === 'suspended') {
                     // Requires interaction. The lock screen Omni-Gesture proxy will handle it.
                 }
+                
+                // --- FORCE UI REDRAW FOR BPM ---
+                RunAcc.lastGaitBPM = -1;
             }
         });
         
@@ -2874,40 +2886,72 @@ class AppController {
             overlay.classList.add('show');
         };
 
-        // Bind massive time long press
-        let mtHoldTimer = null;
-        let mtIsHolding = false;
-        const mtEl = document.getElementById('massiveTime');
-        
-        const mtStart = (e) => {
-            if (AppState.state.runStatus !== 'RUNNING') return;
-            mtIsHolding = true;
-            mtEl.classList.add('holding-lock');
-            if(navigator.vibrate) navigator.vibrate(10);
+        // Tab-based Lock Trigger
+        let tabLockTimer = null;
+        let tabAnimTimer = null;
+        let isTabLocking = false;
+        let isTabAnimActive = false;
+        const tabsRow = document.getElementById('tabsRow');
+        const tabIndicator = document.getElementById('tabIndicator');
+        const tabSettings = document.getElementById('tabSettings');
+        const tabMatrix = document.getElementById('tabMatrix');
+
+        this.resetTabLockAnim = () => {
+            if (!isTabLocking && !isTabAnimActive) return;
+            isTabLocking = false;
+            isTabAnimActive = false;
+            clearTimeout(tabLockTimer);
+            clearTimeout(tabAnimTimer);
             
-            mtHoldTimer = setTimeout(() => {
-                if (mtIsHolding) {
-                    if(navigator.vibrate) navigator.vibrate([20, 50, 20]);
-                    mtIsHolding = false;
-                    mtEl.classList.remove('holding-lock');
-                    engageLock();
-                }
-            }, 1000);
+            tabSettings.classList.remove('locking');
+            tabMatrix.classList.remove('locking');
+            
+            let isS = AppState.state.activeTab === 'settings';
+            tabIndicator.style.width = '50%';
+            tabIndicator.style.transform = isS ? 'translateX(0)' : 'translateX(100%)';
+            
+            setTimeout(() => {
+                if (!isTabAnimActive) tabIndicator.classList.remove('lock-anim');
+            }, 500);
         };
-        
-        const mtStop = () => {
-            mtIsHolding = false;
-            mtEl.classList.remove('holding-lock');
-            clearTimeout(mtHoldTimer);
+
+        const tabTouchStart = (e) => {
+            let t = e.target.closest('.tab-btn');
+            if (!t || !t.classList.contains('active') || AppState.state.runStatus !== 'RUNNING') return;
+            e.preventDefault(); 
+            
+            isTabLocking = true;
+            let isS = AppState.state.activeTab === 'settings';
+            let targetInactiveTab = isS ? tabMatrix : tabSettings;
+
+            tabLockTimer = setTimeout(() => {
+                if (!isTabLocking) return;
+                isTabAnimActive = true;
+                
+                tabIndicator.classList.add('lock-anim');
+                targetInactiveTab.classList.add('locking');
+                
+                tabIndicator.style.width = '100%';
+                tabIndicator.style.transform = 'translateX(0)';
+                
+                tabAnimTimer = setTimeout(() => {
+                    if (isTabAnimActive) {
+                        if (navigator.vibrate) navigator.vibrate([20, 50, 20]);
+                        engageLock();
+                        this.resetTabLockAnim(); 
+                    }
+                }, 500);
+            }, 500);
         };
-        
-        mtEl.addEventListener('pointerdown', mtStart);
-        mtEl.addEventListener('pointerup', mtStop);
-        mtEl.addEventListener('pointerleave', mtStop);
-        mtEl.addEventListener('pointercancel', mtStop);
-        mtEl.addEventListener('contextmenu', e => e.preventDefault());
+
+        tabsRow.addEventListener('pointerdown', tabTouchStart);
+        window.addEventListener('pointerup', this.resetTabLockAnim);
+        tabsRow.addEventListener('pointerleave', this.resetTabLockAnim);
+        tabsRow.addEventListener('pointercancel', this.resetTabLockAnim);
+        tabsRow.addEventListener('contextmenu', e => e.preventDefault());
 
         // Lock Icon Long Press (Omni-Gesture Proxy)
+        
         let iconHoldTimer = null;
         let iconIsHolding = false;
         
@@ -3704,8 +3748,10 @@ class AppController {
 
         AppState.subscribe('activeTab', t => {
             let isS = t === 'settings'; 
+            if (window.App && window.App.resetTabLockAnim) window.App.resetTabLockAnim(); // Kill locking if tab switches
             document.getElementById('tabSettings').classList.toggle('active', isS); 
             document.getElementById('tabMatrix').classList.toggle('active', !isS);
+            document.getElementById('tabIndicator').style.width = '50%';
             document.getElementById('tabIndicator').style.transform = isS ? 'translateX(0)' : 'translateX(100%)'; 
             document.getElementById('viewsSlider').style.transform = isS ? 'translateX(0)' : 'translateX(-50%)';
             
@@ -3956,8 +4002,10 @@ class AppController {
             
             setTimeout(() => {
                 AppState.state.isTimeWarping = false;
+                RunAcc.lastGaitBPM = -1; // Force UI redraw for BPM after TimeWarp
                 this.charts.drawAll();
                 this.updateStatsBlock('rAct', AppState.state.accumMs, true);
+                
                 if (overlay) overlay.classList.remove('show');
                 if(iconStage) iconStage.style.pointerEvents = '';
                 
