@@ -2,15 +2,20 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Shakespeare Auto-Reader Pro Max</title>
+<!-- 加上 user-scalable=no 徹底防止 iOS 雙擊放大與各種干擾 -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Shakespeare Reader Ultra</title>
 <style>
-    body {
-        font-family: 'Georgia', serif; background-color: #f4ece1;
-        color: #2c2c2c; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent;
+    /* 徹底關閉系統的文字選取與放大鏡干擾 */
+    * {
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
     }
     
-    /* 頂部懸浮控制列 */
+    body { font-family: 'Georgia', serif; background-color: #f4ece1; color: #2c2c2c; margin: 0; padding: 0; }
+    
     #controls-bar {
         position: fixed; top: 0; left: 0; width: 100%;
         background: rgba(255, 253, 249, 0.95); border-bottom: 1px solid #e0d8c8;
@@ -24,7 +29,7 @@
         cursor: pointer; transition: all 0.2s ease; box-shadow: 0 3px 8px rgba(92, 44, 36, 0.3);
     }
     .icon-btn:active { background: #8c4236; transform: scale(0.95); }
-    .icon-btn svg { width: 28px; height: 28px; fill: #ffffff; }
+    .icon-btn svg { width: 28px; height: 28px; fill: #ffffff; pointer-events: none; }
 
     #status { text-align: center; font-style: italic; color: #666; font-size: 1.1em; margin-top: 80px; }
 
@@ -43,7 +48,6 @@
     
     .speech-lines { margin-left: 5px; }
     
-    /* 預設的行容器 */
     .line-container {
         margin-bottom: 15px; padding: 12px 15px; border-radius: 8px;
         border-left: 4px solid transparent; transition: all 0.3s ease;
@@ -52,38 +56,22 @@
     
     .en-text { color: #1a1a1a; line-height: 1.6; transition: font-size 0.3s; }
     
-    /* 翻譯文字 (預設隱藏) */
     .zh-text {
         color: #5b7b93; line-height: 1.5; font-family: '-apple-system', 'PingFang TC', sans-serif;
         opacity: 0; height: 0; overflow: hidden; transition: opacity 0.5s ease-in-out;
     }
     .zh-text.show { opacity: 1; height: auto; margin-top: 10px; }
 
-    /* ！！！ 重點：正在朗讀時的 70/30 佈局 ！！！ */
     .playing-line { 
-        background-color: #f6e8ce; 
-        border-left: 4px solid #d44d33 !important; 
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        transform: scale(1.02); /* 微幅放大聚焦 */
+        background-color: #f6e8ce; border-left: 4px solid #d44d33 !important; 
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1); transform: scale(1.02); 
     }
-    .playing-line .en-text {
-        flex: 7; /* 佔據 70% 視覺比例 */
-        padding-bottom: 12px;
-    }
-    .playing-line .zh-text.show {
-        flex: 3; /* 佔據 30% 視覺比例 */
-        border-top: 1px dashed #d44d33; /* 增加精緻分隔線 */
-        padding-top: 12px;
-        margin-top: 0;
-        font-size: 1.1em !important; /* 確保中文清晰 */
-    }
+    .playing-line .en-text { flex: 7; padding-bottom: 12px; }
+    .playing-line .zh-text.show { flex: 3; border-top: 1px dashed #d44d33; padding-top: 12px; margin-top: 0; font-size: 1.1em !important; }
 
-    .stagedir {
-        color: #888; font-style: italic; font-size: 1em; margin: 25px 0;
-        text-align: center; background: #fcfaf5; padding: 12px; border-radius: 6px;
-    }
+    .stagedir { color: #888; font-style: italic; font-size: 1em; margin: 25px 0; text-align: center; background: #fcfaf5; padding: 12px; border-radius: 6px; }
 
-    .word { display: inline-block; cursor: pointer; padding: 0 2px; margin: 0 -2px; border-radius: 3px; user-select: none; transition: background-color 0.1s; }
+    .word { display: inline-block; cursor: pointer; padding: 0 2px; margin: 0 -2px; border-radius: 3px; transition: background-color 0.1s; position: relative;}
     .word:active { background-color: rgba(212, 77, 51, 0.3); }
 
     /* 字典視窗 */
@@ -95,6 +83,7 @@
     }
     .dict-title { font-weight: bold; color: #d44d33; font-size: 1.2em; border-bottom: 1px solid #e0d8c8; padding-bottom: 5px; margin-bottom: 8px;}
     .dict-pos { color: #5b7b93; font-style: italic; font-size: 0.9em; margin-right: 5px; }
+    .dict-fallback-badge { font-size: 0.7em; color: #888; margin-top: 8px; border-top: 1px solid #eee; padding-top: 5px; }
 
     /* 底部語音切換 */
     #lang-bar {
@@ -129,12 +118,28 @@
 <div id="lang-bar">
     <button class="lang-btn active" id="btn-lang-en" onclick="setLangMode('EN')">English</button>
     <button class="lang-btn" id="btn-lang-zh" onclick="setLangMode('ZH')">Mandarin</button>
-    <button class="lang-btn" id="btn-lang-both" onclick="setLangMode('EN_ZH')">English & Mandarin</button>
+    <button class="lang-btn" id="btn-lang-both" onclick="setLangMode('EN_ZH')">Eng & Man</button>
 </div>
 
 <script>
-const romanToInt = {'I':1, 'II':2, 'III':3, 'IV':4, 'V':5, 'VI':6, 'VII':7, 'VIII':8, 'IX':9, 'X':10, 'XI':11, 'XII':12};
+// --- 核心防護：強悍的雙引擎翻譯系統 ---
+async function fetchSafeTranslation(text) {
+    try {
+        // 第一志願：Google 引擎
+        let gRes = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=zh-TW&dt=t&q=${encodeURIComponent(text)}`);
+        if (!gRes.ok) throw new Error("Google Blocked");
+        let gData = await gRes.json();
+        return { result: gData[0].map(item => item[0]).join(''), source: 'google' };
+    } catch (e) {
+        // 第二志願：如果被 Ban，自動切換至 MyMemory 免費無限制引擎
+        console.warn("Switching to Backup Translation Engine...");
+        let mRes = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|zh-TW`);
+        let mData = await mRes.json();
+        return { result: mData.responseData.translatedText, source: 'mymemory' };
+    }
+}
 
+const romanToInt = {'I':1, 'II':2, 'III':3, 'IV':4, 'V':5, 'VI':6, 'VII':7, 'VIII':8, 'IX':9, 'X':10, 'XI':11, 'XII':12};
 function processTitleText(text) {
     let zh = text, enTTS = text;
     zh = zh.replace(/\b(ACT)\s+([IVX]+)\b/gi, (m, p1, p2) => `第${romanToInt[p2.toUpperCase()] || p2}幕`);
@@ -144,41 +149,35 @@ function processTitleText(text) {
     return { isTitlePattern: (zh !== text), zhText: zh, enTTSText: enTTS };
 }
 
-// --- ！！防封鎖 API 打包翻譯引擎 (Batching) ！！ ---
+// 句子打包翻譯引擎
 let translationQueue = [];
 let batchTimeout = null;
 let isTranslating = false;
 
 function scheduleTranslation() {
     if (batchTimeout) clearTimeout(batchTimeout);
-    // 累積 800 毫秒的待翻譯句子，打包成「一次」發送
     batchTimeout = setTimeout(flushTranslationQueue, 800);
 }
 
-function flushTranslationQueue() {
+async function flushTranslationQueue() {
     if (translationQueue.length === 0 || isTranslating) return;
     
-    // 挑出還在畫面上的句子打包 (最多打包 15 句)
     let batch = [];
     let remainingQueue = [];
     
     translationQueue.forEach(item => {
         const rect = item.lineEl.getBoundingClientRect();
-        // 放寬一點視野，上下 300px 都算
-        const isVisible = rect.bottom >= -300 && rect.top <= window.innerHeight + 300;
+        const isVisible = rect.bottom >= -500 && rect.top <= window.innerHeight + 500;
         
-        if (isVisible && batch.length < 15) {
-            // 先過濾拉丁數字，如果是標題就直接顯示，不進 API
+        if (isVisible && batch.length < 10) {
             const processed = processTitleText(item.text);
             if (processed.isTitlePattern && !processed.zhText.match(/[a-zA-Z]{5,}/)) {
                 item.zhElement.innerText = processed.zhText;
                 item.zhElement.classList.add('show');
-            } else {
-                batch.push(item);
-            }
+            } else { batch.push(item); }
         } else {
-            // 不在畫面上，解鎖讓他以後有機會再翻譯
-            item.lineEl.dataset.translating = '';
+            item.lineEl.dataset.translating = ''; // 退回佇列
+            if (isVisible) remainingQueue.push(item);
         }
     });
     
@@ -186,51 +185,40 @@ function flushTranslationQueue() {
     if (batch.length === 0) return;
     
     isTranslating = true;
-    
-    // 使用 @@@ 作為分隔符，把多行合併成單一字串
     const separator = "\n\n@@@\n\n";
     const combinedText = batch.map(b => b.text).join(separator);
     
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=zh-TW&dt=t&q=${encodeURIComponent(combinedText)}`;
-    
-    fetch(url).then(res => res.json()).then(data => {
-        // 取得翻譯後的完整字串並切開
-        let translatedFull = data[0].map(item => item[0]).join('');
+    try {
+        // 呼叫雙引擎
+        const { result: translatedFull } = await fetchSafeTranslation(combinedText);
         let translatedParts = translatedFull.split(/@@@/g).map(s => s.trim());
         
         batch.forEach((item, index) => {
             let resultZh = translatedParts[index] || "";
-            if (resultZh.length > 0) {
+            if (resultZh.length > 0 && !resultZh.includes("MYMEMORY WARNING")) {
                 const fix = processTitleText(resultZh);
                 item.zhElement.innerText = fix.zhText;
                 item.zhElement.classList.add('show');
-            }
+            } else { item.lineEl.dataset.translating = ''; }
         });
-    }).catch(e => {
-        console.warn("Translation limited, waiting...");
-        // 失敗時安靜處理，不要顯示錯誤文字
+    } catch(e) {
         batch.forEach(item => { item.lineEl.dataset.translating = ''; });
-    }).finally(() => {
-        // 延遲 2 秒再處理下一批，徹底避免被 Google Ban
+    } finally {
         setTimeout(() => { isTranslating = false; if(translationQueue.length) scheduleTranslation(); }, 2000);
-    });
+    }
 }
 
 const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
         if (entry.isIntersecting && !entry.target.dataset.translating) {
             entry.target.dataset.translating = 'true';
-            translationQueue.push({ 
-                text: entry.target.dataset.en, 
-                zhElement: entry.target.querySelector('.zh-text'),
-                lineEl: entry.target 
-            });
+            translationQueue.push({ text: entry.target.dataset.en, zhElement: entry.target.querySelector('.zh-text'), lineEl: entry.target });
             scheduleTranslation();
         }
     });
 }, { rootMargin: '100px' });
 
-// --- 語音模式切換 ---
+// --- 語音模式與 TTS 引擎 ---
 let currentLangMode = 'EN';
 function setLangMode(mode) {
     currentLangMode = mode;
@@ -242,10 +230,7 @@ function setLangMode(mode) {
 
 let availableVoices = [];
 let synth = window.speechSynthesis;
-function initVoices() {
-    let voices = synth.getVoices();
-    availableVoices = voices.filter(v => !['cellos','zarvox','trinoids','boing','whisper','espeak'].some(bad => v.name.toLowerCase().includes(bad)));
-}
+function initVoices() { availableVoices = synth.getVoices().filter(v => !['cellos','zarvox','trinoids','boing','whisper','espeak'].some(bad => v.name.toLowerCase().includes(bad))); }
 synth.onvoiceschanged = initVoices;
 
 function getVoiceForSpeaker(speakerName, isChinese) {
@@ -257,28 +242,23 @@ function getVoiceForSpeaker(speakerName, isChinese) {
         let enVoices = availableVoices.filter(v => v.lang.startsWith('en'));
         let premiumEn = enVoices.filter(v => v.name.includes('Google') || v.name.includes('Premium') || v.name.includes('Siri'));
         let pool = premiumEn.length > 0 ? premiumEn : enVoices;
-        
         let isMale = /\b(KING|PRINCE|DUKE|LORD|SIR|FATHER|SON|UNCLE|BROTHER|MAN|BOY|GENTLEMAN|BERNARDO|MARCELLUS|HORATIO|LEONATO)\b/.test(speakerName.toUpperCase());
         let candidates = pool;
         if (isMale) candidates = pool.filter(v => /\b(male|david|mark|james|daniel|arthur)\b/i.test(v.name) && !/female/i.test(v.name)) || pool;
         else candidates = pool.filter(v => /\b(female|zira|samantha|victoria|karen)\b/i.test(v.name)) || pool;
-        
-        let hash = 0;
-        for (let i = 0; i < speakerName.length; i++) hash = speakerName.charCodeAt(i) + ((hash << 5) - hash);
+        let hash = 0; for (let i = 0; i < speakerName.length; i++) hash = speakerName.charCodeAt(i) + ((hash << 5) - hash);
         return candidates.length ? candidates[Math.abs(hash) % candidates.length] : null;
     }
 }
 
-// --- 解析引擎與「智慧文字縮放(Auto-Shrink)」 ---
+// --- 載入與解析劇本 ---
 let playQueue = [];
 async function loadRandomPlay() {
     stopReading(); document.getElementById('controls-bar').style.display = 'none';
     document.getElementById('script-container').innerHTML = ''; document.getElementById('status').style.display = 'block';
-    
     const fallbackFiles = ["hamlet.xml", "macbeth.xml", "r_and_j.xml", "lear.xml", "merchant.xml", "much_ado.xml"];
     let fileName = fallbackFiles[Math.floor(Math.random() * fallbackFiles.length)];
     let downloadUrl = `https://raw.githubusercontent.com/rufuspollock-okfn/shakespeare-material/abd92b518793aab643fc645267e15b8c0b1f715c/texts/moby/${fileName}`;
-    
     try {
         const res = await fetch('https://api.github.com/repos/rufuspollock-okfn/shakespeare-material/contents/texts/moby?ref=abd92b518793aab643fc645267e15b8c0b1f715c');
         if (res.ok) {
@@ -291,7 +271,6 @@ async function loadRandomPlay() {
     document.getElementById('status').innerText = `Loading ${fileName}...`;
     const xmlText = await (await fetch(downloadUrl)).text();
     document.getElementById('status').style.display = 'none';
-    
     parseXML(xmlText); renderScript();
     document.getElementById('controls-bar').style.display = 'flex';
 }
@@ -299,7 +278,6 @@ async function loadRandomPlay() {
 function parseXML(xmlText) {
     const parser = new DOMParser(); const xmlDoc = parser.parseFromString(xmlText, "text/xml"); playQueue = [];
     const play = xmlDoc.querySelector('PLAY'); if (!play) return;
-    
     function walk(node) {
         if (node.nodeType !== Node.ELEMENT_NODE) return; const tag = node.tagName.toUpperCase();
         if (tag === 'TITLE' && node.parentNode.tagName.toUpperCase() !== 'PLAY') {
@@ -315,8 +293,7 @@ function parseXML(xmlText) {
                 sentenceArr = sentenceArr.map(s => s.trim()).filter(s => s.length > 0);
                 playQueue.push({ type: 'speech', lines: sentenceArr, speaker: speaker, id: playQueue.length });
             }
-        } else if (tag === 'STAGEDIR') {
-             playQueue.push({ type: 'stagedir', text: node.textContent.trim(), id: playQueue.length });
+        } else if (tag === 'STAGEDIR') { playQueue.push({ type: 'stagedir', text: node.textContent.trim(), id: playQueue.length });
         } else { for (let child of node.childNodes) walk(child); }
     }
     walk(play);
@@ -333,32 +310,31 @@ function renderScript() {
                     let cleanWord = w.replace(/[^a-zA-Z']/g, '');
                     return `<span class="word" data-word="${cleanWord}" data-item-idx="${index}" data-line-idx="${i}" data-word-idx="${wIdx}">${w}</span>`;
                 }).join(' ');
-                
-                // ！！ 智慧文字縮放演算法 (越長字體越小，但不低於 0.95em) ！！
                 let calculatedEm = Math.max(0.95, 1.7 - (lineText.length * 0.0025));
-                
                 linesHtml += `<div class="line-container line-target" id="line-${index}-${i}" data-en="${lineText.replace(/"/g, '&quot;')}">
-                    <div class="en-text" style="font-size: ${calculatedEm}em;">${wordsHtml}</div>
-                    <div class="zh-text">...</div>
+                    <div class="en-text" style="font-size: ${calculatedEm}em;">${wordsHtml}</div><div class="zh-text">...</div>
                 </div>`;
             });
             div.innerHTML = item.type === 'title' ? `<div class="speech-lines">${linesHtml}</div>` : `<div class="speaker-name">${item.speaker}</div> <div class="speech-lines">${linesHtml}</div>`;
             div.querySelectorAll('.line-target').forEach(el => observer.observe(el));
-        } else if (item.type === 'stagedir') {
-            div.innerHTML = `<div class="stagedir">[ ${item.text} ]</div>`;
-        }
+        } else if (item.type === 'stagedir') { div.innerHTML = `<div class="stagedir">[ ${item.text} ]</div>`; }
         container.appendChild(div);
     });
 }
 
-// --- 雙語與字典系統 ---
+// --- iOS 終極防護：字典與點擊 ---
 let pressTimer; let longPressTriggered = false; let touchStartX = 0, touchStartY = 0;
 const scContainer = document.getElementById('script-container');
+
+// 徹底阻止 iOS 彈出原生的放大鏡與複製選單
+scContainer.addEventListener('contextmenu', (e) => { 
+    if(e.target.closest('.word')) { e.preventDefault(); e.stopPropagation(); return false; } 
+});
 
 scContainer.addEventListener('pointerdown', (e) => {
     const wEl = e.target.closest('.word'); if (!wEl) return;
     touchStartX = e.clientX; touchStartY = e.clientY; longPressTriggered = false;
-    pressTimer = setTimeout(() => { longPressTriggered = true; handleLongPress(wEl); }, 450);
+    pressTimer = setTimeout(() => { longPressTriggered = true; handleLongPress(wEl); }, 400); // 稍微縮短長按判定時間，搶在 iOS 之前
 });
 scContainer.addEventListener('pointermove', (e) => { if (pressTimer && (Math.abs(e.clientX - touchStartX) > 10 || Math.abs(e.clientY - touchStartY) > 10)) clearTimeout(pressTimer); });
 scContainer.addEventListener('pointerup', (e) => {
@@ -366,29 +342,54 @@ scContainer.addEventListener('pointerup', (e) => {
     if (longPressTriggered) { e.preventDefault(); return; }
     playFromWord(parseInt(wEl.dataset.itemIdx), parseInt(wEl.dataset.lineIdx), parseInt(wEl.dataset.wordIdx));
 });
-scContainer.addEventListener('contextmenu', (e) => { if (e.target.closest('.word')) e.preventDefault(); });
+
+// 滑動時關閉字典
 window.addEventListener('scroll', () => { document.getElementById('dict-popup').style.display = 'none'; }, { passive: true });
 document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#dict-popup') && !e.target.closest('.word')) document.getElementById('dict-popup').style.display = 'none'; });
 
+// 容錯字典查詢系統
 async function handleLongPress(wEl) {
     if ("vibrate" in navigator) navigator.vibrate(50); pauseReading();
     const wordText = wEl.dataset.word; if (!wordText) return;
     let u = new SpeechSynthesisUtterance(wordText); u.pitch = 1.0; u.rate = 0.9; synth.cancel(); synth.speak(u);
+    
     const popup = document.getElementById('dict-popup');
-    popup.innerHTML = `<div class="dict-title">${wordText}</div><div style="font-size:0.9em;color:#666;">搜尋中...</div>`;
+    popup.innerHTML = `<div class="dict-title">${wordText}</div><div style="font-size:0.9em;color:#666;">搜尋字典中...</div>`;
     popup.style.display = 'block';
     const rect = wEl.getBoundingClientRect();
-    popup.style.left = `${Math.max(10, rect.left + window.scrollX - 20)}px`; popup.style.top = `${Math.max(10, rect.top + window.scrollY - popup.offsetHeight - 15)}px`;
+    popup.style.left = `${Math.max(10, rect.left + window.scrollX - 20)}px`; 
+    popup.style.top = `${Math.max(10, rect.top + window.scrollY - popup.offsetHeight - 15)}px`;
+    
     try {
         const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=zh-TW&dt=t&dt=bd&q=${encodeURIComponent(wordText)}`;
         const data = await (await fetch(url)).json();
         let html = `<div class="dict-title">${wordText}</div>`;
-        if (data[0] && data[0][0]) html += `<div style="margin-bottom:8px;">${data[0][0][0]}</div>`;
-        if (data[1]) data[1].slice(0, 3).forEach(pos => html += `<div><span class="dict-pos">${pos[0]}.</span> ${pos[1].slice(0, 3).join(', ')}</div>`);
-        popup.innerHTML = html; popup.style.top = `${Math.max(10, rect.top + window.scrollY - popup.offsetHeight - 15)}px`;
-    } catch(e) { popup.innerHTML = `<div class="dict-title">${wordText}</div>查詢失敗`; }
+        
+        // 解析基本翻譯
+        if (data[0] && data[0][0]) html += `<div style="margin-bottom:8px; font-weight:bold;">${data[0][0][0]}</div>`;
+        
+        // 容錯解析：如果像 Arragon 這種人名，data[1] 會是 null，所以加上 `data[1] &&` 的防呆保護！
+        if (data[1] && data[1].length > 0) {
+            data[1].slice(0, 3).forEach(pos => html += `<div><span class="dict-pos">${pos[0]}.</span> ${pos[1].slice(0, 3).join(', ')}</div>`);
+        } else if (!data[1]) {
+            html += `<div style="font-size:0.85em; color:#888;">(專有名詞 / 無其他詞性)</div>`;
+        }
+        
+        popup.innerHTML = html; 
+        popup.style.top = `${Math.max(10, rect.top + window.scrollY - popup.offsetHeight - 15)}px`;
+    } catch(e) { 
+        // 字典完全被 Ban 時的備援：呼叫 MyMemory 幫忙翻單字
+        try {
+            const fallback = await fetchSafeTranslation(wordText);
+            popup.innerHTML = `<div class="dict-title">${wordText}</div><div style="margin-bottom:8px; font-weight:bold;">${fallback.result}</div><div class="dict-fallback-badge">備用翻譯引擎</div>`;
+            popup.style.top = `${Math.max(10, rect.top + window.scrollY - popup.offsetHeight - 15)}px`;
+        } catch(fallbackErr) {
+            popup.innerHTML = `<div class="dict-title">${wordText}</div>查詢失敗 (網路受限)`; 
+        }
+    }
 }
 
+// --- 雙語智慧播放 ---
 let isPlaying = false; let currentIndex = 0; let currentLineIdx = 0; let currentWordOffset = 0;
 
 function playFrom(index) { playFromWord(index, 0, 0); }
@@ -416,11 +417,10 @@ function speakCurrent() {
     if (currentWordOffset > 0) { enText = enText.split(/\s+/).slice(currentWordOffset).join(' '); currentWordOffset = 0; }
     enText = processTitleText(enText).enTTSText;
     
-    // 防呆：確保不會把「...」或是任何錯誤訊息唸出來
     let zhText = "";
     if (lineEl) {
         let rawZh = lineEl.querySelector('.zh-text').innerText;
-        if (lineEl.querySelector('.zh-text').classList.contains('show') && !rawZh.includes('...') && !rawZh.includes('失敗') && !rawZh.includes('超時')) {
+        if (lineEl.querySelector('.zh-text').classList.contains('show') && !rawZh.includes('...') && !rawZh.includes('失敗') && !rawZh.includes('MYMEMORY')) {
             zhText = rawZh;
         }
     }
