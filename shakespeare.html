@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shakespeare Auto-Reader (Moby XML)</title>
+<style>
+    body {
+        font-family: 'Georgia', serif;
+        background-color: #f4ece1; /* 仿舊紙張背景 */
+        color: #2c2c2c;
+        margin: 0;
+        padding: 0;
+    }
+    #app-container {
+        max-width: 900px;
+        margin: 40px auto;
+        background: #fffdf9;
+        padding: 40px;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+    h1 {
+        text-align: center;
+        border-bottom: 2px solid #5c2c24;
+        padding-bottom: 10px;
+        color: #5c2c24;
+    }
+    #status {
+        text-align: center;
+        font-style: italic;
+        margin-bottom: 20px;
+        color: #666;
+        font-size: 1.1em;
+    }
+    #controls {
+        display: none;
+        text-align: center;
+        margin-bottom: 30px;
+        position: sticky;
+        top: 0;
+        background: #fffdf9;
+        padding: 15px;
+        border-bottom: 2px solid #e0d8c8;
+        z-index: 100;
+        box-shadow: 0 4px 6px -6px rgba(0,0,0,0.2);
+    }
+    button {
+        background-color: #5c2c24; 
+        color: white;
+        border: none;
+        padding: 10px 18px;
+        margin: 5px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 15px;
+        font-family: 'Segoe UI', Tahoma, sans-serif;
+        transition: background 0.3s;
+    }
+    button:hover { background-color: #8c4236; }
+    button:disabled { background-color: #ccc; cursor: not-allowed; }
+    
+    #script-container { margin-top: 20px; }
+    .item {
+        margin-bottom: 15px;
+        padding: 12px 15px;
+        border-radius: 6px;
+        border-left: 4px solid transparent;
+        transition: background-color 0.2s;
+    }
+    .speaker-name {
+        font-weight: bold;
+        font-family: 'Segoe UI', sans-serif;
+        color: #5c2c24;
+        text-transform: uppercase;
+        font-size: 0.9em;
+        letter-spacing: 1px;
+        margin-bottom: 8px;
+        cursor: pointer;
+    }
+    .speaker-name:hover { text-decoration: underline; }
+    .speech-lines { line-height: 1.8; font-size: 1.1em; margin-left: 20px;}
+    .line {
+        display: inline-block;
+        width: 100%;
+        cursor: pointer;
+    }
+    .line:hover { background-color: #f0e6d5; }
+    .stagedir {
+        color: #777;
+        font-style: italic;
+        font-size: 0.95em;
+        margin: 20px 40px;
+        text-align: center;
+    }
+    .title h2 {
+        text-align: center;
+        color: #2c2c2c;
+        margin-top: 40px;
+        font-size: 1.6em;
+        border-bottom: 1px solid #e0d8c8;
+        padding-bottom: 10px;
+        cursor: pointer;
+    }
+    .title h2:hover { background-color: #f0e6d5; }
+    
+    /* 播放中的高亮顯示 */
+    .playing {
+        background-color: #faeed9 !important;
+        border-left: 4px solid #d44d33 !important;
+    }
+    .playing-line {
+        background-color: #f2d4a4;
+        border-radius: 3px;
+    }
+</style>
+</head>
+<body>
+
+<div id="app-container">
+    <h1>Shakespeare Reader</h1>
+    <div id="status">Initializing...</div>
+    
+    <div id="controls">
+        <button id="btn-play" onclick="playFrom(0)">Play from Beginning</button>
+        <button id="btn-pause" onclick="pauseReading()">Pause</button>
+        <button id="btn-resume" onclick="resumeReading()">Resume</button>
+        <button id="btn-stop" onclick="stopReading()">Stop</button>
+        <button id="btn-reload" onclick="loadRandomPlay()">Load Another Play</button>
+    </div>
+
+    <div id="script-container"></div>
+</div>
+
+<script>
+// --- 語音合成 (TTS) 與音色設定 ---
+let availableVoices = [];
+let synth = window.speechSynthesis;
+
+function initVoices() {
+    // 優先挑選英文語音
+    availableVoices = synth.getVoices().filter(v => v.lang.startsWith('en'));
+    if(availableVoices.length === 0) {
+        availableVoices = synth.getVoices(); // Fallback 到所有語言
+    }
+}
+synth.onvoiceschanged = initVoices;
+
+function getVoiceSettings(speakerName) {
+    if (!availableVoices || availableVoices.length === 0) return { voice: null, pitch: 1, rate: 1 };
+    if (speakerName === 'Narrator') return { voice: availableVoices[0], pitch: 1, rate: 1 };
+    
+    // 透過簡易單字判斷男女以挑選更貼切的男女聲
+    let isMale = null;
+    const nameUpper = speakerName.toUpperCase();
+    if (/\b(KING|PRINCE|DUKE|LORD|SIR|FATHER|SON|UNCLE|BROTHER|MAN|MEN|BOY|GENTLEMAN)\b/.test(nameUpper)) isMale = true;
+    if (/\b(QUEEN|PRINCESS|DUCHESS|LADY|MADAM|MOTHER|DAUGHTER|AUNT|SISTER|WOMAN|WOMEN|GIRL|MAID)\b/.test(nameUpper)) isMale = false;
+
+    let candidateVoices = availableVoices;
+    if (isMale === true) {
+        let maleVoices = availableVoices.filter(v => v.name.toLowerCase().includes('male') && !v.name.toLowerCase().includes('female'));
+        if (maleVoices.length > 0) candidateVoices = maleVoices;
+    } else if (isMale === false) {
+        let femaleVoices = availableVoices.filter(v => v.name.toLowerCase().includes('female'));
+        if (femaleVoices.length > 0) candidateVoices = femaleVoices;
+    }
+    
+    // 雜湊算法 (Hash) 確保同一個角色分配到固定的聲音特徵
+    let hash = 0;
+    for (let i = 0; i < speakerName.length; i++) {
+        hash = speakerName.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    hash = Math.abs(hash);
+    
+    const voiceIndex = hash % candidateVoices.length;
+    
+    // 計算 Pitch (音高) 與 Rate (語速)，使每個角色聲線都不同
+    let pitch = 0.9 + ((hash % 10) / 30); // 預設 0.9 ~ 1.2
+    if (isMale === true && candidateVoices === availableVoices) pitch = 0.7 + ((hash % 10) / 40); 
+    if (isMale === false && candidateVoices === availableVoices) pitch = 1.1 + ((hash % 10) / 40); 
+    
+    const rate = 0.9 + ((hash % 5) / 20); // 預設 0.9 ~ 1.1
+    
+    return {
+        voice: candidateVoices[voiceIndex],
+        pitch: pitch,
+        rate: rate
+    };
+}
+
+// --- 劇本載入與解析 ---
+const fallbackFiles = ["a_and_c.xml","all_well.xml","as_you.xml","com_err.xml","coriolan.xml","cymbelin.xml","dream.xml","hamlet.xml","hen_iv_1.xml","hen_iv_2.xml","hen_v.xml","hen_vi_1.xml","hen_vi_2.xml","hen_vi_3.xml","hen_viii.xml","jc.xml","john.xml","lear.xml","lll.xml","m_for_m.xml","m_wives.xml","macbeth.xml","merchant.xml","much_ado.xml","othello.xml","pericles.xml","r_and_j.xml","rich_ii.xml","rich_iii.xml","t_night.xml","taming.xml","tempest.xml","timon.xml","titus.xml","troilus.xml","two_gent.xml","win_tale.xml"];
+
+let playQueue = [];
+
+async function loadRandomPlay() {
+    stopReading();
+    document.getElementById('controls').style.display = 'none';
+    document.getElementById('script-container').innerHTML = '';
+    document.getElementById('status').innerText = 'Fetching play list from GitHub...';
+    
+    let downloadUrl = "";
+    let fileName = "";
+    try {
+        // 使用 GitHub API 獲取指定的 Tree
+        const repoUrl = 'https://api.github.com/repos/rufuspollock-okfn/shakespeare-material/contents/texts/moby?ref=abd92b518793aab643fc645267e15b8c0b1f715c';
+        const response = await fetch(repoUrl);
+        if (!response.ok) throw new Error('API limit');
+        const files = await response.json();
+        const xmlFiles = files.filter(f => f.name.endsWith('.xml'));
+        const randomFile = xmlFiles[Math.floor(Math.random() * xmlFiles.length)];
+        downloadUrl = randomFile.download_url;
+        fileName = randomFile.name;
+    } catch(apiErr) {
+        // API 達到請求上限時的備案策略
+        fileName = fallbackFiles[Math.floor(Math.random() * fallbackFiles.length)];
+        downloadUrl = `https://raw.githubusercontent.com/rufuspollock-okfn/shakespeare-material/abd92b518793aab643fc645267e15b8c0b1f715c/texts/moby/${fileName}`;
+    }
+    
+    document.getElementById('status').innerText = `Downloading ${fileName}...`;
+    try {
+        const xmlResponse = await fetch(downloadUrl);
+        if (!xmlResponse.ok) throw new Error('Failed to load XML');
+        const xmlText = await xmlResponse.text();
+        
+        document.getElementById('status').innerText = `Parsing ${fileName}...`;
+        parseXML(xmlText);
+        renderScript();
+        
+        document.getElementById('status').innerText = `Loaded ${fileName}. Ready to Play!`;
+        document.getElementById('controls').style.display = 'block';
+    } catch (e) {
+        document.getElementById('status').innerText = 'Error: ' + e.message;
+    }
+}
+
+function parseXML(xmlText) {
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+    playQueue = [];
+    
+    const play = xmlDoc.querySelector('PLAY');
+    if (!play) return;
+    
+    // 遞迴分析 DOM 確保順序正確
+    function walk(node) {
+        if (node.nodeType !== Node.ELEMENT_NODE) return;
+        const tag = node.tagName.toUpperCase();
+        
+        if (tag === 'TITLE') {
+            playQueue.push({ type: 'title', text: node.textContent.trim(), speaker: 'Narrator', id: playQueue.length });
+        } else if (tag === 'SPEECH') {
+            const speakers = Array.from(node.querySelectorAll("SPEAKER")).map(s => s.textContent.trim());
+            const speaker = speakers.length > 0 ? speakers.join(" and ") : "Narrator";
+            
+            const lines = [];
+            node.childNodes.forEach(child => {
+                // 忽略 SPEECH 中的 STAGEDIR 避免發音
+                if (child.nodeType === Node.ELEMENT_NODE && child.tagName.toUpperCase() === 'LINE') {
+                    lines.push(child.textContent.trim());
+                }
+            });
+            if (lines.length > 0) {
+                playQueue.push({ type: 'speech', lines: lines, speaker: speaker, id: playQueue.length });
+            }
+        } else if (tag === 'STAGEDIR') {
+             // 保留在 UI 但不會被 TTS 讀出
+             playQueue.push({ type: 'stagedir', text: node.textContent.trim(), id: playQueue.length });
+        } else if (tag === 'PERSONAE' || tag === 'PGROUP') {
+            playQueue.push({ type: 'stagedir', text: "Character List (Omitted from reading)", id: playQueue.length });
+        } else {
+            for (let child of node.childNodes) {
+                walk(child);
+            }
+        }
+    }
+    walk(play);
+}
+
+function renderScript() {
+    const container = document.getElementById('script-container');
+    container.innerHTML = '';
+    
+    playQueue.forEach((item, index) => {
+        const div = document.createElement('div');
+        div.className = `item ${item.type}`;
+        div.id = `item-${index}`;
+        
+        if (item.type === 'speech') {
+            const linesHtml = item.lines.map((l, i) => 
+                `<span class="line" data-line="${i}" onclick="playFromLine(${index}, ${i}, event)">${l}</span>`
+            ).join('<br/>');
+            div.innerHTML = `<div class="speaker-name" onclick="playFrom(${index})">${item.speaker}</div> <div class="speech-lines">${linesHtml}</div>`;
+        } else if (item.type === 'title') {
+            div.innerHTML = `<h2 onclick="playFrom(${index})">${item.text}</h2>`;
+        } else if (item.type === 'stagedir') {
+            div.innerHTML = `<em>[${item.text}]</em>`;
+        }
+        
+        container.appendChild(div);
+    });
+}
+
+// --- 播放器與控制邏輯 ---
+let isPlaying = false;
+let currentIndex = 0;
+let currentLineWithinSpeech = 0;
+
+function playFrom(index) {
+    isPlaying = false;
+    synth.cancel();
+    setTimeout(() => {
+        currentIndex = index;
+        currentLineWithinSpeech = 0;
+        isPlaying = true;
+        speakCurrent();
+    }, 50);
+}
+
+function playFromLine(index, lineIndex, event) {
+    event.stopPropagation();
+    isPlaying = false;
+    synth.cancel();
+    setTimeout(() => {
+        currentIndex = index;
+        currentLineWithinSpeech = lineIndex;
+        isPlaying = true;
+        speakCurrent();
+    }, 50);
+}
+
+function speakCurrent() {
+    if (!isPlaying) return;
+    
+    // 跳過非朗讀物件 (如 stagedir 舞台指示)
+    while (currentIndex < playQueue.length && !['speech', 'title'].includes(playQueue[currentIndex].type)) {
+        currentIndex++;
+        currentLineWithinSpeech = 0;
+    }
+    
+    if (currentIndex >= playQueue.length) {
+        isPlaying = false;
+        return;
+    }
+    
+    const item = playQueue[currentIndex];
+    let textToSpeak = "";
+    
+    if (item.type === 'title') {
+        textToSpeak = item.text;
+    } else if (item.type === 'speech') {
+        if (currentLineWithinSpeech >= item.lines.length) {
+            currentIndex++;
+            currentLineWithinSpeech = 0;
+            speakCurrent();
+            return;
+        }
+        textToSpeak = item.lines[currentLineWithinSpeech];
+    }
+    
+    // 更新 UI 反白
+    document.querySelectorAll('.playing').forEach(el => el.classList.remove('playing'));
+    document.querySelectorAll('.playing-line').forEach(el => el.classList.remove('playing-line'));
+    
+    const el = document.getElementById(`item-${currentIndex}`);
+    if (el) {
+        el.classList.add('playing');
+        // 平滑捲動追蹤進度
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        if (item.type === 'speech') {
+            const lineSpans = el.querySelectorAll('.line');
+            if (lineSpans && lineSpans[currentLineWithinSpeech]) {
+                lineSpans[currentLineWithinSpeech].classList.add('playing-line');
+            }
+        }
+    }
+    
+    // 跳過空白台詞或僅標點符號的台詞
+    if (!textToSpeak.trim()) {
+        advanceLine(item);
+        speakCurrent();
+        return;
+    }
+    
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    const settings = getVoiceSettings(item.speaker);
+    if (settings.voice) utterance.voice = settings.voice;
+    utterance.pitch = settings.pitch;
+    utterance.rate = settings.rate;
+    
+    utterance.onend = () => {
+        if (isPlaying) {
+            advanceLine(item);
+            speakCurrent();
+        }
+    };
+    
+    utterance.onerror = (e) => {
+        console.error("TTS Error:", e);
+        if (isPlaying) {
+            advanceLine(item);
+            speakCurrent();
+        }
+    };
+    
+    synth.speak(utterance);
+}
+
+function advanceLine(item) {
+    if (item.type === 'title') {
+        currentIndex++;
+        currentLineWithinSpeech = 0;
+    } else {
+        currentLineWithinSpeech++;
+    }
+}
+
+function pauseReading() {
+    isPlaying = false;
+    synth.pause();
+}
+
+function resumeReading() {
+    isPlaying = true;
+    synth.resume();
+}
+
+function stopReading() {
+    isPlaying = false;
+    synth.cancel();
+    document.querySelectorAll('.playing').forEach(el => el.classList.remove('playing'));
+    document.querySelectorAll('.playing-line').forEach(el => el.classList.remove('playing-line'));
+}
+
+// 離開網頁時確保取消語音
+window.onbeforeunload = () => {
+    synth.cancel();
+};
+
+window.onload = () => {
+    initVoices();
+    loadRandomPlay();
+};
+</script>
+</body>
+</html>
