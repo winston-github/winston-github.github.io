@@ -53,9 +53,11 @@
         .tab-btn { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; font-weight: 700; color: var(--gray); background: transparent; border: none; cursor: pointer; outline: none; transition: color 0.2s; position: relative; }
         .tab-btn.active { color: var(--text-main); }
         .tab-indicator { position: absolute; bottom: 0; height: 3px; background: var(--text-main); width: 50%; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), width 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); border-radius: 3px 3px 0 0;}
+
         .tab-indicator.lock-anim { transition: transform 0.5s linear, width 0.5s linear !important; }
-        .tab-lock-icon { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 20px; height: 20px; fill: #666; opacity: 0; transition: opacity 0.5s linear; pointer-events: none; }
-        .tab-btn.locking .tab-text, .tab-btn.locking .tab-immersive-text { opacity: 0 !important; transition: opacity 0.5s linear; }
+        .tab-lock-icon { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 20px; height: 20px; fill: #666; opacity: 0; transition: opacity 0.25s linear; pointer-events: none; }
+        .tab-btn.locking .tab-text, .tab-btn.locking .tab-immersive-text { opacity: 0 !important; transition: opacity 0.25s linear; }
+        
         .tab-btn.locking .tab-lock-icon { opacity: 1; }
         
         .tab-text { transition: opacity 0.2s; }
@@ -2887,6 +2889,7 @@ class AppController {
         };
 
         // Tab-based Lock Trigger
+        let tabPreLockTimer = null;
         let tabLockTimer = null;
         let tabAnimTimer = null;
         let isTabLocking = false;
@@ -2900,6 +2903,7 @@ class AppController {
             if (!isTabLocking && !isTabAnimActive) return;
             isTabLocking = false;
             isTabAnimActive = false;
+            clearTimeout(tabPreLockTimer);
             clearTimeout(tabLockTimer);
             clearTimeout(tabAnimTimer);
             
@@ -2924,16 +2928,22 @@ class AppController {
             let isS = AppState.state.activeTab === 'settings';
             let targetInactiveTab = isS ? tabMatrix : tabSettings;
 
+            // 0.25s: Fade text out, fade lock SVG in (Completes by 0.5s)
+            tabPreLockTimer = setTimeout(() => {
+                if (!isTabLocking) return;
+                targetInactiveTab.classList.add('locking');
+            }, 250);
+
+            // 0.5s: Start the white bar expansion
             tabLockTimer = setTimeout(() => {
                 if (!isTabLocking) return;
                 isTabAnimActive = true;
                 
                 tabIndicator.classList.add('lock-anim');
-                targetInactiveTab.classList.add('locking');
-                
                 tabIndicator.style.width = '100%';
                 tabIndicator.style.transform = 'translateX(0)';
                 
+                // 1.0s: Engage Lock
                 tabAnimTimer = setTimeout(() => {
                     if (isTabAnimActive) {
                         if (navigator.vibrate) navigator.vibrate([20, 50, 20]);
@@ -2947,6 +2957,7 @@ class AppController {
         tabsRow.addEventListener('pointerdown', tabTouchStart);
         window.addEventListener('pointerup', this.resetTabLockAnim);
         tabsRow.addEventListener('pointerleave', this.resetTabLockAnim);
+        
         tabsRow.addEventListener('pointercancel', this.resetTabLockAnim);
         tabsRow.addEventListener('contextmenu', e => e.preventDefault());
 
