@@ -718,6 +718,16 @@
                                     <button class="seg-btn" data-val="1.0" data-idx="2">1.0</button>
                                 </div>
                             </div>
+                            
+                            <div style="grid-column: span 2; margin-top: 5px;">
+                                <div style="font-size: 0.75rem; color: var(--gray); font-weight: 600; margin-bottom: 6px;" id="lblTimeStepTitle" data-i18n="lbl_time_step"></div>
+                                <div class="segmented-control" id="segTimeStep">
+                                    <div class="seg-indicator seg-3" style="left: calc(66.66% + 2px);"></div>
+                                    <button class="seg-btn" data-val="1" data-idx="0">1</button>
+                                    <button class="seg-btn" data-val="5" data-idx="1">5</button>
+                                    <button class="seg-btn active" data-val="10" data-idx="2">10</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -877,9 +887,11 @@ const i18n = {
         rm_title: "跑者檔案設定", rm_name: "名稱", rm_phy: "基本生理", rm_age: "年齡", rm_wgt: "體重",
         rm_adv: "進階生理與基準極限", rm_rhr: "安靜心率", rm_mhr: "最大心率", rm_smm: "骨骼肌", rm_bf: "體脂肪", rm_vo2: "VO₂Max", rm_ecw: "細胞外水比",
         rm_hw_title: "硬體限制 (實體極限不可超過)", rm_hw_mxs: "機台硬體-最高速", rm_hw_mns: "機台硬體-最低速", rm_hw_mxi: "機台硬體-最高坡", rm_hw_mni: "機台硬體-最低坡",
+
         rm_pref: "偏好設定", btn_cancel: "取消", btn_save: "儲存", btn_add: "+ 新增跑者", err_name: "名稱已存在",
-        lbl_inc_step: "坡度精度", lbl_intent: "全域偏移:",
-        lang_zh: "中文", lang_en: "EN", 
+        lbl_inc_step: "坡度精度 (%)", lbl_time_step: "總時間精度 (MIN)", lbl_intent: "全域偏移:",
+        lang_zh: "中文", lang_en: "EN",
+        
         opt_voice_on: "語音 ON", opt_voice_off: "語音 OFF", 
         msg_fab_hint: "跑步中控制：左鍵單擊切換步頻/沉浸模式，長按立即找回節奏。右鍵單擊切換語音/節拍。",
         opt_met: "公制", opt_imp: "英制", opt_m: "男", opt_f: "女",
@@ -941,9 +953,11 @@ const i18n = {
         rm_title: "Runner Profile", rm_name: "Name", rm_phy: "Physiology", rm_age: "Age", rm_wgt: "Weight",
         rm_adv: "Advanced & Base Limits", rm_rhr: "Resting HR", rm_mhr: "Max HR", rm_smm: "Skel. Muscle", rm_bf: "Body Fat", rm_vo2: "VO₂Max", rm_ecw: "ECW/TBW",
         rm_hw_title: "Hardware Limits (Absolute Max)", rm_hw_mxs: "Hardware Max Spd", rm_hw_mns: "Hardware Min Spd", rm_hw_mxi: "Hardware Max Inc", rm_hw_mni: "Hardware Min Inc",
+
         rm_pref: "Preferences", btn_cancel: "Cancel", btn_save: "Save", btn_add: "+ Add Runner", err_name: "Name Exists",
-        lbl_inc_step: "Incline Precision", lbl_intent: "Global Offset:",
-        lang_zh: "中文", lang_en: "EN", 
+        lbl_inc_step: "Incline Precision (%)", lbl_time_step: "TIME Precision (MIN)", lbl_intent: "Global Offset:",
+        lang_zh: "中文", lang_en: "EN",
+        
         opt_voice_on: "Voice ON", opt_voice_off: "Voice OFF", 
         msg_fab_hint: "Run controls: Left click to cycle cadence/immersive. Left hold to sync rhythm. Right click to toggle voice/beat.",
         opt_met: "Metric", opt_imp: "Imperial", opt_m: "M", opt_f: "F",
@@ -1845,11 +1859,14 @@ class PhysioEngine {
         pMaxLac = Math.min(18.0, Math.max(6.0, pMaxLac));
         
         if (!m.catMemory) m.catMemory = { 'FAT_BURN': 1, 'ENDURANCE': 2, 'HIIT': 4, 'HILL': 6, 'WALK': 11, 'ULTRA': 21 };
+
         if (m.catMemory && m.catMemory['ULTRA'] === undefined) m.catMemory['ULTRA'] = 21;
         
         let incStep = m.incStep ?? 0.5;
+        let timeStep = m.timeStep ?? 10;
 
         let pGaitOn = m.gaitOn !== false;
+        
         let pStepOn = m.stepOn !== false;
         let pBeatOn = m.beatOn !== false;
 
@@ -1862,10 +1879,11 @@ class PhysioEngine {
             age: Math.max(15, m.age ?? 40), gender: m.gender ?? 'M', 
             name: m.name ?? 'Runner', unit: m.unit ?? 'metric', 
             lang: m.lang ?? 'zh', voiceOn: m.voiceOn ?? true, 
+            
             gaitOn: pGaitOn, stepOn: pStepOn, beatOn: pBeatOn,
             lastProg: m.lastProg ?? 0, lastCat: m.lastCat ?? 'FAT_BURN', 
             spdOffset: m.spdOffset ?? 0, incOffset: Utils.roundInc(m.incOffset ?? 0, incStep), 
-            incStep: incStep, catMemory: m.catMemory, offsetMemory: m.offsetMemory || {}
+            incStep: incStep, timeStep: timeStep, catMemory: m.catMemory, offsetMemory: m.offsetMemory || {}
         };
     }
 
@@ -2768,9 +2786,10 @@ class AppController {
 
     syncDialsToProfile() {
         this._syncing = true; let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
-        this.dials.time.build(20, 1800, 10); this.dials.time.setValue(p.tTime, true);
+        this.dials.time.build(20, 1800, p.timeStep || 10); this.dials.time.setValue(p.tTime, true);
         this.dials.dist.build(1.0, 100.0, 0.1); this.dials.dist.setValue(isMet ? p.tKm : p.tKm / 1.609344, true);
         setTimeout(() => { this._syncing = false; }, 100);
+        
     }
 
     updateI18n() {
@@ -3507,13 +3526,23 @@ class AppController {
                         this.saveData();
                     } 
                     this.updateI18n(); this.updateUIDataOnly(); this.charts.drawAll();
+
                 } else if (c.id === 'segIncStep') {
                     p.incStep = parseFloat(b.dataset.val);
                     this.saveData();
                     this.recalc(true);
+                } else if (c.id === 'segTimeStep') {
+                    p.timeStep = parseInt(b.dataset.val);
+                    if (p.tTime % p.timeStep !== 0) {
+                        p.tTime = Math.ceil(p.tTime / p.timeStep) * p.timeStep;
+                    }
+                    this.saveData();
+                    this.syncDialsToProfile();
+                    this.recalc(true);
                 }
                 this.autoFillRHR();
             });
+            
         });
 
         document.getElementById('histRunnerSelect').addEventListener('change', () => this.openHistory());
@@ -3654,8 +3683,8 @@ class AppController {
         setV('rmMxS', isMet?p.maxSpd:p.maxSpd/1.609344); setV('rmMnS', isMet?p.minSpd:p.minSpd/1.609344); setV('rmMxI', p.mxInc); setV('rmMnI', p.mnInc);
 
         setV('hwMxS', isMet?hw.maxSpd:hw.maxSpd/1.609344); setV('hwMnS', isMet?hw.minSpd:hw.minSpd/1.609344); setV('hwMxI', hw.maxInc); setV('hwMnI', hw.minInc);
-        const setS = (id, v) => { let c=document.getElementById(id); c.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active')); let b=c.querySelector(`[data-val="${v}"]`); if(b) { b.classList.add('active'); if(c.id==='segIncStep'){ c.querySelector('.seg-indicator').style.left= `calc(${b.dataset.idx * 33.33}% + 2px)`; } else { c.querySelector('.seg-indicator').style.left= b.dataset.idx === '0' ? '4px' : 'calc(50% + 0px)'; } } };
-        setS('segLang', p.lang||'zh'); setS('segUnit', p.unit); setS('segSex', p.gender); setS('segIncStep', p.incStep || 0.5); this.validateRunnerForm();
+        const setS = (id, v) => { let c=document.getElementById(id); c.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active')); let b=c.querySelector(`[data-val="${v}"]`); if(b) { b.classList.add('active'); if(c.id==='segIncStep' || c.id==='segTimeStep'){ c.querySelector('.seg-indicator').style.left= `calc(${b.dataset.idx * 33.33}% + 2px)`; } else { c.querySelector('.seg-indicator').style.left= b.dataset.idx === '0' ? '4px' : 'calc(50% + 0px)'; } } };
+        setS('segLang', p.lang||'zh'); setS('segUnit', p.unit); setS('segSex', p.gender); setS('segIncStep', p.incStep || 0.5); setS('segTimeStep', p.timeStep || 10); this.validateRunnerForm();
     }
 
     renderRunnerSelector() {
