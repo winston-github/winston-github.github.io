@@ -2783,8 +2783,7 @@ class AppController {
         this.dials.dist = new SwipeDial('ds-dist', true, val => {
             if (this._syncing || AppState.state.runStatus !== 'STOPPED') return;
             clearTimeout(distTimer);
-            // 0.6s Debounce: Wait until the user finishes scrolling before heavy computation
-            distTimer = setTimeout(() => { this.autoPacer(val); }, 600);
+            distTimer = setTimeout(() => { this.autoPacer(val); }, 600); // 0.6s Debounce
         });
         this.adjDials.timeH = new SwipeDial('ds-adj-th', false, () => {}); this.adjDials.timeM = new SwipeDial('ds-adj-tm', false, () => {});
     }
@@ -2804,6 +2803,7 @@ class AppController {
         
         document.querySelectorAll('[data-i18n]').forEach(el => {
             let key = el.dataset.i18n;
+
             if (d[key]) {
                 if (el.tagName === 'INPUT' && el.type === 'text' && el.placeholder) {
                     el.placeholder = d[key];
@@ -2812,10 +2812,14 @@ class AppController {
                 }
             }
         });
+        
+        let tgtEl = document.getElementById('lblTargetKm');
+        if (tgtEl) tgtEl.textContent = isMet ? (p.lang==='zh'?'目標 (KM)':'TARGET (KM)') : (p.lang==='zh'?'目標 (Mile)':'TARGET (Mile)');
 
         ['Avg','Max','RAvg','RMax','SumAvg','SumMax'].forEach(k => { let el=document.getElementById(`lbl${k}`); if(el) el.textContent = d[k.toLowerCase().includes('avg')?'hud_avg':'hud_max']; });
         
         document.getElementById('unitRunSpd').textContent = isMet ? 'kph' : 'mph'; document.getElementById('unitRunDist').textContent = isMet ? 'km' : 'mi';
+        
         document.getElementById('unitRunElev').textContent = isMet ? 'm' : 'ft'; document.getElementById('unitAge').textContent = d.unitAge || '';
         document.getElementById('unitWgt').textContent = isMet ? 'kg' : 'lbs'; document.getElementById('unitSmm').textContent = isMet ? 'kg' : 'lbs';
         document.getElementById('unitMxS2').textContent = isMet ? 'kph' : 'mph'; document.getElementById('unitMnS2').textContent = isMet ? 'kph' : 'mph';
@@ -3206,7 +3210,8 @@ class AppController {
                 hiddenInput.addEventListener('input', (ev) => {
                     let val = parseFloat(ev.target.value); if(!isNaN(val)) { this.autoPacer(val); }
                 });
-                Numpad.open(hiddenInput, dStr.lbl_tgt_km, true);
+                let numpadTitle = isMet ? (p.lang==='zh'?'目標 (KM)':'TARGET (KM)') : (p.lang==='zh'?'目標 (Mile)':'TARGET (Mile)');
+                Numpad.open(hiddenInput, numpadTitle, true);
             }
                 
             else if(a === 'open-adj-time') {
@@ -3825,34 +3830,15 @@ class AppController {
         Binder.updateBatch({ uiSpdOff: (isMet ? p.spdOffset : p.spdOffset/1.609344).toFixed(1), uiIncOff: p.incOffset.toFixed(1) });
 
         let badge = document.getElementById('intentBadgeContainer');
-        if (badge) {
-            let d = i18n[p.lang] || i18n['zh'];
-            if (Math.abs(p.spdOffset) > 0.05 || Math.abs(p.incOffset) > 0.05) {
-                let badgeSpd = (isMet ? p.spdOffset : p.spdOffset/1.609344).toFixed(1);
-                let badgeInc = p.incOffset.toFixed(1);
-                badge.innerHTML = `<span style="font-size:0.8rem; background:#222; color:var(--text-main); padding: 4px 8px; border-radius:12px; border:1px solid #444;">${d.lbl_intent} S: ${badgeSpd>0?'+':''}${badgeSpd} / I: ${badgeInc>0?'+':''}${badgeInc}</span>`;
-            } else {
-                badge.innerHTML = '';
-            }
-        }
+        if (badge) badge.innerHTML = '';
 
         clearTimeout(this.renderDebounceTimer);
         this.renderDebounceTimer = setTimeout(() => {
             this.renderPreviewList();
-            let ul = document.getElementById('previewList');
-            if (ul) {
-                Array.from(ul.children).forEach((li, idx) => {
-                    if (idx >= cM) {
-                        li.classList.remove('ripple-row');
-                        void li.offsetWidth;
-                        li.style.animationDelay = `${(idx - cM) * 0.05}s`;
-                        li.classList.add('ripple-row');
-                    }
-                });
-            }
-        }, 800);
+        }, 500);
         
         if (AppState.state.runStatus === 'RUNNING' || AppState.state.runStatus === 'PAUSED') {
+            
             let immediateSpd = Utils.clamp(res.matrix[cM].rawSpd + p.spdOffset, AppState.state.hw.minSpd, AppState.state.hw.maxSpd);
             let immediateInc = Utils.clamp(res.matrix[cM].rawInc + p.incOffset, AppState.state.hw.minInc, AppState.state.hw.maxInc);
             AppState.state.snapshot[cM].spd = Utils.round(immediateSpd);
@@ -4334,6 +4320,65 @@ class AppController {
         };
 
         let startDist = evalDist(currentOffset);
+        if (Math.abs(startDist - targetRealKm) < 0.05) return; 
+
+        // Unit-Aware Quantization: 0.1 kph for metric, exact 0.1 mph for imperial
+        let step = isMet ? 0.1 : 0.1609344; 
+        let dir = targetRealKm > startDist ? 1 : -1;
+        
+        // Bounded Iterative Search (Max 150 steps = 15.0 kph range limit)
+        for (let i = 0; i < 150; i++) { 
+            currentOffset += (step * dir);
+            currentOffset = Utils.round(currentOffset);
+            
+            // Hard Limit Protection
+            if (currentOffset > 15.0 || currentOffset < -15.0) break;
+            
+            let d = evalDist(currentOffset);
+            let diff = Math.abs(d - targetRealKm);
+            
+            // Stagnation Detection: Hit hardware max/min ceiling
+            if (i > 0 && Math.abs(d - startDist) < 0.001) break; 
+            startDist = d; 
+
+            // Minimum Error Lock
+            if (diff < minDiff) {
+                minDiff = diff;
+                bestOffset = currentOffset;
+            } else {
+                break; // Diff is increasing, optimal point passed
+            }
+        }
+        
+        p.spdOffset = bestOffset;
+        if (!p.offsetMemory) p.offsetMemory = {};
+        p.offsetMemory[p.lastProg] = { spd: p.spdOffset, inc: p.incOffset };
+        
+        this.saveData();
+        this.recalc(true);
+        
+        if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+    }
+
+    renderPreviewList() {
+        
+        let p = AppState.state.profiles[AppState.state.activeP];
+        let hw = AppState.state.hw;
+        let isMet = p.unit !== 'imperial';
+        let targetRealKm = isMet ? targetKmDial : targetKmDial * 1.609344;
+        
+        let currentOffset = p.spdOffset;
+        let bestOffset = currentOffset;
+        let minDiff = Infinity;
+        
+        const evalDist = (offset) => {
+            let tempP = JSON.parse(JSON.stringify(p));
+            tempP.spdOffset = offset;
+            let res = PhysioEngine.solveBlueprint(tempP, hw);
+            return PhysioEngine.simulatePhysics(res.matrix, hw).dist;
+        };
+
+        let startDist = evalDist(currentOffset);
         if (Math.abs(startDist - targetRealKm) < 0.05) return; // Already there
 
         let step = 0.1;
@@ -4434,7 +4479,7 @@ class AppController {
         Binder.updateBatch({ uiSpdOff: (isMet ? p.spdOffset : p.spdOffset/1.609344).toFixed(1), uiIncOff: p.incOffset.toFixed(1) });
         this.updateGaitHubState();
         
-        if (this.dials.dist) {
+        if (this.dials && this.dials.dist) {
             let estD = isMet ? AppState.state.estTotKm : AppState.state.estTotKm / 1.609344;
             this.dials.dist.setValue(estD, true);
         }
