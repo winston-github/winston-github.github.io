@@ -2774,26 +2774,28 @@ class AppController {
     }
 
     initDials() {
-        const createDial = (id, key, isFloat) => {
-            return new SwipeDial(id, isFloat, val => {
-                if (this._syncing || AppState.state.runStatus !== 'STOPPED') return;
-                let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
-                let v = isFloat ? (isMet ? val : Utils.round(val * 1.609344)) : val;
-                if (key === 'tTime') { v = Math.max(20, v); p.tTime = Utils.clamp(v, 20, 1800); }
-                if (key === 'tKm') { p.tKm = v; }
-                this.saveData(); this.recalc();
-            });
-        };
-        this.dials.time = createDial('ds-time', 'tTime', false); this.dials.dist = createDial('ds-dist', 'tKm', true);
+        let distTimer = null;
+        this.dials.time = new SwipeDial('ds-time', false, val => {
+            if (this._syncing || AppState.state.runStatus !== 'STOPPED') return;
+            let p = AppState.state.profiles[AppState.state.activeP];
+            p.tTime = Utils.clamp(val, 20, 1800); this.saveData(); this.recalc();
+        });
+        this.dials.dist = new SwipeDial('ds-dist', true, val => {
+            if (this._syncing || AppState.state.runStatus !== 'STOPPED') return;
+            clearTimeout(distTimer);
+            // 0.6s Debounce: Wait until the user finishes scrolling before heavy computation
+            distTimer = setTimeout(() => { this.autoPacer(val); }, 600);
+        });
         this.adjDials.timeH = new SwipeDial('ds-adj-th', false, () => {}); this.adjDials.timeM = new SwipeDial('ds-adj-tm', false, () => {});
     }
 
     syncDialsToProfile() {
         this._syncing = true; let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
         this.dials.time.build(20, 1800, p.timeStep || 10); this.dials.time.setValue(p.tTime, true);
-        this.dials.dist.build(1.0, 100.0, 0.1); this.dials.dist.setValue(isMet ? p.tKm : p.tKm / 1.609344, true);
+        this.dials.dist.build(1.0, 100.0, 0.1); 
+        let estD = isMet ? AppState.state.estTotKm : AppState.state.estTotKm / 1.609344;
+        this.dials.dist.setValue(estD, true); // Dynamic Anchor Lock
         setTimeout(() => { this._syncing = false; }, 100);
-        
     }
 
     updateI18n() {
@@ -3195,15 +3197,18 @@ class AppController {
                 });
                 Numpad.open(hiddenInput, dStr.lbl_tot_time, false);
             }
+                
             else if(a === 'open-numpad-dist') {
                 if (e.target.closest('.dial-btn-mini') || AppState.state.runStatus !== 'STOPPED') return;
                 let hiddenInput = document.createElement('input'); hiddenInput.type = 'text';
-                hiddenInput.value = (isMet ? p.tKm : p.tKm/1.609344).toFixed(1);
+                let currentEst = isMet ? AppState.state.estTotKm : AppState.state.estTotKm / 1.609344;
+                hiddenInput.value = currentEst.toFixed(1);
                 hiddenInput.addEventListener('input', (ev) => {
-                    let val = parseFloat(ev.target.value); if(!isNaN(val)) { p.tKm = isMet ? val : val * 1.609344; this.saveData(); this.recalc(); }
+                    let val = parseFloat(ev.target.value); if(!isNaN(val)) { this.autoPacer(val); }
                 });
                 Numpad.open(hiddenInput, dStr.lbl_tgt_km, true);
             }
+                
             else if(a === 'open-adj-time') {
                 // If massiveTime was just clicked instead of held
                 if(AppState.state.runStatus !== 'RUNNING' && AppState.state.runStatus !== 'PAUSED') return;
@@ -4311,7 +4316,68 @@ class AppController {
         setTimeout(() => this.syncDialsToProfile(), 100);
     }
 
+    autoPacer(targetKmDial) {
+        let p = AppState.state.profiles[AppState.state.activeP];
+        let hw = AppState.state.hw;
+        let isMet = p.unit !== 'imperial';
+        let targetRealKm = isMet ? targetKmDial : targetKmDial * 1.609344;
+        
+        let currentOffset = p.spdOffset;
+        let bestOffset = currentOffset;
+        let minDiff = Infinity;
+        
+        const evalDist = (offset) => {
+            let tempP = JSON.parse(JSON.stringify(p));
+            tempP.spdOffset = offset;
+            let res = PhysioEngine.solveBlueprint(tempP, hw);
+            return PhysioEngine.simulatePhysics(res.matrix, hw).dist;
+        };
+
+        let startDist = evalDist(currentOffset);
+        if (Math.abs(startDist - targetRealKm) < 0.05) return; // Already there
+
+        let step = 0.1;
+        let dir = targetRealKm > startDist ? 1 : -1;
+        
+        // Bounded Iterative Search (Max 300 steps = 15.0 kph range limit)
+        for (let i = 0; i < 300; i++) { 
+            currentOffset += (step * dir);
+            currentOffset = Utils.round(currentOffset);
+            
+            // Software Limit Clamp
+            if (currentOffset > 15.0 || currentOffset < -15.0) break;
+            
+            let d = evalDist(currentOffset);
+            let diff = Math.abs(d - targetRealKm);
+            
+            // Stagnation Detection: Hit Hardware Max/Min Limits
+            if (i > 0 && Math.abs(d - startDist) < 0.001) break; 
+            startDist = d; 
+
+            // Minimum Error Lock
+            if (diff < minDiff) {
+                minDiff = diff;
+                bestOffset = currentOffset;
+            } else {
+                break; // Diff increasing, optimal point passed
+            }
+        }
+        
+        p.spdOffset = bestOffset;
+        if (!p.offsetMemory) p.offsetMemory = {};
+        p.offsetMemory[p.lastProg] = { spd: p.spdOffset, inc: p.incOffset };
+        
+        this.saveData();
+        this.recalc(true);
+        
+        // Visual confirmation
+        if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+        let badge = document.getElementById('intentBadgeContainer');
+        if (badge) { badge.style.transform = 'scale(1.1)'; setTimeout(() => badge.style.transform = 'scale(1)', 200); }
+    }
+
     renderPreviewList() {
+        
         let ul = document.getElementById('previewList'); if (!ul) return;
         let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial'; let d = i18n[p.lang] || i18n['zh'];
         let m = AppState.state.snapshot; let vdb = d.phases;
@@ -4367,8 +4433,14 @@ class AppController {
         
         Binder.updateBatch({ uiSpdOff: (isMet ? p.spdOffset : p.spdOffset/1.609344).toFixed(1), uiIncOff: p.incOffset.toFixed(1) });
         this.updateGaitHubState();
+        
+        if (this.dials.dist) {
+            let estD = isMet ? AppState.state.estTotKm : AppState.state.estTotKm / 1.609344;
+            this.dials.dist.setValue(estD, true);
+        }
 
         let cTabs = document.getElementById('catTabs'); cTabs.innerHTML = '';
+        
         Object.keys(PROG_CATEGORIES).forEach(cat => {
             let btn = document.createElement('div'); btn.className = `cat-btn ${cat === p.lastCat ? 'active' : ''}`; btn.textContent = d.cats[cat] || cat; btn.dataset.action = 'select-cat'; btn.dataset.cat = cat; cTabs.appendChild(btn);
         });
