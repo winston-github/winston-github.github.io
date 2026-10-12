@@ -85,8 +85,9 @@
         @keyframes batBlink { from { opacity: 1; } to { opacity: 0.3; } }
 
         /* Tactical Toast Channel B */
-        #tacticalToast { position: absolute; right: 10px; top: 46px; background: rgba(30,30,30,0.95); border: 1px solid #555; border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; z-index: var(--z-tactical); transform: translateX(120%); transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); box-shadow: 0 4px 12px rgba(0,0,0,0.5); pointer-events: none;}
-        #tacticalToast.show { transform: translateX(0); pointer-events: auto; }
+        #tacticalToast { position: absolute; right: 10px; top: 46px; background: rgba(30,30,30,0.95); border: 1px solid #555; border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; z-index: var(--z-tactical); transform: translateX(120%); opacity: 0; visibility: hidden; transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.3s, visibility 0.4s; box-shadow: 0 4px 12px rgba(0,0,0,0.5); pointer-events: none;}
+        #tacticalToast.show { transform: translateX(0); opacity: 1; visibility: visible; pointer-events: auto; }
+        
         #tacticalToast .tt-icon svg { width: 16px; height: 16px; fill: var(--neon-blue); }
         #tacticalToast .tt-text { font-size: 0.85rem; font-weight: 700; color: #FFF; white-space: nowrap;}
         .tt-undo { background: rgba(255, 69, 58, 0.2); color: var(--neon-red); border: 1px solid var(--neon-red); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 800; cursor: pointer; pointer-events: auto;}
@@ -4106,11 +4107,129 @@ class AppController {
             AppState.state.fuelingPlans[this.dragOriginMin].push(this.dragItemData);
         }
         
-        this.dragItemData = null; this.dragTargetMin = -1; this.dragOriginMin = undefined;
-        this.saveData(); this.renderPreviewList();
+        this.dragItemData = null; this.dragTargetMin = -1;
+        if(this.saveData) this.saveData(); this.renderPreviewList();
     }
 
+    /* =========================================
+       RESTORING MISSING CORE UI METHODS
+       ========================================= */
+    updateUIDataOnly() {
+        let p = PhysioEngine.sanitize(AppState.state.profiles[AppState.state.activeP]); let isMet = p.unit !== 'imperial'; let d = i18n[p.lang] || i18n['zh'];
+        let m = AppState.state.snapshot;
+        document.getElementById('lblBtnLeft').textContent = AppState.state.activeP.substring(0,8);
+        
+        Binder.updateBatch({ uiSpdOff: (isMet ? p.spdOffset : p.spdOffset/1.609344).toFixed(1), uiIncOff: p.incOffset.toFixed(1) });
+        this.updateGaitHubState();
+        
+        if (this.dials && this.dials.dist) {
+            let estD = isMet ? AppState.state.estTotKm : AppState.state.estTotKm / 1.609344;
+            this.dials.dist.setValue(estD, true);
+        }
+
+        let cTabs = document.getElementById('catTabs'); cTabs.innerHTML = '';
+        Object.keys(PROG_CATEGORIES).forEach(cat => {
+            let btn = document.createElement('div'); btn.className = `cat-btn ${cat === p.lastCat ? 'active' : ''}`; btn.textContent = d.cats[cat] || cat; btn.dataset.action = 'select-cat'; btn.dataset.cat = cat; cTabs.appendChild(btn);
+        });
+
+        let pg = document.getElementById('progGrid'); pg.innerHTML = '';
+        let showList = PROG_CATEGORIES[p.lastCat] || PROG_CATEGORIES['FAT_BURN'];
+        for(let i=0; i<=24; i++) {
+            let btn = document.createElement('div'); btn.className = `prog-card ${showList.includes(i) ? '' : 'hide'}`; btn.dataset.action = 'select-prog'; btn.dataset.pid = i;
+            btn.innerHTML = `<div class="p-title">${d.prog[`p${i}`][0]}</div><div class="p-desc">${d.prog[`p${i}`][1]}</div>`; pg.appendChild(btn);
+        }
+        Array.from(pg.children).forEach((btn, idx) => {
+            if(p.lastProg === idx) { btn.classList.add('selected'); if(AppState.state.runStatus === 'STOPPED') setTimeout(() => { if (pg && btn && !btn.classList.contains('hide')) pg.scrollTo({ left: btn.offsetLeft - pg.clientWidth / 2 + btn.clientWidth / 2, behavior: 'smooth' }); }, 50); } 
+            else { btn.classList.remove('selected'); }
+        });
+        
+        this.renderPreviewList();
+        
+        if (!m || m.length === 0) return;
+        let aS=m.reduce((s,x)=>s+x.spd,0)/m.length, aI=m.reduce((s,x)=>s+x.inc,0)/m.length, aH=m.reduce((s,x)=>s+x.hr,0)/m.length, aL=m.reduce((s,x)=>s+x.lac,0)/m.length;
+        Binder.updateBatch({ 
+            sAvgSpd: (isMet?aS:aS/1.609344).toFixed(1), sAvgInc: aI.toFixed(1), sAvgHr: Math.round(aH), sAvgLac: aL.toFixed(1),
+            sMaxSpd: (isMet?Math.max(...m.map(x=>x.spd)):Math.max(...m.map(x=>x.spd))/1.609344).toFixed(1), sMaxInc: Math.max(...m.map(x=>x.inc)).toFixed(1), sMaxHr: Math.max(...m.map(x=>x.hr)), sMaxLac: Math.max(...m.map(x=>x.lac)).toFixed(1)
+        });
+        
+        this.updateStatsBlock('sEst', 0, false);
+        this.charts.drawAll();
+    }
+
+    saveRunnerModal() {
+        let name = document.getElementById('rmName').value.trim(); if(!name) return;
+        let isNew = document.querySelector('.runner-tag.add-new').classList.contains('active'); if (isNew && AppState.state.profiles[name]) return; 
+        let isMet = document.querySelector('#segUnit .seg-btn.active').dataset.val === 'metric'; let actP = AppState.state.profiles[AppState.state.activeP];
+        
+        const getV = (id, f) => (parseFloat(document.getElementById(id).value)||0)*f;
+
+        let p = { 
+            name, gender: document.querySelector('#segSex .seg-btn.active').dataset.val, unit: isMet?'metric':'imperial', lang: document.querySelector('#segLang .seg-btn.active').dataset.val, 
+            voiceOn: actP.voiceOn ?? true, gaitOn: actP.gaitOn ?? true, stepOn: actP.stepOn ?? true, beatOn: actP.beatOn ?? true,
+            age: parseFloat(document.getElementById('rmAge').value)||40, tTime: isNew ? 30 : actP.tTime, tKm: isNew ? 5.0 : actP.tKm, lastProg: isNew ? 0 : actP.lastProg, lastCat: isNew ? 'FAT_BURN' : actP.lastCat, 
+            spdOffset: isNew?0:actP.spdOffset, incOffset: isNew?0:actP.incOffset, incStep: actP.incStep || 0.5, timeStep: actP.timeStep || 10, catMemory: actP.catMemory || {}, offsetMemory: actP.offsetMemory || {}
+        };
+        
+        p.weight = getV('rmWeight', isMet?1:1/2.20462); p.height = getV('rmHeight', isMet?1:1/0.393701); p.inseam = parseFloat(document.getElementById('rmInseam').value) ? getV('rmInseam', isMet?1:1/0.393701) : null;
+        p.smm = getV('rmSMM', isMet?1:1/2.20462); p.bf = parseFloat(document.getElementById('rmBF').value) || null; p.ecw = parseFloat(document.getElementById('rmECW').value) || null;
+        p.customRHR = parseFloat(document.getElementById('rmRHR').value) || null; p.customMHR = parseFloat(document.getElementById('rmMHR').value) || null; p.customVO2 = parseFloat(document.getElementById('rmVO2').value) || null;
+        
+        p.maxSpd = getV('rmMxS', isMet ? 1 : 1.609344); p.minSpd = getV('rmMnS', isMet ? 1 : 1.609344); p.mxInc = parseFloat(document.getElementById('rmMxI').value) || 15; p.mnInc = parseFloat(document.getElementById('rmMnI').value) || 0;
+
+        AppState.state.hw.maxSpd = getV('hwMxS', isMet?1:1.609344); AppState.state.hw.minSpd = getV('hwMnS', isMet?1:1.609344); AppState.state.hw.maxInc = parseFloat(document.getElementById('hwMxI').value)||15; AppState.state.hw.minInc = parseFloat(document.getElementById('hwMnI').value)||0;
+        
+        if (!isNew && name !== AppState.state.activeP) { DB.renameRunnerHistory(AppState.state.activeP, name); delete AppState.state.profiles[AppState.state.activeP]; }
+        AppState.state.activeP = name; AppState.state.profiles[name] = p; this.saveData(); 
+        this.updateI18n(); this.recalc(); this.closeModal('runnerModal'); NotificationManager.show((i18n[p.lang] || i18n['zh']).warn_save, false);
+    }
+
+    openHistory() {
+        this.charts.teardown(); let hc = document.getElementById('historyContent'); let sel = document.getElementById('histRunnerSelect'); let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial'; let dStr = i18n[p.lang] || i18n['zh'];
+        sel.innerHTML = ''; Object.keys(AppState.state.profiles).forEach(k => { let o = document.createElement('option'); o.value = k; o.textContent = k; sel.appendChild(o); }); sel.value = AppState.state.activeP;
+        let fetchTarget = sel.value; hc.innerHTML = '<div class="empty-state">Loading...</div>'; this.openModal('historyModal');
+
+        DB.getHist(fetchTarget).then(data => {
+            if(sel.value !== fetchTarget) return; hc.innerHTML = '';
+            
+            let totKm = 0, monKm = 0, totCal = 0; let now = new Date();
+            data.forEach(x => { 
+                totKm += x.distKm; totCal += (x.fCal + x.cCal); 
+                if(new Date(x.date).getMonth() === now.getMonth() && new Date(x.date).getFullYear() === now.getFullYear()) monKm += x.distKm; 
+            });
+            
+            hc.innerHTML += `<div class="hist-dash">
+                <div class="hist-d-box"><div class="hist-d-val">${(isMet?totKm:totKm/1.609344).toFixed(1)}</div><div class="hist-d-lbl">${dStr.lbl_tot_dist} (${isMet?'km':'mi'})</div></div>
+                <div class="hist-d-box"><div class="hist-d-val">${(isMet?monKm:monKm/1.609344).toFixed(1)}</div><div class="hist-d-lbl">${dStr.lbl_mon_dist}</div></div>
+                <div class="hist-d-box" style="grid-column: span 2;"><div class="hist-d-val" style="color:var(--neon-green);">${Math.round(totCal)}</div><div class="hist-d-lbl">${dStr.lbl_tot_cal} (kcal)</div></div>
+            </div>`;
+
+            if(data.length === 0) { 
+                hc.innerHTML += `<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm1-13h-2v6l5.25 3.15.75-1.23-4-2.37V7z"/></svg><div>${dStr.hist_empty}</div></div>`; 
+            } else {
+                data.forEach((h, idx) => {
+                    let sDisp = isMet ? h.avgSpdKm : h.avgSpdKm / 1.609344; let dDisp = isMet ? h.distKm : h.distKm / 1.609344;
+                    let hasMatrix = h.matrix && h.matrix.length > 0;
+                    hc.innerHTML += `<div class="hist-item" ${hasMatrix ? `data-action="open-hist-detail" data-idx="${idx}"` : ''} style="${!hasMatrix ? 'opacity:0.7; cursor:default;' : ''}">
+                                <div class="h-date">${new Date(h.date).toLocaleString()}</div>
+                                <div class="h-row"><span>${Utils.fmtTime(h.ms)} / ${dDisp.toFixed(2)}${isMet?'km':'mi'} (${sDisp.toFixed(1)}${isMet?'kph':'mph'})</span><span style="color:var(--neon-green);">${Math.round(h.fCal+h.cCal)} kcal</span></div>
+                                <div class="h-zones"><span>Z1: ${Math.floor(h.z[0])}</span><span>Z2: ${Math.floor(h.z[1])}</span><span>Z3: ${Math.floor(h.z[2])}</span><span>Z4: ${Math.floor(h.z[3])}</span><span>Z5: ${Math.floor(h.z[4])}</span></div>
+                             </div>`;
+                });
+            }
+        });
+    }
+
+    saveData() { try { localStorage.setItem('pro_treadmill_v54', JSON.stringify({ activeP: AppState.state.activeP, profiles: AppState.state.profiles, hw: AppState.state.hw, fuelingPlans: AppState.state.fuelingPlans, lastFuelMemory: this.lastFuelMemory, schemaVersion: 1 })); } catch(e){} }
+    
+    persistRun() { 
+        if (AppState.state.accumMs > 0) {
+            sessionStorage.setItem('runState_v54', JSON.stringify({ runStatus: AppState.state.runStatus, lastTimestamp: Date.now(), activeP: AppState.state.activeP, accumMs: AppState.state.accumMs, matrix: AppState.state.matrix, snapshot: AppState.state.snapshot, acc: RunAcc, minimalVoice: AppState.state.minimalVoice, tempVoiceLang: AppState.state.tempVoiceLang, previousFabMode: AppState.state.previousFabMode, fuelLog: AppState.state.fuelLog })); 
+        } else { sessionStorage.removeItem('runState_v54'); }
+    }
+    /* ========================================= */
+
     endWorkout() {
+        
         VoiceApp.clear(); let ms = AppState.state.accumMs; let p = AppState.state.profiles[AppState.state.activeP]; let d = i18n[p.lang] || i18n['zh'];
         sessionStorage.removeItem('runState_v54'); this.updateStatsBlock('rAct', ms, true);
 
