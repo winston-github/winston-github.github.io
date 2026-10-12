@@ -1705,7 +1705,7 @@ const PROG_CATEGORIES = {
     'ULTRA': [21,22,23,24]
 };
 
-const const HARDCODED_PROGS = {
+const HARDCODED_PROGS = {
     11: [[3.3,4.0,1.5],[5.8,4.3,2.0],[8.3,4.5,2.5],[12.5,5.0,3.5],[16.7,5.2,4.0],[20.8,5.3,4.5],[25.0,5.1,5.0],[29.2,4.9,6.0],[33.3,5.0,6.5],[37.5,5.1,7.0],[41.7,4.9,7.5],[45.0,4.8,8.5],[49.2,4.7,9.0],[53.3,4.6,9.5],[57.5,4.5,10.5],[61.7,4.4,11.0],[66.7,4.3,12.0],[71.7,4.4,12.5],[76.7,4.2,11.5],[80.0,4.8,8.0],[83.3,5.1,6.0],[87.5,5.3,4.0],[91.7,5.5,3.0],[95.0,4.4,1.5],[97.5,4.1,1.0],[100.0,3.8,0.5]],
     12: [[3.3,4.2,1.0],[5.8,4.5,1.5],[8.3,4.7,2.0],[12.5,5.2,4.5],[16.7,5.4,5.5],[20.8,5.0,7.0],[25.0,4.8,8.5],[30.0,4.6,10.5],[35.0,4.5,11.5],[40.0,4.4,12.0],[45.0,5.0,5.0],[50.0,5.3,3.5],[55.0,5.5,2.5],[60.0,5.4,3.0],[64.2,5.0,6.0],[68.3,4.8,7.5],[72.5,4.7,8.5],[76.7,4.9,5.5],[80.8,5.1,4.0],[85.0,5.3,3.0],[89.2,5.4,2.0],[91.7,5.2,2.5],[94.2,4.5,1.0],[96.7,4.2,0.5],[100.0,3.8,0.0]],
     13: [[3.3,5.0,1.0],[5.8,5.3,1.0],[8.3,5.5,1.0],[13.3,6.0,1.5],[18.3,6.2,2.0],[25.0,6.4,2.0],[30.0,6.5,1.5],[35.0,6.7,1.5],[40.0,6.8,1.0],[45.0,6.6,1.0],[50.0,6.8,1.0],[55.0,6.9,1.0],[60.0,7.0,1.0],[65.0,7.1,1.0],[70.0,7.2,1.0],[75.0,7.3,1.0],[79.2,7.5,1.5],[83.3,7.7,1.5],[87.5,7.8,1.5],[91.7,7.6,1.0],[94.2,5.5,0.5],[96.7,4.8,0.0],[100.0,4.0,0.0]],
@@ -2441,7 +2441,7 @@ class InAppNumpad {
         });
     }
     open(inputEl, title, isDecimal) {
-        if(AppState.state.isDraggingFuel) return; // Mutex Lock
+        if(window.App && window.App.isDraggingFuel) return; // Mutex Lock
         if(document.activeElement) document.activeElement.blur();
         AudioApp.setMute(true); this.targetInput = inputEl; this.titleEl.textContent = title; this.isDecimal = isDecimal;
         this.valStr = inputEl.value; this.valEl.textContent = this.valStr || '0';
@@ -4070,6 +4070,7 @@ class AppController {
         document.getElementById('tabContent2').classList.add('dragging');
         
         this.dragItemData = AppState.state.fuelingPlans[min][fIdx];
+        this.dragOriginMin = min; // UX Fix: Record origin minute to prevent data loss
         AppState.state.fuelingPlans[min].splice(fIdx, 1); // remove from source temporarily
         if(AppState.state.fuelingPlans[min].length === 0) delete AppState.state.fuelingPlans[min];
         
@@ -4099,12 +4100,13 @@ class AppController {
         if(this.dragTargetMin !== -1 && this.dragItemData) {
             if(!AppState.state.fuelingPlans[this.dragTargetMin]) AppState.state.fuelingPlans[this.dragTargetMin] = [];
             AppState.state.fuelingPlans[this.dragTargetMin].push(this.dragItemData);
-        } else if(this.dragItemData) {
-            // Drop outside, recover to original (handled by cancel but need origin min)
-            // For safety, just force a re-render from state. If lost, it's lost, but we try to prevent.
+        } else if(this.dragItemData && this.dragOriginMin !== undefined) {
+            // Drop outside, recover to original minute safely
+            if(!AppState.state.fuelingPlans[this.dragOriginMin]) AppState.state.fuelingPlans[this.dragOriginMin] = [];
+            AppState.state.fuelingPlans[this.dragOriginMin].push(this.dragItemData);
         }
         
-        this.dragItemData = null; this.dragTargetMin = -1;
+        this.dragItemData = null; this.dragTargetMin = -1; this.dragOriginMin = undefined;
         this.saveData(); this.renderPreviewList();
     }
 
