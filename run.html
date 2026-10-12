@@ -3845,8 +3845,33 @@ class AppController {
         }
     }
     
-    _updateBatteryUI(){const f=document.getElementById('batFill'),w=document.getElementById('batWave'),t=document.getElementById('batText');if(!f||!w||!t)return;let a=Utils.clamp(RunAcc.currentGlycogen/Math.max(1,RunAcc.maxGlycogen)*100,0,100),b=Utils.clamp(RunAcc.undigestedCarbs/Math.max(1,RunAcc.maxGlycogen)*100,0,100),fh=32*a/100,wh=32*Math.min(100-a,b)/100;f.setAttribute('y',(33-fh).toFixed(2));f.setAttribute('height',fh.toFixed(2));w.setAttribute('y',(33-fh-wh).toFixed(2));w.setAttribute('height',wh.toFixed(2));f.style.fill=a>=33?'var(--neon-green)':a>=20?'var(--neon-yellow)':a>=5?'#FF9500':'var(--neon-red)';t.textContent=Math.round(a);t.classList.toggle('bat-blink',a<5);w.classList.toggle('purple-bloat',a+b>100)}
+    _updateBatteryUI() {
+        const f = document.getElementById('batFill'); const w = document.getElementById('batWave'); const t = document.getElementById('batText'); const icon = document.querySelector('.energy-bolt');
+        if(!f || !w || !t) return;
+        
+        let a = Utils.clamp(RunAcc.currentGlycogen / Math.max(1, RunAcc.maxGlycogen) * 100, 0, 100);
+        let b = Utils.clamp(RunAcc.undigestedCarbs / Math.max(1, RunAcc.maxGlycogen) * 100, 0, 100);
+        
+        // 映射到新的 viewBox 高度 (24px)
+        let fh = 24 * (a / 100); let wh = 24 * (Math.min(100 - a, b) / 100);
+        f.setAttribute('y', (24 - fh).toFixed(2)); f.setAttribute('height', fh.toFixed(2));
+        w.setAttribute('y', (24 - fh - wh).toFixed(2)); w.setAttribute('height', wh.toFixed(2));
+        
+        // 動態戰術色彩與光暈
+        let c = 'var(--neon-green)';
+        if(a < 5) c = 'var(--neon-red)'; else if(a < 20) c = '#FF9500'; else if(a < 33) c = 'var(--neon-yellow)';
+        
+        f.style.fill = c; 
+        t.textContent = Math.round(a) + '%'; 
+        t.style.color = c; 
+        if(icon) icon.style.filter = `drop-shadow(0 0 5px ${c})`;
+        
+        t.parentElement.classList.toggle('bat-blink', a < 5);
+        w.classList.toggle('purple-bloat', a + b > 100);
+    }
+
     computeRunStats(matrix, accumMs, isActual) {
+        
         let stats = { distKm: 0, elevM: 0, fCal: 0, cCal: 0, zs: [0,0,0,0,0], totalKcal: 0 };
         if (isActual) {
             stats.distKm = RunAcc.dKm; stats.elevM = RunAcc.dElev; stats.fCal = RunAcc.fCal; stats.cCal = RunAcc.cCal; stats.zs = [...RunAcc.zs]; stats.totalKcal = stats.fCal + stats.cCal;
