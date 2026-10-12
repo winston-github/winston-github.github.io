@@ -5,7 +5,7 @@
     <meta id="themeColorMeta" name="theme-color" content="#000000">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="format-detection" content="telephone=no">
-    <title>Pro Treadmill OS - Tactical Edition (v57.0 / run_v5)</title>
+    <title>Pro Treadmill OS - Tactical Edition (v58.0 / run_v6)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.85); 
@@ -359,7 +359,6 @@
         .fm-select-wrap select { width: 100%; background: transparent; border: none; color: #FFF; font-size: 1.1rem; font-weight: 700; outline: none; -webkit-appearance: none; appearance:none; z-index:2; position:relative;}
         .fm-select-wrap select { color-scheme: dark; }
         .fm-select-wrap select option, .fm-select-wrap select optgroup { background:#111; color:#FFF; }
-        .fm-select-wrap select option:checked { background:#3a3a3c; color:#FFF; }
         .fm-select-wrap::after { content: '▼'; position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: #666; font-size: 0.8rem; pointer-events: none; }
         
         .fm-live-panel { background: rgba(10, 132, 255, 0.1); border: 1px solid rgba(10, 132, 255, 0.3); border-radius: 8px; padding: 12px; display: flex; justify-content: space-between; align-items: center;}
@@ -433,12 +432,13 @@
         .sum-l-val { font-size: 1.1rem; font-weight: 900; color: #FFF; }
         .sum-l-val span { font-size: 0.8rem; color: var(--gray-light); font-weight: 600; margin-left: 4px; }
         
-        /* run_v5 fueling gesture: fast drag and concealed delete */
+        /* run_v6 fuel interaction */
         .fuel-item-row { position:relative; overflow:hidden; min-height:28px; touch-action:none; }
         .fuel-item-main { flex:1; min-width:0; transition:transform .22s ease; }
         .fuel-delete-btn { position:absolute; top:0; right:0; bottom:0; width:48px; border:0; background:var(--neon-red); color:#fff; font-size:1.2rem; font-weight:900; transform:translateX(100%); transition:transform .22s ease; cursor:pointer; }
         .fuel-item-row.delete-revealed .fuel-item-main { transform:translateX(-48px); }
         .fuel-item-row.delete-revealed .fuel-delete-btn { transform:translateX(0); }
+        .fuel-item-row.executed { opacity:.55; text-decoration:line-through; }
         /* Utility */
         .hidden { display: none !important; }
 
@@ -1066,7 +1066,7 @@
 </div>
 
 <script>
-/** PRO TREADMILL OS (TACTICAL EDITION v57.0 / run_v5) */
+/** PRO TREADMILL OS (TACTICAL EDITION v58.0 / run_v6) */
 
 const i18n = {
     zh: {
@@ -2576,6 +2576,7 @@ class AppController {
         
         this.fmState = { targetMin: 0, tab: 'gel', brand: '', product: null, vesselId: 'cup', mult: 1.0 };
         this.lastFuelMemory = null; // Memory for Quick Tap
+        this.pendingFuelPrompt = null; this.fuelPromptQueue = []; this.lastFuelPromptKey = '';
 
         const setVH = () => document.documentElement.style.setProperty('--vh', `${(window.visualViewport ? window.visualViewport.height : window.innerHeight) * 0.01}px`);
         if(window.visualViewport) window.visualViewport.addEventListener('resize', setVH); setVH();
@@ -3519,20 +3520,8 @@ class AppController {
             
             RunAcc.sec += dtS; RunAcc.sumSpd += currentS * dtS; RunAcc.sumInc += currentI * dtS; RunAcc.sumHr += (RunAcc.curHr || 100) * dtS; RunAcc.sumLac += (RunAcc.curLac || 2.0) * dtS;
             RunAcc.dKm += currentS * (dt / 3600000); RunAcc.dElev += (currentS / 3.6) * dtS * (currentI / 100);
-            
-            // TimeWarp Fuel Execution Queue
-            let startMin = Math.floor(AppState.state.accumMs / 60000);
-            let endMin = Math.floor((AppState.state.accumMs + dt) / 60000);
+            // Time-warp never consumes fuel automatically. Missed plans remain pending for manual confirmation.
             let warpFuelCount = 0;
-            for(let i = startMin + 1; i <= endMin; i++) {
-                if(AppState.state.fuelingPlans[i]) {
-                    AppState.state.fuelingPlans[i].forEach(f => {
-                        this._ingestFuel(f.type, f.brand, f.product, f.val1, f.val2);
-                        warpFuelCount++;
-                    });
-                }
-            }
-            
             let isMet = p.unit !== 'imperial';
             document.getElementById('massiveTime').textContent = Utils.fmtTime(AppState.state.accumMs + dt, false);
             AppState.state.accumMs += dt;
@@ -3551,11 +3540,7 @@ class AppController {
                 let totMs = p.tTime * 60000; let finalC = Math.floor(AppState.state.accumMs) % 60000;
                 if (finalC >= 45000 && finalC < 46500 && AppState.state.accumMs < totMs - 60000) AppState.state.activeTab = 'matrix';
 
-                if (warpFuelCount > 0) {
-                    NotificationManager.showTactical(`✅ 系統同步: 已執行 ${warpFuelCount} 項補給計畫`);
-                } else {
-                    VoiceApp.speakText(dStr.msg_jarvis, 3, p.lang==='zh'?'zh-TW':'en-US');
-                }
+                VoiceApp.speakText(dStr.msg_jarvis, 3, p.lang==='zh'?'zh-TW':'en-US');
             }, 800);
             return;
         }
@@ -3581,14 +3566,16 @@ class AppController {
 
         if (!RunAcc.transF[safeM]) RunAcc.transF[safeM] = { warned: false, autoPeekActive: false, peekCancelled: false };
 
-        let baseSpd = curM.rawSpd; let baseInc = curM.rawInc;
+        // Follow the recalculated snapshot itself. It already includes the user's global adjustment,
+        // while preserving the planned rises and drops between consecutive minutes.
+        let baseSpd = curM.spd; let baseInc = curM.inc;
         if (cS >= 45000 && safeM < m.length - 1) {
-            let elapsedInTransition = cS - 45000; let steps = Math.floor(elapsedInTransition / 882); let totalSteps = Math.floor(15000 / 882); let progress = steps / totalSteps;
-            baseSpd = curM.rawSpd + (nextM.rawSpd - curM.rawSpd) * progress; baseInc = curM.rawInc + (nextM.rawInc - curM.rawInc) * progress;
+            let progress = Utils.clamp((cS - 45000) / 15000, 0, 1);
+            baseSpd = curM.spd + (nextM.spd - curM.spd) * progress;
+            baseInc = curM.inc + (nextM.inc - curM.inc) * progress;
         }
-    
-        let targetSpd = Utils.clamp(baseSpd + p.spdOffset, AppState.state.hw.minSpd, AppState.state.hw.maxSpd);
-        let targetInc = Utils.roundInc(Utils.clamp(baseInc + p.incOffset, AppState.state.hw.minInc, AppState.state.hw.maxInc), p.incStep);
+        let targetSpd = Utils.clamp(baseSpd, AppState.state.hw.minSpd, AppState.state.hw.maxSpd);
+        let targetInc = Utils.roundInc(Utils.clamp(baseInc, AppState.state.hw.minInc, AppState.state.hw.maxInc), p.incStep);
         targetSpd = Utils.round(targetSpd);
 
         RunAcc.curSpd = targetSpd; RunAcc.curInc = targetInc;
@@ -3681,36 +3668,18 @@ class AppController {
             }
         }
 
-        // Cross Minute: Auto-Ingest
-        if (oldM !== cM) {
-            if (RunAcc.transF[oldM] && RunAcc.transF[oldM].autoPeekActive) {
-                RunAcc.transF[oldM].autoPeekActive = false; if (AppState.state.activeTab === 'matrix') AppState.state.activeTab = 'settings';
+        // Scheduled fuel is never auto-ingested. Prompt once at second 15 to avoid minute-change speech.
+        if (cS >= 15000 && cS < 17000) {
+            let key=`${safeM}:${Math.floor(ms/1000)}`;
+            if(this.lastFuelPromptKey.split(':')[0]!==String(safeM)) {
+                let due=(AppState.state.fuelingPlans[safeM]||[]).filter(f=>!f.executed);
+                if(due.length){this.lastFuelPromptKey=key;this.fuelPromptQueue=due.map(f=>Object.assign(f,{planMinute:safeM}));this._presentNextFuelPrompt();}
             }
-            
-            // Execute Fueling Plans
-            if(AppState.state.fuelingPlans[cM] && !AppState.state.isTimeWarping) {
-                let msgNames = [];
-                AppState.state.fuelingPlans[cM].forEach(f => {
-                    this._ingestFuel(f.type, f.brand, f.product, f.val1, f.val2);
-                    let displayStr = '';
-                    let productName = typeof f.product === 'string' ? f.product : (f.product && f.product.en ? f.product.en : '');
-                    if(f.type === 'GEL') { displayStr = productName.split(' ')[0]; }
-                    else if (f.type === 'BCAA') { displayStr = productName.split(' ')[0]; }
-                    else { displayStr = `${Math.round(f.val1)}ml ${p.lang==='zh'?'水':'Water'}`; }
-                    msgNames.push(displayStr);
-                });
-                if(msgNames.length > 0) {
-                    let combined = msgNames.join(' / ');
-                    let toastStr = dStr.tt_auto_ingest + combined;
-                    NotificationManager.showTactical(toastStr);
-                    // Mark visual execution on list
-                    this.renderPreviewList();
-                }
-            }
-
-            if (!AppState.state.isTimeWarping && !this.isDraggingFuel) this.scrollToRow();
         }
-
+        if (oldM !== cM) {
+            if (RunAcc.transF[oldM] && RunAcc.transF[oldM].autoPeekActive) {RunAcc.transF[oldM].autoPeekActive=false;if(AppState.state.activeTab==='matrix')AppState.state.activeTab='settings';}
+            if(!AppState.state.isTimeWarping&&!this.isDraggingFuel)this.scrollToRow();
+        }
         if(Math.floor(ms/30000) !== Math.floor((ms-dt)/30000) && !AppState.state.isTimeWarping) { 
             VoiceApp.evaluateAndSpeak({ hr: RunAcc.curHr, lac: RunAcc.curLac, spd: targetSpd, inc: targetInc, phase: curM.phase }, pClean.age, pClean.pMaxLac); 
         }
@@ -3842,8 +3811,20 @@ class AppController {
         document.getElementById('fmMultiplier').addEventListener('input', e => { this.fmState.mult = parseFloat(e.target.value); this._updateFuelingLivePanel(); });
     }
 
-    openFuelingModal(targetMin) {
-        this.fmState.targetMin = targetMin; 
+    openFuelingModal(targetMin, scheduledItem = null) {
+        if (targetMin === -1 && AppState.state.runStatus !== 'STOPPED') {
+            targetMin = Math.min(Math.floor(AppState.state.accumMs / 60000), Math.max(0, AppState.state.snapshot.length - 1));
+            this.fmState.executeNow = true;
+        } else this.fmState.executeNow = false;
+        this.fmState.targetMin = targetMin;
+        this.pendingFuelPrompt = scheduledItem;
+        if (scheduledItem) {
+            this.fmState.tab = scheduledItem.type.toLowerCase();
+            this.fmState.brand = scheduledItem.brand || '';
+            this.fmState.product = scheduledItem.product;
+            this.fmState.vesselId = scheduledItem.vesselId || 'cup';
+            this.fmState.mult = scheduledItem.mult ?? 1;
+        }   
         document.getElementById('fmQuickWrap').classList.toggle('hidden', !this.lastFuelMemory);
         if(this.lastFuelMemory) {
             let p = AppState.state.profiles[AppState.state.activeP]; let isZh = p.lang === 'zh';
@@ -3852,7 +3833,15 @@ class AppController {
             let vStr = VESSEL_DB.find(x=>x.id===mem.vesselId)?.[isZh?'zh':'en'].split(' ')[0] || '';
             document.getElementById('fmQuickText').textContent = `${dStr} + ${mem.mult} ${vStr}`;
         }
-        this._renderFuelingStep2(); this.openModal('fuelingModal');
+        this._renderFuelingStep2();
+        if (scheduledItem) {
+            const tabEl=document.querySelector(`.fm-tab[data-tab="${this.fmState.tab}"]`); if(tabEl){document.querySelectorAll('.fm-tab').forEach(x=>x.classList.remove('active'));tabEl.classList.add('active');}
+            const b=document.getElementById('fmBrandSel'); if(b && this.fmState.brand){b.value=this.fmState.brand;this._renderFuelingStep3();}
+            const prod=(scheduledItem.product&&typeof scheduledItem.product==='object')?scheduledItem.product.en:String(scheduledItem.product||'');
+            const ps=document.getElementById('fmProductSel'); if(ps&&prod){ps.value=prod;this.fmState.product=this._getProductData(this.fmState.tab,this.fmState.brand,prod)||scheduledItem.product;}
+            document.getElementById('fmVesselSel').value=this.fmState.vesselId; document.getElementById('fmMultiplier').value=this.fmState.mult; this._updateFuelingLivePanel();
+        }
+        this.openModal('fuelingModal');
     }
 
     _renderFuelingStep2() {
@@ -3929,43 +3918,50 @@ class AppController {
     }
 
     _commitFuelingPlan() {
-        let plan = { ...this.fmState };
-        let p = AppState.state.profiles[AppState.state.activeP]; let isZh = p.lang === 'zh';
-        
-        let vData = VESSEL_DB.find(x => x.id === plan.vesselId);
-        let wVol = Math.round((vData ? vData.vol : 150) * plan.mult);
-
-        let finalType = plan.tab.toUpperCase();
-        let finalBrand = plan.brand;
-        let finalProd = plan.product ? plan.product.en : '';
-        let finalVal1 = 0; // carbs or bcaa
-        if (plan.tab === 'gel') finalVal1 = plan.product.carbs;
-        if (plan.tab === 'bcaa') finalVal1 = plan.product.bcaa;
-
-        // Save memory
-        this.lastFuelMemory = { ...this.fmState };
-        this.saveData();
-
-        if (plan.targetMin === -1) {
-            // Immediate
-            this._ingestFuel(finalType, finalBrand, finalProd, finalVal1, wVol);
-            this._updateBatteryUI();
-            
-            let dStr = isZh ? (finalType==='WATER'?'純水':plan.product.zh.split(' ')[0]) : (finalType==='WATER'?'Water':plan.product.en.split(' ')[0]);
-            NotificationManager.showTactical(`✅ ${isZh?'立即補給執行':'Fuel Logged'}: ${dStr}`);
-        } else {
-            // Pre-plan
-            if(!AppState.state.fuelingPlans[plan.targetMin]) AppState.state.fuelingPlans[plan.targetMin] = [];
-            AppState.state.fuelingPlans[plan.targetMin].push({
-                type: finalType, brand: finalBrand, product: plan.product, val1: finalVal1, val2: wVol, vesselId: plan.vesselId, mult: plan.mult
-            });
-            this.saveData();
-            this.renderPreviewList();
+        let plan={...this.fmState}, p=AppState.state.profiles[AppState.state.activeP], isZh=p.lang==='zh';
+        let scheduled=this.pendingFuelPrompt;
+        let vData=VESSEL_DB.find(x=>x.id===plan.vesselId), wVol=Math.round((vData?vData.vol:150)*plan.mult);
+        let finalType=plan.tab.toUpperCase(), finalBrand=plan.brand;
+        let productObj=scheduled?.product || plan.product || {en:'',zh:''};
+        let finalProd=typeof productObj==='object' ? productObj.en : String(productObj||'');
+        let finalVal1=scheduled?.val1 ?? (plan.tab==='gel' ? plan.product.carbs : (plan.tab==='bcaa' ? plan.product.bcaa : 0));
+        if(scheduled) { wVol=scheduled.val2; finalType=scheduled.type; finalBrand=scheduled.brand; plan.vesselId=scheduled.vesselId; plan.mult=scheduled.mult; }
+        this.lastFuelMemory={...this.fmState};
+        const nowRunning=AppState.state.runStatus!=='STOPPED';
+        if(scheduled || plan.executeNow) {
+            let targetMin=plan.targetMin;
+            let item=scheduled;
+            if(!item) {
+                item={type:finalType,brand:finalBrand,product:productObj,val1:finalVal1,val2:wVol,vesselId:plan.vesselId,mult:plan.mult,executed:false};
+                if(!AppState.state.fuelingPlans[targetMin]) AppState.state.fuelingPlans[targetMin]=[];
+                AppState.state.fuelingPlans[targetMin].push(item);
+            }
+            item.executed=true; item.executedAt=Date.now();
+            this._ingestFuel(finalType,finalBrand,finalProd,finalVal1,wVol); this._updateBatteryUI();
+            let fullName=typeof productObj==='object' ? productObj[isZh?'zh':'en'] : finalProd;
+            if(finalType==='WATER') fullName=isZh?'純水':'water';
+            let done=isZh?`已完成補給：${fullName}，搭配 ${wVol} 毫升水。`:`Fuel completed: ${fullName}, with ${wVol} milliliters of water.`;
+            NotificationManager.showTactical(done);
+            this.pendingFuelPrompt=null; this.saveData(); this.renderPreviewList(); this.closeModal('fuelingModal');
+            if(this.fuelPromptQueue.length) setTimeout(()=>this._presentNextFuelPrompt(),400); return;
         }
-
-        this.closeModal('fuelingModal');
+        if(!AppState.state.fuelingPlans[plan.targetMin]) AppState.state.fuelingPlans[plan.targetMin]=[];
+        AppState.state.fuelingPlans[plan.targetMin].push({type:finalType,brand:finalBrand,product:productObj,val1:finalVal1,val2:wVol,vesselId:plan.vesselId,mult:plan.mult,executed:false});
+        this.saveData(); this.renderPreviewList(); this.closeModal('fuelingModal');
     }
-
+    _fuelSpeech(item, lang) {
+        let isZh=lang==='zh', product=typeof item.product==='object'?item.product[isZh?'zh':'en']:String(item.product||'');
+        if(item.type==='WATER') product=isZh?'純水':'water';
+        if(isZh) return `請您現在補給${product}，並搭配${Math.round(item.val2)}毫升的水。準備好後，請在畫面上確認補給。`;
+        return `Please take ${product} now, together with ${Math.round(item.val2)} milliliters of water. When ready, please confirm the fuel on screen.`;
+    }
+    _presentNextFuelPrompt() {
+        if(this.pendingFuelPrompt || this.modalStack.includes('fuelingModal')) return;
+        let item=this.fuelPromptQueue.shift(); if(!item) return;
+        this.pendingFuelPrompt=item; let p=AppState.state.profiles[AppState.state.activeP], lang=p.lang||'zh';
+        VoiceApp.speakText(this._fuelSpeech(item,lang),2,lang==='zh'?'zh-TW':'en-US');
+        this.openFuelingModal(item.planMinute,item);
+    }
     renderPreviewList() {
         let ul = document.getElementById('previewList'); if (!ul) return;
         let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial'; let d = i18n[p.lang] || i18n['zh']; let isZh = p.lang === 'zh';
@@ -4015,7 +4011,8 @@ class AppController {
                     if (f.type === 'WATER') nStr = `💧 ${f.val2}ml`; else nStr = `<svg><use href="${iconHref}"></use></svg> ${nStr} ${wStr}`;
                     
                     let doneClass = (i < cM && AppState.state.runStatus !== 'STOPPED') ? 'done' : '';
-                    html += `<div class="fuel-item-row ${doneClass}" data-fidx="${fIdx}" data-min="${i}">
+                    let executedClass=f.executed?' executed':'';
+                    html += `<div class="fuel-item-row ${doneClass}${executedClass}" data-fidx="${fIdx}" data-min="${i}">
                         <div class="fuel-item-main">${nStr}</div>
                         <button type="button" class="fuel-delete-btn" data-fuel-delete="1" aria-label="Delete">&times;</button>
                     </div>`;
@@ -4030,43 +4027,22 @@ class AppController {
     }
 
     _bindDragEvents() {
-        const ul=document.getElementById('previewList'); if(!ul) return;
-        let press=null;
-        const clear=()=>{ if(!press)return; clearTimeout(press.dragT); clearTimeout(press.delT); press=null; };
-        const closeDeletes=except=>ul.querySelectorAll('.fuel-item-row.delete-revealed').forEach(x=>{if(x!==except)x.classList.remove('delete-revealed');});
+        const ul=document.getElementById('previewList'); if(!ul)return; let press=null;
+        const clear=()=>{if(!press)return;clearTimeout(press.dragT);clearTimeout(press.delT);press=null;};
+        const close=except=>ul.querySelectorAll('.fuel-item-row.delete-revealed').forEach(x=>{if(x!==except)x.classList.remove('delete-revealed');});
         ul.onpointerdown=e=>{
-            if(this.isDraggingFuel || AppState.state.runStatus!=='STOPPED') return;
-            if(e.target.closest('[data-fuel-delete]')) { e.stopPropagation(); return; }
-            const li=e.target.closest('li[data-min]'); if(!li)return;
-            const item=e.target.closest('.fuel-item-row'), min=parseInt(li.dataset.min); closeDeletes(item);
-            if(!item){ const x=e.clientX,y=e.clientY; press={kind:'add',x,y,dragT:setTimeout(()=>{if(press?.kind==='add')this.openFuelingModal(min);clear();},500)}; return; }
-            if(item.classList.contains('delete-revealed'))return;
-            e.preventDefault(); item.setPointerCapture?.(e.pointerId);
-            press={kind:'fuel',item,min,idx:parseInt(item.dataset.fidx),x:e.clientX,y:e.clientY,armed:false,moved:false};
+            if(this.isDraggingFuel)return; if(e.target.closest('[data-fuel-delete]'))return;
+            const li=e.target.closest('li[data-min]');if(!li)return;const min=parseInt(li.dataset.min),item=e.target.closest('.fuel-item-row');close(item);
+            if(!item){let x=e.clientX,y=e.clientY;press={kind:'add',x,y,dragT:setTimeout(()=>{if(press?.kind==='add')this.openFuelingModal(min);clear();},500)};return;}
+            if(AppState.state.runStatus!=='STOPPED'||item.classList.contains('delete-revealed')||item.classList.contains('executed'))return;
+            e.preventDefault();item.setPointerCapture?.(e.pointerId);press={kind:'fuel',item,min,idx:parseInt(item.dataset.fidx),x:e.clientX,y:e.clientY,armed:false,moved:false};
             press.dragT=setTimeout(()=>{if(press?.item===item)press.armed=true;},100);
-            press.delT=setTimeout(()=>{if(press?.item===item&&!press.moved&&!this.isDraggingFuel){item.classList.add('delete-revealed');if(navigator.vibrate)navigator.vibrate(25);press=null;}},1000);
+            press.delT=setTimeout(()=>{if(press?.item===item&&!press.moved){item.classList.add('delete-revealed');press=null;}},1000);
         };
-        ul.onpointermove=e=>{
-            if(!press)return; const dx=e.clientX-press.x,dy=e.clientY-press.y,dist=Math.hypot(dx,dy);
-            if(press.kind==='add'){if(dist>10)clear();return;}
-            if(dist>7)press.moved=true;
-            if(press.armed&&Math.abs(dy)>5&&!this.isDraggingFuel){clearTimeout(press.delT);const {item,min,idx}=press;this._startFuelDrag(item,min,idx,e);press=null;}
-            else if(!press.armed&&dist>14)clear();
-        };
-        ul.onpointerup=()=>clear(); ul.onpointercancel=()=>clear();
-        ul.onclick=e=>{
-            const btn=e.target.closest('[data-fuel-delete]');
-            if(!btn){if(!e.target.closest('.delete-revealed'))closeDeletes(null);return;}
-            e.preventDefault();e.stopPropagation();const item=btn.closest('.fuel-item-row'),min=parseInt(item.dataset.min),idx=parseInt(item.dataset.fidx);
-            if(AppState.state.fuelingPlans[min]){AppState.state.fuelingPlans[min].splice(idx,1);if(!AppState.state.fuelingPlans[min].length)delete AppState.state.fuelingPlans[min];this.saveData();this.renderPreviewList();}
-        };
-        window.onpointermove=e=>{
-            if(!this.isDraggingFuel)return;if(this.dragEl)this.dragEl.style.transform=`translateY(${e.clientY-this.dragOffsetY}px)`;
-            const shield=document.getElementById('dragOmniShield');if(shield)shield.style.pointerEvents='none';const el=document.elementFromPoint(e.clientX,e.clientY);if(shield)shield.style.pointerEvents='';
-            const target=el?.closest('li[data-min]');document.querySelectorAll('.preview-list li').forEach(x=>x.classList.remove('drop-target','drop-target-invalid'));
-            if(target){target.classList.add('drop-target');this.dragTargetMin=parseInt(target.dataset.min);}else this.dragTargetMin=-1;
-            const tc=document.getElementById('tabContent2'),r=tc.getBoundingClientRect();clearInterval(this.edgeScrollInterval);let v=e.clientY<r.top+60?-15:e.clientY>r.bottom-60?15:0;if(v)this.edgeScrollInterval=setInterval(()=>tc.scrollTop+=v,20);
-        };
+        ul.onpointermove=e=>{if(!press)return;let dx=e.clientX-press.x,dy=e.clientY-press.y,d=Math.hypot(dx,dy);if(press.kind==='add'){if(d>10)clear();return;}if(d>7)press.moved=true;if(press.armed&&Math.abs(dy)>5){clearTimeout(press.delT);let {item,min,idx}=press;this._startFuelDrag(item,min,idx,e);press=null;}else if(!press.armed&&d>14)clear();};
+        ul.onpointerup=()=>clear();ul.onpointercancel=()=>clear();
+        ul.onclick=e=>{let btn=e.target.closest('[data-fuel-delete]');if(!btn){if(!e.target.closest('.delete-revealed'))close(null);return;}e.preventDefault();e.stopPropagation();let item=btn.closest('.fuel-item-row'),min=parseInt(item.dataset.min),idx=parseInt(item.dataset.fidx);if(AppState.state.fuelingPlans[min]){AppState.state.fuelingPlans[min].splice(idx,1);if(!AppState.state.fuelingPlans[min].length)delete AppState.state.fuelingPlans[min];this.saveData();this.renderPreviewList();}};
+        window.onpointermove=e=>{if(!this.isDraggingFuel)return;if(this.dragEl)this.dragEl.style.transform=`translate3d(0,${e.clientY-this.dragOffsetY}px,0)`;let shield=document.getElementById('dragOmniShield');if(shield)shield.style.pointerEvents='none';let el=document.elementFromPoint(e.clientX,e.clientY);if(shield)shield.style.pointerEvents='';let target=el?.closest('li[data-min]');document.querySelectorAll('.preview-list li').forEach(x=>x.classList.remove('drop-target'));if(target){target.classList.add('drop-target');this.dragTargetMin=parseInt(target.dataset.min);}else this.dragTargetMin=-1;let tc=document.getElementById('tabContent2'),r=tc.getBoundingClientRect();clearInterval(this.edgeScrollInterval);let v=e.clientY<r.top+60?-15:e.clientY>r.bottom-60?15:0;if(v)this.edgeScrollInterval=setInterval(()=>tc.scrollTop+=v,20);};
         window.onpointerup=()=>{if(this.isDraggingFuel)this._cancelFuelDrag();};window.onpointercancel=window.onpointerup;
     }
     _startFuelDrag(fItem, min, fIdx, e) {
@@ -4082,11 +4058,15 @@ class AppController {
         // Create phantom drag element
         this.dragEl = fItem.cloneNode(true);
         this.dragEl.classList.add('drag-mode', 'editing');
+        const originRect = fItem.getBoundingClientRect();
         this.dragEl.style.position = 'fixed';
-        this.dragEl.style.width = `${fItem.offsetWidth}px`;
-        this.dragEl.style.left = `${fItem.getBoundingClientRect().left}px`;
+        this.dragEl.style.width = `${originRect.width}px`;
+        this.dragEl.style.height = `${originRect.height}px`;
+        this.dragEl.style.left = `${originRect.left}px`;
+        this.dragEl.style.top = `${originRect.top}px`;
+        this.dragEl.style.margin = '0';
         this.dragOffsetY = e.clientY;
-        this.dragEl.style.transform = `translateY(0px)`;
+        this.dragEl.style.transform = `translate3d(0,0,0)`;
         this.dragEl.style.zIndex = 100000;
         document.body.appendChild(this.dragEl);
         
@@ -4121,7 +4101,7 @@ class AppController {
 
     persistRun() { 
         if (AppState.state.accumMs > 0) {
-            sessionStorage.setItem('runState_v54', JSON.stringify({ runStatus: AppState.state.runStatus, lastTimestamp: Date.now(), activeP: AppState.state.activeP, accumMs: AppState.state.accumMs, matrix: AppState.state.matrix, snapshot: AppState.state.snapshot, acc: RunAcc, minimalVoice: AppState.state.minimalVoice, tempVoiceLang: AppState.state.tempVoiceLang, previousFabMode: AppState.state.previousFabMode })); 
+            sessionStorage.setItem('runState_v54', JSON.stringify({ runStatus: AppState.state.runStatus, lastTimestamp: Date.now(), activeP: AppState.state.activeP, accumMs: AppState.state.accumMs, matrix: AppState.state.matrix, snapshot: AppState.state.snapshot, acc: RunAcc, minimalVoice: AppState.state.minimalVoice, tempVoiceLang: AppState.state.tempVoiceLang, previousFabMode: AppState.state.previousFabMode, fuelLog: AppState.state.fuelLog })); 
         } else { sessionStorage.removeItem('runState_v54'); }
     }
 
