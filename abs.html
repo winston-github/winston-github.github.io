@@ -1,686 +1,774 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-TW" translate="no">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>冬山河 50 英里 - 核心備賽計畫</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#000000">
+    <meta name="color-scheme" content="dark">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>冬山河 50 英里 - 核心備賽</title>
     <style>
         :root {
-            --bg-color: #0d0d0d;
-            --text-main: #ffffff;
+            --bg: #000000;
+            --text-main: #FFFFFF;
             --text-muted: #888888;
-            --work-color: #00e5ff; /* Cyan for Work */
-            --rest-color: #ffea00; /* Yellow for Rest */
-            --btn-day1: linear-gradient(135deg, #ff416c, #ff4b2b);
-            --btn-day2: linear-gradient(135deg, #00b0ff, #005cff);
-            --btn-day3: linear-gradient(135deg, #ff9800, #ff5722);
-            --btn-control: #333333;
+            --color-work: #00E5FF; /* Cyan */
+            --color-rest: #FFB300; /* Amber */
+            --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            
+            /* Safe Areas for Notch/Dynamic Island */
+            --sa-top: env(safe-area-inset-top, 20px);
+            --sa-bottom: env(safe-area-inset-bottom, 20px);
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
-        
+        * {
+            box-sizing: border-box;
+            margin: 0; padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
         body {
-            background-color: var(--bg-color);
+            background-color: var(--bg);
             color: var(--text-main);
-            font-family: 'Helvetica Neue', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            overflow: hidden; /* Prevent pull-to-refresh on mobile */
-            touch-action: none;
-            display: flex;
-            flex-direction: column;
-            width: 100vw;
-            height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            touch-action: none; /* Disable all browser gestures (pull to refresh, swipe back) */
+            overscroll-behavior: none;
+            width: 100vw; height: 100dvh;
+            display: flex; flex-direction: column;
         }
 
-        /* Screen Management */
+        /* SVG Icons */
+        .icon { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        
+        /* Screens */
         .screen {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            transition: opacity 0.4s ease, transform 0.4s ease;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column;
+            transition: opacity 0.3s ease;
             z-index: 10;
         }
-        .hidden {
-            opacity: 0;
-            pointer-events: none;
-            transform: scale(0.95);
-        }
+        .hidden { opacity: 0; pointer-events: none; }
 
-        /* HOME SCREEN */
-        #home-screen { z-index: 30; background-color: var(--bg-color); padding: 20px; }
-        h1.main-title { font-size: 2rem; text-align: center; margin-bottom: 5px; font-weight: 800; letter-spacing: 1px;}
-        p.subtitle { color: var(--text-muted); margin-bottom: 40px; text-align: center; }
+        /* --- HOME SCREEN --- */
+        #home-screen { padding: calc(var(--sa-top) + 20px) 20px var(--sa-bottom); align-items: center; justify-content: center; }
+        .hero-title { font-size: 1.8rem; font-weight: 800; letter-spacing: 2px; margin-bottom: 8px; text-align: center; text-transform: uppercase;}
+        .hero-sub { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 40px; letter-spacing: 1px;}
         
+        .menu-list { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 15px; }
         .menu-btn {
-            width: 100%;
-            max-width: 350px;
-            padding: 25px 20px;
-            margin-bottom: 20px;
-            border-radius: 20px;
-            border: none;
-            color: white;
-            font-size: 1.4rem;
-            font-weight: 700;
+            background: #111; border: 1px solid #333; border-radius: 12px;
+            padding: 20px; color: var(--text-main); text-align: left;
+            display: flex; justify-content: space-between; align-items: center;
             cursor: pointer;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.5);
-            transition: transform 0.1s;
         }
-        .menu-btn:active { transform: scale(0.96); }
-        #btn-d1 { background: var(--btn-day1); }
-        #btn-d2 { background: var(--btn-day2); }
-        #btn-d3 { background: var(--btn-day3); }
+        .menu-btn:active { background: #222; }
+        .menu-day { font-size: 1.2rem; font-weight: 700; }
+        .menu-desc { font-size: 0.85rem; color: var(--text-muted); margin-top: 5px; }
 
-        /* WORKOUT SCREEN */
-        #workout-screen { z-index: 20; background: transparent; justify-content: flex-start; padding-top: 8vh; pointer-events: none; }
-        canvas {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 1; /* Behind UI */
+        /* --- MODAL (Workout Preview) --- */
+        #modal-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);
+            z-index: 50; display: flex; flex-direction: column; justify-content: flex-end;
         }
-        
-        .ui-header {
-            text-align: center;
-            z-index: 25;
-            width: 100%;
-            padding: 0 20px;
-            pointer-events: auto;
+        .modal-content {
+            background: #151515; border-top-left-radius: 20px; border-top-right-radius: 20px;
+            padding: 30px 20px calc(var(--sa-bottom) + 20px);
+            transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
         }
-        .status-badge {
-            display: inline-block;
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-weight: bold;
-            font-size: 1rem;
-            margin-bottom: 10px;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            background: rgba(255,255,255,0.1);
-        }
-        .workout-info { font-size: 1.2rem; color: var(--text-muted); margin-bottom: 5px; }
-        .exercise-title { font-size: 2.8rem; font-weight: 900; text-shadow: 0 2px 10px rgba(0,0,0,0.8); line-height: 1.2; min-height: 3.5rem; }
-        .next-exercise { font-size: 1.2rem; color: var(--text-muted); margin-top: 5px; height: 1.5rem;}
-        
-        .timer-display {
-            font-size: 6.5rem;
-            font-weight: 900;
-            font-variant-numeric: tabular-nums;
-            margin-top: 10px;
-            text-shadow: 0 4px 15px rgba(0,0,0,0.8);
-            line-height: 1;
+        #modal-overlay.active .modal-content { transform: translateY(0); }
+        .modal-header { font-size: 1.5rem; font-weight: bold; margin-bottom: 20px; color: var(--color-work); }
+        .ex-list { list-style: none; margin-bottom: 30px; max-height: 40vh; overflow-y: auto; }
+        .ex-item { padding: 12px 0; border-bottom: 1px solid #222; }
+        .ex-name { font-weight: 600; font-size: 1.1rem; }
+        .ex-context { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; line-height: 1.4; }
+        .btn-start {
+            width: 100%; background: var(--text-main); color: var(--bg); border: none;
+            padding: 18px; border-radius: 12px; font-size: 1.2rem; font-weight: bold;
         }
 
-        .controls {
-            position: absolute;
-            bottom: 40px;
-            display: flex;
-            gap: 20px;
-            z-index: 25;
-            pointer-events: auto;
+        /* --- WORKOUT SCREEN --- */
+        #workout-screen { background: var(--bg); justify-content: space-between; padding-top: var(--sa-top); padding-bottom: var(--sa-bottom); }
+        
+        /* Progress Bar */
+        .progress-container { width: 100%; height: 4px; background: #222; position: absolute; top: 0; left: 0; z-index: 30;}
+        #global-progress { height: 100%; background: var(--color-work); width: 0%; transition: width 1s linear; }
+
+        /* Top HUD */
+        .hud-top { padding: 20px; display: flex; justify-content: space-between; align-items: center; z-index: 20; }
+        .status-text { font-size: 0.9rem; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; }
+        .round-text { font-size: 0.9rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+        
+        /* Long-press Close Button */
+        .close-btn-wrapper { position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;}
+        .close-ring { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: rotate(-90deg); pointer-events: none;}
+        .close-ring circle { fill: none; stroke: var(--text-muted); stroke-width: 2; stroke-dasharray: 113; stroke-dashoffset: 113; transition: stroke-dashoffset 0.1s; }
+
+        /* Main Display */
+        .main-display { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }
+        #timer { 
+            font-family: var(--font-mono); font-size: 7.5rem; font-weight: 800; line-height: 1;
+            font-variant-numeric: tabular-nums; letter-spacing: -2px; z-index: 20;
         }
-        .ctrl-btn {
-            background: rgba(255,255,255,0.15);
-            backdrop-filter: blur(5px);
-            border: 2px solid rgba(255,255,255,0.1);
-            color: white;
-            width: 70px; height: 70px;
-            border-radius: 35px;
-            font-size: 1rem;
-            font-weight: bold;
-            display: flex; justify-content: center; align-items: center;
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; opacity: 0.6; }
+
+        /* Bottom Info */
+        .hud-bottom { padding: 20px 20px 40px; text-align: center; z-index: 20; }
+        #ex-title { font-size: 2.2rem; font-weight: 800; margin-bottom: 8px; line-height: 1.2; }
+        #ex-cue { font-size: 1rem; color: var(--text-muted); margin-bottom: 20px; font-weight: 500;}
+        #ex-next { font-size: 0.9rem; color: #555; }
+
+        /* Gesture Overlay & Pause State */
+        #gesture-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 40; }
+        #pause-indicator {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8); padding: 20px 40px; border-radius: 12px;
+            font-size: 1.5rem; font-weight: bold; letter-spacing: 2px;
+            border: 1px solid #333; backdrop-filter: blur(5px); z-index: 45;
         }
-        .ctrl-btn:active { background: rgba(255,255,255,0.3); }
 
         /* Color States */
-        .color-work { color: var(--work-color); }
-        .color-rest { color: var(--rest-color); }
+        .theme-work { color: var(--color-work); }
+        .theme-rest { color: var(--color-rest); }
+        .theme-prep { color: var(--text-main); }
 
-        /* DONE SCREEN */
-        #done-screen { z-index: 40; background-color: var(--bg-color); }
-        .trophy { font-size: 5rem; margin-bottom: 20px; }
-        #done-msg { font-size: 1.5rem; color: var(--text-muted); margin: 20px 0 40px 0; text-align: center; padding: 0 20px;}
+        /* --- DONE SCREEN --- */
+        #done-screen { align-items: center; justify-content: center; padding: 20px; text-align: center;}
+        .done-icon { width: 80px; height: 80px; stroke: var(--color-work); margin-bottom: 20px; }
+        .stat-box { background: #111; border-radius: 12px; padding: 20px; width: 100%; max-width: 300px; margin: 30px 0; border: 1px solid #222;}
+        .stat-item { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 1.1rem;}
+        .stat-item:last-child { margin-bottom: 0; }
+        .stat-val { font-family: var(--font-mono); font-weight: bold; }
 
     </style>
 </head>
 <body>
-    
-    <!-- UI: Home Screen -->
+
+    <!-- HOME SCREEN -->
     <div id="home-screen" class="screen">
-        <h1 class="main-title">冬山河 50 英里</h1>
-        <p class="subtitle">核心肌肥大與穩定度備賽計畫</p>
-        
-        <button class="menu-btn" id="btn-d1" onclick="startProgram(1)">DAY 1: 腹直肌增厚</button>
-        <button class="menu-btn" id="btn-d2" onclick="startProgram(2)">DAY 2: 側腹與抗旋轉</button>
-        <button class="menu-btn" id="btn-d3" onclick="startProgram(3)">DAY 3: 動態與高消耗</button>
-        
-        <p style="margin-top: 20px; font-size: 0.8rem; color: #555;">(請確保手機未靜音，並開啟媒體音量)</p>
+        <div class="hero-title">冬山河 50 英里</div>
+        <div class="hero-sub">核心基石訓練系統</div>
+        <div class="menu-list">
+            <button class="menu-btn" onclick="openModal(1)">
+                <div><div class="menu-day">DAY 1</div><div class="menu-desc">腹直肌增厚 / 抗震盪</div></div>
+                <svg class="icon"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+            <button class="menu-btn" onclick="openModal(2)">
+                <div><div class="menu-day">DAY 2</div><div class="menu-desc">側腹抗旋轉 / 穩定度</div></div>
+                <svg class="icon"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+            <button class="menu-btn" onclick="openModal(3)">
+                <div><div class="menu-day">DAY 3</div><div class="menu-desc">動態心率 / 賽道模擬</div></div>
+                <svg class="icon"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+        </div>
     </div>
 
-    <!-- UI: Workout Screen -->
-    <canvas id="animCanvas"></canvas>
-    
+    <!-- MODAL -->
+    <div id="modal-overlay" class="hidden">
+        <div class="modal-content">
+            <div id="modal-title" class="modal-header">DAY X</div>
+            <ul id="modal-list" class="ex-list"></ul>
+            <button class="btn-start" onclick="initWorkout()">開始訓練</button>
+        </div>
+    </div>
+
+    <!-- WORKOUT SCREEN -->
     <div id="workout-screen" class="screen hidden">
-        <div class="ui-header">
-            <div id="status-badge" class="status-badge">準備</div>
-            <div id="workout-info" class="workout-info">Round 1 / 4 | Exercise 1 / 5</div>
-            <div id="exercise-title" class="exercise-title color-work">--</div>
-            <div id="next-exercise" class="next-exercise"></div>
-            <div id="timer-display" class="timer-display color-work">00</div>
-        </div>
+        <div class="progress-container"><div id="global-progress"></div></div>
         
-        <div class="controls">
-            <button class="ctrl-btn" onclick="togglePause()" id="btn-pause">暫停</button>
-            <button class="ctrl-btn" onclick="quitWorkout()">結束</button>
+        <div class="hud-top">
+            <div>
+                <div id="ui-status" class="status-text theme-prep">PREPARE</div>
+                <div id="ui-round" class="round-text">ROUND 1 / 4</div>
+            </div>
+            <!-- Long press to exit -->
+            <div class="close-btn-wrapper" id="btn-close">
+                <svg class="close-ring"><circle cx="20" cy="20" r="18"></circle></svg>
+                <svg class="icon" style="width:18px;height:18px;stroke:var(--text-muted);"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </div>
         </div>
+
+        <div class="main-display">
+            <canvas id="anim-canvas"></canvas>
+            <div id="timer">00</div>
+        </div>
+
+        <div class="hud-bottom">
+            <div id="ex-title">--</div>
+            <div id="ex-cue">--</div>
+            <div id="ex-next">--</div>
+        </div>
+
+        <!-- Invisible Gesture Overlay -->
+        <div id="gesture-overlay"></div>
+        <div id="pause-indicator" class="hidden">PAUSED</div>
     </div>
 
-    <!-- UI: Done Screen -->
+    <!-- DONE SCREEN -->
     <div id="done-screen" class="screen hidden">
-        <div class="trophy">🏆</div>
-        <h1 class="main-title">訓練完成！</h1>
-        <p id="done-msg">強悍的核心是超馬的基石。<br>請好好休息，準備迎接下一次挑戰。</p>
-        <button class="menu-btn" style="background: var(--btn-control);" onclick="showHome()">回首頁</button>
+        <svg class="icon done-icon"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        <div class="hero-title">訓練完成</div>
+        <div class="hero-sub" style="margin-bottom:0">強悍的軀幹是 50 英里的基石。</div>
+        
+        <div class="stat-box">
+            <div class="stat-item"><span>總耗時</span><span id="stat-time" class="stat-val">00:00</span></div>
+            <div class="stat-item"><span>完成回合</span><span id="stat-round" class="stat-val">4 / 4</span></div>
+        </div>
+        
+        <button class="menu-btn" style="justify-content:center; padding: 15px 40px;" onclick="goHome()">
+            <span class="menu-day">返回主畫面</span>
+        </button>
     </div>
 
     <script>
+        /**
+         * 系統核心架構：
+         * 1. 單一真相來源 (performance.now)
+         * 2. 有限狀態機 (FSM)
+         * 3. DOM 節流渲染 (Throttling)
+         * 4. 系統級 API 整合 (WakeLock, AudioContext, MediaSession, Visibility)
+         */
+
         // --- DATA & CONFIG ---
-        const WORK_SEC = 45;
-        const REST_SEC = 15;
-        const TOTAL_ROUNDS = 4;
-        const EXERCISES_PER_ROUND = 5;
+        const CONFIG = {
+            WORK_SEC: 45,
+            REST_SEC: 15,
+            PREP_SEC: 5,
+            TOTAL_ROUNDS: 4,
+            STORAGE_KEY: 'd50_core_state'
+        };
 
         const SCHEDULE = {
-            1: [ // Day 1
-                { id: 'v_ups', name: 'V字仰臥起坐' },
-                { id: 'rev_crunch', name: '反向捲腹' },
-                { id: 'toe_touch', name: '直腿觸踝' },
-                { id: 'dead_bug', name: '死蟲式' },
-                { id: 'plank', name: '棒式撐體' }
+            1: [
+                { name: 'V字仰臥起坐', cue: '下背不懸空・手腳同步', txt1: '上去吐氣，下來吸氣。', txt2: '控制下放的速度，不要直接摔回地板。', ctx: '應對越野賽道中的大落差下坡。' },
+                { name: '反向捲腹', cue: '下腹發力・骨盆微捲', txt1: '想像把肚臍壓向脊椎。', txt2: '不要靠慣性，用下腹把臀部抬起。', ctx: '延緩長距離後半段骨盆前傾導致的下背痛。' },
+                { name: '直腿觸踝', cue: '雙腿打直・肩胛離地', txt1: '視線看向腳尖，脖子放鬆。', txt2: '肩膀再抬高一點，感覺上腹在燃燒。', ctx: '維持疲勞時挺拔的軀幹，確保呼吸順暢。' },
+                { name: '死蟲式', cue: '下背釘死・對側延伸', txt1: '下背絕對不能離開地板。', txt2: '如果腰會痠，把腰用力壓向地板！', ctx: '完美模擬跑步時對側手腳連動的發力機制。' },
+                { name: '棒式撐體', cue: '臀部夾緊・身體一直線', txt1: '手肘推地板，不要聳肩。', txt2: '全身繃緊，臀部不要掉下來，撐住！', ctx: '強悍的等長收縮力是維持跑姿不崩潰的關鍵。' }
             ],
-            2: [ // Day 2
-                { id: 'russian_twist', name: '俄羅斯轉體' },
-                { id: 'bike_crunch', name: '腳踏車捲腹' },
-                { id: 'side_plank_r', name: '側棒式 (右)' },
-                { id: 'side_plank_l', name: '側棒式 (左)' },
-                { id: 'side_v_up', name: '側躺捲腹' }
+            2: [
+                { name: '俄羅斯轉體', cue: '胸口隨轉・視線跟隨', txt1: '轉動你的胸椎，不是只有手在揮。', txt2: '雙腳穩住不要左右晃，核心收緊。', ctx: '抵抗軀幹過度旋轉，將能量轉化為向前動力。' },
+                { name: '腳踏車捲腹', cue: '放慢節奏・肘找對膝', txt1: '重點是旋轉的幅度，不是速度。', txt2: '肩膀徹底離開地板扭轉，感受側腹擠壓。', ctx: '提升步態切換時的骨盆穩定度，減輕ITB壓力。' },
+                { name: '側棒式 (右)', cue: '骨盆頂高・側腹收緊', txt1: '想像身體是一面平整的牆。', txt2: '骨盆往上頂！撐起你的右側腹。', ctx: '側向穩定是預防跨步無力、單腳支撐崩潰的武器。' },
+                { name: '側棒式 (左)', cue: '骨盆頂高・呼吸平穩', txt1: '換邊。肩關節在手肘正上方。', txt2: '發抖是正常的，把臀部再推高兩公分。', ctx: '弭平左右肌力不平衡，避免代償受傷。' },
+                { name: '側躺捲腹', cue: '側腹發力・手腳相碰', txt1: '用側腹力量把上半身和雙腿拉近。', txt2: '不要用底下的手撐，側腹主導發力。', ctx: '極限收縮能力，在滑倒失衡時瞬間拉回正軌。' }
             ],
-            3: [ // Day 3
-                { id: 'mt_climber', name: '登山者' },
-                { id: 'flutter_kick', name: '剪刀腿' },
-                { id: 'plank_jack', name: '棒式開合跳' },
-                { id: 'heel_touch', name: '交替摸腳踝' },
-                { id: 'hollow_hold', name: '大字伸展收縮' }
+            3: [
+                { name: '登山者', cue: '骨盆穩定・膝蓋找胸', txt1: '把背部撐飽滿，不要塌腰。', txt2: '加快節奏！臀部不要上下彈跳。', ctx: '考驗高心率、高步頻下核心鎖死骨盆的能力。' },
+                { name: '剪刀腿', cue: '下背壓地・小幅交叉', txt1: '腿不用抬太高，越貼近地板越吃力。', txt2: '把腰用力壓平，雙腿繃直！', ctx: '強迫下腹部在動態中維持張力，契合下肢擺動。' },
+                { name: '棒式開合跳', cue: '核心繃緊・控制高度', txt1: '雙腳開合，上半身保持穩定。', txt2: '核心鎖死！不要讓臀部跟著甩動。', ctx: '訓練抗震能力，降低下坡時五臟六腑的晃動。' },
+                { name: '交替摸腳踝', cue: '肩胛微離・左右平移', txt1: '眼睛看天花板，用側腹左右滑動。', txt2: '指尖去碰鞋跟，肩膀不要掉下來。', ctx: '軀幹側向靈活度，幫助在林道中靈活閃避障礙。' },
+                { name: '大字伸展', cue: '下背壓平・全身繃緊', txt1: '身體變成一個微彎的香蕉。', txt2: '最後的堅持！把腰死死壓在地板上，撐住！', ctx: '核心耐力的終極試煉。' }
             ]
         };
 
-        // --- STATE ---
+        // --- STATE MACHINE ---
         let state = {
-            active: false,
-            paused: false,
             day: 1,
+            phase: 'PREP', // PREP, WORK, REST, DONE
             round: 1,
             exIndex: 0,
-            status: 'PREPARE', // PREPARE, WORK, REST, DONE
             timeLeft: 0,
-            lastTime: 0,
-            lastBeepSec: -1
+            isPaused: false,
+            lastTick: 0,
+            flags: { toldStart: false, told15s: false, nextAnnounced: false },
+            sessionStartMs: 0, // Real-time duration tracking
+            activeTimeMs: 0
         };
 
+        let activeDayData = [];
+        let reqAnimFrameId = null;
+        let lastRenderedSec = -1; 
+        
         // --- DOM Elements ---
-        const screenHome = document.getElementById('home-screen');
-        const screenWorkout = document.getElementById('workout-screen');
-        const screenDone = document.getElementById('done-screen');
+        const els = {
+            home: document.getElementById('home-screen'),
+            modal: document.getElementById('modal-overlay'),
+            workout: document.getElementById('workout-screen'),
+            done: document.getElementById('done-screen'),
+            modalTitle: document.getElementById('modal-title'),
+            modalList: document.getElementById('modal-list'),
+            timer: document.getElementById('timer'),
+            uiStatus: document.getElementById('ui-status'),
+            uiRound: document.getElementById('ui-round'),
+            exTitle: document.getElementById('ex-title'),
+            exCue: document.getElementById('ex-cue'),
+            exNext: document.getElementById('ex-next'),
+            progress: document.getElementById('global-progress'),
+            pauseInd: document.getElementById('pause-indicator'),
+            closeCircle: document.querySelector('.close-ring circle'),
+            canvas: document.getElementById('anim-canvas')
+        };
+        const ctx = els.canvas.getContext('2d', { alpha: false }); // Optimize for no transparency background
         
-        const elStatus = document.getElementById('status-badge');
-        const elInfo = document.getElementById('workout-info');
-        const elTitle = document.getElementById('exercise-title');
-        const elNext = document.getElementById('next-exercise');
-        const elTimer = document.getElementById('timer-display');
-        const btnPause = document.getElementById('btn-pause');
+        // --- AUDIO ENGINE ---
+        let actx = null;
+        let synth = window.speechSynthesis;
         
-        const canvas = document.getElementById('animCanvas');
-        const ctx = canvas.getContext('2d');
-        let cx, cy;
+        function initAudio() {
+            if (!actx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                actx = new AudioContext();
+            }
+            if (actx.state === 'suspended') actx.resume();
+            
+            // Unlock TTS
+            if (synth) {
+                synth.cancel();
+                let u = new SpeechSynthesisUtterance('');
+                u.volume = 0; synth.speak(u);
+            }
+        }
 
+        function playBeep(type) {
+            if (!actx) return;
+            const t = actx.currentTime;
+            const osc = actx.createOscillator();
+            const gain = actx.createGain();
+            
+            // Compressor to prevent clipping
+            const comp = actx.createDynamicsCompressor();
+            comp.connect(actx.destination);
+            
+            osc.connect(gain);
+            gain.connect(comp);
+            
+            if (type === 'start') { // High pitched
+                osc.type = 'sine'; osc.frequency.setValueAtTime(880, t);
+                gain.gain.setValueAtTime(1, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+                osc.start(t); osc.stop(t + 0.5);
+            } else if (type === 'rest') { // Low double beep
+                osc.type = 'square'; osc.frequency.setValueAtTime(440, t);
+                gain.gain.setValueAtTime(0.5, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+                osc.start(t); osc.stop(t + 0.2);
+            } else if (type === 'count') { // Short sharp
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(600, t);
+                gain.gain.setValueAtTime(0.8, t); gain.gain.linearRampToValueAtTime(0.01, t + 0.1);
+                osc.start(t); osc.stop(t + 0.1);
+            }
+        }
+
+        function speak(text) {
+            if (!synth) return;
+            synth.cancel(); // Kill zombie queue
+            let u = new SpeechSynthesisUtterance(text);
+            u.lang = 'zh-TW'; u.rate = 1.15;
+            synth.speak(u);
+        }
+
+        // --- SYSTEM APIs (WakeLock, Visibility, MediaSession) ---
+        let wakeLock = null;
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
+            } catch (err) { console.log('WakeLock denied', err); }
+        }
+        
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                if (state.phase !== 'DONE' && !state.isPaused) requestWakeLock();
+            } else {
+                if (state.phase !== 'DONE' && state.phase !== 'PREP') dispatch('PAUSE', true); // Auto pause
+            }
+        });
+
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.setActionHandler('play', () => dispatch('PAUSE', false));
+            navigator.mediaSession.setActionHandler('pause', () => dispatch('PAUSE', true));
+            navigator.mediaSession.setActionHandler('nexttrack', () => dispatch('SKIP', 1));
+            navigator.mediaSession.setActionHandler('previoustrack', () => dispatch('SKIP', -1));
+        }
+
+        // --- STORAGE ---
+        function saveSnapshot() {
+            if (state.phase === 'DONE') {
+                localStorage.removeItem(CONFIG.STORAGE_KEY);
+            } else {
+                localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(state));
+            }
+        }
+        function loadSnapshot() {
+            try {
+                const saved = localStorage.getItem(CONFIG.STORAGE_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    // Minimal validation
+                    if (parsed.day && SCHEDULE[parsed.day] && parsed.phase !== 'DONE') {
+                        state = parsed;
+                        state.isPaused = true; // Always load paused
+                        state.lastTick = performance.now();
+                        return true;
+                    }
+                }
+            } catch (e) {}
+            return false;
+        }
+
+        // --- LOGIC / CONTROLLER ---
+        function openModal(day) {
+            initAudio(); // 1st interaction unlock
+            state.day = day;
+            activeDayData = SCHEDULE[day];
+            
+            els.modalTitle.innerText = `DAY ${day}`;
+            els.modalTitle.style.color = (day===1) ? '#ff4b2b' : (day===2) ? '#00b0ff' : '#ff9800';
+            els.modalList.innerHTML = activeDayData.map(ex => 
+                `<li class="ex-item"><div class="ex-name">${ex.name}</div><div class="ex-context">${ex.ctx}</div></li>`
+            ).join('');
+            
+            els.modal.classList.remove('hidden');
+            // Hack for back button logic
+            history.pushState({ modalOpen: true }, '');
+        }
+
+        window.addEventListener('popstate', (e) => {
+            if (!els.modal.classList.contains('hidden') && state.phase === 'PREP') {
+                els.modal.classList.add('hidden');
+            } else if (state.phase !== 'DONE' && !els.workout.classList.contains('hidden')) {
+                // Prevent going back during workout
+                history.pushState({ workoutOpen: true }, '');
+                dispatch('PAUSE', true);
+            }
+        });
+
+        function initWorkout() {
+            els.modal.classList.add('hidden');
+            els.home.classList.add('hidden');
+            els.workout.classList.remove('hidden');
+            
+            requestWakeLock();
+            history.pushState({ workoutOpen: true }, '');
+
+            if (!loadSnapshot() || state.day !== state.day) { // Reset if fresh
+                state.phase = 'PREP';
+                state.round = 1;
+                state.exIndex = 0;
+                state.timeLeft = CONFIG.PREP_SEC;
+                state.isPaused = false;
+                state.sessionStartMs = performance.now();
+                state.activeTimeMs = 0;
+                resetFlags();
+            }
+            
+            activeDayData = SCHEDULE[state.day];
+            state.lastTick = performance.now();
+            updateMediaSession();
+            forceRenderUI();
+            saveSnapshot();
+            
+            if (!reqAnimFrameId) reqAnimFrameId = requestAnimationFrame(loop);
+            if (!state.isPaused) speak(`第${state.day}天訓練準備開始。`);
+        }
+
+        function resetFlags() {
+            state.flags = { toldStart: false, told15s: false, nextAnnounced: false, lastBeepSec: -1 };
+        }
+
+        function dispatch(action, payload) {
+            if (action === 'PAUSE') {
+                state.isPaused = payload !== undefined ? payload : !state.isPaused;
+                if (!state.isPaused) { // Resuming
+                    state.lastTick = performance.now();
+                    if(actx && actx.state === 'suspended') actx.resume(); // Rescue AudioContext
+                    requestWakeLock();
+                }
+                els.pauseInd.classList.toggle('hidden', !state.isPaused);
+                saveSnapshot();
+            }
+            else if (action === 'SKIP') {
+                state.exIndex += payload;
+                if (state.exIndex >= activeDayData.length) {
+                    state.exIndex = 0; state.round++;
+                } else if (state.exIndex < 0) {
+                    if (state.round > 1) { state.round--; state.exIndex = activeDayData.length - 1; }
+                    else { state.exIndex = 0; }
+                }
+                // When skipped, force back to PREP to avoid confusion
+                state.phase = 'PREP';
+                state.timeLeft = 5;
+                resetFlags();
+                updateMediaSession();
+                saveSnapshot();
+                forceRenderUI();
+            }
+            else if (action === 'END') {
+                state.phase = 'DONE';
+                saveSnapshot();
+                
+                let m = Math.floor((state.activeTimeMs / 1000) / 60);
+                let s = Math.floor((state.activeTimeMs / 1000) % 60);
+                document.getElementById('stat-time').innerText = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+                document.getElementById('stat-round').innerText = `${Math.min(state.round, CONFIG.TOTAL_ROUNDS)} / ${CONFIG.TOTAL_ROUNDS}`;
+                
+                els.workout.classList.add('hidden');
+                els.done.classList.remove('hidden');
+                speak("訓練完成，做得好。");
+                if (wakeLock) wakeLock.release().then(() => wakeLock = null);
+            }
+        }
+
+        function transitionPhase() {
+            if (state.phase === 'PREP' || state.phase === 'REST') {
+                state.phase = 'WORK';
+                state.timeLeft = CONFIG.WORK_SEC;
+                resetFlags();
+                playBeep('start');
+            } else if (state.phase === 'WORK') {
+                if (state.exIndex === activeDayData.length - 1 && state.round === CONFIG.TOTAL_ROUNDS) {
+                    dispatch('END'); return;
+                }
+                state.phase = 'REST';
+                state.timeLeft = CONFIG.REST_SEC;
+                resetFlags();
+                playBeep('rest');
+                
+                state.exIndex++;
+                if (state.exIndex >= activeDayData.length) {
+                    state.exIndex = 0; state.round++;
+                }
+            }
+            updateMediaSession();
+            saveSnapshot();
+            forceRenderUI();
+        }
+
+        function updateMediaSession() {
+            if ('mediaSession' in navigator) {
+                let currentEx = activeDayData[state.exIndex];
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title: state.phase === 'REST' ? '休息' : currentEx.name,
+                    artist: `冬山河核心 Day ${state.day} - R${state.round}`,
+                });
+            }
+        }
+
+        // --- MAIN LOOP ---
+        function loop(now) {
+            if (!state) return;
+            let dt = now - state.lastTick;
+            state.lastTick = now;
+
+            if (!state.isPaused && state.phase !== 'DONE') {
+                state.timeLeft -= dt / 1000;
+                state.activeTimeMs += dt;
+                
+                if (state.timeLeft <= 0) {
+                    state.timeLeft = 0; // Prevent negative bleeding
+                    transitionPhase();
+                } else {
+                    handleAudioTriggers(Math.ceil(state.timeLeft));
+                }
+                
+                let displaySec = Math.ceil(state.timeLeft);
+                if (displaySec !== lastRenderedSec) {
+                    renderDOMText(displaySec);
+                    lastRenderedSec = displaySec;
+                }
+            }
+
+            renderCanvas();
+            reqAnimFrameId = requestAnimationFrame(loop);
+        }
+
+        function handleAudioTriggers(sec) {
+            if (sec <= 3 && sec > 0 && sec !== state.flags.lastBeepSec) {
+                playBeep('count');
+                state.flags.lastBeepSec = sec;
+            }
+
+            let curEx = activeDayData[state.exIndex];
+            if (state.phase === 'WORK') {
+                if (!state.flags.toldStart && sec <= CONFIG.WORK_SEC - 1) {
+                    speak(curEx.name + "。" + curEx.txt1);
+                    state.flags.toldStart = true;
+                }
+                if (!state.flags.told15s && sec === 15) {
+                    speak(curEx.txt2);
+                    state.flags.told15s = true;
+                }
+            } else if (state.phase === 'REST') {
+                if (!state.flags.nextAnnounced && sec === Math.min(10, CONFIG.REST_SEC - 2)) {
+                    speak("下一個動作：" + curEx.name);
+                    state.flags.nextAnnounced = true;
+                }
+            }
+        }
+
+        function renderDOMText(secStr) {
+            els.timer.innerText = secStr.toString().padStart(2, '0');
+            
+            let prog = ((state.round - 1) * activeDayData.length + state.exIndex) / (CONFIG.TOTAL_ROUNDS * activeDayData.length);
+            if(state.phase === 'WORK') prog += (1 - (state.timeLeft / CONFIG.WORK_SEC)) * (1 / (CONFIG.TOTAL_ROUNDS * activeDayData.length));
+            els.progress.style.width = `${prog * 100}%`;
+        }
+
+        function forceRenderUI() {
+            let curEx = activeDayData[state.exIndex];
+            els.uiRound.innerText = `ROUND ${state.round} / ${CONFIG.TOTAL_ROUNDS}`;
+            
+            els.uiStatus.className = 'status-text';
+            els.timer.className = '';
+            
+            if (state.phase === 'PREP') {
+                els.uiStatus.innerText = 'PREPARE'; els.uiStatus.classList.add('theme-prep');
+                els.exTitle.innerText = "準備";
+                els.exCue.innerText = `即將開始: ${curEx.name}`;
+                els.exNext.innerText = "";
+            } else if (state.phase === 'WORK') {
+                els.uiStatus.innerText = 'WORK'; els.uiStatus.classList.add('theme-work');
+                els.timer.classList.add('theme-work');
+                els.exTitle.innerText = curEx.name;
+                els.exCue.innerText = curEx.cue;
+                els.exNext.innerText = "";
+            } else if (state.phase === 'REST') {
+                els.uiStatus.innerText = 'REST'; els.uiStatus.classList.add('theme-rest');
+                els.timer.classList.add('theme-rest');
+                els.exTitle.innerText = "休息";
+                els.exCue.innerText = "深呼吸，放鬆核心";
+                els.exNext.innerText = `NEXT: ${curEx.name}`;
+            }
+            renderDOMText(Math.max(0, Math.ceil(state.timeLeft)));
+        }
+
+        // --- CANVAS ENGINE (Minimalist Biomechanics) ---
         function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            cx = canvas.width / 2;
-            cy = canvas.height * 0.75; // Floor level lower to accommodate large UI
+            let pr = window.devicePixelRatio || 1;
+            els.canvas.width = els.canvas.clientWidth * pr;
+            els.canvas.height = els.canvas.clientHeight * pr;
+            ctx.scale(pr, pr);
         }
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        let audioCtx;
-        function initAudioAndTTS() {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function renderCanvas() {
+            // Throttle rendering if paused or resting to save battery
+            if (state.isPaused || state.phase === 'PREP') return; 
+
+            let cw = els.canvas.clientWidth;
+            let ch = els.canvas.clientHeight;
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, cw, ch);
+
+            // Floor Line
+            let cy = ch * 0.75;
+            ctx.strokeStyle = '#222'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(cw, cy); ctx.stroke();
+
+            // Calculate 't' (0 to 1 oscillating based on phase and elapsed time)
+            let t = 0;
+            if (state.phase === 'WORK') {
+                let elapsed = CONFIG.WORK_SEC - state.timeLeft;
+                let cycleSpeed = 3; // 3 seconds per rep
+                t = (Math.sin((elapsed % cycleSpeed / cycleSpeed) * Math.PI * 2) + 1) / 2;
+            } else {
+                t = (Math.sin(performance.now() / 1000) + 1) / 2 * 0.1; // Gentle breathing in rest
             }
-            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            // Draw abstract geometry based on exercise
+            ctx.save();
+            ctx.translate(cw/2, cy);
             
-            // Unlock TTS on mobile by speaking an empty string on user interaction
-            if ('speechSynthesis' in window) {
-                let u = new SpeechSynthesisUtterance("");
-                u.volume = 0;
-                window.speechSynthesis.speak(u);
-            }
-        }
-
-        function playTone(freq, type, duration, vol=1) {
-            if (!audioCtx) return;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = type;
-            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(audioCtx.currentTime + duration);
-        }
-
-        function playBeep(type) {
-            if (type === 'start') playTone(880, 'sine', 0.6, 1);       // High long
-            else if (type === 'rest') playTone(440, 'triangle', 0.6, 0.8); // Low long
-            else if (type === 'count') playTone(600, 'square', 0.15, 0.5); // Sharp short
-            else if (type === 'done') {
-                playTone(440, 'sine', 0.2);
-                setTimeout(()=>playTone(554, 'sine', 0.2), 200);
-                setTimeout(()=>playTone(659, 'sine', 0.4), 400);
-                setTimeout(()=>playTone(880, 'sine', 0.8), 600);
-            }
-        }
-
-        function speakText(text) {
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel(); // Clear queue
-                let msg = new SpeechSynthesisUtterance(text);
-                msg.lang = 'zh-TW';
-                msg.rate = 1.1; // slightly faster for workout pace
-                window.speechSynthesis.speak(msg);
-            }
-        }
-
-        function startProgram(day) {
-            initAudioAndTTS();
-            state.day = day;
-            state.active = true;
-            state.paused = false;
-            state.round = 1;
-            state.exIndex = 0;
-            state.status = 'PREPARE';
-            state.timeLeft = 5.0; // 5 seconds intro
-            state.lastTime = Date.now();
-            state.lastBeepSec = -1;
+            const color = state.phase === 'WORK' ? 'rgba(0, 229, 255, 0.8)' : 'rgba(255, 179, 0, 0.5)';
+            ctx.strokeStyle = color;
+            ctx.lineCap = 'round'; ctx.lineJoin = 'round';
             
-            screenHome.classList.add('hidden');
-            screenWorkout.classList.remove('hidden');
-            screenDone.classList.add('hidden');
+            // A highly abstract, math-driven representation instead of complex stickmen
+            // Focuses on the "Core" (a polygon) and "Limbs" (lines)
+            let coreY = -40;
+            let p1, p2, p3, p4; // Core polygon vertices
             
-            updateUI();
-            speakText(`第${day}天訓練即將開始，請準備。`);
-            
-            if(!requestAnimationFrameId) loop(); // start engine
-        }
-
-        function showHome() {
-            state.active = false;
-            screenHome.classList.remove('hidden');
-            screenWorkout.classList.add('hidden');
-            screenDone.classList.add('hidden');
-        }
-
-        function quitWorkout() {
-            if(confirm("確定要提早結束訓練嗎？")) showHome();
-        }
-
-        function togglePause() {
-            state.paused = !state.paused;
-            btnPause.innerText = state.paused ? "繼續" : "暫停";
-            if(!state.paused) {
-                state.lastTime = Date.now(); // reset delta calculation
-            }
-        }
-
-        function getNextExName() {
-            let nextId = state.exIndex + 1;
-            if (nextId < EXERCISES_PER_ROUND) {
-                return SCHEDULE[state.day][nextId].name;
-            } else if (state.round < TOTAL_ROUNDS) {
-                return SCHEDULE[state.day][0].name; // First of next round
-            }
-            return "";
-        }
-
-        function handlePhaseTransition() {
-            if (state.status === 'PREPARE' || state.status === 'REST') {
-                // Enter WORK
-                state.status = 'WORK';
-                state.timeLeft = WORK_SEC;
-                playBeep('start');
-            } else if (state.status === 'WORK') {
-                // End of Work phase
-                if (state.exIndex === EXERCISES_PER_ROUND - 1) {
-                    if (state.round >= TOTAL_ROUNDS) {
-                        // Workout Complete
-                        state.status = 'DONE';
-                        state.active = false;
-                        playBeep('done');
-                        screenWorkout.classList.add('hidden');
-                        screenDone.classList.remove('hidden');
-                        speakText("恭喜完成今天的訓練！");
-                        return;
-                    }
-                }
+            if (state.phase === 'WORK') {
+                // V-Ups abstract (folding in half)
+                let fold = t * 60;
+                p1 = {x: -30 + fold/2, y: coreY - fold}; // Shoulders
+                p2 = {x: 30 - fold/2, y: coreY - fold};  // Knees
+                p3 = {x: 0, y: 0};                       // Hips on floor
                 
-                // Enter REST
-                state.status = 'REST';
-                state.timeLeft = REST_SEC;
-                playBeep('rest');
-                
-                // Announce next after 1 sec to let beep finish
-                let nextName = getNextExName();
-                setTimeout(() => {
-                    if(state.active && !state.paused) speakText("下一個動作：" + nextName);
-                }, 1000);
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p3.x, p3.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+
+                // Draw Core Tension Line
+                ctx.strokeStyle = '#fff';
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+            } else {
+                // Rest Abstract
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(-50, 0);
+                ctx.lineTo(0, coreY + t*10); // Breathing chest
+                ctx.lineTo(50, 0);
+                ctx.stroke();
             }
-            
-            if (state.status === 'WORK' && state.timeLeft === WORK_SEC) {
-                 // Nothing to increment immediately, already set
-            } else if (state.status === 'REST') {
-                 // Check if need to increment counters for next WORK
+            ctx.restore();
+        }
+
+        // --- GESTURES & INPUT ---
+        let tx = 0, ty = 0, tTime = 0;
+        const gOverlay = els.gestureOverlay = document.getElementById('gesture-overlay');
+
+        gOverlay.addEventListener('touchstart', e => {
+            tx = e.changedTouches[0].screenX;
+            ty = e.changedTouches[0].screenY;
+            tTime = performance.now();
+        }, {passive: true});
+
+        gOverlay.addEventListener('touchend', e => {
+            let dx = e.changedTouches[0].screenX - tx;
+            let dy = e.changedTouches[0].screenY - ty;
+            let dt = performance.now() - tTime;
+
+            if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) && dt < 500) {
+                // Swipe horizontal
+                dispatch('SKIP', dx > 0 ? -1 : 1); // Right swipe = Prev, Left swipe = Next
+            } else if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 300) {
+                // Tap
+                dispatch('PAUSE');
             }
-            
-            // Advance counters AFTER rest finishes (when transitioning REST -> WORK)
-            if(state.status === 'WORK' && state.timeLeft === WORK_SEC && state.active) {
-                if(state.lastBeepSec !== -1) { // not the very first run
-                   state.exIndex++;
-                   if(state.exIndex >= EXERCISES_PER_ROUND) {
-                       state.exIndex = 0;
-                       state.round++;
-                   }
-                }
-            }
+        }, {passive: true});
 
-            state.lastBeepSec = -1;
-            updateUI();
-        }
-
-        function updateUI() {
-            if(!state.active) return;
-            
-            let currentEx = SCHEDULE[state.day][state.exIndex];
-            elInfo.innerText = `Round ${state.round} / ${TOTAL_ROUNDS} | 動作 ${state.exIndex + 1} / 5`;
-            
-            if (state.status === 'PREPARE') {
-                elStatus.innerText = '準備';
-                elStatus.style.color = '#fff';
-                elTitle.innerText = "準備中";
-                elTitle.className = "exercise-title";
-                elTimer.className = "timer-display";
-                elNext.innerText = `即將開始: ${currentEx.name}`;
-            } 
-            else if (state.status === 'WORK') {
-                elStatus.innerText = '作動 (WORK)';
-                elStatus.style.color = 'var(--work-color)';
-                elTitle.innerText = currentEx.name;
-                elTitle.className = "exercise-title color-work";
-                elTimer.className = "timer-display color-work";
-                elNext.innerText = "";
-            } 
-            else if (state.status === 'REST') {
-                elStatus.innerText = '休息 (REST)';
-                elStatus.style.color = 'var(--rest-color)';
-                elTitle.innerText = "休息";
-                elTitle.className = "exercise-title color-rest";
-                elTimer.className = "timer-display color-rest";
-                let nextName = getNextExName();
-                elNext.innerText = nextName ? `下一個: ${nextName}` : "";
-            }
-        }
-
-        const PROPS = { head: 18, torso: 65, uArm: 35, lArm: 35, uLeg: 45, lLeg: 45 };
-
-        function getPt(start, angle, len) {
-            return { x: start.x + Math.cos(angle) * len, y: start.y + Math.sin(angle) * len };
-        }
-
-        function drawLine(p1, p2, w, color) {
-            ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
-            ctx.lineWidth = w; ctx.strokeStyle = color;
-            ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke();
-        }
-        function drawCircle(p, r, color) {
-            ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-            ctx.fillStyle = color; ctx.fill();
-        }
-
-        // Base render function mapping joint angles
-        function renderMan(hips, a) {
-            const cFg = (state.status === 'REST') ? '#ffea00' : '#00e5ff'; // Match UI color
-            const cBg = '#555555'; // Background limbs
-            const wT = 9, wL = 7;
-
-            const neck = getPt(hips, a.torso, PROPS.torso);
-            const head = getPt(neck, a.torso, PROPS.head);
-            
-            const lElbow = getPt(neck, a.lArmU, PROPS.uArm);
-            const lHand = getPt(lElbow, a.lArmL, PROPS.lArm);
-            const rElbow = getPt(neck, a.rArmU, PROPS.uArm);
-            const rHand = getPt(rElbow, a.rArmL, PROPS.lArm);
-
-            const lKnee = getPt(hips, a.lLegU, PROPS.uLeg);
-            const lFoot = getPt(lKnee, a.lLegL, PROPS.lLeg);
-            const rKnee = getPt(hips, a.rLegU, PROPS.uLeg);
-            const rFoot = getPt(rKnee, a.rLegL, PROPS.lLeg);
-
-            // Draw Background (Right side)
-            drawLine(hips, rKnee, wL, cBg); drawLine(rKnee, rFoot, wL, cBg);
-            drawLine(neck, rElbow, wL, cBg); drawLine(rElbow, rHand, wL, cBg);
-            // Draw Core
-            drawLine(hips, neck, wT, '#ffffff'); drawCircle(head, PROPS.head, '#ffffff');
-            // Draw Foreground (Left side)
-            drawLine(hips, lKnee, wL, cFg); drawLine(lKnee, lFoot, wL, cFg);
-            drawLine(neck, lElbow, wL, cFg); drawLine(lElbow, lHand, wL, cFg);
-        }
-
-        // Helper: returns 0.0 to 1.0 oscillating based on time and speed
-        function wave(speed, offset = 0) {
-            return (Math.sin((Date.now() / 1000 * speed) + offset) + 1) / 2;
-        }
-
-        const POSES = {
-            _rest: () => {
-                const w = wave(2) * 0.05; // Breathe
-                return {
-                    hips: { x: cx, y: cy - 5 },
-                    angles: {
-                        torso: Math.PI * 1.35 + w,
-                        lArmU: Math.PI*0.8, lArmL: Math.PI*0.9, rArmU: Math.PI*0.7, rArmL: Math.PI*0.8, // Props
-                        lLegU: -0.1, lLegL: 0.3, rLegU: -0.15, rLegL: 0.25 // Bent knees
-                    }
-                };
-            },
-            // --- DAY 1 ---
-            v_ups: () => {
-                let p = wave(3); p = p*p*(3-2*p); // smooth ease
-                return { hips: { x: cx, y: cy - 10 }, angles: {
-                    torso: Math.PI - p*Math.PI*0.35,
-                    lArmU: Math.PI - p*Math.PI, lArmL: Math.PI - p*Math.PI, rArmU: Math.PI - p*Math.PI, rArmL: Math.PI - p*Math.PI,
-                    lLegU: -p*Math.PI*0.45, lLegL: -p*Math.PI*0.45, rLegU: -p*Math.PI*0.45, rLegL: -p*Math.PI*0.45
-                }};
-            },
-            rev_crunch: () => {
-                let p = wave(2.5); let hL = p*15;
-                return { hips: { x: cx+20-hL, y: cy-10-hL }, angles: {
-                    torso: Math.PI - p*0.1,
-                    lArmU: Math.PI*1.1, lArmL: Math.PI*1.1, rArmU: Math.PI*1.1, rArmL: Math.PI*1.1, // floor
-                    lLegU: -Math.PI*0.4 + p*Math.PI*0.8, lLegL: Math.PI*0.1 + p*Math.PI*0.8,
-                    rLegU: -Math.PI*0.4 + p*Math.PI*0.8, rLegL: Math.PI*0.1 + p*Math.PI*0.8
-                }};
-            },
-            toe_touch: () => {
-                let p = wave(3.5);
-                return { hips: { x: cx+20, y: cy-10 }, angles: {
-                    torso: Math.PI - p*Math.PI*0.25, // crunch
-                    lArmU: -Math.PI*0.6, lArmL: -Math.PI*0.6, rArmU: -Math.PI*0.6, rArmL: -Math.PI*0.6,
-                    lLegU: -Math.PI*0.55, lLegL: -Math.PI*0.55, rLegU: -Math.PI*0.55, rLegL: -Math.PI*0.55
-                }};
-            },
-            dead_bug: () => {
-                let p1 = wave(3); let p2 = wave(3, Math.PI);
-                return { hips: { x: cx+20, y: cy-10 }, angles: {
-                    torso: Math.PI,
-                    lArmU: -Math.PI/2 + p1*1.7, lArmL: -Math.PI/2 + p1*1.7,
-                    rLegU: -Math.PI/2 + p1*1.5, rLegL: -Math.PI/2 + p1*1.5,
-                    rArmU: -Math.PI/2 + p2*1.7, rArmL: -Math.PI/2 + p2*1.7,
-                    lLegU: -Math.PI/2 + p2*1.5, lLegL: -Math.PI/2 + p2*1.5
-                }};
-            },
-            plank: () => {
-                let shake = (Math.random()-0.5) * wave(5) * 2;
-                return { hips: { x: cx, y: cy-35+shake }, angles: {
-                    torso: 0.1, lArmU: Math.PI*0.6, lArmL: Math.PI, rArmU: Math.PI*0.6, rArmL: Math.PI,
-                    lLegU: Math.PI*1.05, lLegL: Math.PI*1.05, rLegU: Math.PI*1.05, rLegL: Math.PI*1.05
-                }};
-            },
-            // --- DAY 2 ---
-            russian_twist: () => {
-                let tw = wave(6) * 2 - 1; // -1 to 1
-                return { hips: { x: cx+10, y: cy-10 }, angles: {
-                    torso: Math.PI*1.25 + (tw*0.05),
-                    lLegU: Math.PI*0.85, lLegL: Math.PI*1.05, rLegU: Math.PI*0.85, rLegL: Math.PI*1.05, // legs up
-                    lArmU: Math.PI*0.9 + tw*0.4, lArmL: Math.PI*0.9 + tw*0.4, rArmU: Math.PI*0.9 + tw*0.4, rArmL: Math.PI*0.9 + tw*0.4 // swing
-                }};
-            },
-            bike_crunch: () => {
-                let p1 = wave(4); let p2 = wave(4, Math.PI);
-                return { hips: { x: cx+20, y: cy-10 }, angles: {
-                    torso: Math.PI-0.15,
-                    lArmU: -Math.PI*0.7, lArmL: Math.PI*0.9, rArmU: -Math.PI*0.7, rArmL: Math.PI*0.9, // behind head
-                    lLegU: Math.PI - p1*Math.PI*0.6, lLegL: Math.PI - p1*Math.PI*0.3 + Math.PI/2,
-                    rLegU: Math.PI - p2*Math.PI*0.6, rLegL: Math.PI - p2*Math.PI*0.3 + Math.PI/2
-                }};
-            },
-            side_plank_r: () => { // Facing Right Side Profile
-                let shake = (Math.random()-0.5) * wave(5) * 2;
-                return { hips: { x: cx, y: cy-40+shake }, angles: {
-                    torso: -Math.PI*0.15, lLegU: Math.PI*0.85, lLegL: Math.PI*0.85, rLegU: Math.PI*0.85, rLegL: Math.PI*0.85,
-                    rArmU: Math.PI/2, rArmL: Math.PI, lArmU: -Math.PI*0.5, lArmL: -Math.PI*0.5
-                }};
-            },
-            side_plank_l: () => { // Facing Left Side Profile
-                let shake = (Math.random()-0.5) * wave(5) * 2;
-                return { hips: { x: cx, y: cy-40+shake }, angles: {
-                    torso: Math.PI*1.15, lLegU: Math.PI*0.15, lLegL: Math.PI*0.15, rLegU: Math.PI*0.15, rLegL: Math.PI*0.15,
-                    lArmU: Math.PI/2, lArmL: 0, rArmU: -Math.PI*0.5, rArmL: -Math.PI*0.5
-                }};
-            },
-            side_v_up: () => {
-                let p = wave(3); p = p*p*(3-2*p);
-                return { hips: { x: cx+15, y: cy-10 }, angles: {
-                    torso: -p*Math.PI*0.35, // head rises
-                    lLegU: Math.PI + p*Math.PI*0.35, lLegL: Math.PI + p*Math.PI*0.35, rLegU: Math.PI + p*Math.PI*0.35, rLegL: Math.PI + p*Math.PI*0.35,
-                    rArmU: Math.PI/2, rArmL: Math.PI, // bottom arm
-                    lArmU: p*Math.PI*0.8, lArmL: p*Math.PI*0.8 // top crunch arm
-                }};
-            },
-            // --- DAY 3 ---
-            mt_climber: () => {
-                let p1 = wave(8)*2-1; let p2 = wave(8, Math.PI)*2-1; // fast
-                let lu = p1>0 ? 0.9*Math.PI : 0.9*Math.PI - Math.abs(p1)*0.6*Math.PI;
-                let ru = p2>0 ? 0.9*Math.PI : 0.9*Math.PI - Math.abs(p2)*0.6*Math.PI;
-                return { hips: { x: cx+25, y: cy-30 }, angles: {
-                    torso: 0.15*Math.PI, lArmU: 0.6*Math.PI, lArmL: 0.5*Math.PI, rArmU: 0.6*Math.PI, rArmL: 0.5*Math.PI,
-                    lLegU: lu, lLegL: p1>0 ? 0.95*Math.PI : lu - 0.4*Math.PI,
-                    rLegU: ru, rLegL: p2>0 ? 0.95*Math.PI : ru - 0.4*Math.PI
-                }};
-            },
-            flutter_kick: () => {
-                let p1 = wave(7)*2-1; let p2 = wave(7, Math.PI)*2-1;
-                return { hips: { x: cx+15, y: cy-10 }, angles: {
-                    torso: Math.PI-0.15, lArmU: Math.PI+0.1, lArmL: Math.PI+0.1, rArmU: Math.PI+0.1, rArmL: Math.PI+0.1,
-                    lLegU: -0.15 + p1*0.15, lLegL: -0.15 + p1*0.15, rLegU: -0.15 + p2*0.15, rLegL: -0.15 + p2*0.15
-                }};
-            },
-            plank_jack: () => {
-                let bounce = wave(5, 0, 1); // math abs sin equivalent
-                let spr = bounce*0.2;
-                return { hips: { x: cx+20, y: cy-35 - (bounce*10) }, angles: {
-                    torso: 0.1*Math.PI, lArmU: 0.6*Math.PI, lArmL: 0.5*Math.PI, rArmU: 0.6*Math.PI, rArmL: 0.5*Math.PI,
-                    lLegU: 0.9*Math.PI + spr, lLegL: 0.9*Math.PI + spr, rLegU: 0.9*Math.PI - spr, rLegL: 0.9*Math.PI - spr
-                }};
-            },
-            heel_touch: () => {
-                let tw = wave(4)*2-1;
-                return { hips: { x: cx+15, y: cy-10 }, angles: {
-                    torso: Math.PI-0.25, lLegU: -0.4*Math.PI, lLegL: 0.1*Math.PI, rLegU: -0.4*Math.PI, rLegL: 0.1*Math.PI,
-                    lArmU: Math.PI-0.2 + tw*0.15, lArmL: Math.PI-0.2 + tw*0.15, rArmU: Math.PI-0.2 - tw*0.15, rArmL: Math.PI-0.2 - tw*0.15
-                }};
-            },
-            hollow_hold: () => {
-                let shake = (Math.random()-0.5)*wave(12)*2;
-                let sa = (Math.random()-0.5)*0.02;
-                return { hips: { x: cx+10, y: cy-10+shake }, angles: {
-                    torso: Math.PI-0.2+sa, lArmU: Math.PI-0.8, lArmL: Math.PI-0.8, rArmU: Math.PI-0.8, rArmL: Math.PI-0.8,
-                    lLegU: -0.15+sa, lLegL: -0.15+sa, rLegU: -0.15+sa, rLegL: -0.15+sa
-                }};
-            }
-        };
-
-        let requestAnimationFrameId = null;
+        // Long Press to Close
+        let closeTimer = null;
+        let closeProg = 0;
+        const btnClose = document.getElementById('btn-close');
         
-        function loop() {
-            if (!state.active) {
-                requestAnimationFrameId = null;
-                return;
+        function fillCloseRing() {
+            closeProg += 10;
+            let offset = 113 - (closeProg / 100) * 113;
+            els.closeCircle.style.strokeDashoffset = Math.max(0, offset);
+            if (closeProg >= 100) {
+                clearTimeout(closeTimer);
+                dispatch('END');
+            } else {
+                closeTimer = setTimeout(fillCloseRing, 100); // 1000ms total
             }
+        }
+        function startClosePress(e) { e.preventDefault(); closeProg = 0; fillCloseRing(); }
+        function cancelClosePress() { clearTimeout(closeTimer); closeProg = 0; els.closeCircle.style.strokeDashoffset = 113; }
+        
+        btnClose.addEventListener('touchstart', startClosePress);
+        btnClose.addEventListener('touchend', cancelClosePress);
+        btnClose.addEventListener('touchcancel', cancelClosePress);
+        btnClose.addEventListener('mousedown', startClosePress);
+        btnClose.addEventListener('mouseup', cancelClosePress);
+        btnClose.addEventListener('mouseleave', cancelClosePress);
 
-            // Time Math
-            const now = Date.now();
-            if (!state.paused) {
-                let dt = (now - state.lastTime) / 1000;
-                state.timeLeft -= dt;
-                
-                if (state.timeLeft <= 0) {
-                    handlePhaseTransition();
-                } else {
-                    // Beep on 3, 2, 1
-                    let secRound = Math.ceil(state.timeLeft);
-                    if (secRound <= 3 && secRound > 0 && secRound !== state.lastBeepSec) {
-                        playBeep('count');
-                        state.lastBeepSec = secRound;
-                    }
-                }
-            }
-            state.lastTime = now;
 
-            // Update UI Timer text
-            let tDisp = Math.max(0, Math.ceil(state.timeLeft)).toString().padStart(2, '0');
-            if (elTimer.innerText !== tDisp) elTimer.innerText = tDisp;
-
-            // Render Canvas
-            ctx.fillStyle = '#0d0d0d';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // Floor line
-            ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(canvas.width, cy);
-            ctx.strokeStyle = '#222'; ctx.lineWidth = 4; ctx.stroke();
-
-            // Draw Figure
-            let pData;
-            if (state.status === 'PREPARE' || state.status === 'REST') {
-                pData = POSES._rest();
-            } else if (state.status === 'WORK') {
-                let currentExId = SCHEDULE[state.day][state.exIndex].id;
-                if(POSES[currentExId]) pData = POSES[currentExId]();
-            }
-
-            if (pData) renderMan(pData.hips, pData.angles);
-
-            requestAnimationFrameId = requestAnimationFrame(loop);
+        function goHome() {
+            els.done.classList.add('hidden');
+            els.home.classList.remove('hidden');
+            if (reqAnimFrameId) { cancelAnimationFrame(reqAnimFrameId); reqAnimFrameId = null; }
         }
 
     </script>
