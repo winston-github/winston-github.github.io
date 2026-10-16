@@ -1,200 +1,422 @@
-// 內建三種經典戰術腳本模版
-const scriptTemplates = {
-    whisper: "我們即將在前方五百公尺左轉囉，請先變換車道。",
-    command: "警告。目前心率已進入 Z5 危險區間。當前配速快四分速，請立即降速。",
-    energy: "太強了吧！現在等效配速拉到四分速了！穩住！衝啊！"
-};
-
-let currentMode = 'whisper';
-let isFirstLoad = true; // 🌟 關鍵鎖：用來防止後續計時器干擾用戶的手動選擇
-
-// 1. 載入語音引擎清單
-function loadVoices() {
-    const synth = window.speechSynthesis;
-    const voices = synth.getVoices();
-    const voiceSelect = document.getElementById('voiceSelect');
-    
-    if (voices.length === 0) return false; // 沒抓到聲音，返回 false 讓計時器繼續
-
-    // 先暫存使用者目前「手動選取」的值，避免被清空
-    const previousSelectedValue = voiceSelect.value;
-
-    voiceSelect.innerHTML = '';
-
-    // 過濾繁體中文台灣 (zh-TW) 與通用中文 (zh) 真人人聲
-    let filtered = voices.filter(v => v.lang.includes('TW') || v.lang.includes('zh'));
-    if (filtered.length === 0) filtered = voices;
-
-    filtered.forEach(voice => {
-        const option = document.createElement('option');
-        option.value = voice.name;
-        option.innerText = `${voice.name} (${voice.lang})`;
-        voiceSelect.appendChild(option);
-    });
-
-    // 🌟 只有在「第一次加載網頁」或「切換大按鈕人格」時才允許自動改選選單
-    if (isFirstLoad) {
-        autoSelectVoiceForMode();
-        isFirstLoad = false; // 鎖定，之後就不再自動蓋掉用戶的選擇
-    } else {
-        // 如果是背景計時器觸發的更新，把使用者剛剛選的聲音還原回去
-        if (previousSelectedValue && Array.from(voiceSelect.options).some(o => o.value === previousSelectedValue)) {
-            voiceSelect.value = previousSelectedValue;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RUNPRO OS - TTS TACTICAL LAB (EN)</title>
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --panel-bg: #131a26;
+            --primary-neon: #00ff66;
+            --text-main: #ffffff;
+            --text-muted: #64748b;
+            --border-color: #1e293b;
         }
-    }
 
-    updateCodeOutput();
-    return true; // 成功抓到並渲染，返回 true
-}
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
 
-// 2. 自動在下拉選單中匹配最合適的優質真人聲線
-function autoSelectVoiceForMode() {
-    const voiceSelect = document.getElementById('voiceSelect');
-    const options = Array.from(voiceSelect.options);
-    
-    let targetKeywords = [];
-    if (currentMode === 'whisper') targetKeywords = ['HsiaoChen', 'Meijia', 'Premium', 'Google', 'Taiwan', 'Female', '女'];
-    if (currentMode === 'command') targetKeywords = ['YunJhe', 'Siri', 'Tianyang', 'Male', '男'];
-    if (currentMode === 'energy') targetKeywords = ['Hiulion', 'Sinji', 'Premium', 'Google', 'Taiwan'];
+        .container {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 30px;
+            width: 100%;
+            max-width: 560px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
 
-    const bestMatch = options.find(opt => 
-        targetKeywords.some(kw => opt.value.toLowerCase().includes(kw.toLowerCase()))
-    );
+        h1 {
+            color: var(--primary-neon);
+            text-align: center;
+            font-size: 20px;
+            letter-spacing: 2px;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
 
-    if (bestMatch) {
-        voiceSelect.value = bestMatch.value;
-    } else if (options.length > 0) {
-        voiceSelect.selectedIndex = 0;
-    }
-}
+        .subtitle {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13px;
+            margin-bottom: 25px;
+        }
 
-// 3. 處理人格大按鈕的點擊切換事件
-function handlePersonaChange(mode) {
-    currentMode = mode;
-    isFirstLoad = true; // 🌟 用戶主動切換人格，允許 autoSelectVoiceForMode 重新幫忙配對
-    
-    document.querySelectorAll('.persona-btn').forEach(btn => {
-        btn.classList.remove('active');
-        if (btn.getAttribute('data-mode') === mode) btn.classList.add('active');
-    });
+        /* 3 Persona Buttons */
+        .persona-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 25px;
+        }
 
-    const rateRange = document.getElementById('rateRange');
-    const pitchRange = document.getElementById('pitchRange');
-    const testScript = document.getElementById('testScript');
+        .persona-btn {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-muted);
+            padding: 12px 5px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
 
-    if (mode === 'whisper') {
-        rateRange.value = 0.90; pitchRange.value = 1.05;
-    } else if (mode === 'command') {
-        rateRange.value = 1.05; pitchRange.value = 0.85;
-    } else if (mode === 'energy') {
-        rateRange.value = 1.20; pitchRange.value = 1.15;
-    }
+        .persona-btn .title {
+            font-size: 13px;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 2px;
+        }
 
-    document.getElementById('rateValue').innerText = parseFloat(rateRange.value).toFixed(2);
-    document.getElementById('pitchValue').innerText = parseFloat(pitchRange.value).toFixed(2);
-    
-    testScript.value = scriptTemplates[mode];
+        .persona-btn .sub {
+            font-size: 10px;
+            opacity: 0.7;
+        }
 
-    loadVoices(); // 重新觸發並進行新模式的配對
-}
+        /* Active State */
+        .persona-btn.active {
+            border-color: var(--primary-neon);
+            color: var(--primary-neon);
+            background: rgba(0, 255, 102, 0.05);
+            box-shadow: 0 0 10px rgba(0, 255, 102, 0.1);
+        }
 
-// 4. 即時更新並在面板底部渲染出可以複製的程式碼
-function updateCodeOutput() {
-    const selectedVoice = document.getElementById('voiceSelect').value;
-    const rate = document.getElementById('rateRange').value;
-    const pitch = document.getElementById('pitchRange').value;
-    const script = document.getElementById('testScript').value;
+        .form-group {
+            margin-bottom: 20px;
+        }
 
-    const codeTemplate = `// RunPro OS - TTS 戰術生成參數
-const utterance = new SpeechSynthesisUtterance("${script}");
-const voices = window.speechSynthesis.getVoices();
-utterance.voice = voices.find(v => v.name === "${selectedVoice}");
-utterance.rate = ${rate};
-utterance.pitch = ${pitch};
-utterance.volume = 1.0;
-window.speechSynthesis.speak(utterance);`;
+        label {
+            display: block;
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
 
-    document.getElementById('configOutput').innerText = codeTemplate;
-}
+        select, textarea {
+            width: 100%;
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-main);
+            padding: 12px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
 
-// 5. 執行聆聽播報效果
-function speakTest() {
-    const synth = window.speechSynthesis;
-    synth.cancel(); 
+        select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary-neon);
+        }
 
-    const script = document.getElementById('testScript').value;
-    const utterance = new SpeechSynthesisUtterance(script);
+        .slider-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
 
-    const selectedVoiceName = document.getElementById('voiceSelect').value;
-    const voices = synth.getVoices();
-    const targetVoice = voices.find(v => v.name === selectedVoiceName);
+        .slider-val {
+            color: var(--primary-neon);
+            font-family: monospace;
+            font-weight: bold;
+        }
 
-    if (targetVoice) utterance.voice = targetVoice;
-    utterance.rate = document.getElementById('rateRange').value;
-    utterance.pitch = document.getElementById('pitchRange').value;
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--primary-neon);
+            background: var(--border-color);
+            height: 6px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
 
-    synth.speak(utterance);
-}
+        .btn-action {
+            width: 100%;
+            padding: 14px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
 
-// 6. 核心初始化邏輯
-function init() {
-    const synth = window.speechSynthesis;
+        #playBtn {
+            background-color: var(--primary-neon);
+            color: #000000;
+            border: none;
+        }
 
-    if (typeof synth !== 'undefined' && synth.onvoiceschanged !== undefined) {
-        synth.onvoiceschanged = () => {
-            loadVoices();
+        #playBtn:hover {
+            background-color: #00dd55;
+            box-shadow: 0 0 15px rgba(0, 255, 102, 0.3);
+        }
+
+        #copyBtn {
+            background-color: transparent;
+            border: 1px solid var(--primary-neon);
+            color: var(--primary-neon);
+        }
+
+        #copyBtn:hover {
+            background: rgba(0, 255, 102, 0.1);
+        }
+
+        /* Code Output Window */
+        .code-container {
+            background-color: #070a10;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 15px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 12px;
+            color: #8da1b9;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>RunPro OS - TTS Tactical Lab</h1>
+        <div class="subtitle">Audio Persona & Parameter Calibration Dashboard</div>
+
+        <!-- 3 Persona Buttons with Gender/Wording Hints -->
+        <div class="persona-container">
+            <button class="persona-btn active" data-mode="whisper">
+                <span class="title">Soft Whisper</span>
+                <span class="sub">Calm Pacer (👩)</span>
+            </button>
+            <button class="persona-btn" data-mode="command">
+                <span class="title">Deep Command</span>
+                <span class="sub">Iron Tactical (👨)</span>
+            </button>
+            <button class="persona-btn" data-mode="energy">
+                <span class="title">High Energy</span>
+                <span class="sub">Race Booster (👩)</span>
+            </button>
+        </div>
+
+        <!-- Dropdown 選單 -->
+        <div class="form-group">
+            <label>Detected Human Voice (AUTOMATIC FILTER)</label>
+            <select id="voiceSelect">
+                <option>Scanning for premium human voices...</option>
+            </select>
+        </div>
+
+        <!-- Rate Slider -->
+        <div class="form-group">
+            <div class="slider-header">
+                <label>Voice Speed RATE (0.5 - 2.0)</label>
+                <span class="slider-val" id="rateValue">0.90</span>
+            </div>
+            <input type="range" id="rateRange" min="0.5" max="2.0" step="0.05" value="0.90">
+        </div>
+
+        <!-- Pitch Slider -->
+        <div class="form-group">
+            <div class="slider-header">
+                <label>Voice Pitch PITCH (0.5 - 2.0)</label>
+                <span class="slider-val" id="pitchValue">1.05</span>
+            </div>
+            <input type="range" id="pitchRange" min="0.5" max="2.0" step="0.05" value="1.05">
+        </div>
+
+        <!-- Text Script Box -->
+        <div class="form-group">
+            <label>Test Script Content (TEST SCRIPT)</label>
+            <textarea id="testScript" rows="3">Approaching target turn in five hundred meters. Please transition to the left lane smoothly.</textarea>
+        </div>
+
+        <!-- Action Buttons -->
+        <button id="playBtn" class="btn-action">🔊 Test Voice Broadcast</button>
+        <button id="copyBtn" class="btn-action">📋 Copy Config Code</button>
+
+        <!-- Config Code Window -->
+        <div class="code-container" id="configOutput">OUTPUT CONFIG CODE</div>
+    </div>
+
+    <script>
+        // Tactical English Script Templates
+        const scriptTemplates = {
+            whisper: "Approaching target turn in five hundred meters. Please transition to the left lane smoothly.",
+            command: "Warning. Heart rate has penetrated Zone 5 danger threshold. GAP pace is currently sub-four. De-escalate velocity immediately.",
+            energy: "Absolutely crushed it! Your current equivalent flat pace is down to four. Hold the line! Push it, push it!"
         };
-    }
-    loadVoices();
 
-    // 🌟 兜底計時器優化：只要 loadVoices 成功回傳 true (抓到人聲了)，立刻清除計時器，絕不在背景重複鬧鐘干擾！
-    const retryInterval = setInterval(() => {
-        const success = loadVoices();
-        if (success) {
-            console.log("語音載入成功，已永久關閉背景干擾計時器。");
-            clearInterval(retryInterval);
+        let currentMode = 'whisper';
+        let isFirstLoad = true; // Security Lock
+
+        // 1. Load English Voices (Supporting EN-US, EN-GB, EN-AU premium neural/human lines)
+        function loadVoices() {
+            const synth = window.speechSynthesis;
+            const voices = synth.getVoices();
+            const voiceSelect = document.getElementById('voiceSelect');
+            
+            if (voices.length === 0) return false;
+
+            const previousSelectedValue = voiceSelect.value;
+            voiceSelect.innerHTML = '';
+
+            // Filter for English voices (en-US, en-GB, etc.)
+            let filtered = voices.filter(v => v.lang.toLowerCase().includes('en'));
+            
+            // Fallback防呆
+            if (filtered.length === 0) filtered = voices;
+
+            filtered.forEach(voice => {
+                const option = document.createElement('option');
+                option.value = voice.name;
+                option.innerText = `${voice.name} (${voice.lang})`;
+                voiceSelect.appendChild(option);
+            });
+
+            if (isFirstLoad) {
+                autoSelectVoiceForMode();
+                isFirstLoad = false;
+            } else {
+                if (previousSelectedValue && Array.from(voiceSelect.options).some(o => o.value === previousSelectedValue)) {
+                    voiceSelect.value = previousSelectedValue;
+                }
+            }
+
+            updateCodeOutput();
+            return true;
         }
-    }, 500);
 
-    // 綁定大按鈕
-    document.querySelectorAll('.persona-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const mode = btn.getAttribute('data-mode');
-            handlePersonaChange(mode);
-        });
-    });
-
-    // 綁定滑桿與選單手動切換（點擊下拉選單時，完全交給 updateCodeOutput 且不重置選單）
-    document.getElementById('rateRange').addEventListener('input', (e) => {
-        document.getElementById('rateValue').innerText = parseFloat(e.target.value).toFixed(2);
-        updateCodeOutput();
-    });
-    document.getElementById('pitchRange').addEventListener('input', (e) => {
-        document.getElementById('pitchValue').innerText = parseFloat(e.target.value).toFixed(2);
-        updateCodeOutput();
-    });
-    
-    // 🌟 重要：使用者手動點選下拉選單時，只更新代碼，絕對不可以觸發自動重選！
-    document.getElementById('voiceSelect').addEventListener('change', updateCodeOutput);
-    document.getElementById('testScript').addEventListener('input', updateCodeOutput);
-
-    // 綁定按鈕
-    document.getElementById('playBtn').addEventListener('click', speakTest);
-    document.getElementById('copyBtn').addEventListener('click', () => {
-        const codeText = document.getElementById('configOutput').innerText;
-        navigator.clipboard.writeText(codeText).then(() => {
-            const copyBtn = document.getElementById('copyBtn');
-            const originalText = copyBtn.innerHTML;
-            copyBtn.innerHTML = '✓ 參數已成功套用至剪貼簿！';
-            copyBtn.style.backgroundColor = '#00ff66';
-            copyBtn.style.color = '#000';
-            setTimeout(() => {
-                copyBtn.innerHTML = originalText;
-                copyBtn.style.backgroundColor = 'transparent';
-                copyBtn.style.color = 'var(--primary-neon)';
-            }, 2000);
-        });
-    });
+        // 2. Auto-match the best premium English voice engine per mode
+        function autoSelectVoiceForMode() {
+const voiceSelect = document.getElementById('voiceSelect');
+const options = Array.from(voiceSelect.options);
+let targetKeywords = [];
+// Target premium Edge Neural or high-quality Apple voices
+if (currentMode === 'whisper') targetKeywords = ['Aria', 'Sonia', 'Jenny', 'Natasha', 'Samantha', 'Premium', 'Female', 'en-US'];
+if (currentMode === 'command') targetKeywords = ['Guy', 'Ryan', 'Siri', 'Oliver', 'Male', 'en-US', 'en-GB'];
+if (currentMode === 'energy') targetKeywords = ['Ava', 'Emma', 'Michelle', 'Premium', 'Female'];
+const bestMatch = options.find(opt =>
+targetKeywords.some(kw => opt.value.toLowerCase().includes(kw.toLowerCase()))
+);
+if (bestMatch) {
+voiceSelect.value = bestMatch.value;
+} else if (options.length > 0) {
+voiceSelect.selectedIndex = 0;
+}
+}
+// 3. Handle Top Segmented Tabs Event
+function handlePersonaChange(mode) {
+currentMode = mode;
+isFirstLoad = true; // Unlock for new auto-match
+document.querySelectorAll('.persona-btn').forEach(btn => {
+btn.classList.remove('active');
+if (btn.getAttribute('data-mode') === mode) btn.classList.add('active');
+});
+const rateRange = document.getElementById('rateRange');
+const pitchRange = document.getElementById('pitchRange');
+const testScript = document.getElementById('testScript');
+if (mode === 'whisper') {
+rateRange.value = 0.90; pitchRange.value = 1.05;
+} else if (mode === 'command') {
+rateRange.value = 1.05; pitchRange.value = 0.85;
+} else if (mode === 'energy') {
+rateRange.value = 1.20; pitchRange.value = 1.15;
+}
+document.getElementById('rateValue').innerText = parseFloat(rateRange.value).toFixed(2);
+document.getElementById('pitchValue').innerText = parseFloat(pitchRange.value).toFixed(2);
+testScript.value = scriptTemplates[mode];
+loadVoices();
+}
+// 4. Render exportable JavaScript snippet
+function updateCodeOutput() {
+const selectedVoice = document.getElementById('voiceSelect').value;
+const rate = document.getElementById('rateRange').value;
+const pitch = document.getElementById('pitchRange').value;
+const script = document.getElementById('testScript').value;
+const codeTemplate = // RunPro OS - TTS Tactical Parameters const utterance = new SpeechSynthesisUtterance("${script}"); const voices = window.speechSynthesis.getVoices(); utterance.voice = voices.find(v => v.name === "${selectedVoice}"); utterance.rate = ${rate}; utterance.pitch = ${pitch}; utterance.volume = 1.0; window.speechSynthesis.speak(utterance);;
+document.getElementById('configOutput').innerText = codeTemplate;
+}
+// 5. Fire Audio Output
+function speakTest() {
+const synth = window.speechSynthesis;
+synth.cancel(); // Stop overlapping
+const script = document.getElementById('testScript').value;
+const utterance = new SpeechSynthesisUtterance(script);
+const selectedVoiceName = document.getElementById('voiceSelect').value;
+const voices = synth.getVoices();
+const targetVoice = voices.find(v => v.name === selectedVoiceName);
+if (targetVoice) utterance.voice = targetVoice;
+utterance.rate = document.getElementById('rateRange').value;
+utterance.pitch = document.getElementById('pitchRange').value;
+synth.speak(utterance);
+}
+// 6. Core Initialization
+function init() {
+const synth = window.speechSynthesis;
+if (typeof synth !== 'undefined' && synth.onvoiceschanged !== undefined) {
+synth.onvoiceschanged = loadVoices;
+}
+loadVoices();
+// Background Polling Guardrail
+const retryInterval = setInterval(() => {
+const success = loadVoices();
+if (success) {
+console.log("English voice engines deployed successfully. Monitoring loop closed.");
+clearInterval(retryInterval);
+}
+}, 500);
+// Event Bindings
+document.querySelectorAll('.persona-btn').forEach(btn => {
+btn.addEventListener('click', () => {
+const mode = btn.getAttribute('data-mode');
+handlePersonaChange(mode);
+});
+});
+document.getElementById('rateRange').addEventListener('input', (e) => {
+document.getElementById('rateValue').innerText = parseFloat(e.target.value).toFixed(2);
+updateCodeOutput();
+});
+document.getElementById('pitchRange').addEventListener('input', (e) => {
+document.getElementById('pitchValue').innerText = parseFloat(e.target.value).toFixed(2);
+updateCodeOutput();
+});
+document.getElementById('voiceSelect').addEventListener('change', updateCodeOutput);
+document.getElementById('testScript').addEventListener('input', updateCodeOutput);
+document.getElementById('playBtn').addEventListener('click', speakTest);
+document.getElementById('copyBtn').addEventListener('click', () => {
+const codeText = document.getElementById('configOutput').innerText;
+navigator.clipboard.writeText(codeText).then(() => {
+const copyBtn = document.getElementById('copyBtn');
+const originalText = copyBtn.innerHTML;
+copyBtn.innerHTML = '✓ Code Successfully Copied to Clipboard!';
+copyBtn.style.backgroundColor = '#00ff66';
+copyBtn.style.color = '#000';
+setTimeout(() => {
+copyBtn.innerHTML = originalText;
+copyBtn.style.backgroundColor = 'transparent';
+copyBtn.style.color = 'var(--primary-neon)';
+}, 2000);
+});
+});
 }
 
 window.onload = init;
