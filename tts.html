@@ -309,42 +309,28 @@
 
     // 初始化加載語音清單（處理 Chrome/Safari 非同步加載問題）
     function loadVoices() {
-        const voices = window.speechSynthesis.getVoices();
-        const select = document.getElementById('voice-select');
-        const currentSelectedValue = select.value;
-        select.innerHTML = '';
+    const voices = window.speechSynthesis.getVoices();
+    const voiceSelect = document.getElementById('voiceSelect'); // 請對應您下拉選單的 ID
+    
+    if (voices.length === 0) return; // 還沒載入好就先退出
 
-        // 過濾出屬於台灣中文、普通話且排除明顯機器人或無效的老舊合成音
-        const filteredVoices = voices.filter(v => {
-            const isChinese = v.lang.includes('TW') || v.lang.includes('zh') || v.lang.includes('HK');
-            const isRobot = v.name.includes('Local') || v.name.includes('Desktop'); // 剔除常見舊系統內建死板音
-            return isChinese && !isRobot;
-        });
+    voiceSelect.innerHTML = ''; // 清空舊選項
 
-        if (filteredVoices.length === 0) {
-            // 如果過濾太嚴格沒抓到，放寬條件抓取所有中文
-            voices.filter(v => v.lang.includes('zh')).forEach(v => filteredVoices.push(v));
-        }
+    // 撈取台灣中文 (zh-TW)，若真的沒有，就撈取一般中文 (zh) 避免選單全空
+    let filteredVoices = voices.filter(v => v.lang.includes('TW') || v.lang.includes('zh'));
+    
+    // 如果該瀏覽器連中文語音都沒安裝，就塞入全部語音當最後後備
+    if (filteredVoices.length === 0) filteredVoices = voices;
 
-        filteredVoices.forEach(voice => {
-            const option = document.createElement('option');
-            option.value = voice.name;
-            // 標示出高階真人音線，方便視覺辨識
-            let tag = '[真人]';
-            if (voice.name.includes('Neural')) tag = '[微軟神經網絡·極擬真]';
-            if (voice.name.includes('Premium')) tag = '[Apple 真人聲線]';
-if (voice.name.includes('Siri')) tag = '[Siri 聲線]';
-option.textContent = ${tag} ${voice.name} (${voice.lang});
-select.appendChild(option);
-});
-// 恢復之前的選擇，如果存在的話
-if (currentSelectedValue && [...select.options].some(o => o.value === currentSelectedValue)) {
-select.value = currentSelectedValue;
-} else {
-// 首次加載，根據目前的人格模式自動選擇最速配的聲音
-autoSelectVoiceForCurrentMode();
-}
-updateCode();
+    filteredVoices.forEach(voice => {
+        const option = document.createElement('option');
+        option.value = voice.name;
+        option.innerText = `${voice.name} (${voice.lang})`;
+        voiceSelect.appendChild(option);
+    });
+
+    // 觸發一次程式碼更新
+    if (typeof updateCodeOutput === 'function') updateCodeOutput();
 }
 // 依據人格關鍵字順序，自動挑出最適合的內建語音
 function autoSelectVoiceForCurrentMode() {
@@ -438,34 +424,54 @@ window.speechSynthesis.speak(utterance);
         }
 
         // 初始化與事件綁定
-        function init() {
-            // 監聽 Web Speech API 語音清單載入事件 (特別針對 Chrome 非同步優化)
-            if (typeof speechSynthesis !== 'undefined' && speechSynthesis.onvoiceschanged !== undefined) {
-                speechSynthesis.onvoiceschanged = loadVoices;
-            }
-            
-            // 初次載入
-            loadVoices();
+        // 請將您 HTML 檔案中原本的 init() 函數整段替換成以下程式碼：
+function init() {
+    const synth = window.speechSynthesis;
 
-            // 綁定 UI 變更事件（滑桿拖動時即時更新數值與程式碼）
-            document.getElementById('personaSelect').addEventListener('change', handlePersonaChange);
-            document.getElementById('voiceSelect').addEventListener('change', updateCodeOutput);
-            
-            document.getElementById('rateRange').addEventListener('input', (e) => {
-                document.getElementById('rateValue').innerText = e.target.value;
-                updateCodeOutput();
-            });
-            
-            document.getElementById('pitchRange').addEventListener('input', (e) => {
-                document.getElementById('pitchValue').innerText = e.target.value;
-                updateCodeOutput();
-            });
-            
-            document.getElementById('volumeRange').addEventListener('input', (e) => {
-                document.getElementById('volumeValue').innerText = e.target.value;
-                updateCodeOutput();
-            });
+    // 💡 保險機制 1：註冊非同步變更監聽器（現代瀏覽器載入完語音時會自動觸發這個）
+    if (typeof synth !== 'undefined' && synth.onvoiceschanged !== undefined) {
+        synth.onvoiceschanged = () => {
+            console.log("語音清單已透過事件觸發載入");
+            loadVoices();
+        };
+    }
+    
+    // 💡 保險機制 2：頁面載入時先嘗試讀取一次（部分手機或 Safari 可直接讀取）
+    loadVoices();
+
+    // 💡 保險機制 3：終極計時器兜底（防止部分瀏覽器既不觸發事件、一開始又讀不到）
+    let retryCount = 0;
+    const retryInterval = setInterval(() => {
+        const voices = synth.getVoices();
+        if (voices.length > 0) {
+            console.log("語音清單已透過計時器兜底載入，總數:", voices.length);
+            loadVoices();
+            clearInterval(retryInterval); // 成功抓到就停止計時
         }
+        retryCount++;
+        if (retryCount > 10) clearInterval(retryInterval); // 超過 5 秒就放棄防止無效迴圈
+    }, 500);
+
+    // 綁定 UI 變更事件（滑桿拖動時即時更新數值與程式碼）
+    document.getElementById('personaSelect').addEventListener('change', handlePersonaChange);
+    document.getElementById('voiceSelect').addEventListener('change', updateCodeOutput);
+    
+    document.getElementById('rateRange').addEventListener('input', (e) => {
+        document.getElementById('rateValue').innerText = e.target.value;
+        updateCodeOutput();
+    });
+    
+    document.getElementById('pitchRange').addEventListener('input', (e) => {
+        document.getElementById('pitchValue').innerText = e.target.value;
+        updateCodeOutput();
+    });
+    
+    document.getElementById('volumeRange').addEventListener('input', (e) => {
+        document.getElementById('volumeValue').innerText = e.target.value;
+        updateCodeOutput();
+    });
+}
+
 
         // 啟動程式
         window.onload = init;
