@@ -1,0 +1,203 @@
+// 內建三種經典戰術腳本模版
+const scriptTemplates = {
+    whisper: "我們即將在前方五百公尺左轉囉，請先變換車道。",
+    command: "警告。目前心率已進入 Z5 危險區間。當前配速快四分速，請立即降速。",
+    energy: "太強了吧！現在等效配速拉到四分速了！穩住！衝啊！"
+};
+
+let currentMode = 'whisper';
+let isFirstLoad = true; // 🌟 關鍵鎖：用來防止後續計時器干擾用戶的手動選擇
+
+// 1. 載入語音引擎清單
+function loadVoices() {
+    const synth = window.speechSynthesis;
+    const voices = synth.getVoices();
+    const voiceSelect = document.getElementById('voiceSelect');
+    
+    if (voices.length === 0) return false; // 沒抓到聲音，返回 false 讓計時器繼續
+
+    // 先暫存使用者目前「手動選取」的值，避免被清空
+    const previousSelectedValue = voiceSelect.value;
+
+    voiceSelect.innerHTML = '';
+
+    // 過濾繁體中文台灣 (zh-TW) 與通用中文 (zh) 真人人聲
+    let filtered = voices.filter(v => v.lang.includes('TW') || v.lang.includes('zh'));
+    if (filtered.length === 0) filtered = voices;
+
+    filtered.forEach(voice => {
+        const option = document.createElement('option');
+        option.value = voice.name;
+        option.innerText = `${voice.name} (${voice.lang})`;
+        voiceSelect.appendChild(option);
+    });
+
+    // 🌟 只有在「第一次加載網頁」或「切換大按鈕人格」時才允許自動改選選單
+    if (isFirstLoad) {
+        autoSelectVoiceForMode();
+        isFirstLoad = false; // 鎖定，之後就不再自動蓋掉用戶的選擇
+    } else {
+        // 如果是背景計時器觸發的更新，把使用者剛剛選的聲音還原回去
+        if (previousSelectedValue && Array.from(voiceSelect.options).some(o => o.value === previousSelectedValue)) {
+            voiceSelect.value = previousSelectedValue;
+        }
+    }
+
+    updateCodeOutput();
+    return true; // 成功抓到並渲染，返回 true
+}
+
+// 2. 自動在下拉選單中匹配最合適的優質真人聲線
+function autoSelectVoiceForMode() {
+    const voiceSelect = document.getElementById('voiceSelect');
+    const options = Array.from(voiceSelect.options);
+    
+    let targetKeywords = [];
+    if (currentMode === 'whisper') targetKeywords = ['HsiaoChen', 'Meijia', 'Premium', 'Google', 'Taiwan', 'Female', '女'];
+    if (currentMode === 'command') targetKeywords = ['YunJhe', 'Siri', 'Tianyang', 'Male', '男'];
+    if (currentMode === 'energy') targetKeywords = ['Hiulion', 'Sinji', 'Premium', 'Google', 'Taiwan'];
+
+    const bestMatch = options.find(opt => 
+        targetKeywords.some(kw => opt.value.toLowerCase().includes(kw.toLowerCase()))
+    );
+
+    if (bestMatch) {
+        voiceSelect.value = bestMatch.value;
+    } else if (options.length > 0) {
+        voiceSelect.selectedIndex = 0;
+    }
+}
+
+// 3. 處理人格大按鈕的點擊切換事件
+function handlePersonaChange(mode) {
+    currentMode = mode;
+    isFirstLoad = true; // 🌟 用戶主動切換人格，允許 autoSelectVoiceForMode 重新幫忙配對
+    
+    document.querySelectorAll('.persona-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.getAttribute('data-mode') === mode) btn.classList.add('active');
+    });
+
+    const rateRange = document.getElementById('rateRange');
+    const pitchRange = document.getElementById('pitchRange');
+    const testScript = document.getElementById('testScript');
+
+    if (mode === 'whisper') {
+        rateRange.value = 0.90; pitchRange.value = 1.05;
+    } else if (mode === 'command') {
+        rateRange.value = 1.05; pitchRange.value = 0.85;
+    } else if (mode === 'energy') {
+        rateRange.value = 1.20; pitchRange.value = 1.15;
+    }
+
+    document.getElementById('rateValue').innerText = parseFloat(rateRange.value).toFixed(2);
+    document.getElementById('pitchValue').innerText = parseFloat(pitchRange.value).toFixed(2);
+    
+    testScript.value = scriptTemplates[mode];
+
+    loadVoices(); // 重新觸發並進行新模式的配對
+}
+
+// 4. 即時更新並在面板底部渲染出可以複製的程式碼
+function updateCodeOutput() {
+    const selectedVoice = document.getElementById('voiceSelect').value;
+    const rate = document.getElementById('rateRange').value;
+    const pitch = document.getElementById('pitchRange').value;
+    const script = document.getElementById('testScript').value;
+
+    const codeTemplate = `// RunPro OS - TTS 戰術生成參數
+const utterance = new SpeechSynthesisUtterance("${script}");
+const voices = window.speechSynthesis.getVoices();
+utterance.voice = voices.find(v => v.name === "${selectedVoice}");
+utterance.rate = ${rate};
+utterance.pitch = ${pitch};
+utterance.volume = 1.0;
+window.speechSynthesis.speak(utterance);`;
+
+    document.getElementById('configOutput').innerText = codeTemplate;
+}
+
+// 5. 執行聆聽播報效果
+function speakTest() {
+    const synth = window.speechSynthesis;
+    synth.cancel(); 
+
+    const script = document.getElementById('testScript').value;
+    const utterance = new SpeechSynthesisUtterance(script);
+
+    const selectedVoiceName = document.getElementById('voiceSelect').value;
+    const voices = synth.getVoices();
+    const targetVoice = voices.find(v => v.name === selectedVoiceName);
+
+    if (targetVoice) utterance.voice = targetVoice;
+    utterance.rate = document.getElementById('rateRange').value;
+    utterance.pitch = document.getElementById('pitchRange').value;
+
+    synth.speak(utterance);
+}
+
+// 6. 核心初始化邏輯
+function init() {
+    const synth = window.speechSynthesis;
+
+    if (typeof synth !== 'undefined' && synth.onvoiceschanged !== undefined) {
+        synth.onvoiceschanged = () => {
+            loadVoices();
+        };
+    }
+    loadVoices();
+
+    // 🌟 兜底計時器優化：只要 loadVoices 成功回傳 true (抓到人聲了)，立刻清除計時器，絕不在背景重複鬧鐘干擾！
+    const retryInterval = setInterval(() => {
+        const success = loadVoices();
+        if (success) {
+            console.log("語音載入成功，已永久關閉背景干擾計時器。");
+            clearInterval(retryInterval);
+        }
+    }, 500);
+
+    // 綁定大按鈕
+    document.querySelectorAll('.persona-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const mode = btn.getAttribute('data-mode');
+            handlePersonaChange(mode);
+        });
+    });
+
+    // 綁定滑桿與選單手動切換（點擊下拉選單時，完全交給 updateCodeOutput 且不重置選單）
+    document.getElementById('rateRange').addEventListener('input', (e) => {
+        document.getElementById('rateValue').innerText = parseFloat(e.target.value).toFixed(2);
+        updateCodeOutput();
+    });
+    document.getElementById('pitchRange').addEventListener('input', (e) => {
+        document.getElementById('pitchValue').innerText = parseFloat(e.target.value).toFixed(2);
+        updateCodeOutput();
+    });
+    
+    // 🌟 重要：使用者手動點選下拉選單時，只更新代碼，絕對不可以觸發自動重選！
+    document.getElementById('voiceSelect').addEventListener('change', updateCodeOutput);
+    document.getElementById('testScript').addEventListener('input', updateCodeOutput);
+
+    // 綁定按鈕
+    document.getElementById('playBtn').addEventListener('click', speakTest);
+    document.getElementById('copyBtn').addEventListener('click', () => {
+        const codeText = document.getElementById('configOutput').innerText;
+        navigator.clipboard.writeText(codeText).then(() => {
+            const copyBtn = document.getElementById('copyBtn');
+            const originalText = copyBtn.innerHTML;
+            copyBtn.innerHTML = '✓ 參數已成功套用至剪貼簿！';
+            copyBtn.style.backgroundColor = '#00ff66';
+            copyBtn.style.color = '#000';
+            setTimeout(() => {
+                copyBtn.innerHTML = originalText;
+                copyBtn.style.backgroundColor = 'transparent';
+                copyBtn.style.color = 'var(--primary-neon)';
+            }, 2000);
+        });
+    });
+}
+
+window.onload = init;
+    </script>
+</body>
+</html>
