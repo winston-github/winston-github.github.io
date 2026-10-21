@@ -8,7 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Pro Treadmill OS - Tactical Edition (v71.0 / runpro_new_v21)</title>
+    <title>Pro Treadmill OS - Tactical Edition (v72.0 / runpro_new_v22)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.85); 
@@ -597,6 +597,9 @@
         .cadence-choice{position:relative;z-index:81;background:rgba(12,12,14,.94)!important;border-width:1.5px!important;box-shadow:0 3px 12px rgba(0,0,0,.78)}
         .cadence-choice.selected{background:var(--cadence-color)!important;color:#050505!important}
         @media(max-width:370px){.cadence-float-stage{left:48px!important;right:48px!important}.cadence-choice{font-size:.48rem!important}}
+
+/* V22 selector visibility and energy zones */
+.cadence-float-stage{left:54px!important;right:54px!important;top:auto!important;bottom:2px!important;height:36px!important;overflow:visible!important;z-index:120!important;pointer-events:none!important}.cadence-choice-row,.cadence-trace{top:0!important;z-index:121!important}.cadence-choice-row.show{pointer-events:auto!important}.cadence-choice{height:32px!important;background:rgba(8,8,10,.97)!important;box-shadow:0 2px 10px #000!important}.massive-time{padding-bottom:45px!important}@media(max-width:370px){.cadence-float-stage{left:42px!important;right:42px!important}.cadence-choice{font-size:.46rem!important}}
 </style>
 </head>
 <body>
@@ -1219,7 +1222,7 @@
 </div>
 
 <script>
-/** PRO TREADMILL OS (TACTICAL EDITION v71.0 / runpro_new_v21) */
+/** PRO TREADMILL OS (TACTICAL EDITION v72.0 / runpro_new_v22) */
 
 const i18n = {
     zh: {
@@ -2166,7 +2169,7 @@ const RunAcc = {
     dKm: 0, dElev: 0, fCal: 0, cCal: 0, zs: [0,0,0,0,0], 
     cappedMs: {}, pauseCount: 0, lastPauseMs: 0, pausePenalty: false, transF: {},
     gaitPhase:0,lastGaitBPM:-1,lastGaitPulseTime:0,autoCadence:0,targetCadence:0,stepLengthM:0,totalSteps:0,sumCadence:0,cadenceSeconds:0,
-    currentGlycogen: 0, maxGlycogen: 0, undigestedCarbs: 0, lastPhysioTs: 0,
+    currentGlycogen:0,maxGlycogen:0,startGlycogen:0,glycogenReady:false,undigestedCarbs:0,lastPhysioTs:0,
     dMeters: 0, kmSplits: [], rawSplits: []
 };
 
@@ -2178,14 +2181,13 @@ const resetRunAcc = () => {
         dKm: 0, dElev: 0, fCal: 0, cCal: 0, zs: [0,0,0,0,0], 
         cappedMs: {}, pauseCount: 0, lastPauseMs: 0, pausePenalty: false, transF: {},
         gaitPhase:0,lastGaitBPM:-1,lastGaitPulseTime:0,autoCadence:0,targetCadence:0,stepLengthM:0,totalSteps:0,sumCadence:0,cadenceSeconds:0,
-        undigestedCarbs: 0, lastPhysioTs: Date.now(),
+        startGlycogen:0,glycogenReady:false,undigestedCarbs:0,lastPhysioTs:Date.now(),
         dMeters: 0, kmSplits: [], rawSplits: []
     });
     try {
         let p = PhysioEngine.sanitize(AppState.state.profiles[AppState.state.activeP]);
-        RunAcc.maxGlycogen = p.smm * 15; 
-        RunAcc.currentGlycogen = RunAcc.maxGlycogen;
-    } catch(e) { RunAcc.maxGlycogen = 400; RunAcc.currentGlycogen = 400; }
+        RunAcc.maxGlycogen=Math.max(1,p.smm*15);RunAcc.startGlycogen=RunAcc.maxGlycogen;RunAcc.currentGlycogen=RunAcc.startGlycogen;RunAcc.glycogenReady=true;
+    }catch(e){RunAcc.maxGlycogen=400;RunAcc.startGlycogen=400;RunAcc.currentGlycogen=400;RunAcc.glycogenReady=true;}
     AppState.state.fuelLog = [];
 };
 
@@ -3038,7 +3040,7 @@ class AppController {
             if(r && r.accumMs > 0 && r.snapshot && r.snapshot.length > 0) { 
                 let restoredStatus = r.runStatus || 'PAUSED';
                 AppState.batch({ runStatus: restoredStatus, accumMs: r.accumMs, matrix: r.matrix, snapshot: r.snapshot, activeP: r.activeP, minimalVoice: r.minimalVoice || false, fabMode: 'NORMAL', tempVoiceLang: null, previousFabMode: r.previousFabMode || null }); 
-                if(r.acc) { Object.assign(RunAcc, r.acc); }
+                if(r.acc){Object.assign(RunAcc,r.acc);let clean=PhysioEngine.sanitize(AppState.state.profiles[r.activeP]||AppState.state.profiles[AppState.state.activeP]);if(!(Number(RunAcc.maxGlycogen)>0))RunAcc.maxGlycogen=Math.max(1,clean.smm*15);if(!(Number(RunAcc.startGlycogen)>0))RunAcc.startGlycogen=RunAcc.maxGlycogen;if(!Number.isFinite(Number(RunAcc.currentGlycogen)))RunAcc.currentGlycogen=RunAcc.startGlycogen;RunAcc.glycogenReady=true;}
                 if(r.tempVoiceLang) { AppState.state.tempVoiceLang = r.tempVoiceLang; }
                 if(r.fuelLog) { AppState.state.fuelLog = r.fuelLog; }
                 if(!Array.isArray(RunAcc.kmSplits)) RunAcc.kmSplits = [];
@@ -3561,11 +3563,11 @@ class AppController {
                 if (pauseDuration > 60000 && curM && curM.spd > 7.0) { VoiceApp.speakText(dStr.warn_warmup, 3, AppState.state.tempVoiceLang==='zh'||p.lang==='zh'?'zh-TW':'en-US', () => { AppState.state.runStatus = 'RUNNING'; }); } 
                 else { VoiceApp.speakText(dStr.msg_resume, 3, AppState.state.tempVoiceLang==='zh'||p.lang==='zh'?'zh-TW':'en-US', () => { AppState.state.runStatus = 'RUNNING'; }); }
             } else {
-                this.setFabState(p,1);this.saveData();this.setFabMode('NORMAL');AppState.state.runStatus='PRE_FLIGHT';
+                this.setFabState(p,4);this.saveData();resetRunAcc();this._updateBatteryUI();this.setFabMode('NORMAL');AppState.state.runStatus='PRE_FLIGHT';
                 this.dials.time.forceSnap(); this.dials.dist.forceSnap();
                 await new Promise(r => setTimeout(r, 200)); if (AppState.state.runStatus !== 'PRE_FLIGHT') return; 
 
-                resetRunAcc(); this.lastVisualPhase = 0.99; AppState.state.tempVoiceLang = null; AppState.state.estTotKm = PhysioEngine.simulatePhysics(AppState.state.snapshot, AppState.state.hw).dist;
+                this.lastVisualPhase = 0.99; AppState.state.tempVoiceLang = null; AppState.state.estTotKm = PhysioEngine.simulatePhysics(AppState.state.snapshot, AppState.state.hw).dist;
                 let startM = AppState.state.snapshot[0]; let curLang = p.lang;
                 let sNumVal = isMet ? startM.spd : startM.spd/1.609344; let sUnit = isMet ? " kilometers per hour" : " miles per hour";
                 let sSpeak = VoiceApp.numToSpeech(sNumVal, curLang) + (curLang !== 'zh' ? sUnit : ""); let iSpeak = VoiceApp.numToSpeech(startM.inc, curLang) + (curLang !== 'zh' ? " percent" : "");
@@ -3627,7 +3629,7 @@ class AppController {
         if(state===1) { p.gaitOn=false; p.stepOn=false; p.beatOn=false; } if(state===2) { p.gaitOn=true; p.stepOn=false; p.beatOn=false; }
         if(state===3) { p.gaitOn=true; p.stepOn=true; p.beatOn=false; } if(state===4) { p.gaitOn=true; p.stepOn=true; p.beatOn=true; }
         AudioApp.setBeatMute(!p.beatOn);
-        requestAnimationFrame(()=>this.refreshCadenceOverlay());
+        this.refreshCadenceOverlay();requestAnimationFrame(()=>this.refreshCadenceOverlay());
     }
     setFabMode(mode) {
         AppState.state.fabMode = mode; let btnL = document.getElementById('btnFabLeft'); let btnR = document.getElementById('btnFabRight');
@@ -4188,29 +4190,12 @@ class AppController {
         }
     }
     
-    _updateBatteryUI() {
-        const f = document.getElementById('batFill'); const w = document.getElementById('batWave'); const t = document.getElementById('batText'); const icon = document.querySelector('.energy-bolt');
-        if(!f || !w || !t) return;
-        
-        let a = Utils.clamp(RunAcc.currentGlycogen / Math.max(1, RunAcc.maxGlycogen) * 100, 0, 100);
-        let b = Utils.clamp(RunAcc.undigestedCarbs / Math.max(1, RunAcc.maxGlycogen) * 100, 0, 100);
-        
-        let fh = 24 * (a / 100); let wh = 24 * (Math.min(100 - a, b) / 100);
-        f.setAttribute('y', (24 - fh).toFixed(2)); f.setAttribute('height', fh.toFixed(2));
-        w.setAttribute('y', (24 - fh - wh).toFixed(2)); w.setAttribute('height', wh.toFixed(2));
-        
-        let c = 'var(--neon-green)';
-        if(a < 5) c = 'var(--neon-red)'; else if(a < 20) c = '#FF9500'; else if(a < 33) c = 'var(--neon-yellow)';
-        
-        f.style.fill = c; 
-        t.textContent = Math.round(a) + '%'; 
-        t.style.color = c; 
-        if(icon) icon.style.filter = `drop-shadow(0 0 5px ${c})`;
-        
-        t.parentElement.classList.toggle('bat-blink', a < 5);
-        w.classList.toggle('purple-bloat', a + b > 100);
+    _updateBatteryUI(){
+        const f=document.getElementById('batFill'),w=document.getElementById('batWave'),t=document.getElementById('batText'),icon=document.querySelector('.energy-bolt');if(!f||!w||!t)return;
+        let ready=RunAcc.glycogenReady&&Number.isFinite(Number(RunAcc.currentGlycogen))&&Number(RunAcc.startGlycogen)>0,reserve=ready?Utils.clamp(RunAcc.currentGlycogen/RunAcc.startGlycogen*100,0,100):100,pending=ready?Utils.clamp((Number(RunAcc.undigestedCarbs)||0)/RunAcc.startGlycogen*100,0,100):0;
+        let fh=24*reserve/100,wh=24*Math.min(100-reserve,pending)/100;f.setAttribute('y',(24-fh).toFixed(2));f.setAttribute('height',fh.toFixed(2));w.setAttribute('y',(24-fh-wh).toFixed(2));w.setAttribute('height',wh.toFixed(2));
+        let c='var(--neon-green)',zone='normal';if(reserve<=15){c='var(--neon-red)';zone='critical';}else if(reserve<=25){c='#FF9500';zone='fuel-now';}else if(reserve<=40){c='var(--neon-yellow)';zone='prepare';}f.style.fill=c;t.textContent=Math.round(reserve)+'%';t.style.color=c;t.dataset.energyZone=zone;if(icon)icon.style.filter=`drop-shadow(0 0 5px ${c})`;t.parentElement.classList.toggle('bat-blink',reserve<=15);w.classList.toggle('purple-bloat',reserve+pending>100.5);
     }
-
     computeRunStats(matrix, accumMs, isActual) {
         let stats = { distKm: 0, elevM: 0, fCal: 0, cCal: 0, zs: [0,0,0,0,0], totalKcal: 0 };
         if (isActual) {
