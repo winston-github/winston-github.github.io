@@ -8,7 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Pro Treadmill OS - Tactical Edition (v79.0 / runpro_new_v29)</title>
+    <title>Pro Treadmill OS - Tactical Edition (v80.0 / runpro_new_v30)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.85); 
@@ -746,6 +746,21 @@
     #run-view .run-val-box > .run-val-center{top:39px!important;bottom:39px!important}
 }
 </style>
+
+<style id="v30-cadence-label-fix">
+.cadence-choice-row.wake-open{animation:v30CadenceIn .25s ease-out!important}
+.cadence-choice-row.wake-closing{pointer-events:none!important}
+.cadence-choice.fade-fast{animation:v30CadenceOut .25s ease-in!important;animation-fill-mode:none!important}
+.cadence-choice.fade-slow{animation:v30CadenceOut 1s ease-in!important;animation-fill-mode:none!important}
+@keyframes v30CadenceIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+@keyframes v30CadenceOut{from{opacity:1}to{opacity:0}}
+#run-view .run-val-box > .run-val-center{top:39px!important;bottom:39px!important;padding:4px 7px 7px!important;overflow:visible!important}
+#run-view .run-val-box .run-lbl-container{height:1.38rem!important;min-height:1.38rem!important;margin:3px 0 0!important;padding:0 3px 3px!important;overflow:visible!important;align-items:flex-start!important}
+#run-view .run-val-box .run-lbl{top:0!important;bottom:auto!important;line-height:1.12rem!important;height:1.18rem!important;overflow:visible!important}
+#run-view .run-val-box .run-adv-label{line-height:1.12rem!important;height:1.18rem!important;overflow:visible!important;padding-bottom:2px!important}
+#run-view .run-val-box > .overlay-btn.bottom{top:auto!important;bottom:0!important;border-top:1px solid rgba(255,255,255,.05)!important}
+@media(max-height:760px){#run-view .run-val-box > .run-val-center{top:38px!important;bottom:38px!important;padding-bottom:6px!important}}
+</style>
 </head>
 <body>
 <svg style="display:none;">
@@ -1368,7 +1383,7 @@
 </div>
 
 <script>
-/** PRO TREADMILL OS (TACTICAL EDITION v79.0 / runpro_new_v29) */
+/** PRO TREADMILL OS (TACTICAL EDITION v80.0 / runpro_new_v30) */
 
 const i18n = {
     zh: {
@@ -3651,7 +3666,7 @@ class AppController {
         setupRepeater('offset-spd-plus'); setupRepeater('offset-spd-minus'); setupRepeater('offset-inc-plus'); setupRepeater('offset-inc-minus');
 
         document.getElementById('cadenceChoiceRow').addEventListener('click',e=>{let btn=e.target.closest('[data-cadence-offset]');if(!btn||AppState.state.runStatus==='STOPPED')return;let p=AppState.state.profiles[AppState.state.activeP],returnState=this.cadenceWakeReturnState;p.cadenceOffsetPct=Number(btn.dataset.cadenceOffset);if(returnState!==null){this.setFabState(p,returnState);this.closeWokenCadenceChoices(btn);}else this.setFabState(p,2);this.saveData();this.setFabMode('NORMAL');RunAcc.lastGaitBPM=-1;this.refreshCadenceOverlay();});
-        document.getElementById('cadenceWakeZone').addEventListener('click',()=>this.wakeCadenceChoices());
+        document.getElementById('cadenceWakeZone').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();this.wakeCadenceChoices();});
         document.getElementById('cadenceTrace').addEventListener('click',()=>{let p=AppState.state.profiles[AppState.state.activeP];if(this.getFabState(p)!==2)return;this.setFabState(p,3);this.saveData();this.setFabMode('NORMAL');});
         const setupFab = (id, side) => {
             let btn = document.getElementById(id); if(!btn) return;
@@ -3681,8 +3696,8 @@ class AppController {
                         this.saveData(); VoiceApp.clear(); this.updateI18n(); this.setFabMode('NORMAL');
                     } else {
                         if(side === 'left') {
-                            let curState = this.getFabState(p); let nextState = curState >= 4 ? 1 : curState + 1;
-                            this.setFabState(p, nextState); this.saveData(); this.setFabMode('NORMAL'); if (nextState === 4) AudioApp.armSync('left');
+                            let curState=this.getFabState(p),nextState=curState>=4?1:curState+1;this._cadenceCloseToken=null;this._resetCadenceChoiceVisuals(true);this.cadenceWakeReturnState=null;
+                            this.setFabState(p,nextState); this.saveData(); this.setFabMode('NORMAL'); if (nextState === 4) AudioApp.armSync('left');
                         } else {
                             let curState = this.getFabState(p);
                             if (curState <= 2) { p.voiceOn = !p.voiceOn; this.saveData(); this.setFabMode('NORMAL'); NotificationManager.show(p.voiceOn ? dStr.opt_voice_on : dStr.opt_voice_off, false); } 
@@ -4030,21 +4045,34 @@ class AppController {
         return {autoRaw,auto,target,offset,stepLengthM:stepLength,strideLengthM:stepLength*2,deviation};
     }
     getCadenceEconomy(model){let d=model.deviation||0,penalty=d<0?7.5*d*d:3.5*d*d;return {penalty:Utils.clamp(penalty,0,.05),factor:1+Utils.clamp(penalty,0,.05)};}
+    _resetCadenceChoiceVisuals(forceHidden=false) {
+        let row=document.getElementById('cadenceChoiceRow');if(!row)return;
+        clearTimeout(this.cadenceChoiceFadeTimer);this.cadenceChoiceFadeTimer=null;
+        row.classList.remove('wake-open','wake-closing');
+        row.querySelectorAll('.cadence-choice').forEach(b=>{b.classList.remove('fade-fast','fade-slow');b.style.animation='';b.style.opacity='';b.style.visibility='';b.style.pointerEvents='';});
+        if(forceHidden){row.style.display='';row.style.opacity='';row.style.visibility='';row.style.pointerEvents='';}
+    }
     wakeCadenceChoices() {
         let p=AppState.state.profiles[AppState.state.activeP],state=this.getFabState(p);
-        if(![3,4].includes(state) || AppState.state.runStatus==='STOPPED') return;
-        this.cadenceWakeReturnState=state; clearTimeout(this.cadenceChoiceFadeTimer);
-        document.getElementById('cadenceChoiceRow')?.classList.add('wake-open'); this.refreshCadenceOverlay();
+        if(![3,4].includes(state)||AppState.state.runStatus==='STOPPED')return;
+        this._resetCadenceChoiceVisuals(false);this.cadenceWakeReturnState=state;
+        let row=document.getElementById('cadenceChoiceRow');if(!row)return;
+        row.classList.add('wake-open');row.style.display='grid';row.style.opacity='1';row.style.visibility='visible';row.style.pointerEvents='auto';
+        this.refreshCadenceOverlay();
     }
     closeWokenCadenceChoices(clicked) {
-        let row=document.getElementById('cadenceChoiceRow'); if(!row)return;
-        row.querySelectorAll('.cadence-choice').forEach(b=>{b.classList.remove('fade-fast','fade-slow');b.classList.add(b===clicked?'fade-slow':'fade-fast');});
-        clearTimeout(this.cadenceChoiceFadeTimer); this.cadenceChoiceFadeTimer=setTimeout(()=>{row.classList.remove('wake-open');row.querySelectorAll('.cadence-choice').forEach(b=>b.classList.remove('fade-fast','fade-slow'));this.cadenceWakeReturnState=null;this.refreshCadenceOverlay();},1000);
+        let row=document.getElementById('cadenceChoiceRow');if(!row)return;
+        clearTimeout(this.cadenceChoiceFadeTimer);this.cadenceChoiceFadeTimer=null;row.classList.add('wake-closing');
+        row.querySelectorAll('.cadence-choice').forEach(b=>{b.classList.remove('fade-fast','fade-slow');void b.offsetWidth;b.classList.add(b===clicked?'fade-slow':'fade-fast');});
+        let closeToken=Symbol('cadenceClose');this._cadenceCloseToken=closeToken;
+        this.cadenceChoiceFadeTimer=setTimeout(()=>{if(this._cadenceCloseToken!==closeToken)return;this._resetCadenceChoiceVisuals(true);this.cadenceWakeReturnState=null;this.refreshCadenceOverlay();},1050);
     }
     refreshCadenceOverlay(model=null){
         try{
         let p=AppState.state.profiles[AppState.state.activeP];if(!p)return;let state=this.getFabState(p),snapshot=Array.isArray(AppState.state.snapshot)?AppState.state.snapshot:[],idx=Math.min(Math.floor((AppState.state.accumMs||0)/60000),Math.max(0,snapshot.length-1)),snap=snapshot[idx]||null,spd=Number(RunAcc.curSpd)>0?Number(RunAcc.curSpd):Number(snap?.spd||0),inc=Number.isFinite(Number(RunAcc.curInc))&&Number(RunAcc.curSpd)>0?Number(RunAcc.curInc):Number(snap?.inc||0),base=model||this.getCadenceModel(spd,inc,p),row=document.getElementById('cadenceChoiceRow'),trace=document.getElementById('cadenceTrace');if(!row||!trace)return;
-        let activeRun=AppState.state.runStatus==='RUNNING'||AppState.state.runStatus==='PRE_FLIGHT',showChoices=(state===1||this.cadenceWakeReturnState!==null)&&activeRun;row.classList.toggle('show',showChoices);row.setAttribute('aria-hidden',showChoices?'false':'true');row.style.display=showChoices?'grid':'';row.style.opacity=showChoices?'1':'';row.style.visibility=showChoices?'visible':'';trace.classList.toggle('show',state===2&&Math.abs(base.offset)>.0001&&activeRun);
+        let activeRun=AppState.state.runStatus==='RUNNING'||AppState.state.runStatus==='PRE_FLIGHT';
+        if(state===1){this._cadenceCloseToken=null;this._resetCadenceChoiceVisuals(false);this.cadenceWakeReturnState=null;}
+        let showChoices=(state===1||this.cadenceWakeReturnState!==null)&&activeRun;row.classList.toggle('show',showChoices);row.setAttribute('aria-hidden',showChoices?'false':'true');row.style.display=showChoices?'grid':'';row.style.opacity=showChoices?'1':'';row.style.visibility=showChoices?'visible':'';row.style.pointerEvents=showChoices?'auto':'';trace.classList.toggle('show',state===2&&Math.abs(base.offset)>.0001&&activeRun);
         row.querySelectorAll('[data-cadence-offset]').forEach(btn=>{let off=Number(btn.dataset.cadenceOffset),m=this.getCadenceModel(spd,inc,p,off),sign=off===0?'Auto':`${off>0?'+':''}${Math.round(off*100)}%`,h=this.getGaitHSL(m.target);btn.innerHTML=`<span class="cadence-main">${m.target}</span><span class="cadence-sub">${sign}</span>`;btn.style.setProperty('--cadence-color',`hsl(${h},100%,60%)`);btn.classList.toggle('selected',Math.abs(off-Number(p.cadenceOffsetPct||0))<.001)});
         if(Math.abs(base.offset)>.0001){let sign=`${base.offset>0?'+':'−'}${Math.abs(Math.round(base.offset*100))}%`;trace.textContent=`${base.auto}(Auto) ${sign} = ${base.target}`;}
         }catch(err){console.error('Cadence overlay error:',err);document.getElementById('cadenceTrace')?.classList.remove('show');}
