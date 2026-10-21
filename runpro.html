@@ -8,7 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Pro Treadmill OS - Tactical Edition (v80.0 / runpro_new_v30)</title>
+    <title>Pro Treadmill OS - Tactical Edition (v81.0 / runpro_new_v31)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.85); 
@@ -761,6 +761,19 @@
 #run-view .run-val-box > .overlay-btn.bottom{top:auto!important;bottom:0!important;border-top:1px solid rgba(255,255,255,.05)!important}
 @media(max-height:760px){#run-view .run-val-box > .run-val-center{top:38px!important;bottom:38px!important;padding-bottom:6px!important}}
 </style>
+
+<style id="v31-cadence-compact-fix">
+/* V31: compact cadence band while preserving the 38px touch target. */
+#run-view .massive-time-container{grid-template-rows:74px 38px!important;row-gap:3px!important}
+#run-view .cadence-float-stage{height:38px!important;align-self:start!important;margin:0!important}
+#run-view .cadence-choice-row,#run-view .cadence-trace{height:38px!important;inset:0!important}
+#run-view .cadence-choice{height:38px!important;margin:0!important}
+#run-view .run-primary-grid{margin-top:3px!important}
+@media(max-height:760px){
+ #run-view .massive-time-container{grid-template-rows:70px 38px!important;row-gap:2px!important}
+ #run-view .run-primary-grid{margin-top:2px!important}
+}
+</style>
 </head>
 <body>
 <svg style="display:none;">
@@ -1383,7 +1396,7 @@
 </div>
 
 <script>
-/** PRO TREADMILL OS (TACTICAL EDITION v80.0 / runpro_new_v30) */
+/** PRO TREADMILL OS (TACTICAL EDITION v81.0 / runpro_new_v31) */
 
 const i18n = {
     zh: {
@@ -4065,7 +4078,10 @@ class AppController {
         clearTimeout(this.cadenceChoiceFadeTimer);this.cadenceChoiceFadeTimer=null;row.classList.add('wake-closing');
         row.querySelectorAll('.cadence-choice').forEach(b=>{b.classList.remove('fade-fast','fade-slow');void b.offsetWidth;b.classList.add(b===clicked?'fade-slow':'fade-fast');});
         let closeToken=Symbol('cadenceClose');this._cadenceCloseToken=closeToken;
-        this.cadenceChoiceFadeTimer=setTimeout(()=>{if(this._cadenceCloseToken!==closeToken)return;this._resetCadenceChoiceVisuals(true);this.cadenceWakeReturnState=null;this.refreshCadenceOverlay();},1050);
+        this.cadenceChoiceFadeTimer=setTimeout(()=>{if(this._cadenceCloseToken!==closeToken)return;
+        // Hide the row before removing child fade classes. This prevents a one-frame opacity flash.
+        row.style.transition='none';row.style.opacity='0';row.style.visibility='hidden';row.style.pointerEvents='none';row.classList.remove('show','wake-open','wake-closing');
+        this.cadenceWakeReturnState=null;this._resetCadenceChoiceVisuals(false);this.refreshCadenceOverlay();requestAnimationFrame(()=>{row.style.transition='';});},1050);
     }
     refreshCadenceOverlay(model=null){
         try{
