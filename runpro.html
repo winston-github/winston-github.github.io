@@ -1081,17 +1081,18 @@
     
     <div id="fuelingModal" class="modal-overlay" data-action="overlay-close">
         <div class="modal-box" data-no-close style="max-width: 440px; width: 95%;">
+            <div id="fmQuickWrap" class="hidden">
+                    <div class="fm-quick-last" id="btnQuickLast" data-action="fm-quick-last">
+                        <span class="fm-quick-title" data-i18n="fm_quick_title">Repeat Last</span>
+                        <span style="color:#FFF;" id="fmQuickText">---</span>
+                    </div>
             <div class="fm-tabs" id="fmTabs">
                 <div class="fm-tab active" data-tab="gel"><svg><use href="#icon-lightning"></use></svg><span data-i18n="tab_gel">Gel</span></div>
                 <div class="fm-tab" data-tab="bcaa"><svg><use href="#icon-dna"></use></svg><span data-i18n="tab_bcaa">BCAA</span></div>
                 <div class="fm-tab" data-tab="minerals"><svg><use href="#icon-mineral"></use></svg><span data-i18n="tab_minerals">Electrolytes</span></div>
             </div>
             <div class="modal-content-scroll fm-content">
-                <div id="fmQuickWrap" class="hidden">
-                    <div class="fm-quick-last" id="btnQuickLast" data-action="fm-quick-last">
-                        <span class="fm-quick-title" data-i18n="fm_quick_title">Repeat Last</span>
-                        <span style="color:#FFF;" id="fmQuickText">---</span>
-                    </div>
+                
                 </div>
                 
                 <div id="fmProductWrap">
@@ -4383,11 +4384,15 @@ class AppController {
         pWrap.classList.remove('hidden');
         let db = FUEL_DB[this.fmState.tab.toUpperCase()] || []; let brands = [...new Set(db.map(x=>x.brand))].sort();
         bSel.innerHTML = ''; brands.forEach(b => bSel.add(new Option(b, b)));
-        this.fmState.brand = brands[0] || ''; this._renderFuelingStep3();
+        let mem=(p.fuelMemories||{})[this.fmState.tab];
+        this.fmState.brand = (mem && brands.includes(mem.brand)) ? mem.brand : (brands[0] || ''); this._renderFuelingStep3();
         
         let vSel = document.getElementById('fmVesselSel'); vSel.innerHTML = '';
         VESSEL_DB.forEach(v => vSel.add(new Option(v[isZh?'zh':'en'], v.id)));
-        this.fmState.vesselId = 'cup'; 
+        this.fmState.vesselId = (mem && VESSEL_DB.some(v=>v.id===mem.vesselId)) ? mem.vesselId : 'cup';
+        this.fmState.mult = (mem && Number.isFinite(Number(mem.mult))) ? Number(mem.mult) : 1;
+        vSel.value=this.fmState.vesselId; document.getElementById('fmMultiplier').value=this.fmState.mult;
+        if(mem && mem.product){ let ps=document.getElementById('fmProductSel'), val=typeof mem.product==='object'?mem.product.en:mem.product; if(Array.from(ps.options).some(o=>o.value===val)){ps.value=val; this.fmState.product=this._getProductData(this.fmState.tab,this.fmState.brand,val)||mem.product;} }
         
     }
 
@@ -4457,6 +4462,7 @@ class AppController {
         let finalVal1=scheduled?.val1 ?? (plan.tab==='gel' ? plan.product.carbs : (plan.tab==='bcaa' ? plan.product.bcaa : plan.product.mineral));
         if(scheduled) { wVol=scheduled.val2; finalType=scheduled.type; finalBrand=scheduled.brand; plan.vesselId=scheduled.vesselId; plan.mult=scheduled.mult; }
         this.lastFuelMemory={...this.fmState};
+        p.fuelMemories=p.fuelMemories||{}; p.fuelMemories[plan.tab]={tab:plan.tab,brand:plan.brand,product:plan.product,vesselId:plan.vesselId,mult:plan.mult}; AppState.save();
         if(scheduled || plan.executeNow) {
             let targetMin=plan.targetMin;
             let item=scheduled;
@@ -4899,6 +4905,21 @@ document.addEventListener('DOMContentLoaded',()=>{
     } catch(e) {
         console.warn('Counter fetch failed', e);
     }
+})();
+</script>
+
+<style id="v27-fixes">
+/* V27: keep live treadmill controls optically centred */
+.live-control-grid,.control-grid,.run-controls{justify-items:center!important;text-align:center!important}
+[data-action="btn-spd-up"],[data-action="btn-spd-down"],[data-action="btn-inc-up"],[data-action="btn-inc-down"]{left:50%!important;right:auto!important;transform:translateX(-50%)!important}
+.cadence-choice,.cadence-option,.cadence-btn{white-space:normal!important;line-height:1.05!important;text-align:center!important}
+.cadence-choice .cad-main,.cadence-option .cad-main,.cadence-btn .cad-main{display:block;font-size:1.12em;font-weight:800}
+.cadence-choice .cad-sub,.cadence-option .cad-sub,.cadence-btn .cad-sub{display:block;font-size:.72em;font-weight:600;opacity:.72;margin-top:3px}
+</style>
+<script id="v27-fixes-js">
+(()=>{
+ const formatCadence=()=>document.querySelectorAll('.cadence-choice,.cadence-option,.cadence-btn').forEach(el=>{if(el.dataset.v27)return;let m=el.textContent.trim().match(/^(\d+)\s*\(([^)]+)\)$/);if(m){el.dataset.v27='1';el.innerHTML='<span class="cad-main">'+m[1]+'</span><span class="cad-sub">'+m[2]+'</span>';}});
+ new MutationObserver(formatCadence).observe(document.body,{subtree:true,childList:true}); formatCadence();
 })();
 </script>
 </body>
