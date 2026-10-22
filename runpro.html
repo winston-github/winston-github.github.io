@@ -8,7 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Pro Treadmill OS - Tactical Edition (v84.0 / runpro_new_v34)</title>
+    <title>Pro Treadmill OS - Tactical Edition (v84.0 / runpro_new_v35)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.85); 
@@ -1407,7 +1407,7 @@
 </div>
 
 <script>
-/** PRO TREADMILL OS (TACTICAL EDITION v84.0 / runpro_new_v34) */
+/** PRO TREADMILL OS (TACTICAL EDITION v84.0 / runpro_new_v35) */
 
 const i18n = {
     zh: {
@@ -3629,6 +3629,7 @@ class AppController {
                 if(VoiceApp.state==='SPEAKING')VoiceApp.clear();
                 let incStep = p.incStep || 0.5; let step = isSpd ? (isMet ? 0.1 : Utils.round(0.1 * 1.609344)) : incStep;
                 if(!this.tryAdjustCurve(isSpd,isUp,step)){NotificationManager.show(this.getAdjustmentBlockMessage(isSpd,isUp,dStr),true);return;}
+                if(this.lastAdjustmentFeedback)NotificationManager.show(this.lastAdjustmentFeedback,false);
                 if(navigator.vibrate) navigator.vibrate(10);
                 if (!p.offsetMemory) p.offsetMemory = {}; p.offsetMemory[p.lastProg] = { spd: p.spdOffset, inc: p.incOffset };
                 this.saveData(); if (AppState.state.runStatus === 'STOPPED') this.recalc(true); else this.performMatrixSplicing();
@@ -3673,6 +3674,7 @@ class AppController {
                     if(navigator.vibrate) navigator.vibrate(10);
                     let incStep = p.incStep || 0.5; let step = isSpd ? (isMet ? 0.1 : Utils.round(0.1 * 1.609344)) : incStep;
                     if(!this.tryAdjustCurve(isSpd,isUp,step)){let now=Date.now();if(!this._lastAdjustBlockToast||now-this._lastAdjustBlockToast>2200){this._lastAdjustBlockToast=now;NotificationManager.show(this.getAdjustmentBlockMessage(isSpd,isUp,dStr),true);}return;}
+                    if(this.lastAdjustmentFeedback){let now=Date.now();if(!this._lastAdjustInfoToast||now-this._lastAdjustInfoToast>2200){this._lastAdjustInfoToast=now;NotificationManager.show(this.lastAdjustmentFeedback,false);}}
                     if (!p.offsetMemory) p.offsetMemory = {}; p.offsetMemory[p.lastProg] = { spd: p.spdOffset, inc: p.incOffset };
                     this.saveData(); if(AppState.state.runStatus === 'STOPPED') this.recalc(true); else this.performMatrixSplicing();
                 };
@@ -4004,8 +4006,9 @@ class AppController {
             if(!isS) this.scrollToRow();
         });
     }
-      getAdjustmentBlockMessage(isSpd,isUp,dStr){let p=PhysioEngine.sanitize(AppState.state.profiles[AppState.state.activeP]||{}),hw=AppState.state.hw,zh=p.lang==='zh',off=Number(isSpd?p.spdOffset:p.incOffset)||0;if(Math.abs(off)>=14.999)return zh?'已達課表偏移上限 ±15。':'Workout offset limit: ±15.';let hi=isUp,pr=isSpd?(hi?p.maxSpd:p.minSpd):(hi?p.mxInc:p.mnInc),hr=isSpd?(hi?hw.maxSpd:hw.minSpd):(hi?hw.maxInc:hw.minInc),runner=hi?pr<hr:pr>hr,v=runner?pr:hr,u=isSpd?(p.unit==='imperial'?' mph':' kph'):'%';return zh?`${isSpd?'速度':'坡度'}碰到${runner?'跑者設定':'硬體限制'}${hi?'上限':'下限'} ${v.toFixed(1)}${u}`:`${isSpd?'Speed':'Incline'} hit ${runner?'Runner Profile':'Hardware Limit'} ${hi?'maximum':'minimum'}: ${v.toFixed(1)}${u}`;}
-      tryAdjustCurve(isSpd,isUp,step){let p=AppState.state.profiles[AppState.state.activeP];if(!p)return false;let old=Number(isSpd?p.spdOffset:p.incOffset)||0,c=Utils.clamp(old+(isUp?step:-step),-15,15);if(!isSpd)c=Utils.roundInc(c,p.incStep||.5);if(Math.abs(c-old)<.0001)return false;let st=AppState.state.runStatus==='STOPPED'?0:Math.floor((AppState.state.accumMs||0)/60000),probe={...p};if(isSpd)probe.spdOffset=c;else probe.incOffset=c;let solved=PhysioEngine.solveBlueprint(probe,AppState.state.hw,st,AppState.state.runStatus==='STOPPED'?null:AppState.state.snapshot).matrix,key=isSpd?'spd':'inc',changed=solved.slice(st).some((m,j)=>Math.abs(Number(m[key])-Number(AppState.state.snapshot[st+j]?.[key]))>(isSpd?.005:.04));if(!changed)return false;if(isSpd)p.spdOffset=c;else p.incOffset=c;return true;}
+      getAdjustmentLimits(isSpd){let p=PhysioEngine.sanitize(AppState.state.profiles[AppState.state.activeP]||{}),hw=AppState.state.hw,rMin=isSpd?p.minSpd:p.mnInc,rMax=isSpd?p.maxSpd:p.mxInc,hMin=isSpd?hw.minSpd:hw.minInc,hMax=isSpd?hw.maxSpd:hw.maxInc;return {p,min:Math.max(rMin,hMin),max:Math.min(rMax,hMax),minSource:rMin>=hMin?'runner':'hardware',maxSource:rMax<=hMax?'runner':'hardware'};}
+      getAdjustmentBlockMessage(isSpd,isUp,dStr){if(this.lastAdjustmentFeedback)return this.lastAdjustmentFeedback;let L=this.getAdjustmentLimits(isSpd),p=L.p,zh=p.lang==='zh',off=Number(isSpd?p.spdOffset:p.incOffset)||0,u=isSpd?(p.unit==='imperial'?' mph':' kph'):'%';if(Math.abs(off)>=14.999)return zh?'已達課表偏移上限 ±15。':'Workout offset limit: ±15.';let v=isUp?L.max:L.min,source=isUp?L.maxSource:L.minSource;return zh?`${isSpd?'速度':'坡度'}碰到${source==='runner'?'跑者設定':'硬體限制'}${isUp?'上限':'下限'} ${v.toFixed(1)}${u}`:`${isSpd?'Speed':'Incline'} hit ${source==='runner'?'Runner Profile':'Hardware Limit'} ${isUp?'maximum':'minimum'}: ${v.toFixed(1)}${u}`;}
+      tryAdjustCurve(isSpd,isUp,step){this.lastAdjustmentFeedback='';let p=AppState.state.profiles[AppState.state.activeP];if(!p)return false;let old=Number(isSpd?p.spdOffset:p.incOffset)||0,c=Utils.clamp(old+(isUp?step:-step),-15,15);if(!isSpd)c=Utils.roundInc(c,p.incStep||.5);if(Math.abs(c-old)<.0001)return false;let st=AppState.state.runStatus==='STOPPED'?0:Math.floor((AppState.state.accumMs||0)/60000),existing=AppState.state.runStatus==='STOPPED'?null:AppState.state.snapshot,probe={...p};if(isSpd)probe.spdOffset=c;else probe.incOffset=c;let solved=PhysioEngine.solveBlueprint(probe,AppState.state.hw,st,existing).matrix,key=isSpd?'spd':'inc',current=AppState.state.snapshot||[],changed=solved.slice(st).some((m,j)=>Math.abs(Number(m[key])-Number(current[st+j]?.[key]))>(isSpd?.005:.04)),L=this.getAdjustmentLimits(isSpd),future=current.slice(st).length?current.slice(st):solved.slice(st),vals=future.map(m=>Number(m[key])).filter(Number.isFinite),eps=isSpd?.005:.04,allAtMin=vals.length&&vals.every(v=>v<=L.min+eps),allAtMax=vals.length&&vals.every(v=>v>=L.max-eps);if(!changed&&((isUp&&allAtMax)||(!isUp&&allAtMin)))return false;if(isSpd)p.spdOffset=c;else p.incOffset=c;if(!changed){let zh=L.p.lang==='zh',name=isSpd?(zh?'速度':'Speed'):(zh?'坡度':'Incline'),wall=allAtMin?(zh?'下限':'minimum'):(allAtMax?(zh?'上限':'maximum'):(zh?'目前課表界線':'current workout boundary')),value=(allAtMin?L.min:L.max).toFixed(1),unit=isSpd?(L.p.unit==='imperial'?' mph':' kph'):'%';this.lastAdjustmentFeedback=zh?`${name}偏移已調整為 ${c.toFixed(1)}，但課表仍被${wall} ${value}${unit} 夾住；繼續同方向調整後會開始變化。`:`${name} offset is now ${c.toFixed(1)}, but the workout is still clamped at the ${wall} ${value}${unit}. Continue in this direction to move off the boundary.`;}return true;}
       performMatrixSplicing() {
         let p = AppState.state.profiles[AppState.state.activeP]; let cM = Math.floor(AppState.state.accumMs / 60000); let safeStart = cM; this.manualSpeedHold=null;
         let res = PhysioEngine.solveBlueprint(p, AppState.state.hw, safeStart, AppState.state.snapshot);
