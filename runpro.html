@@ -8,7 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Pro Treadmill OS - Tactical Edition (v81.0 / runpro_new_v31)</title>
+    <title>Pro Treadmill OS - Tactical Edition (v82.0 / runpro_new_v32)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.85); 
@@ -774,6 +774,20 @@
  #run-view .run-primary-grid{margin-top:2px!important}
 }
 </style>
+
+  <style id="v32-behavior-fixes">
+  /* V32: deterministic two-stage cadence exit, live metabolism feedback. */
+  .cadence-choice-row.v32-closing{pointer-events:none!important;animation:none!important;transition:none!important}
+  .cadence-choice-row.v32-closing .cadence-choice{animation:none!important;transition:opacity .24s ease,transform .24s ease,filter .18s ease,background-color .12s ease!important}
+  .cadence-choice-row.v32-closing .cadence-choice.v32-other-out{opacity:0!important;transform:scale(.96)!important;pointer-events:none!important}
+  .cadence-choice-row.v32-closing .cadence-choice.v32-picked{opacity:1!important;transform:scale(1)!important;background:var(--cadence-color)!important;color:#050505!important;filter:brightness(1.05)}
+  .cadence-choice-row.v32-closing .cadence-choice.v32-picked-out{opacity:0!important;transform:scale(.96)!important;pointer-events:none!important}
+  .live-metabolic-panel{margin:7px 0 3px;padding:8px 9px;background:#101012;border:1px solid #2c2c30;border-radius:9px}
+  .live-metabolic-title{font-size:.68rem;font-weight:850;color:#b8b8bd;margin-bottom:5px}
+  .live-zone-bar{display:flex;width:100%;height:8px;border-radius:4px;overflow:hidden;background:#222;margin-top:8px}
+  .live-zone-z1{background:var(--z1);transition:width .45s ease}.live-zone-z2{background:var(--z2);transition:width .45s ease}.live-zone-rest{background:#29292d;transition:width .45s ease}
+  .live-zone-labels{display:flex;justify-content:space-between;gap:8px;margin-top:4px;font-size:.66rem;font-weight:800}.live-zone-labels span:first-child{color:var(--z1)}.live-zone-labels span:last-child{color:var(--z2)}
+  </style>
 </head>
 <body>
 <svg style="display:none;">
@@ -1031,7 +1045,14 @@
                             <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="lblActElevTitle" data-i18n="act_elev"></span><span style="color:var(--text-main);" data-bind="rActElev">--</span></div>
                             <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="runLiveAvgPaceLabel">平均配速</span><span id="runLiveAvgPace" style="color:var(--text-main);">--'--&quot;</span></div>
                             <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span id="runLiveAvgGapLabel">平均等效平地配速</span><span id="runLiveAvgGap" style="color:var(--neon-green);">--'--&quot;</span></div>
-                            <div style="display:flex; justify-content:space-between;"><span id="lblActKcalTitle" data-i18n="act_kcal"></span><span style="color:var(--neon-green);" data-bind="rActKcal">--</span></div>
+                            <div class="live-metabolic-panel" id="rLiveMetabolicPanel">
+                                  <div class="live-metabolic-title" id="rLiveMetabolicTitle">即時能量來源</div>
+                                  <div class="fc-bar-wrap"><div class="fc-bar-fat" id="rActFatBar" style="width:50%;"></div><div class="fc-bar-carb" id="rActCarbBar" style="width:50%;"></div></div>
+                                  <div class="fc-labels"><div class="fc-label-fat"><span data-i18n="lbl_fat"></span> <span data-bind="rActFatCal">0 kcal</span></div><div class="fc-label-carb"><span data-i18n="lbl_carb"></span> <span data-bind="rActCarbCal">0 kcal</span></div></div>
+                                  <div class="live-zone-bar"><div class="live-zone-z1" id="rActZ1Bar" style="width:0%"></div><div class="live-zone-z2" id="rActZ2Bar" style="width:0%"></div><div class="live-zone-rest" id="rActZRestBar" style="width:100%"></div></div>
+                                  <div class="live-zone-labels"><span data-bind="rActZ1Live">Z1 恢復 0分</span><span data-bind="rActZ2Live">Z2 燃脂 0分</span></div>
+                              </div>
+                              <div style="display:flex; justify-content:space-between;"><span id="lblActKcalTitle" data-i18n="act_kcal"></span><span style="color:var(--neon-green);" data-bind="rActKcal">--</span></div>
                             <div class="est-zones" style="margin-top:4px;">
                                 <span class="c-z1" data-bind="rActz1">Z1 0m</span><span class="c-z2" data-bind="rActz2">Z2 0m</span><span class="c-z3" data-bind="rActz3">Z3 0m</span><span class="c-z4" data-bind="rActz4">Z4 0m</span><span class="c-z5" data-bind="rActz5">Z5 0m</span>
                             </div>
@@ -1396,7 +1417,7 @@
 </div>
 
 <script>
-/** PRO TREADMILL OS (TACTICAL EDITION v81.0 / runpro_new_v31) */
+/** PRO TREADMILL OS (TACTICAL EDITION v82.0 / runpro_new_v32) */
 
 const i18n = {
     zh: {
@@ -1467,7 +1488,7 @@ const i18n = {
         tab_gel: "能量膠", tab_bcaa: "BCAA", tab_minerals: "電解質", fm_vessel: "賽道容器", fm_quick_title: "快速執行上次補給",
         sum_ledger_title: "戰術執行帳本", sum_l_carb: "總碳水", sum_l_bcaa: "總BCAA", sum_l_minerals: "總電解質", sum_l_water: "總飲水量",
         tt_auto_ingest: "補給執行: ", adv_pwr: "跑步功率", adv_gap: "等效平地配速", fm_quick_current: "快速執行本次補給", 
-        warn_adjust_voice: "語音播報中，暫時無法調整。請在播報結束後再試一次。", warn_adjust_max_spd: "速度已達跑步機最高限制，無法再提高。請檢查跑者或硬體最高速度設定。", warn_adjust_min_spd: "速度已達跑步機最低限制，無法再降低。請檢查跑者或硬體最低速度設定。", warn_adjust_max_inc: "坡度已達跑步機最高限制，無法再提高。請檢查跑者或硬體最高坡度設定。", warn_adjust_min_inc: "坡度已達跑步機最低限制，無法再降低。請檢查跑者或硬體最低坡度設定。",
+        warn_adjust_voice: "語音播報中，暫時無法調整。請在播報結束後再試一次。", warn_adjust_offset_limit: "偏移量已達可調整上限。請到個人化設定檢查基準速度與硬體限制，或等待課表進入仍有調整空間的分鐘。", warn_adjust_curve_locked: "目前與後續課表皆受跑者基準或硬體速度界線限制，因此按鍵有回饋但速度無法改變。請到個人化設定 > 進階生理與極限邊界或硬體限制調整最高/最低速度，或在下一個速度區段再操作。", warn_adjust_max_spd: "速度已達跑步機最高限制，無法再提高。請檢查跑者或硬體最高速度設定。", warn_adjust_min_spd: "速度已達跑步機最低限制，無法再降低。請檢查跑者或硬體最低速度設定。", warn_adjust_max_inc: "坡度已達跑步機最高限制，無法再提高。請檢查跑者或硬體最高坡度設定。", warn_adjust_min_inc: "坡度已達跑步機最低限制，無法再降低。請檢查跑者或硬體最低坡度設定。",
         int_title: "系統中斷", int_keep: "我持續在跑 (補算數據)", int_break: "我剛在休息 (當作暫停)"
     },
     en: {
@@ -1542,7 +1563,7 @@ const i18n = {
         tab_gel: "Gel", tab_bcaa: "BCAA", tab_minerals: "Electrolytes", fm_vessel: "Vessel", fm_quick_title: "Repeat Last",
         sum_ledger_title: "Tactical Execution Ledger", sum_l_carb: "Carbs", sum_l_bcaa: "BCAA", sum_l_minerals: "Electrolytes", sum_l_water: "Water",
         tt_auto_ingest: "Fuel Logged: ", adv_pwr: "PWR |", adv_gap: "GAP |", fm_quick_current: "Quick Execute This Fuel", 
-        warn_adjust_voice: "Voice guidance is playing, so the adjustment is temporarily unavailable. Please try again after the announcement.", warn_adjust_max_spd: "Speed is already at the treadmill maximum. Check the runner or hardware maximum-speed setting.", warn_adjust_min_spd: "Speed is already at the treadmill minimum. Check the runner or hardware minimum-speed setting.", warn_adjust_max_inc: "Incline is already at the treadmill maximum. Check the runner or hardware maximum-incline setting.", warn_adjust_min_inc: "Incline is already at the treadmill minimum. Check the runner or hardware minimum-incline setting.",
+        warn_adjust_voice: "Voice guidance is playing, so the adjustment is temporarily unavailable. Please try again after the announcement.", warn_adjust_offset_limit: "The offset has reached its adjustment limit. Check Base Speed and Hardware Limits in Runner Profile, or retry in a workout minute with available range.", warn_adjust_curve_locked: "The current and remaining workout curve is constrained by the runner baseline or treadmill speed boundary, so the control can sound without changing speed. Open Runner Profile > Advanced & Limits or Hardware Limits to change the minimum/maximum speed, or retry in the next speed segment.", warn_adjust_max_spd: "Speed is already at the treadmill maximum. Check the runner or hardware maximum-speed setting.", warn_adjust_min_spd: "Speed is already at the treadmill minimum. Check the runner or hardware minimum-speed setting.", warn_adjust_max_inc: "Incline is already at the treadmill maximum. Check the runner or hardware maximum-incline setting.", warn_adjust_min_inc: "Incline is already at the treadmill minimum. Check the runner or hardware minimum-incline setting.",
         int_title: "System Interruption", int_keep: "I kept running (Catch up)", int_break: "I took a break (Pause)"
     }
 };
@@ -3617,7 +3638,7 @@ class AppController {
                 let isSpd = a.includes('spd'); let isUp = a.includes('plus') || a.includes('up');
                 if(VoiceApp.state==='SPEAKING')VoiceApp.clear();
                 let incStep = p.incStep || 0.5; let step = isSpd ? (isMet ? 0.1 : Utils.round(0.1 * 1.609344)) : incStep;
-                if(!this.tryAdjustCurve(isSpd,isUp,step)){NotificationManager.show(isSpd?(isUp?dStr.warn_adjust_max_spd:dStr.warn_adjust_min_spd):(isUp?dStr.warn_adjust_max_inc:dStr.warn_adjust_min_inc),true);return;}
+                if(!this.tryAdjustCurve(isSpd,isUp,step)){NotificationManager.show(this.getAdjustmentBlockMessage(isSpd,isUp,dStr),true);return;}
                 if(navigator.vibrate) navigator.vibrate(10);
                 if (!p.offsetMemory) p.offsetMemory = {}; p.offsetMemory[p.lastProg] = { spd: p.spdOffset, inc: p.incOffset };
                 this.saveData(); if (AppState.state.runStatus === 'STOPPED') this.recalc(true); else this.performMatrixSplicing();
@@ -3661,7 +3682,7 @@ class AppController {
                     firedByRepeat = true;
                     if(navigator.vibrate) navigator.vibrate(10);
                     let incStep = p.incStep || 0.5; let step = isSpd ? (isMet ? 0.1 : Utils.round(0.1 * 1.609344)) : incStep;
-                    if(!this.tryAdjustCurve(isSpd,isUp,step))return;
+                    if(!this.tryAdjustCurve(isSpd,isUp,step)){let now=Date.now();if(!this._lastAdjustBlockToast||now-this._lastAdjustBlockToast>2200){this._lastAdjustBlockToast=now;NotificationManager.show(this.getAdjustmentBlockMessage(isSpd,isUp,dStr),true);}return;}
                     if (!p.offsetMemory) p.offsetMemory = {}; p.offsetMemory[p.lastProg] = { spd: p.spdOffset, inc: p.incOffset };
                     this.saveData(); if(AppState.state.runStatus === 'STOPPED') this.recalc(true); else this.performMatrixSplicing();
                 };
@@ -3678,7 +3699,7 @@ class AppController {
         setupRepeater('btn-spd-up'); setupRepeater('btn-spd-down'); setupRepeater('btn-inc-up'); setupRepeater('btn-inc-down');
         setupRepeater('offset-spd-plus'); setupRepeater('offset-spd-minus'); setupRepeater('offset-inc-plus'); setupRepeater('offset-inc-minus');
 
-        document.getElementById('cadenceChoiceRow').addEventListener('click',e=>{let btn=e.target.closest('[data-cadence-offset]');if(!btn||AppState.state.runStatus==='STOPPED')return;let p=AppState.state.profiles[AppState.state.activeP],returnState=this.cadenceWakeReturnState;p.cadenceOffsetPct=Number(btn.dataset.cadenceOffset);if(returnState!==null){this.setFabState(p,returnState);this.closeWokenCadenceChoices(btn);}else this.setFabState(p,2);this.saveData();this.setFabMode('NORMAL');RunAcc.lastGaitBPM=-1;this.refreshCadenceOverlay();});
+        document.getElementById('cadenceChoiceRow').addEventListener('click',e=>{let btn=e.target.closest('[data-cadence-offset]');if(!btn||AppState.state.runStatus==='STOPPED'||this._cadenceClosing)return;let p=AppState.state.profiles[AppState.state.activeP],returnState=this.cadenceWakeReturnState;p.cadenceOffsetPct=Number(btn.dataset.cadenceOffset);this.saveData();if(returnState!==null){this.closeWokenCadenceChoices(btn,returnState);}else{this.setFabState(p,2);this.setFabMode('NORMAL');RunAcc.lastGaitBPM=-1;this.refreshCadenceOverlay();}});
         document.getElementById('cadenceWakeZone').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();this.wakeCadenceChoices();});
         document.getElementById('cadenceTrace').addEventListener('click',()=>{let p=AppState.state.profiles[AppState.state.activeP];if(this.getFabState(p)!==2)return;this.setFabState(p,3);this.saveData();this.setFabMode('NORMAL');});
         const setupFab = (id, side) => {
@@ -3994,6 +4015,12 @@ class AppController {
         });
     }
 
+    getAdjustmentBlockMessage(isSpd,isUp,dStr){
+      let p=AppState.state.profiles[AppState.state.activeP]||{},offset=Number(isSpd?p.spdOffset:p.incOffset)||0;
+      if(Math.abs(offset)>=14.999)return dStr.warn_adjust_offset_limit;
+      if(!isSpd)return isUp?dStr.warn_adjust_max_inc:dStr.warn_adjust_min_inc;
+      return dStr.warn_adjust_curve_locked || (isUp?dStr.warn_adjust_max_spd:dStr.warn_adjust_min_spd);
+    }
     tryAdjustCurve(isSpd,isUp,step){
         let p=AppState.state.profiles[AppState.state.activeP];if(!p)return false;
         let old=Number(isSpd?p.spdOffset:p.incOffset)||0,candidate=Utils.clamp(old+(isUp?step:-step),-15,15);
@@ -4073,19 +4100,25 @@ class AppController {
         row.classList.add('wake-open');row.style.display='grid';row.style.opacity='1';row.style.visibility='visible';row.style.pointerEvents='auto';
         this.refreshCadenceOverlay();
     }
-    closeWokenCadenceChoices(clicked) {
-        let row=document.getElementById('cadenceChoiceRow');if(!row)return;
-        clearTimeout(this.cadenceChoiceFadeTimer);this.cadenceChoiceFadeTimer=null;row.classList.add('wake-closing');
-        row.querySelectorAll('.cadence-choice').forEach(b=>{b.classList.remove('fade-fast','fade-slow');void b.offsetWidth;b.classList.add(b===clicked?'fade-slow':'fade-fast');});
-        let closeToken=Symbol('cadenceClose');this._cadenceCloseToken=closeToken;
-        this.cadenceChoiceFadeTimer=setTimeout(()=>{if(this._cadenceCloseToken!==closeToken)return;
-        // Hide the row before removing child fade classes. This prevents a one-frame opacity flash.
-        row.style.transition='none';row.style.opacity='0';row.style.visibility='hidden';row.style.pointerEvents='none';row.classList.remove('show','wake-open','wake-closing');
-        this.cadenceWakeReturnState=null;this._resetCadenceChoiceVisuals(false);this.refreshCadenceOverlay();requestAnimationFrame(()=>{row.style.transition='';});},1050);
+    closeWokenCadenceChoices(clicked,returnState=null) {
+      let row=document.getElementById('cadenceChoiceRow');if(!row||this._cadenceClosing)return;
+      clearTimeout(this.cadenceChoiceFadeTimer);this._cadenceClosing=true;this._cadenceCloseToken=Symbol('v32CadenceClose');let token=this._cadenceCloseToken;
+      let buttons=[...row.querySelectorAll('.cadence-choice')];
+      row.classList.remove('wake-open','wake-closing');row.classList.add('v32-closing');row.style.display='grid';row.style.opacity='1';row.style.visibility='visible';
+      buttons.forEach(b=>{b.classList.remove('fade-fast','fade-slow','v32-other-out','v32-picked','v32-picked-out');b.style.animation='none';b.style.opacity='1';b.style.visibility='visible';b.style.pointerEvents='none';b.classList.toggle('selected',b===clicked);if(b===clicked)b.classList.add('v32-picked');});
+      requestAnimationFrame(()=>requestAnimationFrame(()=>buttons.forEach(b=>{if(b!==clicked)b.classList.add('v32-other-out');})));
+      setTimeout(()=>{if(this._cadenceCloseToken!==token)return;clicked.classList.add('v32-picked-out');},300);
+      this.cadenceChoiceFadeTimer=setTimeout(()=>{if(this._cadenceCloseToken!==token)return;
+        row.style.transition='none';row.style.opacity='0';row.style.visibility='hidden';row.style.pointerEvents='none';row.classList.remove('show','v32-closing');
+        this.cadenceWakeReturnState=null;this._cadenceClosing=false;
+        buttons.forEach(b=>{b.classList.remove('v32-other-out','v32-picked','v32-picked-out','selected');b.style.animation='';b.style.opacity='';b.style.visibility='';b.style.pointerEvents='';});
+        let p=AppState.state.profiles[AppState.state.activeP];if(returnState!==null)this.setFabState(p,returnState);this.setFabMode('NORMAL');RunAcc.lastGaitBPM=-1;
+        requestAnimationFrame(()=>{row.style.transition='';this.refreshCadenceOverlay();});
+      },610);
     }
     refreshCadenceOverlay(model=null){
         try{
-        let p=AppState.state.profiles[AppState.state.activeP];if(!p)return;let state=this.getFabState(p),snapshot=Array.isArray(AppState.state.snapshot)?AppState.state.snapshot:[],idx=Math.min(Math.floor((AppState.state.accumMs||0)/60000),Math.max(0,snapshot.length-1)),snap=snapshot[idx]||null,spd=Number(RunAcc.curSpd)>0?Number(RunAcc.curSpd):Number(snap?.spd||0),inc=Number.isFinite(Number(RunAcc.curInc))&&Number(RunAcc.curSpd)>0?Number(RunAcc.curInc):Number(snap?.inc||0),base=model||this.getCadenceModel(spd,inc,p),row=document.getElementById('cadenceChoiceRow'),trace=document.getElementById('cadenceTrace');if(!row||!trace)return;
+        let p=AppState.state.profiles[AppState.state.activeP];if(!p)return;if(this._cadenceClosing)return;let state=this.getFabState(p),snapshot=Array.isArray(AppState.state.snapshot)?AppState.state.snapshot:[],idx=Math.min(Math.floor((AppState.state.accumMs||0)/60000),Math.max(0,snapshot.length-1)),snap=snapshot[idx]||null,spd=Number(RunAcc.curSpd)>0?Number(RunAcc.curSpd):Number(snap?.spd||0),inc=Number.isFinite(Number(RunAcc.curInc))&&Number(RunAcc.curSpd)>0?Number(RunAcc.curInc):Number(snap?.inc||0),base=model||this.getCadenceModel(spd,inc,p),row=document.getElementById('cadenceChoiceRow'),trace=document.getElementById('cadenceTrace');if(!row||!trace)return;
         let activeRun=AppState.state.runStatus==='RUNNING'||AppState.state.runStatus==='PRE_FLIGHT';
         if(state===1){this._cadenceCloseToken=null;this._resetCadenceChoiceVisuals(false);this.cadenceWakeReturnState=null;}
         let showChoices=(state===1||this.cadenceWakeReturnState!==null)&&activeRun;row.classList.toggle('show',showChoices);row.setAttribute('aria-hidden',showChoices?'false':'true');row.style.display=showChoices?'grid':'';row.style.opacity=showChoices?'1':'';row.style.visibility=showChoices?'visible':'';row.style.pointerEvents=showChoices?'auto':'';trace.classList.toggle('show',state===2&&Math.abs(base.offset)>.0001&&activeRun);
