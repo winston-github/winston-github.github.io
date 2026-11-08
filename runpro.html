@@ -8,7 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Pro Treadmill OS - Tactical Edition (v84.0 / runpro_new_v35)</title>
+    <title>Pro Treadmill OS - Tactical Edition (v84.0 / runpro_new_v36)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.85); 
@@ -783,6 +783,9 @@
   .cadence-choice-row.v32-closing .cadence-choice.v32-picked{opacity:1!important;transform:scale(1)!important;background:var(--cadence-color)!important;color:#050505!important;filter:brightness(1.05)}
   .cadence-choice-row.v32-closing .cadence-choice.v32-picked-out{opacity:0!important;transform:scale(.96)!important;pointer-events:none!important}
   </style>
+
+  <style id="v36-boot-recovery">#splashScreen.v36-recovering .splash-logo svg{animation-duration:.8s}#v36BootNote{margin-top:12px;color:#666;font:700 10px/1.3 -apple-system,BlinkMacSystemFont,sans-serif;letter-spacing:.4px;text-align:center}</style>
+  <script>window.__RUNPRO_V36__={started:Date.now(),errors:[]};window.addEventListener('error',function(e){window.__RUNPRO_V36__.errors.push(String(e.message||e.error||'error'));});window.addEventListener('unhandledrejection',function(e){window.__RUNPRO_V36__.errors.push(String(e.reason||'rejection'));});setTimeout(function(){var s=document.getElementById('splashScreen');if(s&&getComputedStyle(s).display!=='none'){s.classList.add('v36-recovering');var n=document.getElementById('v36BootNote');if(!n){n=document.createElement('div');n.id='v36BootNote';n.textContent='Recovering local data / 正在修復本機資料';s.appendChild(n);}}},1600);setTimeout(function(){var s=document.getElementById('splashScreen');if(s&&getComputedStyle(s).display!=='none'){s.style.opacity='0';s.style.pointerEvents='none';setTimeout(function(){s.style.display='none';},400);}},4200);</script>
 </head>
 <body>
 <svg style="display:none;">
@@ -1407,7 +1410,7 @@
 </div>
 
 <script>
-/** PRO TREADMILL OS (TACTICAL EDITION v84.0 / runpro_new_v35) */
+/** PRO TREADMILL OS (TACTICAL EDITION v84.0 / runpro_new_v36) */
 
 const i18n = {
     zh: {
@@ -2861,7 +2864,7 @@ const VoiceApp = new VoiceEngine();
 
 const DB = {
     db: null,
-    init: async () => { return new Promise((res, rej) => { let req = indexedDB.open('ProTreadmillDB_U62', 1); req.onupgradeneeded = e => { let d = e.target.result; if(!d.objectStoreNames.contains('history')) d.createObjectStore('history', {keyPath: 'id', autoIncrement: true}); }; req.onsuccess = e => { DB.db = e.target.result; res(); }; req.onerror = rej; }); },
+    init: async () => { return new Promise((res) => { let settled=false, finish=()=>{if(settled)return;settled=true;clearTimeout(timer);res();}, timer=setTimeout(()=>{console.warn('IDB open timeout; continuing without history DB');finish();},1800); try { if(!('indexedDB' in window)) return finish(); let req=indexedDB.open('ProTreadmillDB_U62',1); req.onupgradeneeded=e=>{let d=e.target.result;if(!d.objectStoreNames.contains('history'))d.createObjectStore('history',{keyPath:'id',autoIncrement:true});}; req.onsuccess=e=>{DB.db=e.target.result;DB.db.onversionchange=()=>{try{DB.db.close();}catch(_){} DB.db=null;};finish();}; req.onerror=()=>{console.warn('IDB unavailable',req.error);finish();}; req.onblocked=()=>{console.warn('IDB blocked; continuing without history DB');finish();}; } catch(e) { console.warn('IDB init failed',e); finish(); } }); },
     saveHist: async (data) => { 
         if(!DB.db) return Promise.resolve();
         return new Promise((res) => { 
@@ -3047,8 +3050,7 @@ class ChartManager {
         this.hovTimeIdx = -1;
         
         let resizeFrame=0;
-        const RO=new ResizeObserver(()=>{if(resizeFrame)cancelAnimationFrame(resizeFrame);resizeFrame=requestAnimationFrame(()=>{resizeFrame=0;this.teardown();this.drawAll();if(document.getElementById('summaryModal').classList.contains('show'))this.drawSummary(this.sumM,this.sumCr,this.sumRawSplits);});}); 
-        RO.observe(document.getElementById('sChartWrap')); RO.observe(document.getElementById('rChartWrap')); RO.observe(document.getElementById('sumChartWrap'));
+        const resizeHandler=()=>{if(resizeFrame)cancelAnimationFrame(resizeFrame);resizeFrame=requestAnimationFrame(()=>{resizeFrame=0;this.teardown();this.drawAll();if(document.getElementById('summaryModal').classList.contains('show'))this.drawSummary(this.sumM,this.sumCr,this.sumRawSplits);});};let RO=null;if('ResizeObserver' in window){RO=new ResizeObserver(resizeHandler);RO.observe(document.getElementById('sChartWrap'));RO.observe(document.getElementById('rChartWrap'));RO.observe(document.getElementById('sumChartWrap'));}else window.addEventListener('resize',resizeHandler,{passive:true});
         this.bindEvents('s', document.getElementById('sChartWrap')); this.bindEvents('r', document.getElementById('rChartWrap')); this.bindEvents('sum', document.getElementById('sumCanvasContainer'));
     }
     
@@ -3187,11 +3189,7 @@ class AppController {
             }
         });
         
-        DB.init().then(() => this.initData()).catch(e => { console.warn('IDB', e); this.initData(); }).finally(() => { 
-            this.initDials();this.bindEvents();this.setupFortressLock();this.setupFuelingModal();TTSVoiceUtil.refresh();if(window.speechSynthesis)window.speechSynthesis.addEventListener?.('voiceschanged',()=>{TTSVoiceUtil.refresh();let modal=document.getElementById('runnerModal');if(modal?.classList.contains('show'))this.refreshVoicePreferenceUI();});
-            const revealSetup=()=>{let bar=document.getElementById('setupPaceChart'),canvas=document.getElementById('sChart');if(bar&&bar.children.length&&canvas&&canvas.width>0){requestAnimationFrame(()=>requestAnimationFrame(()=>{let splash=document.getElementById('splashScreen');splash.style.opacity='0';setTimeout(()=>splash.style.display='none',500);}));}else requestAnimationFrame(revealSetup);};
-            requestAnimationFrame(revealSetup);
-        });
+        const completeBoot=()=>{if(this._bootCompleted)return;this._bootCompleted=true;try{this.initData();}catch(e){console.error('Data init isolated',e);try{localStorage.removeItem('runState_v62');}catch(_){}this.initData();}this.initDials();this.bindEvents();this.setupFortressLock();this.setupFuelingModal();TTSVoiceUtil.refresh();if(window.speechSynthesis)window.speechSynthesis.addEventListener?.('voiceschanged',()=>{TTSVoiceUtil.refresh();let modal=document.getElementById('runnerModal');if(modal?.classList.contains('show'))this.refreshVoicePreferenceUI();});let revealed=false,reveal=()=>{if(revealed)return;revealed=true;let splash=document.getElementById('splashScreen');if(splash){splash.style.opacity='0';splash.style.pointerEvents='none';setTimeout(()=>splash.style.display='none',520);}},started=performance.now(),revealSetup=()=>{let bar=document.getElementById('setupPaceChart'),canvas=document.getElementById('sChart');if((bar&&bar.children.length&&canvas&&canvas.width>0)||performance.now()-started>2200)reveal();else requestAnimationFrame(revealSetup);};requestAnimationFrame(revealSetup);setTimeout(reveal,2600);};DB.init().then(completeBoot,completeBoot);setTimeout(completeBoot,2200);
 
         this.lastGaitFrame = performance.now();
         const gaitLoop = (ts) => { requestAnimationFrame(gaitLoop); this.renderGaitFrame(ts); };
@@ -4862,7 +4860,7 @@ class AppController {
     persistRun() { 
         if (AppState.state.isDraggingFuel) return; // Mutex
         if (AppState.state.accumMs > 0) {
-            localStorage.setItem('runState_v62', JSON.stringify({ runStatus: AppState.state.runStatus, lastTimestamp: Date.now(), activeP: AppState.state.activeP, accumMs: AppState.state.accumMs, matrix: AppState.state.matrix, snapshot: AppState.state.snapshot, acc: RunAcc, minimalVoice: AppState.state.minimalVoice, tempVoiceLang: AppState.state.tempVoiceLang, previousFabMode: AppState.state.previousFabMode, fuelLog: AppState.state.fuelLog })); 
+            try { let acc={...RunAcc,rawSplits:Array.isArray(RunAcc.rawSplits)&&RunAcc.rawSplits.length>2400?RunAcc.rawSplits.slice(-2400):RunAcc.rawSplits}; localStorage.setItem('runState_v62', JSON.stringify({ runStatus: AppState.state.runStatus, lastTimestamp: Date.now(), activeP: AppState.state.activeP, accumMs: AppState.state.accumMs, matrix: AppState.state.matrix, snapshot: AppState.state.snapshot, acc, minimalVoice: AppState.state.minimalVoice, tempVoiceLang: AppState.state.tempVoiceLang, previousFabMode: AppState.state.previousFabMode, fuelLog: AppState.state.fuelLog })); } catch(e) { console.warn('Run persistence quota/unavailable',e); } 
         } else { localStorage.removeItem('runState_v62'); }
     }
 
