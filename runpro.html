@@ -8,7 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Pro Treadmill OS - Tactical Edition (v84.0 / runpro_new_v56)</title>
+    <title>Pro Treadmill OS - Tactical Edition (v84.0 / runpro_new_v57)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.85); 
@@ -1440,7 +1440,7 @@
 </div>
 
 <script>
-/** PRO TREADMILL OS (TACTICAL EDITION v84.0 / runpro_new_v56) */
+/** PRO TREADMILL OS (TACTICAL EDITION v84.0 / runpro_new_v57) */
 
 const i18n = {
     zh: {
@@ -2759,6 +2759,43 @@ class PhysioEngine {
             futureM.push({ spd: finalSpd, inc: finalInc, m: m.m, phase, rawSpd: m.rawSpd, rawInc: m.rawInc, sOff: appliedSOff, iOff: appliedIOff });
         }
 
+        // V57 boundary-continuity invariant: offsets belong only to the main phase, but the
+        // phase ramps must meet the offset main curve without a one-minute dip, spike or rebound.
+        // Corrections taper across phase-owned points, preserve the explicit outer endpoints,
+        // respect hardware limits, and never rewrite elapsed points during live splicing.
+        {
+            const bridge = (key, rawKey, phaseStart, phaseEnd, anchorIndex, isWarm) => {
+                if (phaseEnd <= phaseStart || anchorIndex < 0 || anchorIndex >= futureM.length) return;
+                const editableStart = Math.max(phaseStart, startMinute);
+                if (editableStart >= phaseEnd) return;
+                const anchor = Number(futureM[anchorIndex]?.[key]);
+                const edgeIndex = isWarm ? phaseEnd - 1 : phaseStart;
+                const edge = Number(futureM[edgeIndex]?.[key]);
+                if (!Number.isFinite(anchor) || !Number.isFinite(edge)) return;
+                const correction = anchor - edge;
+                if (Math.abs(correction) < 0.0005) return;
+                const span = Math.max(1, phaseEnd - phaseStart - 1);
+                for (let i = editableStart; i < phaseEnd; i++) {
+                    let weight = isWarm ? (i - phaseStart) / span : 1 - ((i - phaseStart) / span);
+                    weight = Utils.clamp(weight, 0, 1);
+                    let value = Number(futureM[i][key]) + correction * weight;
+                    if (key === 'spd') value = Utils.round(Utils.clamp(value, hw.minSpd, hw.maxSpd));
+                    else value = Utils.roundInc(Utils.clamp(value, hw.minInc, hw.maxInc), p.incStep);
+                    futureM[i][key] = value;
+                    futureM[i][rawKey] = value;
+                }
+            };
+            const mainStart = warmT;
+            const coolStart = T - coolT;
+            if (warmT > 0 && mainStart < T) {
+                bridge('spd', 'rawSpd', 0, warmT, mainStart, true);
+                bridge('inc', 'rawInc', 0, warmT, mainStart, true);
+            }
+            if (coolT > 0 && coolStart > 0) {
+                bridge('spd', 'rawSpd', coolStart, T, coolStart - 1, false);
+                bridge('inc', 'rawInc', coolStart, T, coolStart - 1, false);
+            }
+        }
         let maxReq = futureM.slice(startMinute).length > 0 ? Math.max(...futureM.slice(startMinute).map(m => m.rawSpd)) : 0;
         let baseProtect = Math.min(6.0, hw.maxSpd);
         
