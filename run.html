@@ -8,7 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Pro Treadmill OS - Tactical Edition (v84.0 / runpro_new_v55)</title>
+    <title>Pro Treadmill OS - Tactical Edition (v84.0 / runpro_new_v56)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.85); 
@@ -1440,7 +1440,7 @@
 </div>
 
 <script>
-/** PRO TREADMILL OS (TACTICAL EDITION v84.0 / runpro_new_v55) */
+/** PRO TREADMILL OS (TACTICAL EDITION v84.0 / runpro_new_v56) */
 
 const i18n = {
     zh: {
@@ -2745,14 +2745,18 @@ class PhysioEngine {
             let sOff = Utils.clamp(p.spdOffset || 0, -15.0, 15.0);
             let iOff = Utils.clamp(p.incOffset || 0, -15.0, 15.0);
             
-            let finalSpd = Utils.clamp(m.rawSpd + sOff, hw.minSpd, hw.maxSpd);
-            let finalInc = Utils.roundInc(Utils.clamp(m.rawInc + iOff, hw.minInc, hw.maxInc), p.incStep);
+            // V56: phase targets own warm-up/cool-down minutes; programme offsets apply only to the main phase.
+            let phaseOwnsTarget = (phase === 'warmup' || phase === 'cooldown');
+            let appliedSOff = phaseOwnsTarget ? 0 : sOff;
+            let appliedIOff = phaseOwnsTarget ? 0 : iOff;
+            let finalSpd = Utils.clamp(m.rawSpd + appliedSOff, hw.minSpd, hw.maxSpd);
+            let finalInc = Utils.roundInc(Utils.clamp(m.rawInc + appliedIOff, hw.minInc, hw.maxInc), p.incStep);
             finalSpd = Utils.round(finalSpd);
 
             if (finalSpd <= 6.0 && phase === 'sprint') phase = 'steady';
             if (finalInc <= 2.0 && phase === 'steep') phase = 'steady';
 
-            futureM.push({ spd: finalSpd, inc: finalInc, m: m.m, phase, rawSpd: m.rawSpd, rawInc: m.rawInc, sOff, iOff });
+            futureM.push({ spd: finalSpd, inc: finalInc, m: m.m, phase, rawSpd: m.rawSpd, rawInc: m.rawInc, sOff: appliedSOff, iOff: appliedIOff });
         }
 
         let maxReq = futureM.slice(startMinute).length > 0 ? Math.max(...futureM.slice(startMinute).map(m => m.rawSpd)) : 0;
@@ -4128,8 +4132,9 @@ class AppController {
         clearTimeout(this.renderDebounceTimer); this.renderDebounceTimer = setTimeout(() => { this.renderPreviewList(); }, 500);
         
         if (AppState.state.runStatus === 'RUNNING' || AppState.state.runStatus === 'PAUSED') {
-            let immediateSpd = Utils.clamp(res.matrix[cM].rawSpd + p.spdOffset, AppState.state.hw.minSpd, AppState.state.hw.maxSpd);
-            let immediateInc = Utils.clamp(res.matrix[cM].rawInc + p.incOffset, AppState.state.hw.minInc, AppState.state.hw.maxInc);
+            // V56: solved matrix already contains the correct phase-aware offset policy.
+            let immediateSpd = Utils.clamp(res.matrix[cM].spd, AppState.state.hw.minSpd, AppState.state.hw.maxSpd);
+            let immediateInc = Utils.clamp(res.matrix[cM].inc, AppState.state.hw.minInc, AppState.state.hw.maxInc);
             AppState.state.snapshot[cM].spd = Utils.round(immediateSpd); AppState.state.snapshot[cM].inc = Utils.roundInc(immediateInc, p.incStep); RunAcc.curSpd=AppState.state.snapshot[cM].spd; RunAcc.curInc=AppState.state.snapshot[cM].inc;
             this.manualSpeedHold={minute:cM,value:AppState.state.snapshot[cM].spd};
             TweenApp.to('runValSpd', isMet?immediateSpd:immediateSpd/1.609344, v => v.toFixed(1), false); TweenApp.to('runValInc', immediateInc, v => v.toFixed(1), false); 
@@ -4256,7 +4261,7 @@ class AppController {
         let targetSpd=RunAcc.curSpd||0,targetInc=RunAcc.curInc||0;
         
         if (AppState.state.runStatus === 'PRE_FLIGHT' && AppState.state.snapshot && AppState.state.snapshot.length > 0) {
-            targetSpd = AppState.state.snapshot[0].spd + (p.spdOffset || 0); targetInc = AppState.state.snapshot[0].inc + (p.incOffset || 0);
+            targetSpd = AppState.state.snapshot[0].spd; targetInc = AppState.state.snapshot[0].inc;
         }
 
         let cadenceModel=this.getCadenceModel(targetSpd,targetInc,p),currentBPM=cadenceModel.target;RunAcc.autoCadence=cadenceModel.auto;RunAcc.targetCadence=currentBPM;RunAcc.stepLengthM=cadenceModel.stepLengthM;this.refreshCadenceOverlay(cadenceModel);
