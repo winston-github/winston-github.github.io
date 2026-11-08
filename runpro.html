@@ -8,7 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Pro Treadmill OS - Tactical Edition (v92.0 / runpro_new_v74)</title>
+    <title>Pro Treadmill OS - Tactical Edition (v93.0 / runpro_new_v75)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.85); 
@@ -1458,7 +1458,7 @@
 </div>
 
 <script>
-/** PRO TREADMILL OS (TACTICAL EDITION v92.0 / runpro_new_v74) */
+/** PRO TREADMILL OS (TACTICAL EDITION v93.0 / runpro_new_v75) */
 
 const i18n = {
     zh: {
@@ -3561,7 +3561,7 @@ class AppController {
     closeTopModal() {
         const topId=this.modalStack[this.modalStack.length-1];if(!topId)return;
         if(topId==='summaryModal'){
-            if(this.summaryFromHistory===true){this.closeModal('summaryModal');this.charts.sumM=null;this.viewingProfile=null;this.summaryFromHistory=false;this.summaryHistoryDate=null;this.summaryHistorySamples=null;}
+            if(this.summaryFromHistory===true){this.closeModal('summaryModal');this.charts.sumM=null;this.viewingProfile=null;this.summaryFromHistory=false;this.summaryHistoryDate=null;this.summaryHistorySamples=null;this.summaryHistoryArchived=false;}
             return;
         }
         this.closeModal(topId);if(topId==='historyModal')this.viewingProfile=null;
@@ -5589,5 +5589,8 @@ P.makeSummaryCanvas=async function(){
 })();
 </script>
 
+<script>/* v75 profile-scoped archive */
+(()=>{const P=AppController.prototype,AGE=2678400000,LIMIT=25165824,size=v=>{try{return new Blob([JSON.stringify(v)]).size}catch(e){return 0}};DB.maintainRunnerHistory=async n=>{if(!DB.db||!n)return;return new Promise(ok=>{let tx=DB.db.transaction("history","readwrite"),st=tx.objectStore("history"),a=[];st.openCursor().onsuccess=e=>{let c=e.target.result;if(c){if(c.value.runnerName===n)a.push([c.primaryKey,c.value]);return c.continue()}a.sort((x,y)=>(y[1].date||0)-(x[1].date||0));let used=0,now=Date.now();for(const [k,o] of a){let z=size(o.samples||[]),old=now-(+o.date||0)>AGE,over=!old&&used+z>LIMIT;if(!o.archived&&!old&&!over){used+=z;continue}if(!o.archived||Array.isArray(o.samples)){let v={...o,archived:true,archiveReason:old?"age":"profile-size",archivedAt:now,sampleCount:Array.isArray(o.samples)?o.samples.length:(o.sampleCount||0)};delete v.samples;st.put(v,k)}}};tx.oncomplete=ok;tx.onerror=ok;tx.onabort=ok})};const save=DB.saveHist,get=DB.getHist;DB.saveHist=async d=>{await save.call(DB,d);await DB.maintainRunnerHistory(d&&d.runnerName)};DB.getHist=async n=>{await DB.maintainRunnerHistory(n);return get.call(DB,n)};const ensure=P.ensureSummaryExportActions;P.ensureSummaryExportActions=function(){ensure.call(this);let b=document.getElementById("summaryExportActions"),path=b&&b.querySelector(".tcx path");if(path)path.setAttribute("d","M7.7 1.5 1.7 13.5h4.2l2.1-4.2 2.1 4.2H14L7.7 1.5Zm7.8 10.8h4L15.5 21l-4.1-8.7h4.1Z");if(b&&this.summaryFromHistory&&this.summaryHistoryArchived)b.style.display="none"};const show=P.showSummaryModal;P.showSummaryModal=function(){let r=show.apply(this,arguments);this.ensureSummaryExportActions();return r};})();
+</script>
 </body>
 </html>
