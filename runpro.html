@@ -8,7 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Pro Treadmill OS - Tactical Edition (v84.0 / runpro_new_v58)</title>
+    <title>Pro Treadmill OS - Tactical Edition (v85.0 / runpro_new_v59)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.85); 
@@ -1440,7 +1440,7 @@
 </div>
 
 <script>
-/** PRO TREADMILL OS (TACTICAL EDITION v84.0 / runpro_new_v58) */
+/** PRO TREADMILL OS (TACTICAL EDITION v85.0 / runpro_new_v59) */
 
 const i18n = {
     zh: {
@@ -2647,7 +2647,7 @@ class PhysioEngine {
             gaitOn:true,gaitUiState:[1,2,3,4].includes(Number(m.gaitUiState))?Number(m.gaitUiState):(pBeatOn?4:(pStepOn?3:2)),stepOn:pStepOn,beatOn:pBeatOn,cadenceOffsetPct:[-.04,-.02,0,.02,.04].includes(Number(m.cadenceOffsetPct))?Number(m.cadenceOffsetPct):0,
             lastProg: m.lastProg ?? 0, lastCat: m.lastCat ?? 'FAT_BURN', 
             spdOffset: m.spdOffset ?? 0, incOffset: Utils.roundInc(m.incOffset ?? 0, incStep), 
-            incStep: incStep, timeStep: timeStep, catMemory: m.catMemory, offsetMemory: m.offsetMemory || {}, phaseMemory: m.phaseMemory || {}, globalPhaseEnabled:!!m.globalPhaseEnabled, globalPhase:(m.globalPhase&&typeof m.globalPhase==='object')?{...m.globalPhase}:null, fuelMemory: m.fuelMemory || {}
+            incStep: incStep, timeStep: timeStep, catMemory: m.catMemory, offsetMemory: m.offsetMemory || {}, phaseMemory: m.phaseMemory || {}, globalPhaseEnabled:!!m.globalPhaseEnabled, globalPhase:(m.globalPhase&&typeof m.globalPhase==='object')?{...m.globalPhase}:null, fuelMemory: m.fuelMemory || {}, _applyOffsetAll:!!m._applyOffsetAll
         };
     }
 
@@ -2810,7 +2810,7 @@ class PhysioEngine {
             let iOff = Utils.clamp(p.incOffset || 0, -15.0, 15.0);
             
             // V56: phase targets own warm-up/cool-down minutes; programme offsets apply only to the main phase.
-            let phaseOwnsTarget = (phase === 'warmup' || phase === 'cooldown');
+            let phaseOwnsTarget = !p._applyOffsetAll && (phase === 'warmup' || phase === 'cooldown');
             let appliedSOff = phaseOwnsTarget ? 0 : sOff;
             let appliedIOff = phaseOwnsTarget ? 0 : iOff;
             let finalSpd = Utils.clamp(m.rawSpd + appliedSOff, hw.minSpd, hw.maxSpd);
@@ -2889,7 +2889,7 @@ class PhysioEngine {
                 vInc += Math.sign(m.inc - vInc) * Math.min(Math.abs(m.inc - vInc), 0.5);
 
                 let sm = m.spd * 16.6667; let id = m.inc / 100;
-                let vo2D = (m.spd <= 7.0 ? (3.5 + 0.1*sm + 1.8*sm*id) : (3.5 + 0.2*sm + 0.9*sm*id)) * RE;
+                let walkVO2=3.5+0.1*sm+1.8*sm*id,runVO2=3.5+0.2*sm+0.9*sm*id,runBlend=Utils.clamp((m.spd-6.0)/2.0,0,1),vo2D=(walkVO2*(1-runBlend)+runVO2*runBlend)*RE;
                 if (!Number.isFinite(vo2D)) vo2D = 10; if (m.m < 4) vo2D *= 0.9;
                 
                 let effortRatio = vo2D / p.vo2; 
@@ -3834,7 +3834,10 @@ class AppController {
             }
             else if (a === 'toggle-hud-mode') {
                 if(AppState.state.runStatus === 'STOPPED' || AppState.state.isDraggingFuel) return;
-                let box = t.closest('.run-val-box'); if(box) box.classList.toggle('show-adv');
+                clearTimeout(this.hudLabelTimer);
+                let incBox=document.getElementById('hudIncBox'),spdBox=document.getElementById('hudSpdBox');
+                incBox.classList.remove('show-adv');spdBox.classList.remove('show-adv');
+                this.hudLabelTimer=setTimeout(()=>{incBox.classList.add('show-adv');spdBox.classList.add('show-adv');this.hudLabelTimer=null;},1600);
                 if(navigator.vibrate) navigator.vibrate(10);
             }
             else if (a === 'open-fueling') {
@@ -4221,10 +4224,24 @@ class AppController {
     }
       getAdjustmentLimits(isSpd){let p=PhysioEngine.sanitize(AppState.state.profiles[AppState.state.activeP]||{}),hw=AppState.state.hw,rMin=isSpd?p.minSpd:p.mnInc,rMax=isSpd?p.maxSpd:p.mxInc,hMin=isSpd?hw.minSpd:hw.minInc,hMax=isSpd?hw.maxSpd:hw.maxInc;return {p,min:Math.max(rMin,hMin),max:Math.min(rMax,hMax),minSource:rMin>=hMin?'runner':'hardware',maxSource:rMax<=hMax?'runner':'hardware'};}
       getAdjustmentBlockMessage(isSpd,isUp,dStr){if(this.lastAdjustmentFeedback)return this.lastAdjustmentFeedback;let L=this.getAdjustmentLimits(isSpd),p=L.p,zh=p.lang==='zh',off=Number(isSpd?p.spdOffset:p.incOffset)||0,u=isSpd?(p.unit==='imperial'?' mph':' kph'):'%';if(Math.abs(off)>=14.999)return zh?'已達課表偏移上限 ±15。':'Workout offset limit: ±15.';let v=isUp?L.max:L.min,source=isUp?L.maxSource:L.minSource;return zh?`${isSpd?'速度':'坡度'}碰到${source==='runner'?'跑者設定':'硬體限制'}${isUp?'上限':'下限'} ${v.toFixed(1)}${u}`:`${isSpd?'Speed':'Incline'} hit ${source==='runner'?'Runner Profile':'Hardware Limit'} ${isUp?'maximum':'minimum'}: ${v.toFixed(1)}${u}`;}
-      tryAdjustCurve(isSpd,isUp,step){this.lastAdjustmentFeedback='';let p=AppState.state.profiles[AppState.state.activeP];if(!p)return false;let old=Number(isSpd?p.spdOffset:p.incOffset)||0,c=Utils.clamp(old+(isUp?step:-step),-15,15);if(!isSpd)c=Utils.roundInc(c,p.incStep||.5);if(Math.abs(c-old)<.0001)return false;let st=AppState.state.runStatus==='STOPPED'?0:Math.floor((AppState.state.accumMs||0)/60000),existing=AppState.state.runStatus==='STOPPED'?null:AppState.state.snapshot,probe={...p};if(isSpd)probe.spdOffset=c;else probe.incOffset=c;let solved=PhysioEngine.solveBlueprint(probe,AppState.state.hw,st,existing).matrix,key=isSpd?'spd':'inc',current=AppState.state.snapshot||[],changed=solved.slice(st).some((m,j)=>Math.abs(Number(m[key])-Number(current[st+j]?.[key]))>(isSpd?.005:.04)),L=this.getAdjustmentLimits(isSpd),future=current.slice(st).length?current.slice(st):solved.slice(st),vals=future.map(m=>Number(m[key])).filter(Number.isFinite),eps=isSpd?.005:.04,allAtMin=vals.length&&vals.every(v=>v<=L.min+eps),allAtMax=vals.length&&vals.every(v=>v>=L.max-eps);if(!changed&&((isUp&&allAtMax)||(!isUp&&allAtMin)))return false;if(isSpd)p.spdOffset=c;else p.incOffset=c;if(!changed){let zh=L.p.lang==='zh',name=isSpd?(zh?'速度':'Speed'):(zh?'坡度':'Incline'),wall=allAtMin?(zh?'下限':'minimum'):(allAtMax?(zh?'上限':'maximum'):(zh?'目前課表界線':'current workout boundary')),value=(allAtMin?L.min:L.max).toFixed(1),unit=isSpd?(L.p.unit==='imperial'?' mph':' kph'):'%';this.lastAdjustmentFeedback=zh?`${name}偏移已調整為 ${c.toFixed(1)}，但課表仍被${wall} ${value}${unit} 夾住；繼續同方向調整後會開始變化。`:`${name} offset is now ${c.toFixed(1)}, but the workout is still clamped at the ${wall} ${value}${unit}. Continue in this direction to move off the boundary.`;}return true;}
+      tryAdjustCurve(isSpd,isUp,step){
+        this.lastAdjustmentFeedback='';
+        let p=AppState.state.profiles[AppState.state.activeP];if(!p)return false;
+        let old=Number(isSpd?p.spdOffset:p.incOffset)||0;
+        let next=Utils.clamp(old+(isUp?step:-step),-15,15);
+        if(!isSpd)next=Utils.roundInc(next,p.incStep||.5);
+        if(Math.abs(next-old)<.0001)return false;
+        let L=this.getAdjustmentLimits(isSpd),idx=Math.min(Math.floor((AppState.state.accumMs||0)/60000),Math.max(0,(AppState.state.snapshot||[]).length-1)),cur=Number(AppState.state.snapshot?.[idx]?.[isSpd?'spd':'inc']);
+        if(Number.isFinite(cur)&&((isUp&&cur>=L.max-(isSpd?.005:.04))||(!isUp&&cur<=L.min+(isSpd?.005:.04)))){
+          this.lastAdjustmentFeedback=this.getAdjustmentBlockMessage(isSpd,isUp,i18n[p.lang]||i18n.zh);return false;
+        }
+        if(isSpd)p.spdOffset=next;else p.incOffset=next;
+        return true;
+      }
+
       performMatrixSplicing() {
         let p = AppState.state.profiles[AppState.state.activeP]; let cM = Math.floor(AppState.state.accumMs / 60000); let safeStart = cM; this.manualSpeedHold=null;
-        let res = PhysioEngine.solveBlueprint(p, AppState.state.hw, safeStart, AppState.state.snapshot);
+        let liveProfile={...p,_applyOffsetAll:true}; let res = PhysioEngine.solveBlueprint(liveProfile, AppState.state.hw, safeStart, AppState.state.snapshot);
         AppState.state.snapshot = res.matrix; AppState.state.estTotKm = PhysioEngine.simulatePhysics(AppState.state.snapshot, AppState.state.hw).dist;
         this.saveData(); this.charts.drawAll(); 
         
@@ -4475,13 +4492,13 @@ class AppController {
                 document.getElementById('runGapVal').textContent=Number.isFinite(gapVal)&&gapVal>.1?Utils.getPaceStr(isMet?gapVal:gapVal/1.609344,isMet):"--'--\"";
                 document.getElementById('runPwrVal').textContent=Number.isFinite(wVal)&&wVal>=0&&wVal<=2000?`${Math.round(wVal)} W`:'-- W';
             } else if (targetSpd < 3.5) {
-                spdBox.classList.remove('show-adv'); incBox.classList.remove('show-adv');
+                if(!this.hudLabelTimer){spdBox.classList.remove('show-adv'); incBox.classList.remove('show-adv');}
             }
         }
 
         let sm = RunAcc.curSpd * 16.6667; let id = RunAcc.curInc / 100;
         let RE = pClean.gender === 'F' ? 1.05 : 1.0; if(pClean.smm / pClean.wKG > (pClean.gender==='M' ? 0.4 : 0.35)) RE -= 0.05;
-        let vo2D = (RunAcc.curSpd <= 7.0 ? (3.5 + 0.1*sm + 1.8*sm*id) : (3.5 + 0.2*sm + 0.9*sm*id)) * RE;
+        let walkVO2=3.5+0.1*sm+1.8*sm*id,runVO2=3.5+0.2*sm+0.9*sm*id,runBlend=Utils.clamp((RunAcc.curSpd-6.0)/2.0,0,1),vo2D=(walkVO2*(1-runBlend)+runVO2*runBlend)*RE;
         if (!Number.isFinite(vo2D)) vo2D = 10; if(safeM < 3) vo2D *= 0.9;
         let HRR = pClean.mHR - pClean.rHR; let effortRatio = vo2D / pClean.vo2; let smoothedTargetPct = effortRatio < 0.6 ? effortRatio : (1.0 - 0.4 * Math.exp(-2.5 * (effortRatio - 0.6)));
         let tHR = pClean.rHR + (HRR * smoothedTargetPct); if (!Number.isFinite(tHR)) tHR = 110;
