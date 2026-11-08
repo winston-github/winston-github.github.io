@@ -8,7 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Pro Treadmill OS - Tactical Edition (v85.0 / runpro_new_v60)</title>
+    <title>Pro Treadmill OS - Tactical Edition (v85.0 / runpro_new_v61)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.85); 
@@ -1440,7 +1440,7 @@
 </div>
 
 <script>
-/** PRO TREADMILL OS (TACTICAL EDITION v85.0 / runpro_new_v60) */
+/** PRO TREADMILL OS (TACTICAL EDITION v85.0 / runpro_new_v61) */
 
 const i18n = {
     zh: {
@@ -2651,6 +2651,26 @@ class PhysioEngine {
         };
     }
 
+    // V61: one canonical substrate-oxidation model for preview, every program, and live running.
+    // The previous linear HRR-to-RER mapping drove Zone 2 close to RER 1.00 and therefore
+    // mislabeled almost all energy as carbohydrate. This bounded crossover model uses both
+    // metabolic demand (VO2/VO2max) and HR reserve, with small validated profile modifiers.
+    static getFuelMix(p, hrIntensity, effortRatio) {
+        let h = Utils.clamp(Number(hrIntensity), 0, 1.15);
+        let e = Utils.clamp(Number(effortRatio), 0, 1.15);
+        if (!Number.isFinite(h)) h = e || 0;
+        if (!Number.isFinite(e)) e = h || 0;
+        let intensity = Utils.clamp(0.65 * e + 0.35 * h, 0, 1.15);
+        // Physiological crossover: low intensity stays fat-dominant; carbohydrate rises
+        // progressively around 70-75% of aerobic capacity instead of linearly from rest.
+        let pctCarb = 0.18 + 0.72 / (1 + Math.exp(-8 * (intensity - 0.72)));
+        let vo2 = Utils.clamp(Number(p?.vo2) || 35, 20, 85);
+        let bf = Utils.clamp(Number(p?.bf) || 22, 3, 50);
+        let fitnessShift = Utils.clamp((vo2 - 40) * 0.0025 - (bf - 22) * 0.001, -0.06, 0.06);
+        pctCarb = Utils.clamp(pctCarb - fitnessShift, 0.10, 0.95);
+        return { pctCarb, pctFat: 1 - pctCarb, intensity };
+    }
+
     static getGoldenRatios(pid) {
         switch(pid) {
             case 0: return [0.05, 0.85, 0.0, 0.10, 0.0]; 
@@ -2913,10 +2933,8 @@ class PhysioEngine {
                 lastZ = hrIntensity < 0.6 ? 1 : (hrIntensity < 0.7 ? 2 : (hrIntensity < 0.8 ? 3 : (hrIntensity < 0.9 ? 4 : 5)));
                 minZs[lastZ - 1] += 1/60; 
                 
-                let rerBase = 0.7 + (hrIntensity * 0.3); let fitnessAdj = (p.vo2 - 35) * 0.005 + (p.smm / p.wKG - 0.35) * 0.5 - (p.bf - 15) * 0.002;
-                let rer = Utils.clamp(rerBase - fitnessAdj, 0.7, 1.0); 
-                let pctCarb = Math.max(0.05, (rer - 0.7) / 0.3); 
-                let pctFat = 1.0 - pctCarb;
+                let fuelMix = PhysioEngine.getFuelMix(p, hrIntensity, effortRatio);
+                let pctCarb = fuelMix.pctCarb, pctFat = fuelMix.pctFat;
                 let kcalTick = ((vo2D * p.wKG * 5) / 1000) * (1/60);
                 if (Number.isFinite(kcalTick)) { minFCal += kcalTick * pctFat; minCCal += kcalTick * pctCarb; }
                 
@@ -4572,8 +4590,7 @@ class AppController {
         }
 
         let z = hrIntensity < 0.6 ? 1 : (hrIntensity < 0.7 ? 2 : (hrIntensity < 0.8 ? 3 : (hrIntensity < 0.9 ? 4 : 5))); RunAcc.zs[z - 1] += sr;
-        let rerBase = 0.7 + (hrIntensity * 0.3); let fitnessAdj = (pClean.vo2 - 35) * 0.005 + (pClean.smm / pClean.wKG - 0.35) * 0.5 - (pClean.bf - 15) * 0.002;
-        let rer=Utils.clamp(rerBase-fitnessAdj,.7,1),pctCarb=Math.max(.05,(rer-.7)/.3),pctFat=1-pctCarb;
+        let fuelMix=PhysioEngine.getFuelMix(pClean,hrIntensity,effortRatio),pctCarb=fuelMix.pctCarb,pctFat=fuelMix.pctFat;
         let cadenceModel=this.getCadenceModel(RunAcc.curSpd,RunAcc.curInc,p),economy=this.getCadenceEconomy(cadenceModel);
         RunAcc.autoCadence=cadenceModel.auto;RunAcc.targetCadence=cadenceModel.target;RunAcc.stepLengthM=cadenceModel.stepLengthM;RunAcc.totalSteps+=cadenceModel.target*(dtS/60);RunAcc.sumCadence+=cadenceModel.target*dtS;RunAcc.cadenceSeconds+=dtS;
         let kcalTick=((vo2D*pClean.wKG*5)/1000)*sr*economy.factor;
