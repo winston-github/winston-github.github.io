@@ -838,8 +838,8 @@
   #rpmTransport,#rpmVolume{display:flex;align-items:center;height:32px}#rpmTransport{justify-self:center;gap:2px}#rpmVolume{justify-self:end;gap:5px;min-width:0}
   #runMusicPanel button{box-sizing:border-box;width:30px;height:30px;min-width:30px;min-height:30px;padding:6px;border:0;background:transparent!important;color:#fff!important;display:grid;place-items:center;border-radius:50%;opacity:.92;cursor:pointer;touch-action:manipulation;box-shadow:none!important}
   #runMusicPanel button:active{transform:scale(.9);opacity:.65}#runMusicPanel button svg{display:block;width:18px;height:18px;fill:currentColor;pointer-events:none}#rpmPlay{border:1px solid rgba(255,255,255,.55)!important}
-  #rpmVol{width:clamp(45px,11vw,72px);height:4px;flex:0 1 auto;margin:0;-webkit-appearance:none;appearance:none;background:#555;border-radius:999px;outline:none;accent-color:#fff}
-  #rpmVol::-webkit-slider-runnable-track{height:4px;background:#555;border-radius:999px}#rpmVol::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;margin-top:-4.5px;border-radius:50%;background:#fff;border:0}#rpmVol::-moz-range-track{height:4px;background:#555;border-radius:999px}#rpmVol::-moz-range-progress{height:4px;background:#fff}#rpmVol::-moz-range-thumb{width:13px;height:13px;border:0;border-radius:50%;background:#fff}
+  #rpmVol{--rpm-volume-pct:80%;width:clamp(45px,11vw,72px);height:4px;flex:0 1 auto;margin:0;-webkit-appearance:none;appearance:none;background:linear-gradient(to right,#fff 0,#fff var(--rpm-volume-pct),#555 var(--rpm-volume-pct),#555 100%);border-radius:999px;outline:none;accent-color:#fff}
+  #rpmVol::-webkit-slider-runnable-track{height:4px;background:transparent;border-radius:999px}#rpmVol::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;margin-top:-4.5px;border-radius:50%;background:#fff;border:0}#rpmVol::-moz-range-track{height:4px;background:#555;border-radius:999px}#rpmVol::-moz-range-progress{height:4px;background:#fff}#rpmVol::-moz-range-thumb{width:13px;height:13px;border:0;border-radius:50%;background:#fff}
   @media(max-width:420px){#runMusicPanel{grid-template-columns:minmax(0,.88fr) auto minmax(74px,.88fr);gap:3px;padding:5px 6px}#rpmTransport{gap:0}#runMusicPanel button{width:28px;height:28px;min-width:28px;min-height:28px;padding:5px}#rpmVol{width:clamp(37px,10vw,52px)}}
   </style>
 <style id="runpro-music-v03-style">
@@ -5839,8 +5839,8 @@ function reset(){if(preflightPinned)return;clearTimeout(timer);timer=setTimeout(
 function show(pinned=false){syncProfile();if(typeof AppState!=='undefined'&&AppState.state.runStatus==='STOPPED')return;if(pinned){preflightPinned=true;clearTimeout(timer)}host.classList.add('music-open');panel.setAttribute('aria-hidden','false');prepareTrackText();if(!preflightPinned)reset()}
 function primePausedTrack(){syncProfile();if(cur<0)cur=nextIndex();audio.pause();audio.preload='auto';if(audio.src!==RPM_TRACKS[cur].u)audio.src=RPM_TRACKS[cur].u;audio.load();playing=false;icon.innerHTML=PLAY;prepareTrackText()}
   function play(i){syncProfile();recoverMusicAudio();cur=i;audio.src=RPM_TRACKS[i].u;trackTitle.textContent=RPM_TRACKS[i].t;trackCredit.textContent=RPM_CREDITS[i]||'';if(host.classList.contains('music-open'))prepareTrackText();audio.play().then(()=>{playing=true;icon.innerHTML=PAUSE}).catch(()=>{playing=false;icon.innerHTML=PLAY})}
-function toggle(){syncProfile();if(playing){audio.pause();playing=false;icon.innerHTML=PLAY}else if(cur>=0){recoverMusicAudio();audio.play().then(()=>{playing=true;icon.innerHTML=PAUSE}).catch(()=>{})}else play(nextIndex())}
-function next(){play(nextIndex())}
+function toggle(){ensureMusicGraph();syncProfile();if(playing){audio.pause();playing=false;icon.innerHTML=PLAY}else if(cur>=0){recoverMusicAudio();audio.play().then(()=>{playing=true;icon.innerHTML=PAUSE}).catch(()=>{})}else play(nextIndex())}
+function next(){ensureMusicGraph();play(nextIndex())}
 function syncModeUI(){modeBtn.classList.toggle('mode-repeat',repeatOne);modeBtn.setAttribute('aria-pressed',repeatOne?'true':'false');modeBtn.setAttribute('aria-label',repeatOne?'Repeat current track; press for shuffle':'Shuffle; press to repeat current track');modeIcon.innerHTML=repeatOne?'<path d="M7 6h9.17l-1.59-1.59L16 3l4 4-4 4-1.42-1.41L16.17 8H7a3 3 0 0 0-3 3v1H2v-1a5 5 0 0 1 5-5zm10 12H7.83l1.59 1.59L8 21l-4-4 4-4 1.42 1.41L7.83 16H17a3 3 0 0 0 3-3v-1h2v1a5 5 0 0 1-5 5z"/>':'<path d="M16.5 3H21v4.5l-1.75-1.75-3.7 3.7-1.4-1.4 3.7-3.7L16.5 3zM3 6h3.2c2.25 0 3.5 1.05 4.75 2.7l4.1 5.4c.85 1.12 1.7 1.9 3.15 1.9H19v-2.5l3 3.5-3 3.5V18h-.8c-2.25 0-3.5-1.05-4.75-2.7l-4.1-5.4C8.5 8.78 7.65 8 6.2 8H3V6zm0 10h3.2c1.1 0 1.82-.45 2.5-1.18l1.25 1.65C8.92 17.48 7.78 18 6.2 18H3v-2z"/>';}
 function toggleMode(){repeatOne=!repeatOne;syncModeUI()}
 function pauseSmart(kind){if(playing){audio.pause();playing=false;icon.innerHTML=PLAY;if(kind==='visibility')resumeVisible=true;if(kind==='run')resumeRun=true}}
@@ -5852,20 +5852,22 @@ host.addEventListener('click',e=>{if(e.target.closest('#runMusicPanel'))return;i
    are cross-origin and a suspended/CORS-blocked Web Audio graph can make Play silent.
    maxMusicVolume is the user's ceiling; duckFactor only multiplies that ceiling. */
   let maxMusicVolume=.8,duckFactor=1,isMusicMuted=false,applyingVolume=false;
-  function clampVolume(v){v=Number(v);return Number.isFinite(v)?Math.max(0,Math.min(1,v)):0}
-  function effectiveVolume(){return isMusicMuted?0:clampVolume(maxMusicVolume)*clampVolume(duckFactor)}
-  function syncVolumeUI(){
-    vol.value=Math.round(maxMusicVolume*100);
-    muteIcon.innerHTML=(isMusicMuted||maxMusicVolume<=.0001)?OFF:ON;
-    document.getElementById('rpmMute').setAttribute('aria-label',(isMusicMuted||maxMusicVolume<=.0001)?'Unmute':'Mute');
-  }
-  function applyMusicVolume(){
-    const target=effectiveVolume(); applyingVolume=true;
-    try{audio.defaultMuted=false;audio.muted=target<=.0001;audio.volume=target}catch(e){}
-    applyingVolume=false; syncVolumeUI();
-  }
-  function recoverMusicAudio(){applyMusicVolume()}
-  function setMaxMusicVolume(v){
+    /* v32 iOS repair: iOS Safari/Chrome share WebKit and ignore HTMLMediaElement.volume
+       except mute. Route the media element through a GainNode only on iOS. */
+    const isIOSWebKit=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+    let musicCtx=null,musicSource=null,musicGain=null,musicGraphFailed=false;
+    if(isIOSWebKit)audio.crossOrigin='anonymous';
+    function clampVolume(v){v=Number(v);return Number.isFinite(v)?Math.max(0,Math.min(1,v)):0}
+    function effectiveVolume(){return isMusicMuted?0:clampVolume(maxMusicVolume)*clampVolume(duckFactor)}
+    function ensureMusicGraph(){
+      if(!isIOSWebKit||musicGraphFailed)return false;
+      try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return false;if(!musicCtx)musicCtx=new AC();if(!musicSource){musicSource=musicCtx.createMediaElementSource(audio);musicGain=musicCtx.createGain();musicSource.connect(musicGain);musicGain.connect(musicCtx.destination)}if(musicCtx.state==='suspended')musicCtx.resume().catch(()=>{});return true}
+      catch(err){musicGraphFailed=true;console.warn('iOS music gain unavailable',err);return false}
+    }
+    function syncVolumeUI(){vol.value=Math.round(maxMusicVolume*100);vol.style.setProperty('--rpm-volume-pct',Math.round(maxMusicVolume*100)+'%');muteIcon.innerHTML=(isMusicMuted||maxMusicVolume<=.0001)?OFF:ON;document.getElementById('rpmMute').setAttribute('aria-label',(isMusicMuted||maxMusicVolume<=.0001)?'Unmute':'Mute')}
+    function applyMusicVolume(){const target=effectiveVolume();applyingVolume=true;const graph=ensureMusicGraph();try{audio.defaultMuted=false;if(graph&&musicGain){audio.muted=false;audio.volume=1;musicGain.gain.cancelScheduledValues(musicCtx.currentTime);musicGain.gain.setTargetAtTime(target,musicCtx.currentTime,.012)}else{audio.muted=target<=.0001;audio.volume=target}}catch(e){}applyingVolume=false;syncVolumeUI()}
+    function recoverMusicAudio(){ensureMusicGraph();applyMusicVolume()}
+    function setMaxMusicVolume(v){
     maxMusicVolume=clampVolume(v);isMusicMuted=maxMusicVolume<=.0001;
     if(maxMusicVolume>0)lastVol=maxMusicVolume;applyMusicVolume();
   }
@@ -5877,12 +5879,12 @@ host.addEventListener('click',e=>{if(e.target.closest('#runMusicPanel'))return;i
     applyMusicVolume();
   };
   ['input','change','pointerup','touchend'].forEach(ev=>vol.addEventListener(ev,e=>{
-    e.stopPropagation();setMaxMusicVolume(Number(vol.value)/100);
+    e.stopPropagation();ensureMusicGraph();setMaxMusicVolume(Number(vol.value)/100);
   },{passive:true}));
   audio.addEventListener('volumechange',()=>{
     if(applyingVolume)return;
     if(audio.muted){isMusicMuted=true}
-    else if(duckFactor===1&&audio.volume>0){maxMusicVolume=clampVolume(audio.volume);lastVol=maxMusicVolume;isMusicMuted=false}
+    else if(!isIOSWebKit&&duckFactor===1&&audio.volume>0){maxMusicVolume=clampVolume(audio.volume);lastVol=maxMusicVolume;isMusicMuted=false}
     syncVolumeUI();
   });
   audio.addEventListener('error',()=>{playing=false;icon.innerHTML=PLAY;console.warn('Music media error',audio.error?.code||'unknown')});
