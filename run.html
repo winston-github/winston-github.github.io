@@ -991,7 +991,7 @@
     </div>
 </div>
 
-<video id="wakeLockVideo" playsinline muted loop style="position:fixed; opacity:0; pointer-events:none; width:1px; height:1px;" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA"></video>
+<video id="wakeLockVideo" playsinline webkit-playsinline muted loop autoplay aria-hidden="true" style="position:fixed; opacity:0; pointer-events:none; width:1px; height:1px;" src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAMQbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAA+gAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAjt0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAIAAAACAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAPoAAAAAAABAAAAAAGzbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAABAAAAAQABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABXm1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAR5zdGJsAAAAunN0c2QAAAAAAAAAAQAAAKphdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAIAAgBIAAAASAAAAAAAAAABFExhdmM2MS4zLjEwMCBsaWJ4MjY0AAAAAAAAAAAAAAAAGP//AAAAMGF2Y0MBQsAK/+EAGGdCwArZH4iIwEQAAAMABAAAAwAIPEiZIAEABWjLg8sgAAAAEHBhc3AAAAABAAAAAQAAABRidHJ0AAAAAAAAFDAAABQwAAAAGHN0dHMAAAAAAAAAAQAAAAEAAEAAAAAAHHN0c2MAAAAAAAAAAQAAAAEAAAABAAAAAQAAABRzdHN6AAAAAAAAAoYAAAABAAAAFHN0Y28AAAAAAAAAAQAAA0AAAABhdWR0YQAAAFltZXRhAAAAAAAAACFoZGxyAAAAAAAAAABtZGlyYXBwbAAAAAAAAAAAAAAAACxpbHN0AAAAJKl0b28AAAAcZGF0YQAAAAEAAAAATGF2ZjYxLjEuMTAwAAAACGZyZWUAAAKObWRhdAAAAnAGBf//bNxF6b3m2Ui3lizYINkj7u94MjY0IC0gY29yZSAxNjQgcjMxOTEgNDYxM2FjMyAtIEguMjY0L01QRUctNCBBVkMgY29kZWMgLSBDb3B5bGVmdCAyMDAzLTIwMjQgLSBodHRwOi8vd3d3LnZpZGVvbGFuLm9yZy94MjY0Lmh0bWwgLSBvcHRpb25zOiBjYWJhYz0wIHJlZj0zIGRlYmxvY2s9MTowOjAgYW5hbHlzZT0weDE6MHgxMTEgbWU9aGV4IHN1Ym1lPTcgcHN5PTEgcHN5X3JkPTEuMDA6MC4wMCBtaXhlZF9yZWY9MSBtZV9yYW5nZT0xNiBjaHJvbWFfbWU9MSB0cmVsbGlzPTEgOHg4ZGN0PTAgY3FtPTAgZGVhZHpvbmU9MjEsMTEgZmFzdF9wc2tpcD0xIGNocm9tYV9xcF9vZmZzZXQ9LTIgdGhyZWFkcz0xIGxvb2thaGVhZF90aHJlYWRzPTEgc2xpY2VkX3RocmVhZHM9MCBucj0wIGRlY2ltYXRlPTEgaW50ZXJsYWNlZD0wIGJsdXJheV9jb21wYXQ9MCBjb25zdHJhaW5lZF9pbnRyYT0wIGJmcmFtZXM9MCB3ZWlnaHRwPTAga2V5aW50PTI1MCBrZXlpbnRfbWluPTEgc2NlbmVjdXQ9NDAgaW50cmFfcmVmcmVzaD0wIHJjX2xvb2thaGVhZD00MCByYz1jcmYgbWJ0cmVlPTEgY3JmPTIzLjAgcWNvbXA9MC42MCBxcG1pbj0wIHFwbWF4PTY5IHFwc3RlcD00IGlwX3JhdGlvPTEuNDAgYXE9MToxLjAwAIAAAAAOZYiEBX///w9FAAFC34A="></video>
 <div id="wakeLockCatcher" style="display:none; position:fixed; inset:0; z-index:99999; background:transparent;"></div>
 
 <div id="app-shell" class="tab-settings-active">
@@ -2657,14 +2657,27 @@ class AudioEngine {
         this.isUnlocked = true;
     }
     hardReset() {
+        const ctx = this.ctx;
+        if (!ctx || ctx.state === 'closed') return;
+
+        // iOS requires resume() to start synchronously in the user-gesture call stack.
+        // Attempt the unlock before debounce can short-circuit this reset.
+        let resumePromise;
+        try { resumePromise = ctx.resume(); } catch (_) { resumePromise = null; }
+        if (resumePromise && typeof resumePromise.catch === 'function') resumePromise.catch(() => {});
+
+        // Re-anchor scheduling immediately to prevent backfilling stale beats after wake.
+        const now = ctx.currentTime;
+        this.gunFired = false;
+        this.audioStartTime = now;
+        this.nextNoteTime = now + 0.05;
+        this.heartbeatNextTime = now + 0.5;
+        this.beatCount = 0;
+        this.pendingSync = null;
+
+        // Debounce reset churn, but never suppress the synchronous resume() attempt above.
         if (this.resetTimer) return;
         this.resetTimer = setTimeout(() => { this.resetTimer = null; }, 1000);
-        if (this.ctx && this.ctx.state !== 'closed') {
-            this.ctx.suspend().then(() => {
-                this.gunFired = false; this.audioStartTime = this.ctx.currentTime; this.nextNoteTime = this.ctx.currentTime + 0.05; this.beatCount = 0;
-                this.ctx.resume();
-            }).catch(()=>{});
-        }
     }
     setMute(mute) {
         if (!this.masterGain) return; this.isMuted = mute; const now = this.ctx.currentTime;
@@ -4116,7 +4129,13 @@ class AppController {
         const btnStart = document.getElementById('btnRight');
         btnStart.addEventListener('pointerup', async () => {
             if(screen.orientation && screen.orientation.lock) screen.orientation.lock('portrait').catch(()=>{});
-            let vL = document.getElementById('wakeLockVideo'); if(vL) vL.play().catch(()=>{});
+            let vL = document.getElementById('wakeLockVideo');
+            if (vL) {
+                try {
+                    const wakePlay = vL.play();
+                    if (wakePlay && typeof wakePlay.catch === 'function') wakePlay.catch(() => {});
+                } catch (_) {}
+            }
             VoiceApp.unlock(); this.charts.teardown(); AudioApp.unlock(); history.pushState(null, null, location.href);
 
             if (AppState.state.runStatus === 'RUNNING' || AppState.state.runStatus === 'PRE_FLIGHT') return;
@@ -5774,23 +5793,6 @@ P.makeSummaryCanvas=async function(){
 </script>
 <script id="runpro-music-script">(function(){'use strict';
 const RPM_TRACKS=[
-{t:"SoundHelix Song 1",b:135,u:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"},
-{t:"SoundHelix Song 2",b:146,u:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3"},
-{t:"SoundHelix Song 3",b:130,u:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3"},
-{t:"SoundHelix Song 4",b:125,u:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3"},
-{t:"SoundHelix Song 5",b:95,u:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3"},
-{t:"SoundHelix Song 6",b:115,u:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3"},
-{t:"SoundHelix Song 7",b:110,u:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3"},
-{t:"SoundHelix Song 8 (Spy vs Spy – Chill-out Acid Squeeze Mix)",b:96,u:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3"},
-{t:"SoundHelix Song 9",b:130,u:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3"},
-{t:"SoundHelix Song 10",b:135,u:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3"},
-{t:"SoundHelix Song 11",b:140,u:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-11.mp3"},
-{t:"SoundHelix Song 12",b:130,u:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3"},
-{t:"SoundHelix Song 13",b:125,u:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-13.mp3"},
-{t:"SoundHelix Song 14",b:130,u:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-14.mp3"},
-{t:"SoundHelix Song 15",b:135,u:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3"},
-{t:"SoundHelix Song 16",b:140,u:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-16.mp3"},
-{t:"SoundHelix Song 17 (The Stationary Ark – Low pH Arktic Clubmix)",b:145,u:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-17.mp3"},
 {t:"Rock Sport Power Action Energy – Alex Morgan",b:128,u:"https://raw.githubusercontent.com/gitbixxs/Music/main/alex-morgan-rock-sport-power-action-energy-573642.mp3"},
 {t:"Sport Fitness – AudioGreen",b:125,u:"https://raw.githubusercontent.com/gitbixxs/Music/main/audiogreen-sport-fitness-164589.mp3"},
 {t:"Dance for Fitness – AudioKnap",b:130,u:"https://raw.githubusercontent.com/gitbixxs/Music/main/audioknap-dance-for-fitness-414747.mp3"},
@@ -5806,7 +5808,7 @@ const RPM_TRACKS=[
 {t:"Dancing Fit (World / Electronic)",b:122,u:"https://assets.mixkit.co/music/45/45.mp3"},
 {t:"Trap Electro",b:140,u:"https://assets.mixkit.co/music/710/710.mp3"}
 ];
-const RPM_CREDITS=["T. Schürger / SoundHelix • attribution required","T. Schürger / SoundHelix • attribution required","T. Schürger / SoundHelix • attribution required","T. Schürger / SoundHelix • attribution required","T. Schürger / SoundHelix • attribution required","T. Schürger / SoundHelix • attribution required","T. Schürger / SoundHelix • attribution required","T. Schürger / SoundHelix • attribution required","T. Schürger / SoundHelix • attribution required","T. Schürger / SoundHelix • attribution required","T. Schürger / SoundHelix • attribution required","T. Schürger / SoundHelix • attribution required","T. Schürger / SoundHelix • attribution required","T. Schürger / SoundHelix • attribution required","T. Schürger / SoundHelix • attribution required","T. Schürger / SoundHelix • attribution required","T. Schürger / SoundHelix • attribution required","alex-morgan • Pixabay Content License","Audiogreen • Pixabay Content License","Ivan Selivanov (Audioknap) • Pixabay Content License","echoes_of_lumen • Pixabay Content License","Exventry • Pixabay Content License","conner • Pixabay Content License","Waterflame • CC BY-SA 3.0","Kate Orange • Wikimedia Commons licence","Amarià • Wikimedia Commons licence","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License"];
+const RPM_CREDITS=["alex-morgan • Pixabay Content License","Audiogreen • Pixabay Content License","Ivan Selivanov (Audioknap) • Pixabay Content License","echoes_of_lumen • Pixabay Content License","Exventry • Pixabay Content License","conner • Pixabay Content License","Waterflame • CC BY-SA 3.0","Kate Orange • Wikimedia Commons licence","Amarià • Wikimedia Commons licence","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License"];
 let cur=-1,playing=false,muted=false,repeatOne=false,lastVol=.8,timer=null,resumeVisible=false,resumeRun=false,preflightPinned=false,lastProfile='';
 const host=document.getElementById('runMusicHost'),panel=document.getElementById('runMusicPanel'),audio=document.getElementById('rpmAudio'),icon=document.getElementById('rpmPlayIcon'),track=document.getElementById('rpmTrack'),muteIcon=document.getElementById('rpmMuteIcon'),modeBtn=document.getElementById('rpmMode'),modeIcon=document.getElementById('rpmModeIcon'),vol=document.getElementById('rpmVol');if(!host)return;
 
