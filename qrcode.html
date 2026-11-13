@@ -1,0 +1,2671 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#050811" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="HyperQR 量子掃描" />
+  <title>HyperQR — 旗艦級全自動 WebAssembly QR 掃描器</title>
+
+  <style>
+    :root {
+      --bg-deep: #04070f;
+      --glass-bg: rgba(12, 18, 32, 0.66);
+      --glass-bg-strong: rgba(10, 15, 28, 0.86);
+      --glass-border: rgba(255, 255, 255, 0.14);
+      --neon-green: #00ff9d;
+      --neon-cyan: #00e5ff;
+      --neon-amber: #ffb800;
+      --neon-red: #ff3b5c;
+      --text-main: #f3f7ff;
+      --text-muted: #98a8c7;
+      --radius-pill: 999px;
+      --radius-card: 22px;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-deep);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", "PingFang TC", sans-serif;
+      user-select: none;
+    }
+
+    /* 全螢幕相機觀景窗 */
+    .viewport {
+      position: relative;
+      width: 100vw;
+      height: 100dvh;
+      overflow: hidden;
+      background: radial-gradient(circle at center, #0e1729 0%, #03050b 100%);
+    }
+
+    #cameraVideo {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #000;
+      transform: translateZ(0);
+    }
+
+    #overlayCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    /* 靜態瞄準輔助框（未偵測到條碼時微弱顯示） */
+    .reticle-layer {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 3;
+      transition: opacity 0.25s ease;
+    }
+
+    .reticle-layer.hidden {
+      opacity: 0;
+    }
+
+    .reticle-box {
+      position: relative;
+      width: min(64vw, 270px);
+      height: min(64vw, 270px);
+    }
+
+    .reticle-corner {
+      position: absolute;
+      width: 28px;
+      height: 28px;
+      border-color: rgba(255, 255, 255, 0.55);
+      border-style: solid;
+      border-width: 0;
+      filter: drop-shadow(0 0 8px rgba(0, 255, 157, 0.35));
+    }
+    .reticle-corner.tl { top: 0; left: 0; border-top-width: 3px; border-left-width: 3px; border-top-left-radius: 12px; }
+    .reticle-corner.tr { top: 0; right: 0; border-top-width: 3px; border-right-width: 3px; border-top-right-radius: 12px; }
+    .reticle-corner.bl { bottom: 0; left: 0; border-bottom-width: 3px; border-left-width: 3px; border-bottom-left-radius: 12px; }
+    .reticle-corner.br { bottom: 0; right: 0; border-bottom-width: 3px; border-right-width: 3px; border-bottom-right-radius: 12px; }
+
+    .scan-laser {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--neon-green), var(--neon-cyan), transparent);
+      box-shadow: 0 0 14px var(--neon-green);
+      animation: laserSweep 2.4s ease-in-out infinite;
+      opacity: 0.75;
+    }
+
+    @keyframes laserSweep {
+      0%, 100% { top: 14%; opacity: 0.25; }
+      50% { top: 86%; opacity: 0.9; }
+    }
+
+    /* 頂部極簡狀態膠囊 */
+    .top-hud {
+      position: absolute;
+      top: calc(12px + var(--safe-top));
+      left: 12px;
+      right: 12px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .status-capsule {
+      pointer-events: auto;
+      display: inline-flex;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      padding: 7px 14px;
+      border-radius: var(--radius-pill);
+      background: var(--glass-bg);
+      backdrop-filter: blur(18px) saturate(160%);
+      -webkit-backdrop-filter: blur(18px) saturate(160%);
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      max-width: 100%;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--neon-green);
+      box-shadow: 0 0 10px var(--neon-green);
+      animation: pulseDot 1.6s infinite;
+    }
+    .status-dot.paused { background: var(--neon-amber); box-shadow: 0 0 10px var(--neon-amber); animation: none; }
+    .status-dot.error { background: var(--neon-red); box-shadow: 0 0 10px var(--neon-red); animation: none; }
+
+    @keyframes pulseDot {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.35); opacity: 0.65; }
+    }
+
+    .hud-divider {
+      width: 1px;
+      height: 12px;
+      background: rgba(255, 255, 255, 0.18);
+    }
+
+    .hud-chip-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text-main);
+      border-radius: var(--radius-pill);
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .hud-chip-btn:hover { background: rgba(255, 255, 255, 0.16); }
+    .hud-chip-btn.active {
+      background: rgba(0, 255, 157, 0.18);
+      border-color: rgba(0, 255, 157, 0.5);
+      color: var(--neon-green);
+    }
+
+    .sub-badges {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .mini-pill {
+      display: none;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: var(--radius-pill);
+      background: rgba(0, 229, 255, 0.16);
+      border: 1px solid rgba(0, 229, 255, 0.42);
+      backdrop-filter: blur(12px);
+      font-size: 11px;
+      font-weight: 600;
+      color: #bff7ff;
+    }
+    .mini-pill.show { display: inline-flex; }
+    .mini-pill.warn {
+      background: rgba(255, 184, 0, 0.18);
+      border-color: rgba(255, 184, 0, 0.5);
+      color: #ffe29a;
+    }
+
+    /* 底部浮動控制膠囊 */
+    .bottom-dock {
+      position: absolute;
+      bottom: calc(18px + var(--safe-bottom));
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 12;
+      width: min(94vw, 480px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .control-capsule {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      padding: 8px;
+      border-radius: 26px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px) saturate(165%);
+      -webkit-backdrop-filter: blur(20px) saturate(165%);
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.48);
+    }
+
+    .dock-btn {
+      appearance: none;
+      border: 1px solid transparent;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-main);
+      border-radius: 18px;
+      padding: 9px 4px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      cursor: pointer;
+      transition: transform 0.15s ease, background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    }
+    .dock-btn:active { transform: scale(0.95); }
+    .dock-btn:disabled { opacity: 0.36; cursor: not-allowed; }
+    .dock-btn.active {
+      background: rgba(0, 255, 157, 0.16);
+      border-color: rgba(0, 255, 157, 0.45);
+      color: var(--neon-green);
+    }
+    .dock-btn svg {
+      width: 20px;
+      height: 20px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.9;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .dock-btn span {
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+
+    .hint-caption {
+      font-size: 11px;
+      color: rgba(243, 247, 255, 0.65);
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+      text-align: center;
+      pointer-events: none;
+    }
+
+    /* 冷卻 / 暫停遮罩 */
+    .cooldown-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 15;
+      background: rgba(4, 8, 18, 0.72);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+      cursor: pointer;
+      animation: fadeIn 0.2s ease;
+    }
+    .cooldown-overlay.show { display: flex; }
+
+    .cooldown-badge {
+      padding: 16px 26px;
+      border-radius: 24px;
+      background: rgba(18, 28, 48, 0.88);
+      border: 1px solid rgba(0, 255, 157, 0.4);
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+      max-width: 340px;
+    }
+    .cooldown-badge h3 {
+      margin: 0 0 6px;
+      font-size: 18px;
+      color: var(--neon-green);
+    }
+    .cooldown-badge p {
+      margin: 0;
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* 結果 / 倒數跳轉 / 資安警示 / 結構化協定 卡片 */
+    .result-sheet {
+      position: absolute;
+      left: 50%;
+      bottom: calc(108px + var(--safe-bottom));
+      transform: translate(-50%, 24px);
+      width: min(94vw, 460px);
+      max-height: 66dvh;
+      overflow-y: auto;
+      z-index: 20;
+      border-radius: var(--radius-card);
+      background: var(--glass-bg-strong);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.65);
+      padding: 16px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.22s ease, transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .result-sheet.show {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translate(-50%, 0);
+    }
+    .result-sheet.danger {
+      border-color: rgba(255, 59, 92, 0.72);
+      box-shadow: 0 20px 60px rgba(255, 59, 92, 0.25);
+    }
+
+    .sheet-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .proto-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: var(--radius-pill);
+      font-size: 12px;
+      font-weight: 700;
+      background: rgba(0, 255, 157, 0.14);
+      color: var(--neon-green);
+      border: 1px solid rgba(0, 255, 157, 0.35);
+    }
+    .proto-badge.danger {
+      background: rgba(255, 59, 92, 0.18);
+      color: #ff8aa0;
+      border-color: rgba(255, 59, 92, 0.55);
+    }
+    .close-x {
+      border: none;
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-main);
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      font-size: 16px;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+    }
+
+    .payload-box {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      padding: 10px 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--text-main);
+      word-break: break-all;
+      user-select: text;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+
+    /* 1 秒倒數進度條 */
+    .countdown-wrap {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(0, 255, 157, 0.08);
+      border: 1px solid rgba(0, 255, 157, 0.3);
+    }
+    .countdown-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--neon-green);
+    }
+    .progress-track {
+      width: 100%;
+      height: 6px;
+      border-radius: 99px;
+      background: rgba(255, 255, 255, 0.12);
+      overflow: hidden;
+    }
+    .progress-fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--neon-green), var(--neon-cyan));
+      border-radius: 99px;
+    }
+
+    /* 資安警示區塊 */
+    .security-alert {
+      margin-top: 10px;
+      padding: 11px 12px;
+      border-radius: 14px;
+      background: rgba(255, 59, 92, 0.14);
+      border: 1px solid rgba(255, 59, 92, 0.55);
+      font-size: 12px;
+      line-height: 1.55;
+      color: #ffd0d9;
+    }
+    .security-alert strong {
+      display: block;
+      color: #ff6b85;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+    .security-alert ul {
+      margin: 4px 0 0;
+      padding-left: 18px;
+    }
+
+    /* 結構化協定細節 */
+    .proto-details {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 13px;
+      display: grid;
+      gap: 6px;
+    }
+    .proto-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+    }
+    .proto-key { color: var(--text-muted); font-size: 12px; flex-shrink: 0; }
+    .proto-val { font-weight: 600; text-align: right; word-break: break-all; user-select: text; }
+
+    .totp-code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: 4px;
+      color: var(--neon-cyan);
+      text-align: center;
+      padding: 6px 0;
+    }
+
+    .sheet-actions {
+      margin-top: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .btn {
+      flex: 1;
+      min-width: 110px;
+      border: none;
+      border-radius: 14px;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: filter 0.15s, transform 0.12s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--neon-green), var(--neon-cyan));
+      color: #041018;
+    }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.11);
+      color: var(--text-main);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+    .btn-danger {
+      background: rgba(255, 59, 92, 0.22);
+      color: #ff9eb0;
+      border: 1px solid rgba(255, 59, 92, 0.55);
+    }
+
+    /* 權限或環境錯誤全螢幕引導 */
+    .error-modal {
+      position: absolute;
+      inset: 0;
+      z-index: 30;
+      background: rgba(4, 7, 15, 0.92);
+      backdrop-filter: blur(18px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .error-modal.show { display: flex; }
+    .error-card {
+      max-width: 400px;
+      width: 100%;
+      padding: 24px;
+      border-radius: 24px;
+      background: rgba(16, 24, 42, 0.9);
+      border: 1px solid rgba(255, 184, 0, 0.4);
+      text-align: center;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+    }
+    .error-card h2 { margin: 0 0 10px; font-size: 19px; color: var(--neon-amber); }
+    .error-card p { margin: 0 0 16px; font-size: 13px; color: var(--text-muted); line-height: 1.65; }
+
+    /* 拖放覆蓋層 */
+    .drop-overlay {
+      position: absolute;
+      inset: 14px;
+      z-index: 40;
+      border-radius: 28px;
+      border: 3px dashed var(--neon-cyan);
+      background: rgba(0, 229, 255, 0.14);
+      backdrop-filter: blur(10px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 10px;
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      pointer-events: none;
+    }
+    .drop-overlay.show { display: flex; }
+
+    /* Toast 通知 */
+    .toast {
+      position: absolute;
+      top: calc(74px + var(--safe-top));
+      left: 50%;
+      transform: translate(-50%, -12px);
+      z-index: 50;
+      padding: 8px 16px;
+      border-radius: var(--radius-pill);
+      background: rgba(12, 20, 36, 0.92);
+      border: 1px solid rgba(0, 255, 157, 0.45);
+      color: var(--text-main);
+      font-size: 12px;
+      font-weight: 600;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+      white-space: nowrap;
+      max-width: 90vw;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="viewport" id="viewport">
+    <!-- 相機即時影像與 Canvas 疊加層 -->
+    <video id="cameraVideo" playsinline muted autoplay></video>
+    <canvas id="overlayCanvas"></canvas>
+
+    <!-- 中心輔助掃描瞄準框 -->
+    <div class="reticle-layer" id="reticleLayer">
+      <div class="reticle-box">
+        <div class="reticle-corner tl"></div>
+        <div class="reticle-corner tr"></div>
+        <div class="reticle-corner bl"></div>
+        <div class="reticle-corner br"></div>
+        <div class="scan-laser"></div>
+      </div>
+    </div>
+
+    <!-- 頂部極簡狀態膠囊 -->
+    <header class="top-hud">
+      <div class="status-capsule">
+        <span class="status-dot" id="statusDot"></span>
+        <button class="hud-chip-btn" id="engineBtn" title="點擊切換解碼引擎模式">偵測引擎中...</button>
+        <span class="hud-divider"></span>
+        <span id="fpsLabel">-- FPS</span>
+        <span class="hud-divider"></span>
+        <span id="lightLabel">☀️ --</span>
+        <button class="hud-chip-btn" id="filterBtn" title="切換自適應二值化與 CLAHE 增強濾鏡">✨ 自動增強</button>
+      </div>
+      <div class="sub-badges">
+        <div class="mini-pill" id="zoomPill">🔍 變焦 1.0x</div>
+        <div class="mini-pill warn" id="torchAutoPill">⚡ 低光自動補光</div>
+        <div class="mini-pill" id="focusPill">🔬 微距對焦</div>
+      </div>
+    </header>
+
+    <!-- Toast 提示 -->
+    <div class="toast" id="toast"></div>
+
+    <!-- 掃描結果與互動面板 -->
+    <section class="result-sheet" id="resultSheet" aria-live="polite">
+      <div class="sheet-header">
+        <span class="proto-badge" id="protoBadge">QR Code</span>
+        <button class="close-x" id="closeSheetBtn" aria-label="關閉">✕</button>
+      </div>
+      <div class="payload-box" id="payloadBox"></div>
+      <div id="dynamicSection"></div>
+      <div class="sheet-actions" id="sheetActions"></div>
+    </section>
+
+    <!-- 防暴衝冷卻遮罩 -->
+    <div class="cooldown-overlay" id="cooldownOverlay">
+      <div class="cooldown-badge">
+        <h3>⏸ 掃描已暫停（防連發保護）</h3>
+        <p>點擊畫面任意處即可繼續掃描下一個條碼</p>
+      </div>
+    </div>
+
+    <!-- 底部浮動控制膠囊 -->
+    <footer class="bottom-dock">
+      <div class="control-capsule">
+        <button class="dock-btn" id="torchBtn" title="開關閃光燈補光">
+          <svg viewBox="0 0 24 24"><path d="M9 2h6l1 6-2 3v11h-4V11L8 8l1-6z"/><path d="M12 14v2"/></svg>
+          <span id="torchText">手電筒</span>
+        </button>
+
+        <button class="dock-btn" id="cameraBtn" title="切換後置鏡頭（長按或雙擊切換微距）">
+          <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          <span id="cameraText">切換鏡頭</span>
+        </button>
+
+        <button class="dock-btn" id="uploadBtn" title="上傳圖片或直接 Ctrl+V 貼上截圖">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <span>圖片 / 貼上</span>
+        </button>
+
+        <button class="dock-btn active" id="autoJumpBtn" title="偵測網址後倒數 1 秒自動開啟新分頁">
+          <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          <span id="autoJumpText">自動跳轉</span>
+        </button>
+      </div>
+      <div class="hint-caption">支援直接拖放圖片、Ctrl+V 貼上截圖，或點擊「鏡頭」切換多焦段／微距</div>
+    </footer>
+
+    <!-- 權限或環境異常引導 -->
+    <div class="error-modal" id="errorModal">
+      <div class="error-card">
+        <h2 id="errorTitle">無法啟動相機</h2>
+        <p id="errorDesc"></p>
+        <div class="sheet-actions">
+          <button class="btn btn-primary" id="retryCamBtn">重新請求權限</button>
+          <button class="btn btn-secondary" id="errorUploadBtn">改用圖片解析</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 拖放解析覆蓋層 -->
+    <div class="drop-overlay" id="dropOverlay">
+      <div style="font-size: 42px;">📥</div>
+      <div>放開滑鼠立即解析 QR Code</div>
+    </div>
+
+    <input type="file" id="fileInput" accept="image/*" hidden />
+  </div>
+
+  <script>
+  (() => {
+    'use strict';
+
+    /* =========================================================================
+     * 技術 9-B：單一檔案動態注入 PWA Manifest 與 SVG App Icon
+     * ========================================================================= */
+    function injectDynamicPWAManifest() {
+      try {
+        const iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+          <defs>
+            <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#00ff9d"/>
+              <stop offset="100%" stop-color="#00e5ff"/>
+            </linearGradient>
+          </defs>
+          <rect width="512" height="512" rx="112" fill="#050811"/>
+          <path d="M110 170V110h60M342 110h60v60M110 342v60h60M342 402h60v-60" fill="none" stroke="url(#g)" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="155" y="155" width="76" height="76" rx="12" fill="#f3f7ff"/>
+          <rect x="281" y="155" width="76" height="76" rx="12" fill="#f3f7ff"/>
+          <rect x="155" y="281" width="76" height="76" rx="12" fill="#f3f7ff"/>
+          <rect x="281" y="281" width="32" height="32" rx="6" fill="#00ff9d"/>
+          <rect x="325" y="325" width="32" height="32" rx="6" fill="#00e5ff"/>
+          <line x1="90" y1="256" x2="422" y2="256" stroke="#00ff9d" stroke-width="10" stroke-linecap="round"/>
+        </svg>`;
+        const iconDataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(iconSvg);
+
+        const appleIcon = document.createElement('link');
+        appleIcon.rel = 'apple-touch-icon';
+        appleIcon.href = iconDataUrl;
+        document.head.appendChild(appleIcon);
+
+        const manifest = {
+          name: 'HyperQR 旗艦級全自動掃描器',
+          short_name: 'HyperQR',
+          description: '整合 WASM、OffscreenCanvas、CLAHE 與資安防釣魚的極速掃描器',
+          start_url: location.href,
+          display: 'standalone',
+          orientation: 'portrait',
+          background_color: '#04070f',
+          theme_color: '#050811',
+          icons: [
+            { src: iconDataUrl, sizes: '192x192', type: 'image/svg+xml', purpose: 'any maskable' },
+            { src: iconDataUrl, sizes: '512x512', type: 'image/svg+xml', purpose: 'any maskable' }
+          ],
+          share_target: {
+            action: location.pathname,
+            method: 'GET',
+            params: { title: 'title', text: 'text', url: 'url' }
+          }
+        };
+
+        const manifestUrl = 'data:application/manifest+json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifest));
+        const link = document.createElement('link');
+        link.rel = 'manifest';
+        link.href = manifestUrl;
+        document.head.appendChild(link);
+      } catch (err) {
+        console.warn('[PWA Manifest] 注入失敗:', err);
+      }
+    }
+    injectDynamicPWAManifest();
+
+    /* =========================================================================
+     * 內聯 Web Worker（整合技術 1, 2, 3, 4 影像分析）
+     * 使用 Blob URL 建立背景執行緒，完全不阻塞主執行緒 60fps UI 與動畫
+     * ========================================================================= */
+    const workerSource = `
+      'use strict';
+
+      let nativeDetector = null;
+      let hasNativeBarcode = false;
+      let zxingLoadPromise = null;
+      let zxingReady = false;
+      let zxingFailed = false;
+
+      // 複用 OffscreenCanvas 與 TypedArray 緩衝區，避免高頻率 GC 造成卡頓
+      let offCanvas = null;
+      let offCtx = null;
+      let grayBuf = null;
+      let claheBuf = null;
+      let binBuf = null;
+      let integralBuf = null;
+      let outRgbaBuf = null;
+
+      function ensureBuffers(pixelCount) {
+        if (!grayBuf || grayBuf.length !== pixelCount) {
+          grayBuf = new Uint8Array(pixelCount);
+          claheBuf = new Uint8Array(pixelCount);
+          binBuf = new Uint8Array(pixelCount);
+          integralBuf = new Int32Array(pixelCount);
+          outRgbaBuf = new Uint8ClampedArray(pixelCount * 4);
+        }
+      }
+
+      function ensureCanvas(w, h) {
+        if (!offCanvas) {
+          offCanvas = new OffscreenCanvas(w, h);
+          offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
+        } else if (offCanvas.width !== w || offCanvas.height !== h) {
+          offCanvas.width = w;
+          offCanvas.height = h;
+        }
+      }
+
+      // 初始化 Native BarcodeDetector（支援於 Worker 中直接呼叫 GPU/系統底層）
+      async function initNativeDetector() {
+        try {
+          if (typeof self.BarcodeDetector !== 'undefined') {
+            const formats = await self.BarcodeDetector.getSupportedFormats();
+            if (formats && formats.includes('qr_code')) {
+              nativeDetector = new self.BarcodeDetector({ formats: ['qr_code'] });
+              hasNativeBarcode = true;
+            }
+          }
+        } catch (e) {
+          hasNativeBarcode = false;
+        }
+      }
+
+      // 按需非同步載入 C++ 編譯的 zxing-wasm@3.1.5（附雙 CDN 容錯）
+      async function ensureZXingWasm() {
+        if (zxingReady) return true;
+        if (zxingLoadPromise) return zxingLoadPromise;
+
+        zxingLoadPromise = (async () => {
+          const cdns = [
+            {
+              script: 'https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.5/dist/iife/reader/index.js',
+              wasmBase: 'https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.5/dist/reader/'
+            },
+            {
+              script: 'https://unpkg.com/zxing-wasm@3.1.5/dist/iife/reader/index.js',
+              wasmBase: 'https://unpkg.com/zxing-wasm@3.1.5/dist/reader/'
+            }
+          ];
+
+          for (const cdn of cdns) {
+            try {
+              importScripts(cdn.script);
+              if (self.ZXingWASM && typeof self.ZXingWASM.readBarcodes === 'function') {
+                if (typeof self.ZXingWASM.prepareZXingModule === 'function') {
+                  await self.ZXingWASM.prepareZXingModule({
+                    overrides: {
+                      locateFile: (path) => path.endsWith('.wasm') ? (cdn.wasmBase + path) : path
+                    },
+                    fireImmediately: true
+                  });
+                }
+                zxingReady = true;
+                zxingFailed = false;
+                return true;
+              }
+            } catch (err) {
+              console.warn('[Worker] CDN 載入失敗，嘗試下一節點:', cdn.script, err);
+            }
+          }
+          zxingFailed = true;
+          return false;
+        })();
+
+        return zxingLoadPromise;
+      }
+
+      // 計算畫面中央區域平均亮度 (0-255)，供 Auto-Torch 智慧補光使用
+      function extractGrayAndLuminance(rgba, w, h) {
+        const count = w * h;
+        ensureBuffers(count);
+
+        const x0 = (w * 0.25) | 0;
+        const x1 = (w * 0.75) | 0;
+        const y0 = (h * 0.25) | 0;
+        const y1 = (h * 0.75) | 0;
+
+        let lumSum = 0;
+        let lumCount = 0;
+
+        for (let y = 0; y < h; y++) {
+          const rowOff = y * w;
+          const inY = y >= y0 && y <= y1;
+          for (let x = 0; x < w; x++) {
+            const idx = rowOff + x;
+            const p = idx << 2;
+            const l = (77 * rgba[p] + 150 * rgba[p + 1] + 29 * rgba[p + 2]) >> 8;
+            grayBuf[idx] = l;
+            if (inY && x >= x0 && x <= x1 && (idx & 3) === 0) {
+              lumSum += l;
+              lumCount++;
+            }
+          }
+        }
+        return lumCount > 0 ? lumSum / lumCount : 128;
+      }
+
+      // 技術 3-A：Tile-based CLAHE（對比度受限自適應直方圖均衡化）
+      function applyCLAHE(src, dst, w, h, gridX = 8, gridY = 8, clipFactor = 2.4) {
+        const tileW = w / gridX;
+        const tileH = h / gridY;
+        const cdfs = new Array(gridX * gridY);
+        const hist = new Int32Array(256);
+
+        for (let ty = 0; ty < gridY; ty++) {
+          const yStart = Math.floor(ty * tileH);
+          const yEnd = Math.min(h, Math.floor((ty + 1) * tileH));
+          for (let tx = 0; tx < gridX; tx++) {
+            const xStart = Math.floor(tx * tileW);
+            const xEnd = Math.min(w, Math.floor((tx + 1) * tileW));
+
+            hist.fill(0);
+            let pixCount = 0;
+            for (let y = yStart; y < yEnd; y++) {
+              let row = y * w;
+              for (let x = xStart; x < xEnd; x++) {
+                hist[src[row + x]]++;
+                pixCount++;
+              }
+            }
+
+            if (pixCount === 0) {
+              cdfs[ty * gridX + tx] = new Uint8Array(256);
+              continue;
+            }
+
+            const clipLimit = Math.max(2, Math.floor((pixCount / 256) * clipFactor));
+            let excess = 0;
+            for (let i = 0; i < 256; i++) {
+              if (hist[i] > clipLimit) {
+                excess += hist[i] - clipLimit;
+                hist[i] = clipLimit;
+              }
+            }
+            const addEach = (excess / 256) | 0;
+            const rem = excess - addEach * 256;
+            for (let i = 0; i < 256; i++) {
+              hist[i] += addEach + (i < rem ? 1 : 0);
+            }
+
+            const lut = new Uint8Array(256);
+            let cdf = 0;
+            for (let i = 0; i < 256; i++) {
+              cdf += hist[i];
+              lut[i] = Math.min(255, ((cdf * 255) / pixCount) | 0);
+            }
+            cdfs[ty * gridX + tx] = lut;
+          }
+        }
+
+        // 雙線性內插合併各 Tile 的對比度映射，消除區塊接縫
+        for (let y = 0; y < h; y++) {
+          const fy = (y / tileH) - 0.5;
+          const ty0 = Math.max(0, Math.min(gridY - 1, Math.floor(fy)));
+          const ty1 = Math.max(0, Math.min(gridY - 1, ty0 + 1));
+          const wy = Math.max(0, Math.min(1, fy - ty0));
+          const row = y * w;
+
+          for (let x = 0; x < w; x++) {
+            const fx = (x / tileW) - 0.5;
+            const tx0 = Math.max(0, Math.min(gridX - 1, Math.floor(fx)));
+            const tx1 = Math.max(0, Math.min(gridX - 1, tx0 + 1));
+            const wx = Math.max(0, Math.min(1, fx - tx0));
+
+            const v = src[row + x];
+            const c00 = cdfs[ty0 * gridX + tx0][v];
+            const c10 = cdfs[ty0 * gridX + tx1][v];
+            const c01 = cdfs[ty1 * gridX + tx0][v];
+            const c11 = cdfs[ty1 * gridX + tx1][v];
+
+            const top = c00 + (c10 - c00) * wx;
+            const bot = c01 + (c11 - c01) * wx;
+            dst[row + x] = (top + (bot - top) * wy) | 0;
+          }
+        }
+      }
+
+      // 技術 3-B：Integral Image Bradley-Roth 動態自適應二值化 + 可選黑底白字反相
+      function applyAdaptiveThreshold(src, dst, w, h, invert = false) {
+        // 建立積分影像 (Summed Area Table)
+        for (let y = 0; y < h; y++) {
+          let rowSum = 0;
+          const row = y * w;
+          const prevRow = (y - 1) * w;
+          for (let x = 0; x < w; x++) {
+            rowSum += src[row + x];
+            integralBuf[row + x] = (y > 0 ? integralBuf[prevRow + x] : 0) + rowSum;
+          }
+        }
+
+        const radius = Math.max(8, Math.min(28, (Math.min(w, h) / 22) | 0));
+        const thresholdRatio = 0.86; // 1 - 0.14 敏感度
+
+        for (let y = 0; y < h; y++) {
+          const y1 = Math.max(0, y - radius);
+          const y2 = Math.min(h - 1, y + radius);
+          const row = y * w;
+          const r2 = y2 * w;
+          const r1 = (y1 - 1) * w;
+
+          for (let x = 0; x < w; x++) {
+            const x1 = Math.max(0, x - radius);
+            const x2 = Math.min(w - 1, x + radius);
+            const count = (x2 - x1 + 1) * (y2 - y1 + 1);
+
+            const A = (y1 > 0 && x1 > 0) ? integralBuf[r1 + x1 - 1] : 0;
+            const B = (y1 > 0) ? integralBuf[r1 + x2] : 0;
+            const C = (x1 > 0) ? integralBuf[r2 + x1 - 1] : 0;
+            const D = integralBuf[r2 + x2];
+            const sum = D - B - C + A;
+
+            const isDark = (src[row + x] * count) < (sum * thresholdRatio);
+            let outVal = isDark ? 0 : 255;
+            if (invert) outVal = 255 - outVal;
+            dst[row + x] = outVal;
+          }
+        }
+      }
+
+      function writeGrayToOutImageData(gray, w, h) {
+        const len = w * h;
+        for (let i = 0; i < len; i++) {
+          const v = gray[i];
+          const p = i << 2;
+          outRgbaBuf[p] = v;
+          outRgbaBuf[p + 1] = v;
+          outRgbaBuf[p + 2] = v;
+          outRgbaBuf[p + 3] = 255;
+        }
+        return new ImageData(outRgbaBuf, w, h);
+      }
+
+      // 統一轉換 Native 與 ZXing-WASM 的條碼座標格式
+      function normalizeNativeResults(items) {
+        return (items || []).filter(r => r.rawValue).map(r => {
+          const cp = r.cornerPoints && r.cornerPoints.length >= 4 ? r.cornerPoints : [
+            { x: r.boundingBox.x, y: r.boundingBox.y },
+            { x: r.boundingBox.x + r.boundingBox.width, y: r.boundingBox.y },
+            { x: r.boundingBox.x + r.boundingBox.width, y: r.boundingBox.y + r.boundingBox.height },
+            { x: r.boundingBox.x, y: r.boundingBox.y + r.boundingBox.height }
+          ];
+          return {
+            text: r.rawValue,
+            format: 'QRCode',
+            isInverted: false,
+            corners: cp.slice(0, 4).map(p => ({ x: p.x, y: p.y }))
+          };
+        });
+      }
+
+      function normalizeZXingResults(items) {
+        return (items || []).filter(r => r && (r.isValid !== false) && r.text).map(r => {
+          const pos = r.position || {};
+          const corners = [
+            pos.topLeft || { x: 0, y: 0 },
+            pos.topRight || { x: 0, y: 0 },
+            pos.bottomRight || { x: 0, y: 0 },
+            pos.bottomLeft || { x: 0, y: 0 }
+          ].map(p => ({ x: p.x || 0, y: p.y || 0 }));
+          return {
+            text: r.text,
+            format: r.format || 'QRCode',
+            isInverted: !!r.isInverted,
+            corners
+          };
+        });
+      }
+
+      async function decodeWithZXing(imageData, tryHarder = true) {
+        const ok = await ensureZXingWasm();
+        if (!ok) return [];
+        const res = await self.ZXingWASM.readBarcodes(imageData, {
+          formats: ['QRCode', 'MicroQRCode', 'RMQRCode'],
+          tryHarder,
+          tryRotate: true,
+          tryInvert: true,
+          tryDownscale: true,
+          binarizer: 'LocalAverage',
+          maxNumberOfSymbols: 3
+        });
+        return normalizeZXingResults(res);
+      }
+
+      // 主處理管線
+      let initPromise = initNativeDetector();
+
+      self.onmessage = async (e) => {
+        const msg = e.data;
+        if (!msg) return;
+
+        if (msg.type === 'INIT') {
+          await initPromise;
+          if (!hasNativeBarcode) {
+            await ensureZXingWasm();
+          }
+          self.postMessage({
+            type: 'READY',
+            hasNative: hasNativeBarcode,
+            wasmReady: zxingReady,
+            wasmFailed: zxingFailed
+          });
+          return;
+        }
+
+        if (msg.type === 'PRELOAD_WASM') {
+          const ok = await ensureZXingWasm();
+          self.postMessage({ type: 'WASM_STATUS', wasmReady: ok, wasmFailed: !ok });
+          return;
+        }
+
+        if (msg.type === 'FRAME') {
+          const t0 = performance.now();
+          const { bitmap, width, height, cropRect, enginePref, enhanceMode, frameIndex, isStatic } = msg;
+
+          try {
+            await initPromise;
+            ensureCanvas(width, height);
+            offCtx.drawImage(bitmap, 0, 0, width, height);
+            bitmap.close();
+
+            const rawImageData = offCtx.getImageData(0, 0, width, height);
+            const luminance = extractGrayAndLuminance(rawImageData.data, width, height);
+
+            let results = [];
+            let usedEngine = 'Native GPU';
+            let usedFilter = 'RAW';
+
+            const wantNative = hasNativeBarcode && (enginePref === 'AUTO' || enginePref === 'NATIVE');
+            const runHeavyEnhance = isStatic || enhanceMode === 'ALWAYS' || (enhanceMode === 'AUTO' && (frameIndex % 4 === 3 || luminance < 65));
+
+            // 第一階段：未經濾鏡的極速解碼
+            if (wantNative) {
+              try {
+                results = normalizeNativeResults(await nativeDetector.detect(offCanvas));
+                usedEngine = 'Native GPU';
+              } catch (_) {
+                results = [];
+              }
+            }
+
+            if (results.length === 0 && (enginePref === 'WASM' || !wantNative || isStatic || (enginePref === 'AUTO' && frameIndex % 3 === 2))) {
+              results = await decodeWithZXing(rawImageData, isStatic || enginePref === 'WASM');
+              if (results.length > 0 || !wantNative) {
+                usedEngine = 'WASM Worker';
+              }
+            }
+
+            // 第二階段：若畫面反光、低光、模糊或反相，自動啟動 CLAHE + 自適應二值化管線
+            if (results.length === 0 && runHeavyEnhance) {
+              applyCLAHE(grayBuf, claheBuf, width, height, 8, 8, 2.5);
+              const invertPass = isStatic ? false : ((frameIndex % 8) === 7);
+              applyAdaptiveThreshold(claheBuf, binBuf, width, height, invertPass);
+              const enhancedImgData = writeGrayToOutImageData(binBuf, width, height);
+
+              if (wantNative && !isStatic) {
+                offCtx.putImageData(enhancedImgData, 0, 0);
+                try {
+                  results = normalizeNativeResults(await nativeDetector.detect(offCanvas));
+                  usedEngine = 'Native GPU';
+                  usedFilter = invertPass ? 'CLAHE+BIN+INV' : 'CLAHE+BIN';
+                } catch (_) {}
+              }
+
+              if (results.length === 0) {
+                results = await decodeWithZXing(enhancedImgData, true);
+                if (results.length > 0) {
+                  usedEngine = 'WASM Worker';
+                  usedFilter = invertPass ? 'CLAHE+BIN+INV' : 'CLAHE+BIN';
+                }
+              }
+
+              // 靜態圖片額外嘗試反相與純 CLAHE 搶救
+              if (results.length === 0 && isStatic) {
+                applyAdaptiveThreshold(claheBuf, binBuf, width, height, true);
+                results = await decodeWithZXing(writeGrayToOutImageData(binBuf, width, height), true);
+                if (results.length > 0) {
+                  usedEngine = 'WASM Worker';
+                  usedFilter = 'CLAHE+BIN+INV';
+                } else {
+                  results = await decodeWithZXing(writeGrayToOutImageData(claheBuf, width, height), true);
+                  if (results.length > 0) {
+                    usedEngine = 'WASM Worker';
+                    usedFilter = 'CLAHE';
+                  }
+                }
+              }
+            }
+
+            self.postMessage({
+              type: 'RESULT',
+              results,
+              luminance,
+              procMs: Math.round(performance.now() - t0),
+              usedEngine: zxingFailed && !hasNativeBarcode ? 'Unavailable' : usedEngine,
+              usedFilter,
+              procW: width,
+              procH: height,
+              cropRect,
+              isStatic: !!isStatic
+            });
+          } catch (err) {
+            try { bitmap.close(); } catch (_) {}
+            self.postMessage({
+              type: 'RESULT',
+              results: [],
+              luminance: 128,
+              procMs: 0,
+              usedEngine: hasNativeBarcode ? 'Native GPU' : 'WASM Worker',
+              usedFilter: 'ERR',
+              procW: width,
+              procH: height,
+              cropRect,
+              isStatic: !!isStatic,
+              error: err && err.message ? err.message : String(err)
+            });
+          }
+        }
+      };
+    `;
+
+    /* =========================================================================
+     * 狀態管理與 DOM 參照
+     * ========================================================================= */
+    const dom = {
+      viewport: document.getElementById('viewport'),
+      video: document.getElementById('cameraVideo'),
+      canvas: document.getElementById('overlayCanvas'),
+      reticle: document.getElementById('reticleLayer'),
+      statusDot: document.getElementById('statusDot'),
+      engineBtn: document.getElementById('engineBtn'),
+      fpsLabel: document.getElementById('fpsLabel'),
+      lightLabel: document.getElementById('lightLabel'),
+      filterBtn: document.getElementById('filterBtn'),
+      zoomPill: document.getElementById('zoomPill'),
+      torchAutoPill: document.getElementById('torchAutoPill'),
+      focusPill: document.getElementById('focusPill'),
+      toast: document.getElementById('toast'),
+      resultSheet: document.getElementById('resultSheet'),
+      protoBadge: document.getElementById('protoBadge'),
+      payloadBox: document.getElementById('payloadBox'),
+      dynamicSection: document.getElementById('dynamicSection'),
+      sheetActions: document.getElementById('sheetActions'),
+      closeSheetBtn: document.getElementById('closeSheetBtn'),
+      cooldownOverlay: document.getElementById('cooldownOverlay'),
+      torchBtn: document.getElementById('torchBtn'),
+      torchText: document.getElementById('torchText'),
+      cameraBtn: document.getElementById('cameraBtn'),
+      cameraText: document.getElementById('cameraText'),
+      uploadBtn: document.getElementById('uploadBtn'),
+      autoJumpBtn: document.getElementById('autoJumpBtn'),
+      autoJumpText: document.getElementById('autoJumpText'),
+      fileInput: document.getElementById('fileInput'),
+      errorModal: document.getElementById('errorModal'),
+      errorTitle: document.getElementById('errorTitle'),
+      errorDesc: document.getElementById('errorDesc'),
+      retryCamBtn: document.getElementById('retryCamBtn'),
+      errorUploadBtn: document.getElementById('errorUploadBtn'),
+      dropOverlay: document.getElementById('dropOverlay')
+    };
+
+    const ctx = dom.canvas.getContext('2d');
+
+    const state = {
+      stream: null,
+      videoTrack: null,
+      capabilities: {},
+      rearCameras: [],
+      activeCamIndex: 0,
+      hasNative: false,
+      enginePref: 'AUTO',      // AUTO | WASM | NATIVE
+      enhanceMode: 'AUTO',     // AUTO | ALWAYS
+      autoJump: true,
+      torchOn: false,
+      torchUserOverride: false,
+      macroMode: false,
+      paused: false,
+      workerBusy: false,
+      frameIndex: 0,
+      lastFpsTime: performance.now(),
+      fpsCounter: 0,
+      currentFps: 0,
+
+      // 變焦與光線追蹤
+      currentZoom: 1,
+      hwZoomSupported: false,
+      swZoomFactor: 1,
+      lastDetectTime: performance.now(),
+      lastGoodScanTime: performance.now(),
+      darkStartTime: null,
+      ambientLux: null,
+      frameLuminance: 128,
+
+      // Lerp 追蹤框狀態
+      targetCorners: null,
+      lerpCorners: null,
+      boxAlpha: 0,
+
+      // 倒數與防連發
+      countdownTimer: null,
+      countdownRaf: null,
+      totpTimer: null,
+      wakeLock: null,
+      audioCtx: null
+    };
+
+    /* =========================================================================
+     * 工具函式：安全 XSS 跳脫、Toast、Web Audio 音效合成
+     * ========================================================================= */
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    let toastTimer = null;
+    function showToast(msg, duration = 2600) {
+      dom.toast.textContent = msg;
+      dom.toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => dom.toast.classList.remove('show'), duration);
+    }
+
+    function unlockAudio() {
+      try {
+        if (!state.audioCtx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) state.audioCtx = new AudioCtx();
+        }
+        if (state.audioCtx && state.audioCtx.state === 'suspended') {
+          state.audioCtx.resume().catch(() => {});
+        }
+      } catch (_) {}
+    }
+
+    function playBeep(isWarning = false) {
+      try {
+        unlockAudio();
+        const ac = state.audioCtx;
+        if (!ac) return;
+        const now = ac.currentTime;
+        const osc = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.connect(gain);
+        gain.connect(ac.destination);
+
+        if (isWarning) {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(520, now);
+          osc.frequency.setValueAtTime(380, now + 0.11);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.exponentialRampToValueAtTime(0.14, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+          osc.start(now);
+          osc.stop(now + 0.26);
+        } else {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(1760, now);
+          osc.frequency.exponentialRampToValueAtTime(2489, now + 0.06);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.exponentialRampToValueAtTime(0.18, now + 0.015);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+          osc.start(now);
+          osc.stop(now + 0.15);
+        }
+      } catch (_) {}
+    }
+
+    async function copyToClipboard(text) {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+      } catch (_) {}
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return ok;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    /* =========================================================================
+     * 技術 6：Screen Wake Lock API 螢幕防休眠鎖定
+     * ========================================================================= */
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator && document.visibilityState === 'visible' && !state.wakeLock) {
+          state.wakeLock = await navigator.wakeLock.request('screen');
+          state.wakeLock.addEventListener('release', () => {
+            state.wakeLock = null;
+          });
+        }
+      } catch (err) {
+        console.debug('[WakeLock] 無法鎖定螢幕:', err.message);
+      }
+    }
+
+    function releaseWakeLock() {
+      if (state.wakeLock) {
+        state.wakeLock.release().catch(() => {});
+        state.wakeLock = null;
+      }
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        if (!state.paused) requestWakeLock();
+      } else {
+        releaseWakeLock();
+      }
+    });
+
+    /* =========================================================================
+     * 技術 4：AmbientLightSensor 環境光感測器與畫面亮度自動補光
+     * ========================================================================= */
+    function initAmbientLightSensor() {
+      try {
+        if ('AmbientLightSensor' in window) {
+          const sensor = new AmbientLightSensor({ frequency: 2 });
+          sensor.addEventListener('reading', () => {
+            state.ambientLux = Math.round(sensor.illuminance);
+          });
+          sensor.addEventListener('error', () => {
+            state.ambientLux = null;
+          });
+          sensor.start();
+        }
+      } catch (_) {
+        state.ambientLux = null;
+      }
+    }
+
+    function evaluateAutoTorch(luminance) {
+      state.frameLuminance = Math.round(luminance);
+      const isDark = state.ambientLux !== null ? state.ambientLux < 15 : luminance < 46;
+
+      if (state.ambientLux !== null) {
+        dom.lightLabel.textContent = `${isDark ? '🌙' : '☀️'} ${state.ambientLux} lx`;
+      } else {
+        dom.lightLabel.textContent = `${isDark ? '🌙' : '☀️'} 亮度 ${state.frameLuminance}`;
+      }
+
+      if (!state.capabilities.torch || state.paused || state.torchUserOverride) return;
+
+      const now = performance.now();
+      if (isDark) {
+        if (!state.darkStartTime) state.darkStartTime = now;
+        // 環境過暗且連續 1.5 秒無法解碼，自動開啟手電筒補光
+        if (!state.torchOn && (now - state.darkStartTime > 1500) && (now - state.lastGoodScanTime > 1500)) {
+          setTorch(true, true);
+        }
+      } else {
+        state.darkStartTime = null;
+      }
+    }
+
+    async function setTorch(enable, isAuto = false) {
+      if (!state.videoTrack || !state.capabilities.torch) return;
+      try {
+        await state.videoTrack.applyConstraints({ advanced: [{ torch: enable }] });
+        state.torchOn = enable;
+        dom.torchBtn.classList.toggle('active', enable);
+        dom.torchText.textContent = enable ? '補光中' : '手電筒';
+        dom.torchAutoPill.classList.toggle('show', enable && isAuto);
+      } catch (err) {
+        console.warn('[Torch] 設定失敗:', err);
+      }
+    }
+
+    /* =========================================================================
+     * 技術 5：多鏡頭智慧切換與微距模式（Focus Distance）
+     * ========================================================================= */
+    async function refreshCameraDevices() {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputs = devices.filter(d => d.kind === 'videoinput');
+        const rear = videoInputs.filter(d => !/front|user|facetime|前置|自拍/i.test(d.label));
+        state.rearCameras = rear.length > 0 ? rear : videoInputs;
+
+        const currentId = state.videoTrack?.getSettings()?.deviceId;
+        const idx = state.rearCameras.findIndex(d => d.deviceId === currentId);
+        if (idx >= 0) state.activeCamIndex = idx;
+
+        updateCameraButtonLabel();
+      } catch (err) {
+        console.warn('[Camera] 枚舉鏡頭失敗:', err);
+      }
+    }
+
+    function updateCameraButtonLabel() {
+      const total = state.rearCameras.length;
+      if (total > 1) {
+        const label = state.rearCameras[state.activeCamIndex]?.label || '';
+        const tag = /ultra|wide|0\.5|廣角/i.test(label) ? '廣角' : (/macro|微距/i.test(label) ? '微距' : (/tele|遠距/i.test(label) ? '長焦' : '主鏡'));
+        dom.cameraText.textContent = `${tag} ${state.activeCamIndex + 1}/${total}`;
+      } else {
+        dom.cameraText.textContent = state.macroMode ? '微距模式' : '鏡頭切換';
+      }
+    }
+
+    async function toggleMacroFocus() {
+      if (!state.videoTrack) return;
+      const caps = state.capabilities;
+      if (!caps.focusMode && !caps.focusDistance) {
+        showToast('此鏡頭不支援手動調整對焦距離');
+        return;
+      }
+      state.macroMode = !state.macroMode;
+      try {
+        if (state.macroMode && caps.focusDistance && caps.focusMode?.includes('manual')) {
+          const minDist = caps.focusDistance.min ?? 0.05;
+          await state.videoTrack.applyConstraints({
+            advanced: [{ focusMode: 'manual', focusDistance: minDist }]
+          });
+          dom.focusPill.classList.add('show');
+          showToast('已切換至微距近拍對焦鎖定');
+        } else {
+          const mode = caps.focusMode?.includes('continuous') ? 'continuous' : caps.focusMode?.[0];
+          if (mode) await state.videoTrack.applyConstraints({ advanced: [{ focusMode: mode }] });
+          state.macroMode = false;
+          dom.focusPill.classList.remove('show');
+          showToast('已恢復自動連續對焦');
+        }
+        updateCameraButtonLabel();
+      } catch (err) {
+        state.macroMode = false;
+        dom.focusPill.classList.remove('show');
+        showToast('微距對焦設定不支援');
+      }
+    }
+
+    async function startCamera(deviceId = null) {
+      stopCamera();
+      dom.errorModal.classList.remove('show');
+
+      if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+        showCameraError(
+          '需要安全連線環境 (HTTPS)',
+          '現代瀏覽器規定必須在 HTTPS 或 localhost 環境下才允許自動存取後置相機。您仍可使用下方「圖片 / 貼上」按鈕或直接拖放圖片來掃描！'
+        );
+        return;
+      }
+
+      const baseConstraints = deviceId
+        ? { deviceId: { exact: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+        : { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } };
+
+      const fallbacks = [
+        { video: { ...baseConstraints, focusMode: { ideal: 'continuous' } }, audio: false },
+        { video: baseConstraints, audio: false },
+        { video: { facingMode: 'environment' }, audio: false },
+        { video: true, audio: false }
+      ];
+
+      let stream = null;
+      let lastErr = null;
+      for (const constraints of fallbacks) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+          break;
+        } catch (err) {
+          lastErr = err;
+          if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') break;
+        }
+      }
+
+      if (!stream) {
+        const isDenied = lastErr && (lastErr.name === 'NotAllowedError' || lastErr.name === 'PermissionDeniedError');
+        showCameraError(
+          isDenied ? '相機權限被拒絕' : '無法開啟相機裝置',
+          isDenied
+            ? '請於瀏覽器網址列左側點擊「權限設定」開啟相機存取後重試，或改用上傳／貼上截圖解析條碼。'
+            : `裝置回報錯誤 (${lastErr?.name || 'Unknown'})：請確認相機未被其他程式佔用，或於 HTTPS 環境開啟此頁面。`
+        );
+        return;
+      }
+
+      state.stream = stream;
+      state.videoTrack = stream.getVideoTracks()[0];
+      state.capabilities = state.videoTrack?.getCapabilities ? state.videoTrack.getCapabilities() : {};
+      state.torchOn = false;
+      state.torchUserOverride = false;
+      state.macroMode = false;
+      dom.torchAutoPill.classList.remove('show');
+      dom.focusPill.classList.remove('show');
+
+      // 檢查硬體手電筒與硬體變焦能力
+      dom.torchBtn.disabled = !state.capabilities.torch;
+      dom.torchBtn.classList.remove('active');
+      dom.torchText.textContent = '手電筒';
+
+      if (state.capabilities.zoom) {
+        state.hwZoomSupported = true;
+        state.currentZoom = state.videoTrack.getSettings()?.zoom || state.capabilities.zoom.min || 1;
+      } else {
+        state.hwZoomSupported = false;
+        state.currentZoom = 1;
+      }
+      state.swZoomFactor = 1;
+      updateZoomPill();
+
+      dom.video.srcObject = stream;
+      await dom.video.play();
+
+      await refreshCameraDevices();
+      requestWakeLock();
+      showToast('相機已全自動啟動，對準條碼即可識別');
+    }
+
+    function stopCamera() {
+      if (state.stream) {
+        state.stream.getTracks().forEach(t => {
+          try { t.stop(); } catch (_) {}
+        });
+        state.stream = null;
+      }
+      state.videoTrack = null;
+    }
+
+    function showCameraError(title, desc) {
+      dom.errorTitle.textContent = title;
+      dom.errorDesc.textContent = desc;
+      dom.errorModal.classList.add('show');
+      dom.statusDot.className = 'status-dot error';
+    }
+
+    /* =========================================================================
+     * 智慧自動放大 (Auto-Zoom)：支援硬體數位變焦 + Canvas ROI 裁切放大備援
+     * ========================================================================= */
+    let lastZoomApply = 0;
+    function updateZoomPill() {
+      const z = state.hwZoomSupported ? state.currentZoom : state.swZoomFactor;
+      if (z > 1.08) {
+        dom.zoomPill.textContent = state.hwZoomSupported
+          ? `🔍 硬體變焦 ${z.toFixed(1)}x`
+          : `🔍 區域放大 ${z.toFixed(1)}x`;
+        dom.zoomPill.classList.add('show');
+      } else {
+        dom.zoomPill.classList.remove('show');
+      }
+    }
+
+    async function applySmartZoom(detectedBoxWidthRatio, detectedHit) {
+      const now = performance.now();
+      if (detectedHit) {
+        state.lastDetectTime = now;
+        // 偵測到條碼但畫面佔比小於 25% 時平滑放大
+        if (detectedBoxWidthRatio > 0 && detectedBoxWidthRatio < 0.25) {
+          if (state.hwZoomSupported) {
+            const { min = 1, max = 4, step = 0.1 } = state.capabilities.zoom;
+            const desired = Math.min(max, Math.max(min, state.currentZoom + Math.max(step, 0.28)));
+            if (now - lastZoomApply > 180 && Math.abs(desired - state.currentZoom) >= step) {
+              lastZoomApply = now;
+              const snapped = Math.round(desired / step) * step;
+              try {
+                await state.videoTrack.applyConstraints({ advanced: [{ zoom: snapped }] });
+                state.currentZoom = snapped;
+                updateZoomPill();
+              } catch (_) {}
+            }
+          } else {
+            state.swZoomFactor = Math.min(2.2, state.swZoomFactor + 0.15);
+            updateZoomPill();
+          }
+        }
+      } else {
+        // 超過 2.5 秒未偵測到條碼，緩慢恢復原始焦距
+        if (now - state.lastDetectTime > 2500) {
+          if (state.hwZoomSupported) {
+            const baseZoom = Math.max(1, state.capabilities.zoom?.min || 1);
+            if (state.currentZoom > baseZoom + 0.05 && now - lastZoomApply > 220) {
+              lastZoomApply = now;
+              const step = state.capabilities.zoom?.step || 0.1;
+              const nextZ = Math.max(baseZoom, state.currentZoom - Math.max(step, 0.15));
+              const snapped = Math.round(nextZ / step) * step;
+              try {
+                await state.videoTrack.applyConstraints({ advanced: [{ zoom: snapped }] });
+                state.currentZoom = snapped;
+                updateZoomPill();
+              } catch (_) {}
+            }
+          } else if (state.swZoomFactor > 1.02) {
+            state.swZoomFactor = Math.max(1, state.swZoomFactor - 0.1);
+            updateZoomPill();
+          }
+        }
+      }
+    }
+
+    /* =========================================================================
+     * 技術 8：資安釣魚防護與短網址安全預檢 (Anti-Phishing & Punycode Guard)
+     * ========================================================================= */
+    const SHORTENER_HOSTS = new Set([
+      'bit.ly', 'tinyurl.com', 't.co', 'reurl.cc', 'pse.is', 'lihi.cc', 'lihi1.com',
+      'is.gd', 'cutt.ly', 'rb.gy', 'ow.ly', 'goo.gl', 'shorturl.at', 's.id', 'tiny.cc', 'v.gd'
+    ]);
+    const RISKY_EXT_RE = /\.(apk|exe|msi|bat|cmd|scr|vbs|ps1|sh|dmg|pkg|ipa|jar|dll)(\?|$)/i;
+
+    function analyzeUrlSecurity(rawUrl) {
+      const trimmed = rawUrl.trim();
+      const warnings = [];
+      let severity = 'SAFE'; // SAFE | MEDIUM | HIGH
+      let parsed = null;
+
+      // 危險非網頁協定攔截
+      if (/^(javascript|vbscript|data|file):/i.test(trimmed)) {
+        return {
+          isUrl: true,
+          severity: 'HIGH',
+          warnings: ['偵測到高風險危險腳本或本機存取協定，已強制阻斷自動跳轉！'],
+          parsed: null
+        };
+      }
+
+      try {
+        parsed = new URL(trimmed);
+      } catch (_) {
+        return { isUrl: false, severity: 'SAFE', warnings: [], parsed: null };
+      }
+
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return { isUrl: false, severity: 'SAFE', warnings: [], parsed };
+      }
+
+      const host = parsed.hostname.toLowerCase();
+
+      // 1. Punycode 國際化域名同形異義字釣魚偵測
+      if (host.split('.').some(label => label.startsWith('xn--')) || /[^\x00-\x7F]/.test(host)) {
+        severity = 'HIGH';
+        warnings.push(`偵測到 Punycode / 非 ASCII 域名 (${host})，極可能為同形異義字釣魚網站偽裝！`);
+      }
+
+      // 2. 認證資訊遮蔽欺騙 (@ 符號偽裝網域)
+      if (parsed.username || parsed.password) {
+        severity = 'HIGH';
+        warnings.push('網址包含 @ 帳號參數，可能藉此隱藏真實導向網域！');
+      }
+
+      // 3. 可疑執行檔 / 惡意軟體直接下載連結
+      if (RISKY_EXT_RE.test(parsed.pathname)) {
+        severity = 'HIGH';
+        warnings.push('連結指向可直接執行的安裝檔／腳本檔案，請防範惡意程式！');
+      }
+
+      // 4. 直接 IP 位址連線（常見於釣魚伺服器與惡意 C2）
+      if (/^(\d{1,3}\.){3}\d{1,3}$/.test(host) || host.startsWith('[')) {
+        severity = severity === 'HIGH' ? 'HIGH' : 'MEDIUM';
+        warnings.push(`目標為裸露 IP 位址 (${host}) 而非正式網域名稱。`);
+      }
+
+      // 5. 非加密 HTTP 連線
+      if (parsed.protocol === 'http:') {
+        severity = severity === 'HIGH' ? 'HIGH' : 'MEDIUM';
+        warnings.push('此網站使用未加密的 HTTP 協定，傳輸資料可能遭竊聽或竄改。');
+      }
+
+      // 6. 短網址服務（無法預先辨識最終目的地）
+      if (SHORTENER_HOSTS.has(host)) {
+        severity = severity === 'HIGH' ? 'HIGH' : 'MEDIUM';
+        warnings.push(`目標為短網址服務 (${host})，請確認來源可信後再行前往。`);
+      }
+
+      return { isUrl: true, severity, warnings, parsed };
+    }
+
+    /* =========================================================================
+     * 技術 7：結構化協定智慧解析引擎 (Wi-Fi, vCard, iCal, OTP, Crypto)
+     * ========================================================================= */
+    function unescapeQrField(val) {
+      return val.replace(/\\([\\;,:"])/g, '$1');
+    }
+
+    function parseWifiString(raw) {
+      const m = raw.match(/^WIFI:(.*)$/i);
+      if (!m) return null;
+      const body = m[1];
+      const getTag = (tag) => {
+        const re = new RegExp(`(?:^|;)${tag}:((?:\\\\.|[^;])*)`, 'i');
+        const hit = body.match(re);
+        return hit ? unescapeQrField(hit[1]) : '';
+      };
+      return {
+        type: 'WIFI',
+        label: '📶 Wi-Fi 無線網路',
+        ssid: getTag('S'),
+        password: getTag('P'),
+        auth: getTag('T') || 'NOPASS',
+        hidden: getTag('H') === 'true'
+      };
+    }
+
+    function parseVCard(raw) {
+      if (!/^BEGIN:VCARD/im.test(raw)) return null;
+      const getLine = (key) => {
+        const re = new RegExp(`^${key}(?:;[^:]*)?:(.*)$`, 'im');
+        const hit = raw.match(re);
+        return hit ? hit[1].trim() : '';
+      };
+      return {
+        type: 'VCARD',
+        label: '👤 vCard 電子名片',
+        name: getLine('FN') || getLine('N').replace(/;/g, ' ').trim() || '聯絡人',
+        org: getLine('ORG'),
+        tel: getLine('TEL'),
+        email: getLine('EMAIL'),
+        url: getLine('URL'),
+        raw
+      };
+    }
+
+    function parseICal(raw) {
+      if (!/^BEGIN:(VCALENDAR|VEVENT)/im.test(raw)) return null;
+      const getLine = (key) => {
+        const re = new RegExp(`^${key}(?:;[^:]*)?:(.*)$`, 'im');
+        const hit = raw.match(re);
+        return hit ? hit[1].trim() : '';
+      };
+      const fmtDate = (d) => {
+        const m = d.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2}))?/);
+        if (!m) return d;
+        return m[4] ? `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}` : `${m[1]}-${m[2]}-${m[3]}`;
+      };
+      const icsContent = /^BEGIN:VCALENDAR/im.test(raw)
+        ? raw
+        : `BEGIN:VCALENDAR\r\nVERSION:2.0\r\n${raw}\r\nEND:VCALENDAR`;
+      return {
+        type: 'ICAL',
+        label: '📅 行事曆活動',
+        summary: getLine('SUMMARY') || '未命名活動',
+        start: fmtDate(getLine('DTSTART')),
+        end: fmtDate(getLine('DTEND')),
+        location: getLine('LOCATION'),
+        icsContent
+      };
+    }
+
+    function parseOtpAuth(raw) {
+      if (!/^otpauth:\/\/(totp|hotp)\//i.test(raw)) return null;
+      try {
+        const u = new URL(raw);
+        const label = decodeURIComponent(u.pathname.replace(/^\/+/, ''));
+        return {
+          type: 'OTP',
+          label: '🔐 雙重驗證碼 (2FA / OTP)',
+          otpType: u.host.toUpperCase(),
+          account: label,
+          issuer: u.searchParams.get('issuer') || '',
+          secret: (u.searchParams.get('secret') || '').toUpperCase(),
+          digits: parseInt(u.searchParams.get('digits') || '6', 10),
+          period: parseInt(u.searchParams.get('period') || '30', 10),
+          algorithm: (u.searchParams.get('algorithm') || 'SHA1').toUpperCase()
+        };
+      } catch (_) {
+        return null;
+      }
+    }
+
+    // 使用原生 Web Crypto API 即時運算 TOTP 動態 6 位驗證碼
+    async function computeTOTP(secret, digits = 6, period = 30, algorithm = 'SHA1') {
+      const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+      const cleaned = secret.replace(/=+$/, '').replace(/\s+/g, '');
+      let bits = 0, value = 0;
+      const bytes = [];
+      for (const ch of cleaned) {
+        const idx = alphabet.indexOf(ch);
+        if (idx === -1) continue;
+        value = (value << 5) | idx;
+        bits += 5;
+        if (bits >= 8) {
+          bytes.push((value >>> (bits - 8)) & 0xff);
+          bits -= 8;
+        }
+      }
+      const keyData = new Uint8Array(bytes);
+      const counter = Math.floor(Date.now() / 1000 / period);
+      const counterBuf = new ArrayBuffer(8);
+      const view = new DataView(counterBuf);
+      view.setUint32(4, counter, false);
+
+      const hashName = algorithm === 'SHA256' ? 'SHA-256' : (algorithm === 'SHA512' ? 'SHA-512' : 'SHA-1');
+      const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: hashName }, false, ['sign']);
+      const hmac = new Uint8Array(await crypto.subtle.sign('HMAC', cryptoKey, counterBuf));
+      const offset = hmac[hmac.length - 1] & 0x0f;
+      const binCode = ((hmac[offset] & 0x7f) << 24) |
+                      ((hmac[offset + 1] & 0xff) << 16) |
+                      ((hmac[offset + 2] & 0xff) << 8) |
+                      (hmac[offset + 3] & 0xff);
+      return String(binCode % (10 ** digits)).padStart(digits, '0');
+    }
+
+    function parseCrypto(raw) {
+      const uriMatch = raw.match(/^(bitcoin|ethereum|solana|tron|litecoin):([^?]+)(?:\?(.*))?$/i);
+      if (uriMatch) {
+        const params = new URLSearchParams(uriMatch[3] || '');
+        return {
+          type: 'CRYPTO',
+          label: `₿ ${uriMatch[1].toUpperCase()} 加密錢包`,
+          chain: uriMatch[1].toUpperCase(),
+          address: uriMatch[2],
+          amount: params.get('amount') || params.get('value') || ''
+        };
+      }
+      if (/^0x[a-fA-F0-9]{40}$/.test(raw)) {
+        return { type: 'CRYPTO', label: 'Ξ Ethereum (ERC-20) 位址', chain: 'ETH/EVM', address: raw, amount: '' };
+      }
+      if (/^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,59}$/.test(raw)) {
+        return { type: 'CRYPTO', label: '₿ Bitcoin 錢包位址', chain: 'BTC', address: raw, amount: '' };
+      }
+      if (/^T[A-Za-z1-9]{33}$/.test(raw)) {
+        return { type: 'CRYPTO', label: '💎 TRON (TRC-20) 位址', chain: 'TRON', address: raw, amount: '' };
+      }
+      return null;
+    }
+
+    function parseStructuredPayload(raw) {
+      const trimmed = raw.trim();
+      const wifi = parseWifiString(trimmed);
+      if (wifi) return wifi;
+      const vcard = parseVCard(trimmed);
+      if (vcard) return vcard;
+      const ical = parseICal(trimmed);
+      if (ical) return ical;
+      const otp = parseOtpAuth(trimmed);
+      if (otp) return otp;
+      const cryptoInfo = parseCrypto(trimmed);
+      if (cryptoInfo) return cryptoInfo;
+
+      const sec = analyzeUrlSecurity(trimmed);
+      if (sec.isUrl) {
+        return { type: 'URL', label: '🌐 網頁連結', url: trimmed, security: sec };
+      }
+
+      if (/^(mailto|tel|sms|geo):/i.test(trimmed)) {
+        return { type: 'ACTION_URI', label: '📱 系統快速指令', uri: trimmed };
+      }
+
+      return { type: 'TEXT', label: '📝 純文字內容', text: raw };
+    }
+
+    function downloadFile(filename, content, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }
+
+    /* =========================================================================
+     * 結果呈現、自動跳轉 1 秒倒數與防暴衝冷卻機制
+     * ========================================================================= */
+    function clearCountdown() {
+      if (state.countdownTimer) {
+        clearTimeout(state.countdownTimer);
+        state.countdownTimer = null;
+      }
+      if (state.countdownRaf) {
+        cancelAnimationFrame(state.countdownRaf);
+        state.countdownRaf = null;
+      }
+      if (state.totpTimer) {
+        clearInterval(state.totpTimer);
+        state.totpTimer = null;
+      }
+    }
+
+    function enterCooldown(keepSheetOpen = false) {
+      state.paused = true;
+      dom.statusDot.className = 'status-dot paused';
+      dom.cooldownOverlay.classList.add('show');
+      if (!keepSheetOpen) {
+        dom.resultSheet.classList.remove('show');
+      }
+      // 冷卻時先關閉自動補光以省電
+      if (state.torchOn && !state.torchUserOverride) {
+        setTorch(false, false);
+      }
+    }
+
+    function resumeScanning() {
+      clearCountdown();
+      state.paused = false;
+      state.lastGoodScanTime = performance.now();
+      state.darkStartTime = null;
+      dom.statusDot.className = 'status-dot';
+      dom.cooldownOverlay.classList.remove('show');
+      dom.resultSheet.classList.remove('show');
+      dom.resultSheet.classList.remove('danger');
+      dom.reticle.classList.remove('hidden');
+      state.targetCorners = null;
+      state.lerpCorners = null;
+      requestWakeLock();
+    }
+
+    function openExternalUrlSafely(url) {
+      const win = window.open(url, '_blank', 'noopener,noreferrer');
+      if (!win) {
+        showToast('瀏覽器攔截了彈出視窗，請點擊「開啟連結」按鈕');
+        return;
+      }
+      enterCooldown(false);
+    }
+
+    async function handleDecodedBarcode(hit) {
+      if (state.paused) return;
+      state.lastGoodScanTime = performance.now();
+
+      const raw = hit.text;
+      const parsed = parseStructuredPayload(raw);
+      const isHighRisk = parsed.type === 'URL' && parsed.security.severity === 'HIGH';
+
+      // 聲音與震動回饋
+      playBeep(isHighRisk);
+      if (navigator.vibrate) {
+        navigator.vibrate(isHighRisk ? [120, 60, 180] : 200);
+      }
+
+      // 立即暫停繼續送幀，進入結果處理態
+      state.paused = true;
+      dom.statusDot.className = 'status-dot paused';
+
+      clearCountdown();
+      dom.resultSheet.classList.toggle('danger', isHighRisk);
+      dom.protoBadge.className = isHighRisk ? 'proto-badge danger' : 'proto-badge';
+      dom.protoBadge.textContent = `${parsed.label}${hit.isInverted ? ' · 反相碼' : ''}`;
+      dom.payloadBox.textContent = raw;
+      dom.dynamicSection.innerHTML = '';
+      dom.sheetActions.innerHTML = '';
+
+      // 1. URL 類型：整合資安防釣魚檢查 + 1 秒視覺倒數跳轉
+      if (parsed.type === 'URL') {
+        const sec = parsed.security;
+
+        if (sec.warnings.length > 0) {
+          const alertBox = document.createElement('div');
+          alertBox.className = 'security-alert';
+          alertBox.innerHTML = `<strong>${sec.severity === 'HIGH' ? '🚨 資安高風險警告（已暫停自動跳轉）' : '⚠️ 安全連線提醒'}</strong><ul>${sec.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul>`;
+          dom.dynamicSection.appendChild(alertBox);
+        }
+
+        const shouldAutoRedirect = state.autoJump && sec.severity !== 'HIGH';
+
+        if (shouldAutoRedirect) {
+          const cdWrap = document.createElement('div');
+          cdWrap.className = 'countdown-wrap';
+          cdWrap.innerHTML = `
+            <div class="countdown-top">
+              <span id="cdText">正在驗證並準備自動開啟新分頁 (1.0s)...</span>
+              <button class="hud-chip-btn" id="cancelJumpBtn">取消跳轉</button>
+            </div>
+            <div class="progress-track"><div class="progress-fill" id="cdFill"></div></div>
+          `;
+          dom.dynamicSection.appendChild(cdWrap);
+
+          const startT = performance.now();
+          const duration = 1000;
+          const fillEl = cdWrap.querySelector('#cdFill');
+          const txtEl = cdWrap.querySelector('#cdText');
+          const cancelBtn = cdWrap.querySelector('#cancelJumpBtn');
+
+          cancelBtn.addEventListener('click', () => {
+            clearCountdown();
+            cdWrap.remove();
+            showToast('已取消自動跳轉');
+          });
+
+          const step = (now) => {
+            const p = Math.min(1, (now - startT) / duration);
+            fillEl.style.width = `${p * 100}%`;
+            txtEl.textContent = `即將開啟新分頁 (${Math.max(0, (1 - p)).toFixed(1)}s)...`;
+            if (p < 1) {
+              state.countdownRaf = requestAnimationFrame(step);
+            }
+          };
+          state.countdownRaf = requestAnimationFrame(step);
+          state.countdownTimer = setTimeout(() => {
+            openExternalUrlSafely(parsed.url);
+          }, duration);
+        }
+
+        const openBtn = document.createElement('button');
+        openBtn.className = isHighRisk ? 'btn btn-danger' : 'btn btn-primary';
+        openBtn.textContent = isHighRisk ? '仍要冒險開啟' : '立即開啟連結';
+        openBtn.onclick = () => {
+          clearCountdown();
+          openExternalUrlSafely(parsed.url);
+        };
+
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'btn btn-secondary';
+        copyBtn.textContent = '複製網址';
+        copyBtn.onclick = async () => {
+          await copyToClipboard(raw);
+          showToast('已複製網址到剪貼簿');
+        };
+
+        dom.sheetActions.append(openBtn, copyBtn);
+        dom.resultSheet.classList.add('show');
+        return;
+      }
+
+      // 2. 非網址：自動複製到剪貼簿並展示專屬結構化操作介面
+      const copied = await copyToClipboard(raw);
+      showToast(copied ? '已自動複製內容到剪貼簿' : '已識別條碼內容');
+
+      if (parsed.type === 'WIFI') {
+        const box = document.createElement('div');
+        box.className = 'proto-details';
+        box.innerHTML = `
+          <div class="proto-row"><span class="proto-key">網路名稱 (SSID)</span><span class="proto-val">${escapeHtml(parsed.ssid || '(隱藏)')}</span></div>
+          <div class="proto-row"><span class="proto-key">加密方式</span><span class="proto-val">${escapeHtml(parsed.auth)}</span></div>
+          <div class="proto-row"><span class="proto-key">連線密碼</span><span class="proto-val" id="wifiPwdVal">${parsed.password ? '••••••••' : '(無密碼)'}</span></div>
+        `;
+        dom.dynamicSection.appendChild(box);
+
+        if (parsed.password) {
+          let shown = false;
+          const togglePwdBtn = document.createElement('button');
+          togglePwdBtn.className = 'btn btn-secondary';
+          togglePwdBtn.textContent = '顯示密碼';
+          togglePwdBtn.onclick = () => {
+            shown = !shown;
+            box.querySelector('#wifiPwdVal').textContent = shown ? parsed.password : '••••••••';
+            togglePwdBtn.textContent = shown ? '隱藏密碼' : '顯示密碼';
+          };
+
+          const copyPwdBtn = document.createElement('button');
+          copyPwdBtn.className = 'btn btn-primary';
+          copyPwdBtn.textContent = '複製 Wi-Fi 密碼';
+          copyPwdBtn.onclick = async () => {
+            await copyToClipboard(parsed.password);
+            showToast('已複製 Wi-Fi 密碼！');
+          };
+          dom.sheetActions.append(copyPwdBtn, togglePwdBtn);
+        }
+      } else if (parsed.type === 'VCARD') {
+        const box = document.createElement('div');
+        box.className = 'proto-details';
+        box.innerHTML = `
+          <div class="proto-row"><span class="proto-key">姓名</span><span class="proto-val">${escapeHtml(parsed.name)}</span></div>
+          ${parsed.org ? `<div class="proto-row"><span class="proto-key">單位</span><span class="proto-val">${escapeHtml(parsed.org)}</span></div>` : ''}
+          ${parsed.tel ? `<div class="proto-row"><span class="proto-key">電話</span><span class="proto-val">${escapeHtml(parsed.tel)}</span></div>` : ''}
+          ${parsed.email ? `<div class="proto-row"><span class="proto-key">Email</span><span class="proto-val">${escapeHtml(parsed.email)}</span></div>` : ''}
+        `;
+        dom.dynamicSection.appendChild(box);
+
+        const vcfBtn = document.createElement('button');
+        vcfBtn.className = 'btn btn-primary';
+        vcfBtn.textContent = '匯入通訊錄 (.vcf)';
+        vcfBtn.onclick = () => downloadFile(`${parsed.name}.vcf`, parsed.raw, 'text/vcard;charset=utf-8');
+        dom.sheetActions.appendChild(vcfBtn);
+      } else if (parsed.type === 'ICAL') {
+        const box = document.createElement('div');
+        box.className = 'proto-details';
+        box.innerHTML = `
+          <div class="proto-row"><span class="proto-key">活動主題</span><span class="proto-val">${escapeHtml(parsed.summary)}</span></div>
+          ${parsed.start ? `<div class="proto-row"><span class="proto-key">開始時間</span><span class="proto-val">${escapeHtml(parsed.start)}</span></div>` : ''}
+          ${parsed.location ? `<div class="proto-row"><span class="proto-key">地點</span><span class="proto-val">${escapeHtml(parsed.location)}</span></div>` : ''}
+        `;
+        dom.dynamicSection.appendChild(box);
+
+        const icsBtn = document.createElement('button');
+        icsBtn.className = 'btn btn-primary';
+        icsBtn.textContent = '加入行事曆 (.ics)';
+        icsBtn.onclick = () => downloadFile(`${parsed.summary}.ics`, parsed.icsContent, 'text/calendar;charset=utf-8');
+        dom.sheetActions.appendChild(icsBtn);
+      } else if (parsed.type === 'OTP') {
+        const box = document.createElement('div');
+        box.className = 'proto-details';
+        box.innerHTML = `
+          <div class="proto-row"><span class="proto-key">發行服務</span><span class="proto-val">${escapeHtml(parsed.issuer || parsed.otpType)}</span></div>
+          <div class="proto-row"><span class="proto-key">帳號</span><span class="proto-val">${escapeHtml(parsed.account)}</span></div>
+          <div class="totp-code" id="totpLiveCode">------</div>
+          <div class="proto-row"><span class="proto-key">剩餘有效時間</span><span class="proto-val" id="totpRem">--s</span></div>
+        `;
+        dom.dynamicSection.appendChild(box);
+
+        const updateTotp = async () => {
+          if (!parsed.secret || parsed.otpType !== 'TOTP') return;
+          try {
+            const code = await computeTOTP(parsed.secret, parsed.digits, parsed.period, parsed.algorithm);
+            const rem = parsed.period - (Math.floor(Date.now() / 1000) % parsed.period);
+            const codeEl = box.querySelector('#totpLiveCode');
+            const remEl = box.querySelector('#totpRem');
+            if (codeEl) codeEl.textContent = code.replace(/(\d{3})(?=\d)/g, '$1 ');
+            if (remEl) remEl.textContent = `${rem}s`;
+          } catch (_) {}
+        };
+        updateTotp();
+        state.totpTimer = setInterval(updateTotp, 1000);
+
+        const copySecBtn = document.createElement('button');
+        copySecBtn.className = 'btn btn-primary';
+        copySecBtn.textContent = '複製金鑰 Secret';
+        copySecBtn.onclick = async () => {
+          await copyToClipboard(parsed.secret);
+          showToast('已複製 OTP 金鑰');
+        };
+        dom.sheetActions.appendChild(copySecBtn);
+      } else if (parsed.type === 'CRYPTO') {
+        const box = document.createElement('div');
+        box.className = 'proto-details';
+        box.innerHTML = `
+          <div class="proto-row"><span class="proto-key">區塊鏈網路</span><span class="proto-val">${escapeHtml(parsed.chain)}</span></div>
+          <div class="proto-row"><span class="proto-key">收款位址</span><span class="proto-val">${escapeHtml(parsed.address)}</span></div>
+          ${parsed.amount ? `<div class="proto-row"><span class="proto-key">指定金額</span><span class="proto-val">${escapeHtml(parsed.amount)}</span></div>` : ''}
+        `;
+        dom.dynamicSection.appendChild(box);
+
+        const copyAddrBtn = document.createElement('button');
+        copyAddrBtn.className = 'btn btn-primary';
+        copyAddrBtn.textContent = '複製錢包位址';
+        copyAddrBtn.onclick = async () => {
+          await copyToClipboard(parsed.address);
+          showToast('已複製錢包位址！');
+        };
+        dom.sheetActions.appendChild(copyAddrBtn);
+      } else if (parsed.type === 'ACTION_URI') {
+        const launchBtn = document.createElement('button');
+        launchBtn.className = 'btn btn-primary';
+        launchBtn.textContent = '執行系統指令';
+        launchBtn.onclick = () => { window.location.href = parsed.uri; };
+        dom.sheetActions.appendChild(launchBtn);
+      }
+
+      const copyRawBtn = document.createElement('button');
+      copyRawBtn.className = 'btn btn-secondary';
+      copyRawBtn.textContent = '複製原文';
+      copyRawBtn.onclick = async () => {
+        await copyToClipboard(raw);
+        showToast('已複製到剪貼簿');
+      };
+
+      const contBtn = document.createElement('button');
+      contBtn.className = 'btn btn-secondary';
+      contBtn.textContent = '繼續掃描';
+      contBtn.onclick = () => resumeScanning();
+
+      dom.sheetActions.append(copyRawBtn, contBtn);
+      dom.resultSheet.classList.add('show');
+    }
+
+    /* =========================================================================
+     * Canvas 座標轉換與 60fps Lerp 平滑動態標註追蹤框線
+     * ========================================================================= */
+    function resizeOverlayCanvas() {
+      const rect = dom.viewport.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      dom.canvas.width = Math.round(rect.width * dpr);
+      dom.canvas.height = Math.round(rect.height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    window.addEventListener('resize', resizeOverlayCanvas);
+    resizeOverlayCanvas();
+
+    // 將 Worker 偵測結果座標精準映射至 object-fit: cover 顯示中的螢幕 Canvas 座標
+    function mapWorkerPointToCanvas(pt, procW, procH, cropRect) {
+      const vw = dom.video.videoWidth || 1;
+      const vh = dom.video.videoHeight || 1;
+      const cw = dom.viewport.clientWidth;
+      const ch = dom.viewport.clientHeight;
+
+      const vx = cropRect.x + (pt.x / procW) * cropRect.w;
+      const vy = cropRect.y + (pt.y / procH) * cropRect.h;
+
+      const scale = Math.max(cw / vw, ch / vh);
+      const offsetX = (cw - vw * scale) * 0.5;
+      const offsetY = (ch - vh * scale) * 0.5;
+
+      return {
+        x: offsetX + vx * scale,
+        y: offsetY + vy * scale
+      };
+    }
+
+    function drawTrackingPolygon(corners, alpha) {
+      if (!corners || corners.length < 4 || alpha <= 0.02) return;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+
+      // 半透明科技感填充多邊形
+      ctx.beginPath();
+      ctx.moveTo(corners[0].x, corners[0].y);
+      for (let i = 1; i < 4; i++) ctx.lineTo(corners[i].x, corners[i].y);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(0, 255, 157, 0.14)';
+      ctx.fill();
+
+      // 螢光綠外發光追蹤框線
+      ctx.lineWidth = 3.2;
+      ctx.strokeStyle = '#00ff9d';
+      ctx.shadowColor = '#00ff9d';
+      ctx.shadowBlur = 16;
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+
+      // 四個頂點高亮圓點與銳利角標
+      ctx.shadowBlur = 10;
+      ctx.fillStyle = '#00e5ff';
+      for (const p of corners) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    /* =========================================================================
+     * Web Worker 初始化與主執行緒 60fps 影像調度迴圈
+     * ========================================================================= */
+    const workerBlob = new Blob([workerSource], { type: 'application/javascript' });
+    const workerUrl = URL.createObjectURL(workerBlob);
+    const decoderWorker = new Worker(workerUrl);
+
+    function updateEngineLabel(activeLabel = null) {
+      if (state.enginePref === 'WASM') {
+        dom.engineBtn.textContent = 'WASM Worker';
+        dom.engineBtn.classList.add('active');
+      } else if (state.enginePref === 'NATIVE' && state.hasNative) {
+        dom.engineBtn.textContent = 'Native GPU';
+        dom.engineBtn.classList.remove('active');
+      } else {
+        dom.engineBtn.textContent = activeLabel || (state.hasNative ? 'Native GPU' : 'WASM Worker');
+        dom.engineBtn.classList.toggle('active', !state.hasNative);
+      }
+    }
+
+    decoderWorker.onmessage = (e) => {
+      const msg = e.data;
+      if (!msg) return;
+
+      if (msg.type === 'READY') {
+        state.hasNative = !!msg.hasNative;
+        updateEngineLabel();
+        if (msg.wasmFailed && !msg.hasNative) {
+          showToast('離線狀態無法載入 WASM，且瀏覽器不支援原生條碼引擎', 4500);
+        }
+        return;
+      }
+
+      if (msg.type === 'WASM_STATUS') {
+        if (msg.wasmReady) showToast('ZXing WebAssembly C++ 引擎已就緒');
+        return;
+      }
+
+      if (msg.type === 'RESULT') {
+        state.workerBusy = false;
+
+        // 統計真實解碼 FPS
+        state.fpsCounter++;
+        const now = performance.now();
+        if (now - state.lastFpsTime >= 1000) {
+          state.currentFps = Math.round((state.fpsCounter * 1000) / (now - state.lastFpsTime));
+          dom.fpsLabel.textContent = `${state.currentFps} FPS`;
+          state.fpsCounter = 0;
+          state.lastFpsTime = now;
+        }
+
+        if (msg.usedEngine && msg.usedEngine !== 'Unavailable') {
+          updateEngineLabel(msg.usedFilter && msg.usedFilter !== 'RAW' ? `${msg.usedEngine} · ${msg.usedFilter}` : msg.usedEngine);
+        }
+
+        if (!msg.isStatic) {
+          evaluateAutoTorch(msg.luminance);
+        }
+
+        if (msg.results && msg.results.length > 0) {
+          const hit = msg.results[0];
+
+          if (!msg.isStatic && hit.corners && hit.corners.length === 4) {
+            // 計算偵測框線寬度佔比以驅動 Auto-Zoom
+            const xs = hit.corners.map(c => c.x);
+            const boxW = Math.max(...xs) - Math.min(...xs);
+            const effectiveRatio = (boxW / msg.procW) / state.swZoomFactor;
+            applySmartZoom(effectiveRatio, true);
+
+            state.targetCorners = hit.corners.map(pt =>
+              mapWorkerPointToCanvas(pt, msg.procW, msg.procH, msg.cropRect)
+            );
+            state.boxAlpha = 1;
+            dom.reticle.classList.add('hidden');
+          }
+
+          handleDecodedBarcode(hit);
+        } else {
+          if (msg.isStatic) {
+            showToast('圖片中未偵測到有效的 QR Code，請嘗試裁切後重試');
+          } else {
+            applySmartZoom(0, false);
+          }
+        }
+      }
+    };
+
+    decoderWorker.postMessage({ type: 'INIT' });
+
+    // 60fps 主迴圈：繪製 Lerp 平滑動態框線 + 非阻塞轉移 ImageBitmap 至背景 Worker
+    function renderLoop() {
+      requestAnimationFrame(renderLoop);
+
+      const cw = dom.viewport.clientWidth;
+      const ch = dom.viewport.clientHeight;
+      ctx.clearRect(0, 0, cw, ch);
+
+      // Lerp 內插法消除追蹤框抖動
+      if (state.targetCorners) {
+        if (!state.lerpCorners) {
+          state.lerpCorners = state.targetCorners.map(p => ({ ...p }));
+        } else {
+          const smooth = 0.34;
+          for (let i = 0; i < 4; i++) {
+            state.lerpCorners[i].x += (state.targetCorners[i].x - state.lerpCorners[i].x) * smooth;
+            state.lerpCorners[i].y += (state.targetCorners[i].y - state.lerpCorners[i].y) * smooth;
+          }
+        }
+        drawTrackingPolygon(state.lerpCorners, state.boxAlpha);
+        if (!state.paused) {
+          state.boxAlpha = Math.max(0, state.boxAlpha - 0.04);
+          if (state.boxAlpha <= 0.02) {
+            state.targetCorners = null;
+            state.lerpCorners = null;
+            dom.reticle.classList.remove('hidden');
+          }
+        }
+      }
+
+      // 擷取影格並轉移至 Worker（確保上一幀已處理完畢才送下一幀，零佇列堆積）
+      if (!state.paused && !state.workerBusy && dom.video.readyState >= 2 && dom.video.videoWidth > 0) {
+        state.workerBusy = true;
+        state.frameIndex++;
+
+        const vw = dom.video.videoWidth;
+        const vh = dom.video.videoHeight;
+
+        // 若無硬體變焦而啟動軟體 ROI 放大，僅裁切中央區域進行 1:1 高密度解析
+        const zoom = state.hwZoomSupported ? 1 : state.swZoomFactor;
+        const cropW = Math.round(vw / zoom);
+        const cropH = Math.round(vh / zoom);
+        const cropX = Math.round((vw - cropW) * 0.5);
+        const cropY = Math.round((vh - cropH) * 0.5);
+
+        const maxDim = 960;
+        const scale = Math.min(1, maxDim / Math.max(cropW, cropH));
+        const outW = Math.max(64, Math.round(cropW * scale));
+        const outH = Math.max(64, Math.round(cropH * scale));
+
+        createImageBitmap(dom.video, cropX, cropY, cropW, cropH, {
+          resizeWidth: outW,
+          resizeHeight: outH,
+          resizeQuality: 'medium'
+        }).then(bitmap => {
+          decoderWorker.postMessage({
+            type: 'FRAME',
+            bitmap,
+            width: outW,
+            height: outH,
+            cropRect: { x: cropX, y: cropY, w: cropW, h: cropH },
+            enginePref: state.enginePref,
+            enhanceMode: state.enhanceMode,
+            frameIndex: state.frameIndex,
+            isStatic: false
+          }, [bitmap]);
+        }).catch(() => {
+          state.workerBusy = false;
+        });
+      }
+    }
+
+    /* =========================================================================
+     * 技術 9-A：全能輸入擴充（剪貼簿貼上、拖放圖片、檔案選取）
+     * ========================================================================= */
+    async function decodeImageBlob(blob) {
+      if (!blob) return;
+      showToast('正在以 WASM + CLAHE 強化解析圖片...');
+      try {
+        const rawBmp = await createImageBitmap(blob);
+        const maxDim = 1600;
+        const scale = Math.min(1, maxDim / Math.max(rawBmp.width, rawBmp.height));
+        const w = Math.max(32, Math.round(rawBmp.width * scale));
+        const h = Math.max(32, Math.round(rawBmp.height * scale));
+        const bitmap = scale < 1
+          ? await createImageBitmap(rawBmp, { resizeWidth: w, resizeHeight: h, resizeQuality: 'high' })
+          : rawBmp;
+        if (bitmap !== rawBmp) rawBmp.close();
+
+        state.paused = false;
+        decoderWorker.postMessage({
+          type: 'FRAME',
+          bitmap,
+          width: w,
+          height: h,
+          cropRect: { x: 0, y: 0, w, h },
+          enginePref: 'WASM',
+          enhanceMode: 'ALWAYS',
+          frameIndex: 0,
+          isStatic: true
+        }, [bitmap]);
+      } catch (err) {
+        showToast('圖片讀取失敗：' + err.message);
+      }
+    }
+
+    window.addEventListener('paste', (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          decodeImageBlob(item.getAsFile());
+          return;
+        }
+      }
+    });
+
+    let dragCounter = 0;
+    window.addEventListener('dragenter', (e) => {
+      e.preventDefault();
+      dragCounter++;
+      dom.dropOverlay.classList.add('show');
+    });
+    window.addEventListener('dragover', (e) => {
+      e.preventDefault();
+    });
+    window.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      dragCounter = Math.max(0, dragCounter - 1);
+      if (dragCounter === 0) dom.dropOverlay.classList.remove('show');
+    });
+    window.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dragCounter = 0;
+      dom.dropOverlay.classList.remove('show');
+      const file = e.dataTransfer?.files?.[0];
+      if (file && file.type.startsWith('image/')) {
+        decodeImageBlob(file);
+      } else if (file) {
+        showToast('請拖放圖片檔案 (PNG / JPG / WebP)');
+      }
+    });
+
+    /* =========================================================================
+     * UI 控制事件綁定
+     * ========================================================================= */
+    document.addEventListener('pointerdown', unlockAudio, { passive: true });
+
+    dom.engineBtn.addEventListener('click', () => {
+      if (!state.hasNative) {
+        showToast('目前裝置不支援 Native BarcodeDetector，已啟用 WASM 引擎');
+        return;
+      }
+      const order = ['AUTO', 'WASM', 'NATIVE'];
+      const next = order[(order.indexOf(state.enginePref) + 1) % order.length];
+      state.enginePref = next;
+      if (next === 'WASM') decoderWorker.postMessage({ type: 'PRELOAD_WASM' });
+      updateEngineLabel();
+      showToast(
+        next === 'AUTO' ? '引擎模式：智慧混合 (Native GPU + WASM)' :
+        next === 'WASM' ? '引擎模式：強制 ZXing WebAssembly C++' :
+                          '引擎模式：僅限 Native GPU'
+      );
+    });
+
+    dom.filterBtn.addEventListener('click', () => {
+      state.enhanceMode = state.enhanceMode === 'AUTO' ? 'ALWAYS' : 'AUTO';
+      dom.filterBtn.classList.toggle('active', state.enhanceMode === 'ALWAYS');
+      dom.filterBtn.textContent = state.enhanceMode === 'ALWAYS' ? '✨ 常駐增強' : '✨ 自動增強';
+      showToast(state.enhanceMode === 'ALWAYS' ? '已常駐開啟 CLAHE + 自適應二值化濾鏡' : '濾鏡已設為智慧自動觸發');
+    });
+
+    dom.torchBtn.addEventListener('click', () => {
+      if (!state.capabilities.torch) return;
+      state.torchUserOverride = true;
+      setTorch(!state.torchOn, false);
+    });
+
+    // 短按切換後置多鏡頭，長按 (>450ms) 切換微距對焦鎖定
+    let camPressTimer = null;
+    let camLongPressed = false;
+    dom.cameraBtn.addEventListener('pointerdown', () => {
+      camLongPressed = false;
+      camPressTimer = setTimeout(() => {
+        camLongPressed = true;
+        toggleMacroFocus();
+      }, 480);
+    });
+    dom.cameraBtn.addEventListener('pointerup', () => clearTimeout(camPressTimer));
+    dom.cameraBtn.addEventListener('pointerleave', () => clearTimeout(camPressTimer));
+    dom.cameraBtn.addEventListener('click', async () => {
+      if (camLongPressed) return;
+      if (state.rearCameras.length > 1) {
+        state.activeCamIndex = (state.activeCamIndex + 1) % state.rearCameras.length;
+        const target = state.rearCameras[state.activeCamIndex];
+        await startCamera(target.deviceId);
+      } else {
+        await toggleMacroFocus();
+      }
+    });
+
+    dom.uploadBtn.addEventListener('click', () => dom.fileInput.click());
+    dom.errorUploadBtn.addEventListener('click', () => dom.fileInput.click());
+    dom.fileInput.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (file) decodeImageBlob(file);
+      dom.fileInput.value = '';
+    });
+
+    dom.autoJumpBtn.addEventListener('click', () => {
+      state.autoJump = !state.autoJump;
+      dom.autoJumpBtn.classList.toggle('active', state.autoJump);
+      dom.autoJumpText.textContent = state.autoJump ? '自動跳轉' : '手動確認';
+      showToast(state.autoJump ? '偵測安全網址後將倒數 1 秒自動跳轉' : '已切換為手動確認跳轉模式');
+    });
+
+    dom.closeSheetBtn.addEventListener('click', () => resumeScanning());
+    dom.cooldownOverlay.addEventListener('click', () => resumeScanning());
+    dom.retryCamBtn.addEventListener('click', () => startCamera());
+
+    /* =========================================================================
+     * 啟動入口：全自動開啟後置廣角相機 + 環境光偵測 + 60fps 渲染管線
+     * ========================================================================= */
+    window.addEventListener('DOMContentLoaded', () => {
+      initAmbientLightSensor();
+      requestAnimationFrame(renderLoop);
+      startCamera();
+    });
+  })();
+  </script>
+</body>
+</html>
