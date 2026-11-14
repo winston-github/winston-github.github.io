@@ -8,7 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Pro Treadmill OS - Tactical Edition (v94.0 / runpro_new_v76)</title>
+    <title>Pro Treadmill OS - Tactical Edition (v95.0 / runpro_v83 persistent stream)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.85); 
@@ -1588,7 +1588,7 @@
 </div>
 
 <script>
-/** PRO TREADMILL OS (TACTICAL EDITION v94.0 / runpro_new_v76) */
+/** PRO TREADMILL OS (TACTICAL EDITION v95.0 / runpro_v83 persistent stream) */
 
 const i18n = {
     zh: {
@@ -3528,7 +3528,7 @@ class AppController {
 
         const setVH = () => document.documentElement.style.setProperty('--vh', `${(window.visualViewport ? window.visualViewport.height : window.innerHeight) * 0.01}px`);
         if(window.visualViewport) window.visualViewport.addEventListener('resize', setVH); setVH();
-        window.addEventListener('beforeunload',()=>{clearTimeout(this.saveDebounceTimer);this.flushProfileData();if(AppState.state.runStatus==='RUNNING')this.persistRun();});window.addEventListener('pagehide',()=>{clearTimeout(this.saveDebounceTimer);this.flushProfileData();if(AppState.state.accumMs>0)this.persistRun();});window.addEventListener('freeze',()=>{this.flushProfileData();if(AppState.state.accumMs>0)this.persistRun();});
+        window.addEventListener('beforeunload',()=>{clearTimeout(this.saveDebounceTimer);this.flushProfileData();if(AppState.state.runStatus==='RUNNING')this.persistRun(true);});window.addEventListener('pagehide',()=>{clearTimeout(this.saveDebounceTimer);this.flushProfileData();if(AppState.state.accumMs>0)this.persistRun(true);});window.addEventListener('freeze',()=>{this.flushProfileData();if(AppState.state.accumMs>0)this.persistRun(true);});
         
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'hidden') {
@@ -3563,7 +3563,7 @@ class AppController {
             }
         });
         
-        const completeBoot=()=>{if(this._bootCompleted)return;this._bootCompleted=true;let splash=document.getElementById('splashScreen');if(splash){splash.style.animation='none';splash.style.opacity='0';splash.style.visibility='hidden';splash.style.pointerEvents='none';}const safe=(name,fn)=>{try{return fn();}catch(e){console.error(name+' isolated',e);window.__RUNPRO_V50__?.errors.push(name+':'+String(e));return null;}};safe('data',()=>this.initData());safe('dials',()=>this.initDials());safe('events',()=>this.bindEvents());safe('phaseAllocation',()=>this.bindPhaseAllocation());safe('fortress',()=>this.setupFortressLock());safe('fueling',()=>this.setupFuelingModal());safe('voices',()=>TTSVoiceUtil.refresh());if(window.speechSynthesis)window.speechSynthesis.addEventListener?.('voiceschanged',()=>safe('voiceschanged',()=>{TTSVoiceUtil.refresh();let modal=document.getElementById('runnerModal');if(modal?.classList.contains('show'))this.refreshVoicePreferenceUI();}));setTimeout(()=>safe('postpaint',()=>{const timeDial=document.getElementById('ds-time'),distDial=document.getElementById('ds-dist');if(!timeDial?.children.length||!distDial?.children.length)this.initDials();this.syncDialsToProfile();this.updateUIDataOnly();this.charts.drawAll();}),0);setTimeout(()=>safe('dial-recovery',()=>{const timeDial=document.getElementById('ds-time'),distDial=document.getElementById('ds-dist');if(!timeDial?.children.length||!distDial?.children.length)this.initDials();this.syncDialsToProfile();this.updateUIDataOnly();this.charts.drawAll();}),250);};DB.init().then(completeBoot,completeBoot);setTimeout(completeBoot,900);
+        const completeBoot=async()=>{if(this._bootCompleted)return;this._bootCompleted=true;let splash=document.getElementById('splashScreen');if(splash){splash.style.animation='none';splash.style.opacity='0';splash.style.visibility='hidden';splash.style.pointerEvents='none';}const safe=(name,fn)=>{try{return fn();}catch(e){console.error(name+' isolated',e);window.__RUNPRO_V50__?.errors.push(name+':'+String(e));return null;}};await safe('data',()=>this.initData());safe('dials',()=>this.initDials());safe('events',()=>this.bindEvents());safe('phaseAllocation',()=>this.bindPhaseAllocation());safe('fortress',()=>this.setupFortressLock());safe('fueling',()=>this.setupFuelingModal());safe('voices',()=>TTSVoiceUtil.refresh());if(window.speechSynthesis)window.speechSynthesis.addEventListener?.('voiceschanged',()=>safe('voiceschanged',()=>{TTSVoiceUtil.refresh();let modal=document.getElementById('runnerModal');if(modal?.classList.contains('show'))this.refreshVoicePreferenceUI();}));safe('postboot',()=>{const timeDial=document.getElementById('ds-time'),distDial=document.getElementById('ds-dist');if(!timeDial?.children.length||!distDial?.children.length)this.initDials();this.syncDialsToProfile();this.updateUIDataOnly();this.charts.drawAll();this._updateBatteryUI();if(this._pendingInterruptionGap>10000)this._showInterruptionModal(this._pendingInterruptionGap);});};DB.init().then(completeBoot,completeBoot);setTimeout(completeBoot,900);
 
         this.lastGaitFrame = performance.now();
         const gaitLoop = (ts) => { requestAnimationFrame(gaitLoop); this.renderGaitFrame(ts); };
@@ -3919,7 +3919,7 @@ class AppController {
                     AppState.state.runStatus = 'PAUSED'; RunAcc.pauseCount++; RunAcc.lastPauseMs = Date.now();
                     let m = AppState.state.snapshot; let safeM = Math.min(Math.floor(AppState.state.accumMs / 60000), m.length - 1);
                     if (RunAcc.transF[safeM]) RunAcc.transF[safeM].autoPeekActive = false;
-                    this.updateStatsBlock('rAct', AppState.state.accumMs, true); this.persistRun(); VoiceApp.clear();
+                    this.updateStatsBlock('rAct', AppState.state.accumMs, true); this.persistRun(true); this.flushProfileData(); VoiceApp.clear();
                 }
             }
             else if(a === 'open-runner') { 
@@ -4760,7 +4760,7 @@ getFabState(p){let state=Number(p.gaitUiState);if([1,2,3,4].includes(state))retu
             VoiceApp.speakText(Utils.PRNG.get(curLang, 'warn_hr', VoiceDB[curLang].warn_hr), 1, ttsLang);
         }
 
-        RunAcc.sec += dtS; if(RunAcc.samples&&RunAcc.samples.length<86400){let rr=AppState.state.snapshot[Math.min(AppState.state.snapshot.length-1,Math.floor(AppState.state.accumMs/60000))]||{};RunAcc.samples.push({s:RunAcc.samples.length,ts:Date.now(),distM:RunAcc.dKm*1000,spd:RunAcc.curSpd||rr.spd||0,inc:RunAcc.curInc||rr.inc||0,hr:RunAcc.curHr||rr.hr||0,pwr:Math.max(0,Math.round((PhysioEngine.sanitize(AppState.state.profiles[AppState.state.activeP]).wKG||70)*9.80665*((RunAcc.curSpd||rr.spd||0)/3.6)*(0.018+Math.max(0,RunAcc.curInc||rr.inc||0)/100)))});} RunAcc.sumSpd += RunAcc.curSpd * dtS; if(RunAcc.curSpd > RunAcc.mxS) RunAcc.mxS = RunAcc.curSpd;
+        RunAcc.sec += dtS; if(RunAcc.samples&&RunAcc.samples.length<108000){let rr=AppState.state.snapshot[Math.min(AppState.state.snapshot.length-1,Math.floor(AppState.state.accumMs/60000))]||{};RunAcc.samples.push({s:RunAcc.samples.length,ts:Date.now(),distM:RunAcc.dKm*1000,spd:RunAcc.curSpd||rr.spd||0,inc:RunAcc.curInc||rr.inc||0,hr:RunAcc.curHr||rr.hr||0,pwr:Math.max(0,Math.round((PhysioEngine.sanitize(AppState.state.profiles[AppState.state.activeP]).wKG||70)*9.80665*((RunAcc.curSpd||rr.spd||0)/3.6)*(0.018+Math.max(0,RunAcc.curInc||rr.inc||0)/100)))});} RunAcc.sumSpd += RunAcc.curSpd * dtS; if(RunAcc.curSpd > RunAcc.mxS) RunAcc.mxS = RunAcc.curSpd;
         RunAcc.sumInc += RunAcc.curInc * dtS; if(RunAcc.curInc > RunAcc.mxI) RunAcc.mxI = RunAcc.curInc;
         
         RunAcc.sumHr += RunAcc.curHr * dtS; RunAcc.sumLac += RunAcc.curLac * dtS; 
@@ -4819,7 +4819,7 @@ getFabState(p){let state=Number(p.gaitUiState);if([1,2,3,4].includes(state))retu
         
         if (Math.floor(ms/1000) !== Math.floor((ms-dt)/1000)) {
             clearTimeout(this.saveDebounceTimer);
-            this.saveDebounceTimer = setTimeout(() => this.persistRun(), 500); 
+            this.persistRun(false); 
         }
         
         if (Math.floor(ms/1000) !== Math.floor((ms-dt)/1000) && !AppState.state.isTimeWarping) { this.charts.drawAll(); this.updateStatsBlock('rAct', ms, true); }
@@ -5168,7 +5168,7 @@ getFabState(p){let state=Number(p.gaitUiState);if([1,2,3,4].includes(state))retu
             let fullName=typeof productObj==='object' ? productObj[isZh?'zh':'en'] : finalProd;
             let done=isZh?`已完成補給：${fullName}，搭配 ${wVol} 毫升水。`:`Fuel completed: ${fullName}, with ${wVol} milliliters of water.`;
             NotificationManager.showTactical(done);
-            this.pendingFuelPrompt=null; this.saveData(); this.renderPreviewList(); this.closeModal('fuelingModal');
+            this.pendingFuelPrompt=null; this.flushProfileData(); this.persistRun(true); this.renderPreviewList(); this.closeModal('fuelingModal');
             if(this.fuelPromptQueue.length) setTimeout(()=>this._presentNextFuelPrompt(),400); return;
         }
         if(!AppState.state.fuelingPlans[plan.targetMin]) AppState.state.fuelingPlans[plan.targetMin]=[];
@@ -5359,7 +5359,7 @@ getFabState(p){let state=Number(p.gaitUiState);if([1,2,3,4].includes(state))retu
     persistRun() { 
         if (AppState.state.isDraggingFuel) return; // Mutex
         if (AppState.state.accumMs > 0) {
-            try { let acc={...RunAcc,rawSplits:Array.isArray(RunAcc.rawSplits)&&RunAcc.rawSplits.length>2400?RunAcc.rawSplits.slice(-2400):RunAcc.rawSplits}; localStorage.setItem('runState_v63', JSON.stringify({ runStatus: AppState.state.runStatus, lastTimestamp: Date.now(), activeP: AppState.state.activeP, accumMs: AppState.state.accumMs, matrix: AppState.state.matrix, snapshot: AppState.state.snapshot, acc, minimalVoice: AppState.state.minimalVoice, tempVoiceLang: AppState.state.tempVoiceLang, previousFabMode: AppState.state.previousFabMode, fuelLog: AppState.state.fuelLog })); } catch(e) { console.warn('Run persistence quota/unavailable',e); } 
+            /* v77: live state is append-only in LiveStateDB; never serialize large arrays to localStorage. */ 
         } else { localStorage.removeItem('runState_v63'); }
     }
 
@@ -5574,6 +5574,71 @@ getFabState(p){let state=Number(p.gaitUiState);if([1,2,3,4].includes(state))retu
         } else { document.getElementById('sumChartWrap').style.display = 'none'; document.getElementById('sumHudGrid').style.display = 'none'; }
     }
 }
+
+
+  /* v77 100-mile survival and cross-version persistence patch. */
+  const RUNPRO_LIVE_SCHEMA = 5;
+  const LiveStateDB = (() => {
+    const NAME='ProTreadmill_Live_V1', VER=1, META='liveMeta', CHUNKS='liveChunks';
+    let db=null, opening=null, epoch=1, queue=Promise.resolve();
+    const reqP=req=>new Promise((ok,no)=>{req.onsuccess=()=>ok(req.result);req.onerror=()=>no(req.error||new Error('IDB request failed'));});
+    const txP=tx=>new Promise((ok,no)=>{tx.oncomplete=()=>ok();tx.onerror=()=>no(tx.error||new Error('IDB tx failed'));tx.onabort=()=>no(tx.error||new Error('IDB tx aborted'));});
+    async function open(){
+      if(db)return db;if(opening)return opening;
+      opening=new Promise(resolve=>{let done=false,finish=x=>{if(done)return;done=true;clearTimeout(to);resolve(x)},to=setTimeout(()=>finish(null),2200);
+        try{let r=indexedDB.open(NAME,VER);r.onupgradeneeded=()=>{let d=r.result;if(!d.objectStoreNames.contains(META))d.createObjectStore(META,{keyPath:'id'});if(!d.objectStoreNames.contains(CHUNKS)){let st=d.createObjectStore(CHUNKS,{keyPath:'seq',autoIncrement:true});st.createIndex('epoch','epoch',{unique:false});}};r.onsuccess=()=>{db=r.result;db.onversionchange=()=>{try{db.close()}catch(_){}db=null};finish(db)};r.onerror=()=>finish(null);r.onblocked=()=>finish(null)}catch(_){finish(null)}}).finally(()=>opening=null);
+      return opening;
+    }
+    const enqueue=fn=>(queue=queue.then(fn,fn).catch(e=>{console.warn('LiveStateDB degraded safely',e);return null}));
+    async function load(){let d=await open();if(!d)return null;try{let tx=d.transaction([META,CHUNKS],'readonly'),meta=await reqP(tx.objectStore(META).get('current'));if(!meta){await txP(tx);return null}let chunks=await reqP(tx.objectStore(CHUNKS).getAll());await txP(tx);chunks.sort((a,b)=>(a.seq||0)-(b.seq||0));let samples=[],rawSplits=[];for(const c of chunks){if(c.epoch!==meta.epoch)continue;if(Array.isArray(c.samples))samples.push(...c.samples);if(Array.isArray(c.rawSplits))rawSplits.push(...c.rawSplits)}return {...meta,acc:{...(meta.acc||{}),samples,rawSplits}}}catch(e){console.warn('Live state load failed',e);return null}}
+    function append(meta,samples,rawSplits,expectedEpoch){return enqueue(async()=>{let d=await open();if(!d||expectedEpoch!==epoch)return false;let tx=d.transaction([META,CHUNKS],'readwrite'),m={...meta,id:'current',epoch:expectedEpoch,sampleCount:meta.sampleCount,rawSplitCount:meta.rawSplitCount,updatedAt:Date.now()};if((samples&&samples.length)||(rawSplits&&rawSplits.length))tx.objectStore(CHUNKS).add({epoch:expectedEpoch,createdAt:Date.now(),samples:samples||[],rawSplits:rawSplits||[]});tx.objectStore(META).put(m);await txP(tx);return expectedEpoch===epoch})}
+    function replace(state){return enqueue(async()=>{let d=await open();if(!d)return false;let e=epoch,tx=d.transaction([META,CHUNKS],'readwrite'),cs=tx.objectStore(CHUNKS);cs.clear();let acc=state.acc||{},samples=Array.isArray(acc.samples)?acc.samples:[],rawSplits=Array.isArray(acc.rawSplits)?acc.rawSplits:[],meta={...state,id:'current',epoch:e,acc:{...acc,samples:undefined,rawSplits:undefined},sampleCount:samples.length,rawSplitCount:rawSplits.length,updatedAt:Date.now()};if(samples.length||rawSplits.length)cs.add({epoch:e,createdAt:Date.now(),samples,rawSplits});tx.objectStore(META).put(meta);await txP(tx);return true})}
+    function clear(){epoch++;return enqueue(async()=>{let d=await open();if(!d)return;let tx=d.transaction([META,CHUNKS],'readwrite');tx.objectStore(META).clear();tx.objectStore(CHUNKS).clear();await txP(tx)})}
+    const getEpoch=()=>epoch;
+    return {open,load,append,replace,clear,getEpoch,name:NAME};
+  })();
+  window.LiveStateDB=LiveStateDB;
+
+  // Runner-scoped, version-tolerant voice shuffle bags.
+  PseudoRandom.prototype._runner=function(){try{return String(AppState.state.activeP||'Runner')}catch(_){return'Runner'}};
+  PseudoRandom.prototype._key=function(){return 'runpro_voice_prng_v1_'+encodeURIComponent(this._runner())};
+  PseudoRandom.prototype._load=function(){try{let x=JSON.parse(localStorage.getItem(this._key())||'null');if(x&&x.bags&&x.lastDrawn)return x}catch(_){}return{bags:{},lastDrawn:{},lengths:{}}};
+  PseudoRandom.prototype._save=function(x){try{localStorage.setItem(this._key(),JSON.stringify(x))}catch(_){}};
+  PseudoRandom.prototype.get=function(lang,key,arr){if(!Array.isArray(arr)||!arr.length)return'';let x=this._load(),fk=lang+'_'+key,seen=new Set(),bag=(x.bags[fk]||[]).filter(i=>Number.isInteger(i)&&i>=0&&i<arr.length&&!seen.has(i)&&(seen.add(i),true)),oldLen=Number(x.lengths[fk]||0);for(let i=Math.max(0,oldLen);i<arr.length;i++)if(!seen.has(i))bag.push(i);for(let i=bag.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[bag[i],bag[j]]=[bag[j],bag[i]]}if(!bag.length){bag=Array.from({length:arr.length},(_,i)=>i);for(let i=bag.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[bag[i],bag[j]]=[bag[j],bag[i]]}if(bag.length>1&&bag[bag.length-1]===x.lastDrawn[fk])[bag[0],bag[bag.length-1]]=[bag[bag.length-1],bag[0]]}let drawn=bag.pop();x.bags[fk]=bag;x.lastDrawn[fk]=drawn;x.lengths[fk]=arr.length;this.bags=x.bags;this.lastDrawn=x.lastDrawn;this._save(x);return arr[drawn]||arr[0]||''};
+
+  const RunProShuffleKeys={key:(kind,name)=>kind+'_'+encodeURIComponent(name),move(oldName,newName){for(const pre of ['runpro_music_shuffle_v3','runpro_voice_prng_v1']){let a=this.key(pre,oldName),b=this.key(pre,newName);try{let v=localStorage.getItem(a);if(v!==null&&localStorage.getItem(b)===null)localStorage.setItem(b,v);localStorage.removeItem(a)}catch(_){}}},remove(name){for(const pre of ['runpro_music_shuffle_v3','runpro_voice_prng_v1'])try{localStorage.removeItem(this.key(pre,name))}catch(_){}}};
+  window.RunProShuffleKeys=RunProShuffleKeys;
+
+  const baseGetHist=DB.getHist.bind(DB);
+  const normalizeHistory=h=>{let v={...h};v.schemaVersion=RUNPRO_LIVE_SCHEMA;v.fCal=Number.isFinite(+v.fCal)?+v.fCal:(+v.cal||0)/2;v.cCal=Number.isFinite(+v.cCal)?+v.cCal:Math.max(0,(+v.cal||0)-v.fCal);v.elevM=+v.elevM||0;v.totMs=+v.totMs||(Array.isArray(v.matrix)?v.matrix.length*60000:+v.ms||0);v.fuelLog=Array.isArray(v.fuelLog)?v.fuelLog:[];v.z=Array.isArray(v.z)?v.z:[0,0,0,0,0];if(!Array.isArray(v.rawSplits)&&Array.isArray(v.matrix))v.rawSplits=PhysioEngine.simulatePhysics(v.matrix,AppState.state.hw).rawSplits;if(!v.actualAvg){let sec=Math.max(1,(+v.ms||0)/1000);v.actualAvg={spd:+v.avgSpdKm||0,inc:0,hr:0,lac:0};if(Array.isArray(v.rawSplits)&&v.rawSplits.length){let t=v.rawSplits.reduce((a,r)=>a+(+r.secs||0),0)||sec;v.actualAvg={spd:v.rawSplits.reduce((a,r)=>a+(+r.spd||0)*(+r.secs||0),0)/t,inc:v.rawSplits.reduce((a,r)=>a+(+r.inc||0)*(+r.secs||0),0)/t,hr:v.rawSplits.reduce((a,r)=>a+(+r.hr||0)*(+r.secs||0),0)/t,lac:0}}}v.actualMax=v.actualMax||{spd:v.actualAvg.spd,inc:v.actualAvg.inc,hr:v.actualAvg.hr,lac:v.actualAvg.lac};v.cadence=v.cadence||{avg:0,steps:0,offsetPct:0};return v};
+  LegacyMigration.run=async function(){if(this.running)return this.running;this.running=(async()=>{let profiles=0,records=0,databases=0;
+    try{for(let i=0;i<localStorage.length;i++){let k=localStorage.key(i);if(!k||k==='pro_treadmill_v63'||!/^(?:pro_treadmill|protreadmill|treadmill_state|runpro_state)/i.test(k))continue;try{let q=JSON.parse(localStorage.getItem(k)||'null'),ps=q?.profiles||q?.runners;if(ps)for(const [n,r] of Object.entries(ps))if(!AppState.state.profiles[n]){AppState.state.profiles[n]=PhysioEngine.sanitize({...r,name:n},AppState.state.hw);profiles++}}catch(_){}}if(profiles)window.App?.flushProfileData?.()}catch(_){}
+    if(DB.db)try{let tx=DB.db.transaction('history','readwrite'),st=tx.objectStore('history');await new Promise(ok=>{st.openCursor().onsuccess=e=>{let c=e.target.result;if(!c)return ok();let n=normalizeHistory(c.value);if(JSON.stringify(n)!==JSON.stringify(c.value)){c.update(n);records++}c.continue()};tx.onerror=tx.onabort=()=>ok()})}catch(_){}
+    if(indexedDB.databases&&DB.db)try{let list=await indexedDB.databases(),names=list.map(x=>x.name).filter(n=>n&&n!=='ProTreadmillDB_U63'&&n!==LiveStateDB.name&&/treadmill|runpro/i.test(n));let existing=await new Promise(ok=>{let tx=DB.db.transaction('history','readonly'),r=tx.objectStore('history').getAll();r.onsuccess=()=>ok(r.result||[]);r.onerror=()=>ok([])}),sig=new Set(existing.map(x=>`${x.runnerName}|${x.date}|${x.ms}`));for(const name of names){try{let od=await new Promise(ok=>{let r=indexedDB.open(name);let to=setTimeout(()=>ok(null),1200);r.onsuccess=()=>{clearTimeout(to);ok(r.result)};r.onerror=()=>{clearTimeout(to);ok(null)};r.onupgradeneeded=()=>{r.transaction.abort();clearTimeout(to);ok(null)}});if(!od)continue;databases++;for(const sn of Array.from(od.objectStoreNames)){let rows=await new Promise(ok=>{try{let tx=od.transaction(sn,'readonly'),r=tx.objectStore(sn).getAll();r.onsuccess=()=>ok(r.result||[]);r.onerror=()=>ok([])}catch(_){ok([])}});for(const row of rows){if(!row||!row.runnerName||!row.date)continue;let n=normalizeHistory(row),k=`${n.runnerName}|${n.date}|${n.ms}`;if(sig.has(k))continue;await DB.saveHist(n);sig.add(k);records++}}od.close()}catch(_){}}}catch(_){}
+    return{profiles,records,databases}})().catch(()=>({profiles:0,records:0,databases:0})).finally(()=>this.running=null);return this.running};
+
+  const AP=AppController.prototype;
+  AP._legacyRunKeys=function(){let out=[];for(let i=0;i<localStorage.length;i++){let k=localStorage.key(i);if(k&&/^(?:runstate|run_state|run-state|treadmill_run|pro_treadmill_run|runpro_run|workout_state)(?:[_-]?(?:v|u)?\d+)?(?:[_-].*)?$/i.test(k))out.push(k)}return out};
+  AP._saneRun=function(r){return !!(r&&+r.accumMs>=0&&Array.isArray(r.snapshot)&&Array.isArray(r.matrix)&&r.snapshot.length<=1800&&r.matrix.length<=1800)};
+  AP._buildLiveMeta=function(){let a={...RunAcc};delete a.samples;delete a.rawSplits;let p=AppState.state.profiles[AppState.state.activeP]||{};return{schemaVersion:RUNPRO_LIVE_SCHEMA,runStatus:AppState.state.runStatus==='PRE_FLIGHT'?'PAUSED':AppState.state.runStatus,lastTimestamp:Date.now(),activeP:AppState.state.activeP,accumMs:AppState.state.accumMs,matrix:AppState.state.matrix,snapshot:AppState.state.snapshot,acc:a,minimalVoice:AppState.state.minimalVoice,tempVoiceLang:AppState.state.tempVoiceLang,previousFabMode:AppState.state.previousFabMode,fuelLog:AppState.state.fuelLog,lastFuelPromptKey:this.lastFuelPromptKey,manualSpeedHold:this.manualSpeedHold,profileMirror:{tTime:p.tTime,spdOffset:p.spdOffset,incOffset:p.incOffset,lastProg:p.lastProg,fuelingPlans:AppState.state.fuelingPlans},musicState:window.RunProMusic?.getState?.()||null}};
+  AP.initData=async function(){let needs=true;try{let s=null;try{s=JSON.parse(localStorage.getItem('pro_treadmill_v63')||'null')}catch(_){}if(s?.profiles&&Object.keys(s.profiles).length){let ps={};for(const [n,r] of Object.entries(s.profiles))ps[n]=PhysioEngine.sanitize({...r,name:n},s.hw||AppState.state.hw);AppState.batch({activeP:ps[s.activeP]?s.activeP:Object.keys(ps)[0],profiles:ps,hw:s.hw||AppState.state.hw,fuelingPlans:s.fuelingPlans||{}});this.lastFuelMemory=s.lastFuelMemory||null}else{let lang=navigator.language.includes('zh')?'zh':'en',p=PhysioEngine.sanitize({name:'Runner',gender:'M',unit:'metric',lang,voiceOn:true,gaitOn:true,lastProg:0,lastCat:'FAT_BURN'});AppState.batch({activeP:'Runner',profiles:{Runner:p},fuelingPlans:{}})}this.setupSubscribers();navigator.storage?.persist?.().catch(()=>{});
+    let r=await LiveStateDB.load();if(!r){for(const k of this._legacyRunKeys()){try{let q=JSON.parse(localStorage.getItem(k)||'null');if(this._saneRun(q)&&+q.accumMs>0){r={...q,schemaVersion:1};await LiveStateDB.replace(r);this._legacyRunKeys().forEach(x=>{try{localStorage.removeItem(x)}catch(_){}});break}}catch(_){}}}
+    if(this._saneRun(r)&&+r.accumMs>0){let active=AppState.state.profiles[r.activeP]?r.activeP:AppState.state.activeP,restored=r.runStatus==='PRE_FLIGHT'?'PAUSED':(r.runStatus||'PAUSED');AppState.batch({runStatus:'PAUSED',accumMs:+r.accumMs,matrix:r.matrix,snapshot:r.snapshot,activeP:active,minimalVoice:!!r.minimalVoice,fabMode:'NORMAL',tempVoiceLang:r.tempVoiceLang||null,previousFabMode:r.previousFabMode||null});Object.assign(RunAcc,r.acc||{});RunAcc.samples=Array.isArray(r.acc?.samples)?r.acc.samples:[];RunAcc.rawSplits=Array.isArray(r.acc?.rawSplits)?r.acc.rawSplits:[];RunAcc.kmSplits=Array.isArray(RunAcc.kmSplits)?RunAcc.kmSplits:[];let cp=PhysioEngine.sanitize(AppState.state.profiles[active]);RunAcc.maxGlycogen=Number(RunAcc.maxGlycogen)>0?+RunAcc.maxGlycogen:Math.max(350,cp.smm*15+100);RunAcc.startGlycogen=Number(RunAcc.startGlycogen)>0?+RunAcc.startGlycogen:RunAcc.maxGlycogen;RunAcc.currentGlycogen=Number.isFinite(+RunAcc.currentGlycogen)?+RunAcc.currentGlycogen:RunAcc.startGlycogen;RunAcc.undigestedCarbs=Math.max(0,+RunAcc.undigestedCarbs||0);RunAcc.glycogenReady=true;let now=Date.now();RunAcc.lastPhysioTs=Number.isFinite(+RunAcc.lastPhysioTs)&&+RunAcc.lastPhysioTs<=now?+RunAcc.lastPhysioTs:now;AppState.state.fuelLog=Array.isArray(r.fuelLog)?r.fuelLog:[];AppState.state.fuelingPlans=r.profileMirror?.fuelingPlans||AppState.state.fuelingPlans||{};this.lastFuelPromptKey=r.lastFuelPromptKey||'';this.manualSpeedHold=r.manualSpeedHold||null;this._persistedSampleCount=RunAcc.samples.length;this._persistedRawSplitCount=RunAcc.rawSplits.length;this._persistEpoch=LiveStateDB.getEpoch();AppState.state.estTotKm=PhysioEngine.simulatePhysics(r.snapshot,AppState.state.hw).dist;let gap=now-(+r.lastTimestamp||now);if(gap<0){RunAcc.lastPhysioTs=now;restored='PAUSED'}if(restored==='RUNNING'&&gap>10000)this._pendingInterruptionGap=Math.max(0,gap);else AppState.state.runStatus=restored==='RUNNING'?'RUNNING':'PAUSED';this.updateI18n();this.updateUIDataOnly();this._updateBatteryUI();needs=false}else AppState.state.fabMode='NORMAL'}catch(e){console.error('v77 init fallback',e)}if(needs){this.updateI18n();this.recalc()}this.setFabMode('NORMAL');this._updateBatteryUI()};
+  AP.persistRun=function(immediate=false){if(AppState.state.isDraggingFuel||AppState.state.accumMs<=0)return Promise.resolve(false);if(!this._persistEpoch)this._persistEpoch=LiveStateDB.getEpoch();let issue=()=>{if(this._persistEpoch!==LiveStateDB.getEpoch())return Promise.resolve(false);let sc=this._persistedSampleCount||0,rc=this._persistedRawSplitCount||0,samples=RunAcc.samples.slice(sc),raw=RunAcc.rawSplits.slice(rc),meta=this._buildLiveMeta();meta.sampleCount=RunAcc.samples.length;meta.rawSplitCount=RunAcc.rawSplits.length;let e=this._persistEpoch;return LiveStateDB.append(meta,samples,raw,e).then(ok=>{if(ok&&e===this._persistEpoch){this._persistedSampleCount=sc+samples.length;this._persistedRawSplitCount=rc+raw.length}return ok})};if(immediate){clearTimeout(this.runPersistTimer);this.runPersistTimer=null;this._lastRunPersist=Date.now();return issue()}let wait=Math.max(0,4000-(Date.now()-(this._lastRunPersist||0)));if(this.runPersistTimer)return Promise.resolve(false);this.runPersistTimer=setTimeout(()=>{this.runPersistTimer=null;this._lastRunPersist=Date.now();issue()},wait);return Promise.resolve(true)};
+  AP._unlockAfterInterruption=async function(){try{AudioApp.unlock();VoiceApp.unlock();document.getElementById('wakeLockVideo')?.play()?.catch(()=>{});await navigator.wakeLock?.request?.('screen')}catch(_){}};
+  AP._digestOffline=function(ms){let sec=Math.max(0,ms)/1000,transfer=Math.min(Math.max(0,+RunAcc.undigestedCarbs||0),(1.5/60)*sec);RunAcc.undigestedCarbs=Math.max(0,RunAcc.undigestedCarbs-transfer);RunAcc.currentGlycogen=Math.min(RunAcc.maxGlycogen,RunAcc.currentGlycogen+transfer);RunAcc.lastPhysioTs=Date.now()};
+  AP._showInterruptionModal=function(gapMs){gapMs=Math.max(0,+gapMs||0);this._pendingInterruptionGap=0;BgWorker.postMessage('STOP');AudioApp.stop();VoiceApp.clear();AppState.state.runStatus='PAUSED';this.forceEvictModals();let p=AppState.state.profiles[AppState.state.activeP],d=i18n[p.lang]||i18n.zh,mins=Math.floor(gapMs/60000),secs=Math.floor(gapMs%60000/1000);document.getElementById('intText').textContent=p.lang==='zh'?`偵測到系統中斷，您離開了 ${mins} ${d.unit_mn} ${secs} s。請問這段時間您是...`:`System interrupt detected. You were gone for ${mins} ${d.unit_mn} ${secs} s. During this time, did you...`;let keep=document.getElementById('btnIntKeep'),brk=document.getElementById('btnIntBreak'),clean=()=>{keep.onclick=null;brk.onclick=null;this.closeModal('interruptionModal')};keep.onclick=async()=>{clean();await this._unlockAfterInterruption();await this._simulateCatchUp(gapMs)};brk.onclick=async()=>{clean();await this._unlockAfterInterruption();let pC=PhysioEngine.sanitize(p),sec=gapMs/1000;this._digestOffline(gapMs);RunAcc.curHr=pC.rHR+(Math.max(pC.rHR,RunAcc.curHr)-pC.rHR)*Math.exp(-sec/120);RunAcc.curLac=1+(Math.max(1,RunAcc.curLac)-1)*Math.exp(-sec/180);RunAcc.lastPauseMs=Date.now()-gapMs;RunAcc.pauseCount++;AppState.state.runStatus='PAUSED';this._updateBatteryUI();this.flushProfileData();await this.persistRun(true)};this.openModal('interruptionModal');this._updateBatteryUI()};
+  AP._simulateCatchUp=function(gapMs){return new Promise(resolve=>{BgWorker.postMessage('STOP');AudioApp.stop();AppState.state.isTimeWarping=true;let ov=document.getElementById('warpOverlay');ov?.classList.add('show');let target=Math.min(Math.max(0,+gapMs||0),Math.max(0,(AppState.state.profiles[AppState.state.activeP].tTime*60000)-AppState.state.accumMs)),remain=target,lastTs=RunAcc.samples.length&&Number.isFinite(+RunAcc.samples.at(-1).ts)?+RunAcc.samples.at(-1).ts:Date.now()-target,oldNow=Date.now;this._digestOffline(target);let frame=()=>{let n=0;while(remain>0&&n<50000){let dt=Math.min(1000,remain);this._sampleTsOverride=lastTs+(target-remain)+dt;this._processPhysicsTick(dt);remain-=dt;n+=dt;if(AppState.state.accumMs>=AppState.state.profiles[AppState.state.activeP].tTime*60000){remain=0;break}}if(remain>0)return requestAnimationFrame(frame);this._sampleTsOverride=null;AppState.state.isTimeWarping=false;ov?.classList.remove('show');AppState.state.runStatus='RUNNING';this._updateBatteryUI();this.charts.drawAll();this.updateStatsBlock('rAct',AppState.state.accumMs,true);this.persistRun(true).finally(()=>{BgWorker.postMessage('START');let p=AppState.state.profiles[AppState.state.activeP];if(p.beatOn)AudioApp.start(RunAcc.lastGaitBPM||120);resolve()})};requestAnimationFrame(frame)})};
+  // Ensure catch-up sample timestamps are monotonic rather than Date.now() duplicates.
+  const basePhysics=AP._processPhysicsTick;AP._processPhysicsTick=function(dt){let before=RunAcc.samples?.length||0,r=basePhysics.call(this,dt);if(this._sampleTsOverride&&RunAcc.samples?.length>before)RunAcc.samples[RunAcc.samples.length-1].ts=this._sampleTsOverride;return r};
+  AP.openHistory=async function(options={}){this.charts.teardown();let hc=document.getElementById('historyContent'),sel=document.getElementById('histRunnerSelect'),p=AppState.state.profiles[AppState.state.activeP],d=i18n[p.lang]||i18n.zh;sel.innerHTML='';Object.keys(AppState.state.profiles).forEach(k=>sel.add(new Option(k,k)));if(!sel.value)sel.value=AppState.state.activeP;let target=sel.value;hc.innerHTML=`<div class="empty-state">${d.history_loading}</div>`;this.openModal('historyModal');if(options.migrate)await LegacyMigration.run();let data=await DB.getHist(target);if(sel.value!==target)return;let met=(AppState.state.profiles[target]||p).unit!=='imperial',tot=data.reduce((a,x)=>a+(+x.distKm||0),0),cal=data.reduce((a,x)=>a+(+x.fCal||0)+(+x.cCal||0),0),now=new Date(),mon=data.filter(x=>{let q=new Date(x.date);return q.getMonth()===now.getMonth()&&q.getFullYear()===now.getFullYear()}).reduce((a,x)=>a+(+x.distKm||0),0);hc.innerHTML=`<div class="hist-dash"><div class="hist-d-box"><div class="hist-d-val">${(met?tot:tot/1.609344).toFixed(1)}</div><div class="hist-d-lbl">${d.lbl_tot_dist}</div></div><div class="hist-d-box"><div class="hist-d-val">${(met?mon:mon/1.609344).toFixed(1)}</div><div class="hist-d-lbl">${d.lbl_mon_dist}</div></div><div class="hist-d-box" style="grid-column:span 2"><div class="hist-d-val">${Math.round(cal)}</div><div class="hist-d-lbl">${d.lbl_tot_cal} (kcal)</div></div></div>`;if(!data.length){hc.insertAdjacentHTML('beforeend',`<div class="empty-state">${d.hist_empty}</div>`);return}data.forEach((h,i)=>{let sp=met?+h.avgSpdKm||0:(+h.avgSpdKm||0)/1.609344,di=met?+h.distKm||0:(+h.distKm||0)/1.609344;hc.insertAdjacentHTML('beforeend',`<div class="hist-item" data-action="open-hist-detail" data-idx="${i}"><div class="h-date">${new Date(h.date).toLocaleString(p.lang==='zh'?'zh-TW':'en-US')}</div><div class="h-row"><span>${Utils.fmtTime(h.ms)} / ${di.toFixed(2)}${met?'km':'mi'} (${sp.toFixed(1)})</span><span>${Math.round((+h.fCal||0)+(+h.cCal||0))} kcal</span></div></div>`)})};
+  // Preserve history export context and reset it when the summary closes.
+  const oldBind=AP.bindEvents;AP.bindEvents=function(){oldBind.call(this);document.body.addEventListener('click',e=>{let t=e.target.closest('[data-action="open-hist-detail"]');if(!t)return;let runner=document.getElementById('histRunnerSelect').value;DB.getHist(runner).then(data=>{let h=data[+t.dataset.idx];if(!h)return;this.summaryHistoryDate=h.date;this.summaryHistorySamples=Array.isArray(h.samples)?h.samples:null;this.summaryHistoryArchived=!!h.archived})},{capture:true})};
+  const oldCanvas=AP.makeSummaryCanvas;AP.makeSummaryCanvas=function(){let old=AppState.state.activeP;if(this.viewingProfile&&this.viewingProfile.name&&AppState.state.profiles[this.viewingProfile.name])AppState.state.activeP=this.viewingProfile.name;let q=oldCanvas.call(this);AppState.state.activeP=old;return q};
+  const oldSaveRunner=AP.saveRunnerModal;AP.saveRunnerModal=function(){let old=AppState.state.activeP,newName=document.getElementById('rmName').value.trim(),renaming=newName&&newName!==old&&!document.querySelector('.runner-tag.add-new')?.classList.contains('active');let r=oldSaveRunner.call(this);if(renaming)RunProShuffleKeys.move(old,newName);return r};
+  const oldDelete=AP.deleteRunner;AP.deleteRunner=function(){let n=document.querySelector('.runner-tag.active')?.dataset.name;let r=oldDelete.call(this);if(n)RunProShuffleKeys.remove(n);return r};
+  const oldEnd=AP.endWorkout;AP.endWorkout=function(){clearTimeout(this.runPersistTimer);this.runPersistTimer=null;this._persistEpoch=(this._persistEpoch||LiveStateDB.getEpoch())+1;let histSamples=RunAcc.samples,histRaw=RunAcc.rawSplits;let r=oldEnd.call(this);LiveStateDB.clear();this._legacyRunKeys().forEach(k=>{try{localStorage.removeItem(k)}catch(_){}});return r};
+  window.addEventListener('pagehide',()=>window.App?.persistRun?.(true));document.addEventListener('visibilitychange',()=>{if(document.hidden){window.App?.flushProfileData?.();window.App?.persistRun?.(true)}});document.addEventListener('freeze',()=>{window.App?.flushProfileData?.();window.App?.persistRun?.(true)});
 
 document.addEventListener('DOMContentLoaded',()=>{
       let splash=document.getElementById('splashScreen');if(splash){splash.style.opacity='0';splash.style.visibility='hidden';splash.style.pointerEvents='none';setTimeout(()=>splash.style.display='none',50);}
@@ -5810,18 +5875,34 @@ const RPM_TRACKS=[
 {t:"Pop Dance Magic",b:120,u:"https://assets.mixkit.co/music/8/8.mp3"},
 {t:"Hip Hop Workout",b:95,u:"https://assets.mixkit.co/music/203/203.mp3"},
 {t:"Summer Party EDM",b:128,u:"https://assets.mixkit.co/music/396/396.mp3"},
-{t:"Aggressive Synthwave",b:110,u:"https://assets.mixkit.co/music/902/902.mp3"}
+{t:"Aggressive Synthwave",b:110,u:"https://assets.mixkit.co/music/902/902.mp3"},
+{t:"警廣 全國交通網",b:0,u:"https://stream.pbs.gov.tw/live/PBS/playlist.m3u8",type:"hls",freq:"FM 104.9"},
+{t:"城市廣播 台北健康",b:0,u:"http://fm901.cityfm.tw:8080/901.mp3",type:"mp3",freq:"FM 90.1"},
+{t:"城市廣播 台中",b:0,u:"http://fm929.cityfm.tw:8080/929.mp3",type:"mp3",freq:"FM 92.9"},
+{t:"城市廣播 台南知音",b:0,u:"http://fm971.cityfm.tw:8080/971.mp3",type:"mp3",freq:"FM 97.1"},
+{t:"古典音樂台 Family",b:0,u:"http://59.120.88.155:8000/live.mp3",type:"mp3",freq:"FM 97.7"},
+{t:"Radio Paradise",b:0,u:"http://stream.radioparadise.com/mp3-128",type:"mp3",freq:"US MP3 CDN"},
+{t:"SomaFM Indie Pop Rocks!",b:0,u:"https://ice5.somafm.com/indiepop-128-mp3",type:"mp3",freq:"US MP3 CDN"},
+{t:"ABC Radio Australia",b:0,u:"https://mediaserviceslive.akamaized.net/hls/live/2038267/raeng/index.m3u8",type:"hls",freq:"AU Akamai HLS"}
 ];
-const RPM_CREDITS=["alex-morgan • Pixabay Content License","Audiogreen • Pixabay Content License","Ivan Selivanov (Audioknap) • Pixabay Content License","echoes_of_lumen • Pixabay Content License","Exventry • Pixabay Content License","conner • Pixabay Content License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License"];
-let cur=-1,playing=false,muted=false,repeatOne=false,lastVol=.8,timer=null,resumeVisible=false,resumeRun=false,preflightPinned=false,lastProfile='';
+const RPM_CREDITS=[
+"alex-morgan • Pixabay Content License","Audiogreen • Pixabay Content License","Ivan Selivanov (Audioknap) • Pixabay Content License","echoes_of_lumen • Pixabay Content License","Exventry • Pixabay Content License","conner • Pixabay Content License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License","Mixkit Stock Music Free License",
+'FM live stream','FM live stream','FM live stream','FM live stream','FM live stream','FM live stream','FM live stream','FM live stream'
+];
+let cur=-1,playing=false,muted=false,repeatOne=false,lastVol=.8,timer=null,resumeVisible=false,resumeRun=false,preflightPinned=false,lastProfile='',hls=null,hlsPromise=null,sourceToken=0,playIntent=false,hiddenAt=0,loadTimer=null,mediaFailed=false,lastSwitchAt=0,streamWaiting=false,streamStableTimer=null,streamRetryTimer=null,streamStartedAt=0;
 const host=document.getElementById('runMusicHost'),panel=document.getElementById('runMusicPanel'),audio=document.getElementById('rpmAudio'),icon=document.getElementById('rpmPlayIcon'),track=document.getElementById('rpmTrack'),muteIcon=document.getElementById('rpmMuteIcon'),modeBtn=document.getElementById('rpmMode'),modeIcon=document.getElementById('rpmModeIcon'),vol=document.getElementById('rpmVol');if(!host)return;
 
 let creditRevealTimer=null;
 track.innerHTML='<span class="rpm-title"></span><span class="rpm-credit-viewport"><span class="rpm-credit"></span></span>';
 const trackTitle=track.querySelector('.rpm-title'),trackCredit=track.querySelector('.rpm-credit');
+function isStream(item){return !!item&&(item.type==='hls'||item.type==='stream'||/\.m3u8(?:$|\?)/i.test(item.u)||item.b===0)}
+function displayTitle(item){return item?(item.t+(isStream(item)&&!/ \(ON AIR\)$/.test(item.t)?' (ON AIR)':'')):''}
 function prepareTrackText(){
+ const item=cur>=0?RPM_TRACKS[cur]:null,nextTitle=item?displayTitle(item):'',nextCredit=cur>=0?(RPM_CREDITS[cur]||''):'';
+ /* v83: a live stream keeps its settled two-line label across buffering/reconnects. */
+ if(item&&isStream(item)&&track.classList.contains('rpm-credit-ready')&&trackTitle.textContent===nextTitle&&trackCredit.textContent===nextCredit)return;
  clearTimeout(creditRevealTimer);track.classList.remove('rpm-credit-ready');trackCredit.classList.remove('rpm-marquee');
- if(cur>=0){trackTitle.textContent=RPM_TRACKS[cur].t;trackCredit.textContent=RPM_CREDITS[cur]||''}else{trackTitle.textContent='';trackCredit.textContent=''}
+ trackTitle.textContent=nextTitle;trackCredit.textContent=nextCredit;
  void track.offsetWidth;
  creditRevealTimer=setTimeout(()=>{track.classList.add('rpm-credit-ready');requestAnimationFrame(()=>{
   const viewport=trackCredit.parentElement,w=trackCredit.scrollWidth,v=viewport.clientWidth;
@@ -5832,27 +5913,54 @@ function prepareTrackText(){
   ['pointerdown','pointerup','click','input','change','keydown'].forEach(type=>panel.addEventListener(type,e=>e.stopPropagation()));
 const PLAY='<path d="M8 5v14l11-7z"/>',PAUSE='<path d="M7 5h3v14H7V5zm7 0h3v14h-3V5z"/>',ON='<path d="M3 9h4l5-4v14l-5-4H3V9z"/><path d="M15 8.25a5 5 0 0 1 0 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M17.7 5.7a8.5 8.5 0 0 1 0 12.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',OFF='<path d="M3 9h4l5-4v14l-5-4H3V9z"/><path d="M4 3L21 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>';
 function profile(){try{return String(AppState.state.activeP||'Runner')}catch(e){return'Runner'}}
-function key(){return 'runpro_music_shuffle_v3_'+encodeURIComponent(profile())}
-function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
-function loadBag(){let data=null;try{data=JSON.parse(localStorage.getItem(key())||'null')}catch(e){}let valid=data&&Array.isArray(data.bag)&&data.bag.every(i=>Number.isInteger(i)&&i>=0&&i<RPM_TRACKS.length)&&new Set(data.bag).size===data.bag.length;return valid?data:{bag:[],last:-1}}
-function saveBag(d){try{localStorage.setItem(key(),JSON.stringify(d))}catch(e){}}
-function nextIndex(){let d=loadBag();if(!d.bag.length){d.bag=shuffle(Array.from({length:RPM_TRACKS.length},(_,i)=>i));if(d.bag.length>1&&d.bag[0]===d.last)[d.bag[0],d.bag[1]]=[d.bag[1],d.bag[0]]}let i=d.bag.shift();d.last=i;saveBag(d);return i}
+function key(){return 'runpro_music_shuffle_v81_'+encodeURIComponent(profile())}
+function trackId(item){return item&&item.u||''}
+function librarySig(){return RPM_TRACKS.map(trackId).join('|')}
+function hashText(v){let h=2166136261>>>0;for(let i=0;i<v.length;i++){h^=v.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(16).padStart(8,'0')}
+function payload(d){return JSON.stringify({v:81,seed:d.seed>>>0,bag:d.bag,last:d.last,library:d.library,repeatOne:!!d.repeatOne,fixedTrack:d.fixedTrack||''})}
+function seal(d){d.check=hashText(payload(d));return d}
+function valid(d){return !!d&&typeof d==='object'&&d.v===81&&typeof d.check==='string'&&d.check===hashText(payload(d))}
+function freshSeed(){try{let a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]||0x6d2b79f5}catch(e){return ((Date.now()^Math.floor(performance.now()*1000))>>>0)||0x6d2b79f5}}
+function rng(d){d.seed=(d.seed+0x6D2B79F5)>>>0;let t=d.seed;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return ((t^(t>>>14))>>>0)/4294967296}
+function shuffle(a,d){for(let i=a.length-1;i>0;i--){let j=Math.floor(rng(d)*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function loadBag(){let data=null;try{data=JSON.parse(localStorage.getItem(key())||'null')}catch(e){};if(!valid(data))data={v:81,seed:freshSeed(),bag:[],last:'',library:'',repeatOne:false,fixedTrack:''};let ids=RPM_TRACKS.map(trackId),validIds=new Set(ids),seen=new Set();data.bag=(Array.isArray(data.bag)?data.bag:[]).filter(id=>validIds.has(id)&&!seen.has(id)&&(seen.add(id),true));for(const id of ids)if(!seen.has(id)&&id!==data.last)data.bag.push(id);if(data.library!==hashText(librarySig()))data.bag=shuffle(data.bag,data);data.library=hashText(librarySig());if(!validIds.has(data.last))data.last='';if(!validIds.has(data.fixedTrack))data.fixedTrack='';return data}
+function saveBag(d){try{localStorage.setItem(key(),JSON.stringify(seal(d)))}catch(e){}}
+function rememberMode(){let d=loadBag();d.repeatOne=repeatOne;d.fixedTrack=repeatOne&&cur>=0?trackId(RPM_TRACKS[cur]):'';saveBag(d)}
+function restoreMode(){let d=loadBag();repeatOne=!!d.repeatOne;if(repeatOne&&d.fixedTrack){let i=RPM_TRACKS.findIndex(x=>trackId(x)===d.fixedTrack);if(i>=0)cur=i}}
+function nextIndex(){let d=loadBag();if(!d.bag.length){d.bag=shuffle(RPM_TRACKS.map(trackId),d);if(d.bag.length>1&&d.bag[0]===d.last)[d.bag[0],d.bag[1]]=[d.bag[1],d.bag[0]]}let id=d.bag.shift();d.last=id;saveBag(d);let i=RPM_TRACKS.findIndex(x=>trackId(x)===id);return i>=0?i:0}
 function syncProfile(){let p=profile();if(p===lastProfile)return;lastProfile=p;cur=-1;audio.pause();audio.removeAttribute('src');audio.load();playing=false;icon.innerHTML=PLAY;trackTitle.textContent='';trackCredit.textContent='';track.classList.remove('rpm-credit-ready')}
 audio.volume=.8;
 function isPreflight(){try{return AppState.state.runStatus==='PRE_FLIGHT'}catch(e){return preflightPinned}}
 function hide(force=false){if(isPreflight())return;if(preflightPinned&&!force)return;clearTimeout(timer);timer=null;host.classList.remove('music-open');panel.setAttribute('aria-hidden','true')}
-function reset(){if(preflightPinned)return;clearTimeout(timer);timer=setTimeout(()=>hide(false),5000)}
+function reset(){if(preflightPinned)return;clearTimeout(timer);if(cur>=0&&isStream(RPM_TRACKS[cur])&&streamWaiting)return;timer=setTimeout(()=>hide(false),5000)}
 function show(pinned=false){syncProfile();if(typeof AppState!=='undefined'&&AppState.state.runStatus==='STOPPED')return;if(pinned){preflightPinned=true;clearTimeout(timer)}host.classList.add('music-open');panel.setAttribute('aria-hidden','false');prepareTrackText();if(!preflightPinned)reset()}
-function primePausedTrack(){syncProfile();if(cur<0)cur=nextIndex();audio.pause();audio.preload='auto';if(audio.src!==RPM_TRACKS[cur].u)audio.src=RPM_TRACKS[cur].u;audio.load();playing=false;icon.innerHTML=PLAY;prepareTrackText()}
-  function play(i){syncProfile();recoverMusicAudio();cur=i;audio.src=RPM_TRACKS[i].u;trackTitle.textContent=RPM_TRACKS[i].t;trackCredit.textContent=RPM_CREDITS[i]||'';if(host.classList.contains('music-open'))prepareTrackText();audio.play().then(()=>{playing=true;icon.innerHTML=PAUSE}).catch(()=>{playing=false;icon.innerHTML=PLAY})}
-function toggle(){ensureMusicGraph();syncProfile();if(playing){audio.pause();playing=false;icon.innerHTML=PLAY}else if(cur>=0){recoverMusicAudio();audio.play().then(()=>{playing=true;icon.innerHTML=PAUSE}).catch(()=>{})}else play(nextIndex())}
-function next(){ensureMusicGraph();play(nextIndex())}
+function destroyHls(){if(hls){try{hls.destroy()}catch(e){}hls=null}}
+function ensureHls(){if(window.Hls)return Promise.resolve(window.Hls);if(hlsPromise)return hlsPromise;hlsPromise=new Promise((resolve,reject)=>{let s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/hls.js@latest';s.async=true;s.onload=()=>resolve(window.Hls);s.onerror=()=>reject(new Error('HLS loader failed'));document.head.appendChild(s)}).catch(e=>{hlsPromise=null;throw e});return hlsPromise}
+function clearStreamTimers(){clearTimeout(streamStableTimer);clearTimeout(streamRetryTimer);streamStableTimer=null;streamRetryTimer=null}
+function onSourceReady(token,item){if(token!==sourceToken||!playIntent)return false;clearTimeout(loadTimer);clearTimeout(streamStableTimer);mediaFailed=false;streamWaiting=false;playing=true;streamStartedAt=Date.now();icon.innerHTML=PAUSE;applyMusicVolume();reset();return true}
+function confirmStreamStable(token,item){if(token!==sourceToken||!playIntent||!isStream(item))return;clearTimeout(streamStableTimer);streamStableTimer=setTimeout(()=>{if(token!==sourceToken||!playIntent||audio.paused||audio.readyState<2)return;onSourceReady(token,item)},1800)}
+function markStreamBuffering(){if(cur<0||!isStream(RPM_TRACKS[cur])||!playIntent)return;clearTimeout(timer);timer=null;clearTimeout(streamStableTimer);streamWaiting=true;playing=true;icon.innerHTML=PAUSE;show(false)}
+function scheduleStreamRecovery(){if(cur<0||!isStream(RPM_TRACKS[cur])||!playIntent)return;markStreamBuffering();clearTimeout(streamRetryTimer);const token=sourceToken;streamRetryTimer=setTimeout(()=>{if(token===sourceToken&&playIntent&&streamWaiting)setTrackSource(RPM_TRACKS[cur],true).catch(()=>{})},6500)}
+async function setTrackSource(item,autoplay=false){
+ const token=++sourceToken;clearTimeout(loadTimer);clearStreamTimers();destroyHls();mediaFailed=false;streamWaiting=isStream(item);playing=false;icon.innerHTML=autoplay?PAUSE:PLAY;if(streamWaiting){clearTimeout(timer);timer=null;show(false)}
+ try{audio.pause();audio.removeAttribute('crossorigin');audio.removeAttribute('src');audio.load()}catch(e){}
+ const fail=reason=>{if(token!==sourceToken)return;clearTimeout(loadTimer);streamWaiting=false;mediaFailed=true;playing=false;icon.innerHTML=PLAY;reset();console.warn('Audio source failed',displayTitle(item),reason||'unknown')};
+ const start=async()=>{if(token!==sourceToken)throw new Error('stale source');if(!autoplay){streamWaiting=false;return true}try{await audio.play();if(isStream(item)){confirmStreamStable(token,item);return true}return onSourceReady(token,item)}catch(e){fail(e);throw e}};
+ loadTimer=setTimeout(()=>fail('15 second load timeout'),15000);
+ if(isStream(item)&&item.type==='hls'&&!audio.canPlayType('application/vnd.apple.mpegurl')){
+  try{const H=await ensureHls();if(token!==sourceToken)return false;if(!H||!H.isSupported())throw new Error('HLS unsupported');hls=new H({enableWorker:true,lowLatencyMode:false,backBufferLength:15,maxBufferLength:20});hls.loadSource(item.u);hls.attachMedia(audio);return await new Promise((resolve,reject)=>{hls.on(H.Events.MANIFEST_PARSED,async()=>{if(token!==sourceToken)return resolve(false);try{resolve(await start())}catch(e){reject(e)}});hls.on(H.Events.ERROR,(ev,data)=>{if(token!==sourceToken||!data.fatal)return;if(data.type===H.ErrorTypes.NETWORK_ERROR){try{hls.startLoad()}catch(e){fail(e);reject(e)}}else if(data.type===H.ErrorTypes.MEDIA_ERROR){try{hls.recoverMediaError()}catch(e){fail(e);reject(e)}}else{fail(data.details);destroyHls();reject(new Error(data.details||'fatal HLS error'))}})})}catch(e){fail(e);throw e}
+ }else{audio.src=item.u;audio.preload=isStream(item)?'none':'auto';audio.load();if(!autoplay){clearTimeout(loadTimer);streamWaiting=false;return true}return start()}
+}
+function primePausedTrack(){syncProfile();if(cur<0)cur=nextIndex();playIntent=false;setTrackSource(RPM_TRACKS[cur],false).catch(()=>{});playing=false;icon.innerHTML=PLAY;prepareTrackText()}
+function play(i){syncProfile();cur=i;lastSwitchAt=Date.now();playIntent=true;trackTitle.textContent=displayTitle(RPM_TRACKS[i]);trackCredit.textContent=RPM_CREDITS[i]||'';prepareTrackText();setTrackSource(RPM_TRACKS[i],true).catch(()=>{})}
+function toggle(){syncProfile();if(playing&&!audio.paused){playIntent=false;audio.pause();playing=false;icon.innerHTML=PLAY}else if(cur>=0){playIntent=true;setTrackSource(RPM_TRACKS[cur],true).catch(()=>{})}else play(nextIndex())}
+function next(){play(nextIndex())}
 function syncModeUI(){modeBtn.classList.toggle('mode-repeat',repeatOne);modeBtn.setAttribute('aria-pressed',repeatOne?'true':'false');modeBtn.setAttribute('aria-label',repeatOne?'Repeat current track; press for shuffle':'Shuffle; press to repeat current track');modeIcon.innerHTML=repeatOne?'<path d="M7 6h9.17l-1.59-1.59L16 3l4 4-4 4-1.42-1.41L16.17 8H7a3 3 0 0 0-3 3v1H2v-1a5 5 0 0 1 5-5zm10 12H7.83l1.59 1.59L8 21l-4-4 4-4 1.42 1.41L7.83 16H17a3 3 0 0 0 3-3v-1h2v1a5 5 0 0 1-5 5z"/>':'<path d="M16.5 3H21v4.5l-1.75-1.75-3.7 3.7-1.4-1.4 3.7-3.7L16.5 3zM3 6h3.2c2.25 0 3.5 1.05 4.75 2.7l4.1 5.4c.85 1.12 1.7 1.9 3.15 1.9H19v-2.5l3 3.5-3 3.5V18h-.8c-2.25 0-3.5-1.05-4.75-2.7l-4.1-5.4C8.5 8.78 7.65 8 6.2 8H3V6zm0 10h3.2c1.1 0 1.82-.45 2.5-1.18l1.25 1.65C8.92 17.48 7.78 18 6.2 18H3v-2z"/>';}
-function toggleMode(){repeatOne=!repeatOne;syncModeUI()}
-function pauseSmart(kind){if(playing){audio.pause();playing=false;icon.innerHTML=PLAY;if(kind==='visibility')resumeVisible=true;if(kind==='run')resumeRun=true}}
-function resumeSmart(kind){if(typeof AppState==='undefined'||AppState.state.runStatus!=='RUNNING'||cur<0)return;if((kind==='visibility'&&!resumeVisible)||(kind==='run'&&!resumeRun))return;audio.play().then(()=>{playing=true;icon.innerHTML=PAUSE;resumeVisible=false;resumeRun=false}).catch(()=>{})}
+function toggleMode(){repeatOne=!repeatOne;rememberMode();syncModeUI()}
+function pauseSmart(kind){if(playIntent||playing||!audio.paused){const item=cur>=0?RPM_TRACKS[cur]:null;if(item&&isStream(item)&&kind!=='manual'){playIntent=true;playing=true;icon.innerHTML=PAUSE;return}if(kind==='visibility'){resumeVisible=playIntent||playing;hiddenAt=Date.now()}if(kind==='run')resumeRun=playIntent||playing;audio.pause();clearStreamTimers();streamWaiting=false;playing=false;if(kind==='manual')playIntent=false;icon.innerHTML=PLAY;reset()}}
+function resumeSmart(kind){if(typeof AppState==='undefined'||AppState.state.runStatus!=='RUNNING'||cur<0)return;if((kind==='visibility'&&!resumeVisible)||(kind==='run'&&!resumeRun))return;playIntent=true;setTrackSource(RPM_TRACKS[cur],true).then(()=>{resumeVisible=false;resumeRun=false;hiddenAt=0}).catch(()=>{})}
 host.addEventListener('click',e=>{if(e.target.closest('#runMusicPanel'))return;if(host.classList.contains('music-open')){if(!isPreflight())hide(true)}else show(false)});host.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();if(host.classList.contains('music-open')){if(!isPreflight())hide(true)}else show(false)}});
-['pointerdown','pointermove','touchstart','touchmove','input','change'].forEach(x=>panel.addEventListener(x,e=>{if(e.target.closest('button,input'))reset()},{passive:true}));panel.addEventListener('click',e=>{e.stopPropagation();if(e.target.closest('#rpmTrack')){if(!isPreflight())hide(true);return}if(e.target.closest('button,input')||e.target.closest('#rpmTransport,#rpmVolume')){reset();return}if(e.target===panel&&!isPreflight())hide(true)});modeBtn.onclick=toggleMode;document.getElementById('rpmPlay').onclick=toggle;document.getElementById('rpmNext').onclick=next;audio.onended=()=>{if(repeatOne&&cur>=0){audio.currentTime=0;recoverMusicAudio();audio.play().then(()=>{playing=true;icon.innerHTML=PAUSE}).catch(()=>{playing=false;icon.innerHTML=PLAY})}else next()};syncModeUI();
+['pointerdown','pointermove','touchstart','touchmove','input','change'].forEach(x=>panel.addEventListener(x,e=>{if(e.target.closest('button,input'))reset()},{passive:true}));panel.addEventListener('click',e=>{e.stopPropagation();if(e.target.closest('#rpmTrack')){if(!isPreflight())hide(true);return}if(e.target.closest('button,input')||e.target.closest('#rpmTransport,#rpmVolume')){reset();return}if(e.target===panel&&!isPreflight())hide(true)});restoreMode();modeBtn.onclick=toggleMode;document.getElementById('rpmPlay').onclick=toggle;document.getElementById('rpmNext').onclick=next;audio.onended=()=>{if(repeatOne&&cur>=0)setTrackSource(RPM_TRACKS[cur],true).catch(()=>{});else next()};syncModeUI();
 /* v21 stable native playback path.
    IMPORTANT: do not route remote media through a GainNode. Several playlist origins
    are cross-origin and a suspended/CORS-blocked Web Audio graph can make Play silent.
@@ -5862,13 +5970,10 @@ host.addEventListener('click',e=>{if(e.target.closest('#runMusicPanel'))return;i
        except mute. Route the media element through a GainNode only on iOS. */
     const isIOSWebKit=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
     let musicCtx=null,musicSource=null,musicGain=null,musicGraphFailed=false;
-    if(isIOSWebKit)audio.crossOrigin='anonymous';
+    /* v81: mixed-origin radio streams use native audio without crossOrigin. */
     function clampVolume(v){v=Number(v);return Number.isFinite(v)?Math.max(0,Math.min(1,v)):0}
     function effectiveVolume(){return isMusicMuted?0:clampVolume(maxMusicVolume)*clampVolume(duckFactor)}
-    function ensureMusicGraph(){
-      if(!isIOSWebKit||musicGraphFailed)return false;
-      try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return false;if(!musicCtx)musicCtx=new AC();if(!musicSource){musicSource=musicCtx.createMediaElementSource(audio);musicGain=musicCtx.createGain();musicSource.connect(musicGain);musicGain.connect(musicCtx.destination)}if(musicCtx.state==='suspended')musicCtx.resume().catch(()=>{});return true}
-      catch(err){musicGraphFailed=true;console.warn('iOS music gain unavailable',err);return false}
+    function ensureMusicGraph(){return false
     }
     function syncVolumeUI(){vol.value=Math.round(maxMusicVolume*100);vol.style.setProperty('--rpm-volume-pct',Math.round(maxMusicVolume*100)+'%');muteIcon.innerHTML=(isMusicMuted||maxMusicVolume<=.0001)?OFF:ON;document.getElementById('rpmMute').setAttribute('aria-label',(isMusicMuted||maxMusicVolume<=.0001)?'Unmute':'Mute')}
     function applyMusicVolume(){const target=effectiveVolume();applyingVolume=true;const graph=ensureMusicGraph();try{audio.defaultMuted=false;if(graph&&musicGain){audio.muted=false;audio.volume=1;musicGain.gain.cancelScheduledValues(musicCtx.currentTime);musicGain.gain.setTargetAtTime(target,musicCtx.currentTime,.012)}else{audio.muted=target<=.0001;audio.volume=target}}catch(e){}applyingVolume=false;syncVolumeUI()}
@@ -5893,11 +5998,13 @@ host.addEventListener('click',e=>{if(e.target.closest('#runMusicPanel'))return;i
     else if(!isIOSWebKit&&duckFactor===1&&audio.volume>0){maxMusicVolume=clampVolume(audio.volume);lastVol=maxMusicVolume;isMusicMuted=false}
     syncVolumeUI();
   });
-  audio.addEventListener('error',()=>{playing=false;icon.innerHTML=PLAY;console.warn('Music media error',audio.error?.code||'unknown')});
-  audio.addEventListener('pause',()=>{if(!audio.ended){playing=false;icon.innerHTML=PLAY}});
-  audio.addEventListener('playing',()=>{playing=true;icon.innerHTML=PAUSE;applyMusicVolume()});
+  audio.addEventListener('error',()=>{if(!sourceToken)return;mediaFailed=true;console.warn('Media error',audio.error?.code||'unknown');if(cur>=0&&isStream(RPM_TRACKS[cur])&&playIntent){playing=true;icon.innerHTML=PAUSE;scheduleStreamRecovery()}else{clearStreamTimers();streamWaiting=false;playing=false;icon.innerHTML=PLAY;reset()}});
+  audio.addEventListener('waiting',markStreamBuffering);audio.addEventListener('stalled',scheduleStreamRecovery);
+  audio.addEventListener('canplay',()=>{if(cur>=0&&isStream(RPM_TRACKS[cur])&&playIntent)confirmStreamStable(sourceToken,RPM_TRACKS[cur])});
+  audio.addEventListener('pause',()=>{if(audio.ended)return;const item=cur>=0?RPM_TRACKS[cur]:null;if(item&&isStream(item)&&playIntent){playing=true;icon.innerHTML=PAUSE;scheduleStreamRecovery()}else{playing=false;if(!playIntent)icon.innerHTML=PLAY}});
+  audio.addEventListener('playing',()=>{if(cur<0)return;const item=RPM_TRACKS[cur];if(isStream(item))confirmStreamStable(sourceToken,item);else onSourceReady(sourceToken,item)});
   maxMusicVolume=.8;isMusicMuted=false;applyMusicVolume();
-  document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseSmart('visibility');else setTimeout(()=>resumeSmart('visibility'),100)});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseSmart('visibility');else setTimeout(()=>resumeSmart('visibility'),250)});window.addEventListener('pageshow',e=>{if(e.persisted)setTimeout(()=>resumeSmart('visibility'),250)});window.addEventListener('pagehide',()=>{hiddenAt=Date.now()});
 let stateBound=false;
 function bindRunState(){
  if(stateBound||typeof AppState==='undefined'||typeof AppState.subscribe!=='function')return false;
@@ -5906,7 +6013,7 @@ function bindRunState(){
  AppState.subscribe('runStatus',x=>{
   if(x==='PRE_FLIGHT'){preflightPinned=true;show(true);primePausedTrack();requestAnimationFrame(()=>{host.classList.add('music-open');panel.setAttribute('aria-hidden','false');prepareTrackText()})}
   else if(x==='RUNNING'){if(preflightPinned){preflightPinned=false;hide(true)}setTimeout(()=>{resumeSmart('run');resumeSmart('visibility')},100)}
-  else if(x==='PAUSED'){pauseSmart('run')}
+  else if(x==='PAUSED'){pauseSmart('run');show(true)}
   else if(x==='STOPPED'){preflightPinned=false;pauseSmart('run');hide(true)}
  });
  if(AppState.state&&AppState.state.runStatus==='PRE_FLIGHT'){preflightPinned=true;show(true);primePausedTrack()}
@@ -5914,5 +6021,5 @@ function bindRunState(){
 }
 bindRunState();
 if(!stateBound){let attempts=0,t=setInterval(()=>{attempts++;if(bindRunState()||attempts>100)clearInterval(t)},50)}
-window.RunProMusic={show:()=>show(false),hide:()=>hide(true),play:()=>{if(!playing)toggle()},pause:()=>pauseSmart('manual'),next,setRepeat:v=>{repeatOne=!!v;syncModeUI()},setDuck:setMusicDuck,setMaxVolume:setMaxMusicVolume,getMaxVolume:()=>maxMusicVolume};})();</script></body>
+window.RunProMusic={show:()=>show(false),hide:()=>hide(true),play:()=>{if(!playing)toggle()},pause:()=>pauseSmart('manual'),next,setRepeat:v=>{repeatOne=!!v;rememberMode();syncModeUI()},setDuck:setMusicDuck,setMaxVolume:setMaxMusicVolume,getMaxVolume:()=>maxMusicVolume,getState:()=>({cur,trackUrl:cur>=0?trackId(RPM_TRACKS[cur]):'',repeatOne,volume:maxMusicVolume,muted:isMusicMuted,playIntent,resumeVisible,resumeRun}),restoreState:s=>{if(!s||typeof s!=='object')return;let idx=Number.isInteger(s.cur)?s.cur:-1;if(s.trackUrl){const found=RPM_TRACKS.findIndex(x=>trackId(x)===s.trackUrl);if(found>=0)idx=found}if(idx>=0&&idx<RPM_TRACKS.length){cur=idx;primePausedTrack()}repeatOne=!!s.repeatOne;playIntent=!!s.playIntent;resumeVisible=!!s.resumeVisible;resumeRun=!!s.resumeRun;rememberMode();syncModeUI();if(Number.isFinite(+s.volume))setMaxMusicVolume(+s.volume)}};})();</script></body>
 </html>
