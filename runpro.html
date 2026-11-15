@@ -8,7 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Pro Treadmill OS - Tactical Edition (v95.0 / runpro_v85 FM state machine)</title>
+    <title>Pro Treadmill OS - Tactical Edition (v95.0 / runpro_v86 FM reference transport)</title>
     <style>
         :root { 
             --bg-dark: #000000; --bg-card: #111111; --bg-overlay: rgba(0,0,0,0.85); 
@@ -1589,7 +1589,7 @@
 </div>
 
 <script>
-/** PRO TREADMILL OS (TACTICAL EDITION v95.0 / runpro_v85 FM state machine) */
+/** PRO TREADMILL OS (TACTICAL EDITION v95.0 / runpro_v86 FM reference transport) */
 
 const i18n = {
     zh: {
@@ -5973,31 +5973,36 @@ function destroyHls(){if(hls){try{hls.destroy()}catch(e){}hls=null}}
 function ensureHls(){if(window.Hls)return Promise.resolve(window.Hls);if(hlsPromise)return hlsPromise;hlsPromise=new Promise((resolve,reject)=>{let s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/hls.js@latest';s.async=true;s.onload=()=>resolve(window.Hls);s.onerror=()=>reject(new Error('HLS loader failed'));document.head.appendChild(s)}).catch(e=>{hlsPromise=null;throw e});return hlsPromise}
 function clearStreamTimers(){clearTimeout(streamStableTimer);clearTimeout(streamRetryTimer);streamStableTimer=null;streamRetryTimer=null}
 function setStreamStatus(status,item=cur>=0?RPM_TRACKS[cur]:null){streamStatus=status;if(item&&isStream(item)){show(preflightPinned);prepareTrackText(true)}}
-function failAndAdvance(token,item,reason){if(token!==sourceToken||manualStreamStop)return;clearTimeout(loadTimer);clearTimeout(failureTimer);mediaFailed=true;streamWaiting=false;playing=false;icon.innerHTML=PLAY;setStreamStatus('failed',item);console.warn('Stream connection failed',item?.t,reason||'unknown');failureTimer=setTimeout(()=>{if(token===sourceToken&&!manualStreamStop)next()},500)}
+function failAndAdvance(token,item,reason){if(token!==sourceToken||manualStreamStop)return;clearTimeout(loadTimer);clearTimeout(failureTimer);mediaFailed=true;streamWaiting=false;playing=false;icon.innerHTML=PLAY;setStreamStatus('failed',item);console.warn('Stream connection failed',item?.t,reason||'unknown');failureTimer=setTimeout(()=>{if(token===sourceToken&&!manualStreamStop&&streamStatus==='failed')next()},500)}
 function onSourceReady(token,item){if(token!==sourceToken||!playIntent)return false;clearTimeout(loadTimer);clearTimeout(streamStableTimer);mediaFailed=false;streamWaiting=false;playing=true;streamStartedAt=Date.now();setStreamStatus('playing',item);icon.innerHTML=PAUSE;applyMusicVolume();reset();return true}
 function confirmStreamStable(token,item){if(token!==sourceToken||!playIntent||!isStream(item))return;clearTimeout(streamStableTimer);streamStableTimer=setTimeout(()=>{if(token!==sourceToken||!playIntent||audio.paused||audio.readyState<2)return;onSourceReady(token,item)},1800)}
 function markStreamBuffering(){if(cur<0||!isStream(RPM_TRACKS[cur])||!playIntent)return;clearTimeout(timer);timer=null;clearTimeout(streamStableTimer);streamWaiting=true;playing=true;icon.innerHTML=PAUSE;show(false)}
 function scheduleStreamRecovery(){if(cur<0||!isStream(RPM_TRACKS[cur])||!playIntent)return;markStreamBuffering();clearTimeout(streamRetryTimer);const token=sourceToken;streamRetryTimer=setTimeout(()=>{if(token===sourceToken&&playIntent&&streamWaiting)setTrackSource(RPM_TRACKS[cur],true).catch(()=>{})},6500)}
 async function setTrackSource(item,autoplay=false){
- const token=++sourceToken;clearTimeout(loadTimer);clearStreamTimers();destroyHls();mediaFailed=false;manualStreamStop=false;streamWaiting=isStream(item);playing=false;icon.innerHTML=autoplay?PAUSE:PLAY;if(streamWaiting){setStreamStatus('connecting',item);clearTimeout(timer);timer=null;show(false)}
+ const token=++sourceToken;clearTimeout(loadTimer);clearTimeout(failureTimer);clearStreamTimers();destroyHls();mediaFailed=false;manualStreamStop=false;playIntent=!!autoplay;streamWaiting=isStream(item);playing=false;icon.innerHTML=autoplay?PAUSE:PLAY;
  internalMediaReset=true;
- try{audio.pause();audio.removeAttribute('crossorigin');audio.removeAttribute('src');audio.load()}catch(e){}
- setTimeout(()=>{if(token===sourceToken)internalMediaReset=false},250);
- const fail=reason=>{if(isStream(item))failAndAdvance(token,item,reason);else{if(token!==sourceToken)return;clearTimeout(loadTimer);mediaFailed=true;playing=false;icon.innerHTML=PLAY;reset();console.warn('Audio source failed',displayTitle(item),reason)}};
- const start=async()=>{if(token!==sourceToken||manualStreamStop)throw new Error('stale source');if(!autoplay){streamWaiting=false;return true}try{await audio.play();if(isStream(item)){confirmStreamStable(token,item);return true}return onSourceReady(token,item)}catch(e){fail(e);throw e}};
- loadTimer=setTimeout(()=>fail('20 second load timeout'),20000);
+ try{audio.oncanplay=null;audio.onerror=null;audio.pause();audio.src=''}catch(e){}
+ setTimeout(()=>{if(token===sourceToken)internalMediaReset=false},0);
+ if(isStream(item)){setStreamStatus('connecting',item);clearTimeout(timer);timer=null;show(preflightPinned)}
+ const begin=()=>{if(token!==sourceToken||manualStreamStop||!playIntent)return;audio.play().catch(e=>{if(e?.name!=='AbortError'&&e?.name!=='NotAllowedError')failAndAdvance(token,item,e)})};
+ const ready=()=>{if(token!==sourceToken||manualStreamStop)return;streamWaiting=false;if(playIntent)begin()};
+ const failed=reason=>{if(token!==sourceToken||manualStreamStop)return;if(isStream(item))failAndAdvance(token,item,reason);else{mediaFailed=true;playing=false;icon.innerHTML=PLAY;reset()}};
  if(isStream(item)&&item.type==='hls'&&!audio.canPlayType('application/vnd.apple.mpegurl')){
-  try{const H=await ensureHls();if(token!==sourceToken)return false;if(!H||!H.isSupported())throw new Error('HLS unsupported');hls=new H({enableWorker:true,lowLatencyMode:false,backBufferLength:30,maxBufferLength:45,maxBufferHole:.5});hls.loadSource(item.u);hls.attachMedia(audio);return await new Promise((resolve,reject)=>{hls.on(H.Events.MANIFEST_PARSED,async()=>{if(token!==sourceToken)return resolve(false);try{resolve(await start())}catch(e){reject(e)}});hls.on(H.Events.ERROR,(ev,data)=>{if(token!==sourceToken||manualStreamStop||!data.fatal)return;if(data.type===H.ErrorTypes.NETWORK_ERROR){scheduleStreamRecovery();try{hls.startLoad()}catch(e){fail(e)}}else if(data.type===H.ErrorTypes.MEDIA_ERROR){try{hls.recoverMediaError()}catch(e){fail(e)}}else{fail(data.details)}})})}catch(e){fail(e);throw e}
- }else{
-  if(isStream(item))audio.crossOrigin='anonymous';else audio.removeAttribute('crossorigin');
-  audio.src=item.u;audio.preload='auto';audio.load();
-  if(!autoplay){clearTimeout(loadTimer);streamWaiting=false;return true}
-  if(isStream(item)) return await new Promise((resolve,reject)=>{
-    audio.oncanplay=async()=>{if(token!==sourceToken||manualStreamStop)return resolve(false);audio.oncanplay=null;audio.onerror=null;try{resolve(await start())}catch(e){reject(e)}};
-    audio.onerror=()=>{if(token!==sourceToken||manualStreamStop)return;audio.oncanplay=null;audio.onerror=null;failAndAdvance(token,item,'media error');resolve(false)};
-  });
-  return start();
+  try{
+   const H=await ensureHls();if(token!==sourceToken)return false;if(!H||!H.isSupported())throw new Error('HLS unsupported');
+   hls=new H();hls.loadSource(item.u);hls.attachMedia(audio);
+   hls.on(H.Events.MANIFEST_PARSED,()=>{if(token!==sourceToken)return;ready()});
+   hls.on(H.Events.ERROR,(e,data)=>{if(token!==sourceToken||manualStreamStop||!data.fatal)return;failed(data.details||'fatal HLS error')});
+   return true;
+  }catch(e){failed(e);return false}
  }
+ /* Match fm.html: assign source, then use canplay/error. Do not add a connection timeout. */
+ audio.crossOrigin='anonymous';
+ audio.oncanplay=()=>{audio.oncanplay=null;ready()};
+ audio.onerror=()=>{audio.oncanplay=null;audio.onerror=null;failed(audio.error?.code||'media error')};
+ audio.src=item.u;
+ if(!isStream(item)){audio.preload='auto';if(autoplay)begin()}
+ return true;
 }
 function primePausedTrack(){syncProfile();if(cur<0)cur=nextIndex();playIntent=false;setTrackSource(RPM_TRACKS[cur],false).catch(()=>{});playing=false;icon.innerHTML=PLAY;prepareTrackText()}
 function play(i){syncProfile();cur=i;lastSwitchAt=Date.now();playIntent=true;trackTitle.textContent=displayTitle(RPM_TRACKS[i]);trackCredit.textContent=RPM_CREDITS[i]||'';prepareTrackText();setTrackSource(RPM_TRACKS[i],true).catch(()=>{})}
@@ -6046,11 +6051,11 @@ host.addEventListener('click',e=>{if(e.target.closest('#runMusicPanel'))return;i
     else if(!isIOSWebKit&&duckFactor===1&&audio.volume>0){maxMusicVolume=clampVolume(audio.volume);lastVol=maxMusicVolume;isMusicMuted=false}
     syncVolumeUI();
   });
-  audio.addEventListener('error',()=>{if(!sourceToken||internalMediaReset||typeof audio.onerror==='function')return;const item=cur>=0?RPM_TRACKS[cur]:null;if(item&&isStream(item)&&playIntent)failAndAdvance(sourceToken,item,audio.error?.code||'media error');else{mediaFailed=true;playing=false;icon.innerHTML=PLAY;reset()}});
-  audio.addEventListener('waiting',markStreamBuffering);audio.addEventListener('stalled',scheduleStreamRecovery);
-  audio.addEventListener('canplay',()=>{if(cur>=0&&isStream(RPM_TRACKS[cur])&&playIntent)confirmStreamStable(sourceToken,RPM_TRACKS[cur])});
-  audio.addEventListener('pause',()=>{if(audio.ended||internalMediaReset)return;const item=cur>=0?RPM_TRACKS[cur]:null;if(item&&isStream(item)&&playIntent){playing=true;icon.innerHTML=PAUSE;scheduleStreamRecovery()}else{playing=false;if(!playIntent)icon.innerHTML=PLAY}});
-  audio.addEventListener('playing',()=>{if(cur<0)return;const item=RPM_TRACKS[cur];if(isStream(item))confirmStreamStable(sourceToken,item);else onSourceReady(sourceToken,item)});
+  audio.addEventListener('error',()=>{if(!sourceToken||internalMediaReset||typeof audio.onerror==='function')return;const item=cur>=0?RPM_TRACKS[cur]:null;if(item&&isStream(item)&&playIntent)failAndAdvance(sourceToken,item,audio.error?.code||'media error')});
+  audio.addEventListener('waiting',()=>{if(cur>=0&&isStream(RPM_TRACKS[cur])&&playIntent){streamWaiting=true;playing=true;icon.innerHTML=PAUSE;setStreamStatus('connecting',RPM_TRACKS[cur])}});
+  audio.addEventListener('stalled',()=>{if(cur>=0&&isStream(RPM_TRACKS[cur])&&playIntent){streamWaiting=true;playing=true;icon.innerHTML=PAUSE}});
+  audio.addEventListener('pause',()=>{if(audio.ended||internalMediaReset)return;if(!playIntent){playing=false;icon.innerHTML=PLAY}});
+  audio.addEventListener('playing',()=>{if(cur<0||!playIntent)return;const item=RPM_TRACKS[cur];onSourceReady(sourceToken,item)});
   maxMusicVolume=.8;isMusicMuted=false;applyMusicVolume();
   document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseSmart('visibility');else setTimeout(()=>resumeSmart('visibility'),250)});window.addEventListener('pageshow',e=>{if(e.persisted)setTimeout(()=>resumeSmart('visibility'),250)});window.addEventListener('pagehide',()=>{hiddenAt=Date.now()});
 let stateBound=false;
