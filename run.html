@@ -6212,5 +6212,36 @@ window.RunProMusic={enterPreflight:()=>{preflightPinned=true;clearTimeout(timer)
   };
 })();
 </script>
+
+<script id="runpro-frozen-period-restoration">
+/* Restore the start-of-run frozen period without changing the current UI, data, or bilingual voice library. */
+(() => {
+  if (window.__RUNPRO_FROZEN_PERIOD_FIXED__) return;
+  window.__RUNPRO_FROZEN_PERIOD_FIXED__ = true;
+  const originalSpeakText = VoiceApp.speakText.bind(VoiceApp);
+  VoiceApp.speakText = function(txt, pri, langCode, cb = null) {
+    const isPreflightIntro = AppState.state.runStatus === 'PRE_FLIGHT' && Number(pri) === 3 && typeof cb === 'function';
+    if (!isPreflightIntro) return originalSpeakText(txt, pri, langCode, cb);
+    const startedAt = Date.now();
+    const textLength = String(txt || '').replace(/\s+/g, '').length;
+    const minimumFrozenMs = Math.max(2400, Math.min(18000, textLength * (String(langCode).toLowerCase().startsWith('zh') ? 145 : 72)));
+    let released = false;
+    const release = () => {
+      if (released) return;
+      const wait = Math.max(0, minimumFrozenMs - (Date.now() - startedAt));
+      setTimeout(() => {
+        if (released) return;
+        released = true;
+        if (AppState.state.runStatus === 'PRE_FLIGHT') cb();
+      }, wait);
+    };
+    try { window.RunProMusic?.enterPreflight?.(); } catch (_) {}
+    const result = originalSpeakText(txt, pri, langCode, release);
+    setTimeout(release, Math.max(minimumFrozenMs + 12000, 24000));
+    return result;
+  };
+})();
+</script>
+
 </body>
 </html>
