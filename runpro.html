@@ -4280,7 +4280,7 @@ class AppController {
         document.getElementById('rmVoiceSelect').addEventListener('change',e=>{let p=AppState.state.profiles[AppState.state.activeP],lang=document.querySelector('#segLang .seg-btn.active')?.dataset.val||p.lang;if(lang==='zh')p.voiceZh=e.target.value;else p.voiceEn=e.target.value;clearTimeout(this.saveDebounceTimer);this.flushProfileData();VoiceApp.clear();});
         document.getElementById('rmStyleSelect').addEventListener('change',e=>{let p=AppState.state.profiles[AppState.state.activeP],style=TTS_STYLES[e.target.value||'default']||TTS_STYLES.default,rate=style.rate==null?1.08:style.rate,slider=document.getElementById('rmRateSlider'),out=document.getElementById('rmRateValue');p.ttsStyle=e.target.value||'default';p.ttsRate=rate;slider.value=rate.toFixed(2);out.textContent=`${rate.toFixed(2)}x`;clearTimeout(this.saveDebounceTimer);this.flushProfileData();VoiceApp.clear();this.previewTtsPreference(80);});
         document.getElementById('rmRateSlider').addEventListener('input',e=>{let rate=Utils.clamp(parseFloat(e.target.value)||1.08,.5,2),p=AppState.state.profiles[AppState.state.activeP];p.ttsRate=rate;document.getElementById('rmRateValue').textContent=`${rate.toFixed(2)}x`;this.saveData();VoiceApp.clear();this.previewTtsPreference(250);});
-        document.getElementById('histRunnerSelect').addEventListener('change', e => { const name=e.target.value; if(!name||!AppState.state.profiles[name]||name===AppState.state.activeP)return; clearTimeout(this.saveDebounceTimer); this.flushProfileData(); AppState.state.activeP=name; this.saveData(); this.updateI18n(); this.syncDialsToProfile(); this.updateUIDataOnly(); this.recalc(true); this.openHistory({migrate:false}); });
+        document.getElementById('histRunnerSelect').addEventListener('change', e => { const name=e.target.value; if(!name||!AppState.state.profiles[name]||name===AppState.state.activeP)return; clearTimeout(this.saveDebounceTimer); this.flushProfileData(); VoiceApp.clear(); this.charts.teardown(); AppState.state.activeP=name; clearTimeout(this.saveDebounceTimer); this.flushProfileData(); this.updateI18n(); this.syncDialsToProfile(); this.updateUIDataOnly(); this.recalc(true); this.renderRunnerSelector(); this.populateRunnerForm(AppState.state.profiles[name]); this.refreshRunnerInsightPanel(); this.updatePhaseAllocationUI(); this.refreshPhaseAutoUI(); this.openHistory({migrate:false}); });
         BgWorker.onmessage = e => { if (AppState.state.runStatus === 'RUNNING') { this.logicTick(e.data.dt); } };
     }
     
@@ -6180,6 +6180,33 @@ window.RunProMusic={enterPreflight:()=>{preflightPinned=true;clearTimeout(timer)
       return ok;
     })().finally(()=>{recovery=null});
     return recovery;
+  };
+})();
+</script>
+
+<script id="runpro-enhanced-history-v8-profile-sync">
+(() => {
+  const P=AppController.prototype, baseClose=P.closeModal;
+  P.syncOuterProfileFromActive=function(){
+    const name=AppState.state.activeP, profile=AppState.state.profiles[name];
+    if(!profile)return false;
+    clearTimeout(this.saveDebounceTimer);
+    this.renderRunnerSelector();
+    this.populateRunnerForm(profile);
+    this.refreshRunnerInsightPanel();
+    this.updateI18n();
+    this.syncDialsToProfile();
+    this.updateUIDataOnly();
+    this.recalc(true);
+    this.updatePhaseAllocationUI();
+    this.refreshPhaseAutoUI();
+    this.flushProfileData();
+    return document.querySelector('.runner-tag.active')?.dataset.name===name && document.getElementById('rmName')?.value===profile.name;
+  };
+  P.closeModal=function(id){
+    const result=baseClose.call(this,id);
+    if(id==='historyModal')requestAnimationFrame(()=>this.syncOuterProfileFromActive());
+    return result;
   };
 })();
 </script>
