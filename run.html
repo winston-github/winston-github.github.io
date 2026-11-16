@@ -5944,7 +5944,7 @@ const RPM_CREDITS=[
 'FM live stream','FM live stream','FM live stream','FM live stream','FM live stream','FM live stream','FM live stream','FM live stream'
 ];
 let cur=-1,playing=false,muted=false,repeatOne=false,lastVol=.8,timer=null,resumeVisible=false,resumeRun=false,preflightPinned=false,lastProfile='',hls=null,hlsPromise=null,sourceToken=0,playIntent=false,hiddenAt=0,loadTimer=null,mediaFailed=false,lastSwitchAt=0,streamWaiting=false,streamStableTimer=null,streamRetryTimer=null,streamStartedAt=0,internalMediaReset=false,manualStreamStop=false,streamStatus="idle",failureTimer=null;
-const host=document.getElementById('runMusicHost'),panel=document.getElementById('runMusicPanel'),audio=document.getElementById('rpmAudio'),icon=document.getElementById('rpmPlayIcon'),track=document.getElementById('rpmTrack'),muteIcon=document.getElementById('rpmMuteIcon'),modeBtn=document.getElementById('rpmMode'),modeIcon=document.getElementById('rpmModeIcon'),vol=document.getElementById('rpmVol');if(!host)return;
+const host=document.getElementById('runMusicHost'),panel=document.getElementById('runMusicPanel'),nativeAudio=document.getElementById('rpmAudio'),gainAudio=new Audio(),icon=document.getElementById('rpmPlayIcon'),track=document.getElementById('rpmTrack'),muteIcon=document.getElementById('rpmMuteIcon'),modeBtn=document.getElementById('rpmMode'),modeIcon=document.getElementById('rpmModeIcon'),vol=document.getElementById('rpmVol');if(!host)return;let audio=nativeAudio;gainAudio.preload='none';gainAudio.playsInline=true;
 
 let creditRevealTimer=null;
 track.innerHTML='<span class="rpm-title"></span><span class="rpm-credit-viewport"><span class="rpm-credit"></span></span>';
@@ -5999,6 +5999,7 @@ function confirmStreamStable(token,item){if(token!==sourceToken||!playIntent||!i
 function markStreamBuffering(){if(cur<0||!isStream(RPM_TRACKS[cur])||!playIntent)return;clearTimeout(timer);timer=null;clearTimeout(streamStableTimer);streamWaiting=true;playing=true;icon.innerHTML=PAUSE;show(false)}
 function scheduleStreamRecovery(){if(cur<0||!isStream(RPM_TRACKS[cur])||!playIntent)return;markStreamBuffering();clearTimeout(streamRetryTimer);const token=sourceToken;streamRetryTimer=setTimeout(()=>{if(token===sourceToken&&playIntent&&streamWaiting)setTrackSource(RPM_TRACKS[cur],true).catch(()=>{})},6500)}
 async function setTrackSource(item,autoplay=false){
+ const wanted=(isIOSWebKit&&!isStream(item))?gainAudio:nativeAudio;if(audio!==wanted){try{audio.pause();audio.removeAttribute('src');audio.load()}catch(e){}audio=wanted} 
  const token=++sourceToken;clearTimeout(loadTimer);clearTimeout(failureTimer);clearStreamTimers();destroyHls();mediaFailed=false;manualStreamStop=false;playIntent=!!autoplay;streamWaiting=isStream(item);playing=false;icon.innerHTML=autoplay?PAUSE:PLAY;
  internalMediaReset=true;
  try{audio.oncanplay=null;audio.onerror=null;audio.pause();audio.src=''}catch(e){}
@@ -6033,7 +6034,7 @@ function toggleMode(){repeatOne=!repeatOne;rememberMode();syncModeUI()}
 function pauseSmart(kind){if(playIntent||playing||!audio.paused){const item=cur>=0?RPM_TRACKS[cur]:null;if(item&&isStream(item)&&kind!=='manual'){playIntent=true;playing=true;icon.innerHTML=PAUSE;return}if(kind==='visibility'){resumeVisible=playIntent||playing;hiddenAt=Date.now()}if(kind==='run')resumeRun=playIntent||playing;audio.pause();clearStreamTimers();streamWaiting=false;playing=false;if(kind==='manual')playIntent=false;icon.innerHTML=PLAY;reset()}}
 function resumeSmart(kind){if(typeof AppState==='undefined'||AppState.state.runStatus!=='RUNNING'||cur<0)return;if((kind==='visibility'&&!resumeVisible)||(kind==='run'&&!resumeRun))return;playIntent=true;setTrackSource(RPM_TRACKS[cur],true).then(()=>{resumeVisible=false;resumeRun=false;hiddenAt=0}).catch(()=>{})}
 host.addEventListener('click',e=>{if(e.target.closest('#runMusicPanel'))return;if(host.classList.contains('music-open')){if(!isPreflight())hide(true)}else show(false)});host.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();if(host.classList.contains('music-open')){if(!isPreflight())hide(true)}else show(false)}});
-['pointerdown','pointermove','touchstart','touchmove','input','change'].forEach(x=>panel.addEventListener(x,e=>{if(e.target.closest('button,input'))reset()},{passive:true}));panel.addEventListener('click',e=>{e.stopPropagation();if(e.target.closest('#rpmTrack')){if(!isPreflight())hide(true);return}if(e.target.closest('button,input')||e.target.closest('#rpmTransport,#rpmVolume')){reset();return}if(e.target===panel&&!isPreflight())hide(true)});restoreMode();modeBtn.onclick=toggleMode;document.getElementById('rpmPlay').onclick=toggle;document.getElementById('rpmNext').onclick=e=>{e.currentTarget.blur();requestAnimationFrame(()=>e.currentTarget.blur());next()};audio.onended=()=>{if(repeatOne&&cur>=0)setTrackSource(RPM_TRACKS[cur],true).catch(()=>{});else next()};syncModeUI();
+['pointerdown','pointermove','touchstart','touchmove','input','change'].forEach(x=>panel.addEventListener(x,e=>{if(e.target.closest('button,input'))reset()},{passive:true}));panel.addEventListener('click',e=>{e.stopPropagation();if(e.target.closest('#rpmTrack')){if(!isPreflight())hide(true);return}if(e.target.closest('button,input')||e.target.closest('#rpmTransport,#rpmVolume')){reset();return}if(e.target===panel&&!isPreflight())hide(true)});restoreMode();modeBtn.onclick=toggleMode;document.getElementById('rpmPlay').onclick=toggle;document.getElementById('rpmNext').onclick=e=>{e.currentTarget.blur();requestAnimationFrame(()=>e.currentTarget.blur());next()};syncModeUI();
 /* v21 stable native playback path.
    IMPORTANT: do not route remote media through a GainNode. Several playlist origins
    are cross-origin and a suspended/CORS-blocked Web Audio graph can make Play silent.
@@ -6046,7 +6047,7 @@ host.addEventListener('click',e=>{if(e.target.closest('#runMusicPanel'))return;i
     /* v81: mixed-origin radio streams use native audio without crossOrigin. */
     function clampVolume(v){v=Number(v);return Number.isFinite(v)?Math.max(0,Math.min(1,v)):0}
     function effectiveVolume(){return isMusicMuted?0:clampVolume(maxMusicVolume)*clampVolume(duckFactor)}
-    function ensureMusicGraph(){return false
+    function ensureMusicGraph(){if(!isIOSWebKit||audio!==gainAudio||musicGraphFailed)return false;try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return false;if(!musicCtx)musicCtx=new AC();if(!musicSource){gainAudio.crossOrigin='anonymous';musicSource=musicCtx.createMediaElementSource(gainAudio);musicGain=musicCtx.createGain();musicSource.connect(musicGain);musicGain.connect(musicCtx.destination)}if(musicCtx.state==='suspended')musicCtx.resume().catch(()=>{});return true}catch(e){musicGraphFailed=true;return false}
     }
     function syncVolumeUI(){vol.value=Math.round(maxMusicVolume*100);vol.style.setProperty('--rpm-volume-pct',Math.round(maxMusicVolume*100)+'%');muteIcon.innerHTML=(isMusicMuted||maxMusicVolume<=.0001)?OFF:ON;document.getElementById('rpmMute').setAttribute('aria-label',(isMusicMuted||maxMusicVolume<=.0001)?'Unmute':'Mute')}
     function applyMusicVolume(){const target=effectiveVolume();applyingVolume=true;const graph=ensureMusicGraph();try{audio.defaultMuted=false;if(graph&&musicGain){audio.muted=false;audio.volume=1;musicGain.gain.cancelScheduledValues(musicCtx.currentTime);musicGain.gain.setTargetAtTime(target,musicCtx.currentTime,.012)}else{audio.muted=target<=.0001;audio.volume=target}}catch(e){}applyingVolume=false;syncVolumeUI()}
@@ -6065,18 +6066,22 @@ host.addEventListener('click',e=>{if(e.target.closest('#runMusicPanel'))return;i
   ['input','change','pointerup','touchend'].forEach(ev=>vol.addEventListener(ev,e=>{
     e.stopPropagation();ensureMusicGraph();setMaxMusicVolume(Number(vol.value)/100);
   },{passive:true}));
-  audio.addEventListener('volumechange',()=>{
+  function bindMusicMediaEvents(el){
+  el.onended=()=>{if(el!==audio)return;if(repeatOne&&cur>=0)setTrackSource(RPM_TRACKS[cur],true).catch(()=>{});else next()};
+  el.addEventListener('volumechange',()=>{if(el!==audio)return;
     if(applyingVolume)return;
     if(audio.muted){isMusicMuted=true}
     else if(!isIOSWebKit&&duckFactor===1&&audio.volume>0){maxMusicVolume=clampVolume(audio.volume);lastVol=maxMusicVolume;isMusicMuted=false}
     syncVolumeUI();
   });
-  audio.addEventListener('error',()=>{if(!sourceToken||internalMediaReset||typeof audio.onerror==='function')return;const item=cur>=0?RPM_TRACKS[cur]:null;if(item&&isStream(item)&&playIntent)failAndAdvance(sourceToken,item,audio.error?.code||'media error')});
-  audio.addEventListener('waiting',()=>{if(cur>=0&&isStream(RPM_TRACKS[cur])&&playIntent){streamWaiting=true;playing=true;icon.innerHTML=PAUSE;setStreamStatus('connecting',RPM_TRACKS[cur])}});
-  audio.addEventListener('stalled',()=>{if(cur>=0&&isStream(RPM_TRACKS[cur])&&playIntent){streamWaiting=true;playing=true;icon.innerHTML=PAUSE}});
-  audio.addEventListener('pause',()=>{if(audio.ended||internalMediaReset)return;if(!playIntent){playing=false;icon.innerHTML=PLAY}});
-  audio.addEventListener('playing',()=>{if(cur<0||!playIntent)return;const item=RPM_TRACKS[cur];onSourceReady(sourceToken,item)});
+  el.addEventListener('error',()=>{if(el!==audio)return;if(!sourceToken||internalMediaReset||typeof audio.onerror==='function')return;const item=cur>=0?RPM_TRACKS[cur]:null;if(item&&isStream(item)&&playIntent)failAndAdvance(sourceToken,item,audio.error?.code||'media error')});
+  el.addEventListener('waiting',()=>{if(el!==audio)return;if(cur>=0&&isStream(RPM_TRACKS[cur])&&playIntent){streamWaiting=true;playing=true;icon.innerHTML=PAUSE;setStreamStatus('connecting',RPM_TRACKS[cur])}});
+  el.addEventListener('stalled',()=>{if(el!==audio)return;if(cur>=0&&isStream(RPM_TRACKS[cur])&&playIntent){streamWaiting=true;playing=true;icon.innerHTML=PAUSE}});
+  el.addEventListener('pause',()=>{if(el!==audio)return;if(audio.ended||internalMediaReset)return;if(!playIntent){playing=false;icon.innerHTML=PLAY}});
+  el.addEventListener('playing',()=>{if(el!==audio)return;if(cur<0||!playIntent)return;const item=RPM_TRACKS[cur];onSourceReady(sourceToken,item)});
   maxMusicVolume=.8;isMusicMuted=false;applyMusicVolume();
+  }
+  bindMusicMediaEvents(nativeAudio);bindMusicMediaEvents(gainAudio);
   document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseSmart('visibility');else setTimeout(()=>resumeSmart('visibility'),250)});window.addEventListener('pageshow',e=>{if(e.persisted)setTimeout(()=>resumeSmart('visibility'),250)});window.addEventListener('pagehide',()=>{hiddenAt=Date.now()});
 let stateBound=false;
 function bindRunState(){
