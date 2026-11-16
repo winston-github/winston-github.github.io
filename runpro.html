@@ -935,6 +935,26 @@
 }
 </style>
 
+
+<style id="runpro-enhanced-history-v2-style">
+#historyModal .modal-box{max-width:520px}.hist-activity-card{margin-bottom:16px}.hist-period-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;padding:3px;background:#171719;border:1px solid #303034;border-radius:10px;margin-bottom:12px}.hist-period-tabs button{min-width:0;border:0;border-radius:8px;background:transparent;color:#8e8e93;padding:9px 3px;font-size:.76rem;font-weight:850;cursor:pointer;touch-action:manipulation}.hist-period-tabs button.active{background:#3a3a3c;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.55)}.hist-activity-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));background:#111;border:1px solid #333;border-radius:14px;overflow:hidden}.hist-metric{min-width:0;min-height:96px;padding:17px 10px 13px;display:flex;align-items:baseline;justify-content:center;align-content:center;flex-wrap:wrap;text-align:center;border-right:1px solid #29292d;border-bottom:1px solid #29292d}.hist-metric:nth-child(2n){border-right:0}.hist-metric:nth-last-child(-n+2){border-bottom:0}.hist-metric strong{font-size:clamp(1.55rem,7vw,2.05rem);line-height:1;font-weight:950;color:#fff;letter-spacing:-.03em}.hist-metric span{margin-left:4px;color:#a8a8ad;font-size:.66rem;font-weight:850}.hist-metric small{flex-basis:100%;margin-top:8px;color:#8e8e93;font-size:.65rem;font-weight:850;letter-spacing:.045em}.hist-metric.hist-energy strong{color:var(--neon-green)}.hist-metric.hist-fat strong{color:var(--neon-yellow)}@media(max-width:360px){.hist-period-tabs button{font-size:.68rem}.hist-metric{min-height:88px;padding-left:6px;padding-right:6px}.hist-metric strong{font-size:1.45rem}.hist-metric small{font-size:.59rem}}
+</style>
+
+<style id="runpro-enhanced-history-v3-style">
+.hist-metric.hist-gap strong{font-size:clamp(1.08rem,4.7vw,1.48rem);letter-spacing:-.02em}.hist-metric.hist-time strong{font-size:clamp(1.02rem,4.5vw,1.42rem);letter-spacing:-.02em}.hist-metric.hist-gap span{font-size:.62rem}@media(max-width:360px){.hist-metric.hist-gap strong,.hist-metric.hist-time strong{font-size:1rem}}
+</style>
+<style id="runpro-enhanced-history-v4-style">
+.hist-metric.hist-time{padding-left:5px!important;padding-right:5px!important;overflow:hidden!important}
+.hist-metric.hist-time strong{display:block!important;width:100%!important;max-width:100%!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:clip!important;font-size:clamp(.72rem,3.65vw,1.42rem)!important;letter-spacing:-.045em!important}
+@media(max-width:360px){.hist-metric.hist-time strong{font-size:clamp(.66rem,3.5vw,1rem)!important}}
+</style>
+
+<style id="runpro-enhanced-history-v5-style">
+.hist-metric.hist-speed strong{font-size:clamp(1.32rem,5.8vw,1.78rem);white-space:nowrap}
+.hist-metric.hist-speed span{font-size:.62rem}
+.hist-activity-grid .hist-metric:nth-last-child(-n+2){border-bottom:0}
+@media(max-width:360px){.hist-metric.hist-speed strong{font-size:1.22rem}.hist-metric.hist-speed span{font-size:.56rem}}
+</style>
 </head>
 <body>
 <svg style="display:none;">
@@ -3683,7 +3703,7 @@ class AppController {
         this.dials.time = new SwipeDial('ds-time', false, val => {
             if (this._syncing || AppState.state.runStatus !== 'STOPPED' || AppState.state.isDraggingFuel) return;
             let p = AppState.state.profiles[AppState.state.activeP];
-            p.tTime=Utils.clamp(val,20,1800);this.updatePhaseAllocationUI();this.saveData();this.recalc();
+            p.tTime=Utils.clamp(val,20,2880);this.updatePhaseAllocationUI();this.saveData();this.recalc();
         });
         this.dials.dist = new SwipeDial('ds-dist', true, val => {
             if (this._syncing || AppState.state.runStatus !== 'STOPPED' || AppState.state.isDraggingFuel) return;
@@ -3694,8 +3714,8 @@ class AppController {
 
     syncDialsToProfile() {
         this._syncing = true; let p = AppState.state.profiles[AppState.state.activeP]; let isMet = p.unit !== 'imperial';
-        this.dials.time.build(20, 1800, p.timeStep || 10); this.dials.time.setValue(p.tTime, true);
-        this.dials.dist.build(1.0, 100.0, 0.1); 
+        this.dials.time.build(20, 2880, p.timeStep || 10); this.dials.time.setValue(p.tTime, true);
+        this.dials.dist.build(1.0, isMet ? 200.0 : 125.0, 0.1); 
         let estD = isMet ? AppState.state.estTotKm : AppState.state.estTotKm / 1.609344;
         this.dials.dist.setValue(estD, true); 
         setTimeout(() => { this._syncing = false; }, 100);
@@ -3843,8 +3863,11 @@ class AppController {
             this.forceEvictModals();
             if(document.getElementById('advSettings').classList.contains('show')) document.querySelector('[data-target="advSettings"]').click();
             if(document.getElementById('hwSettings').classList.contains('show')) document.querySelector('[data-target="hwSettings"]').click();
-            AppState.state.activeTab = 'matrix';
-            AppState.state.isScreenLocked = true; document.getElementById('themeColorMeta').content = '#050505'; appShell.style.pointerEvents = 'none'; 
+            // Preserve the tab on which the user initiated the lock.
+            // Locking Settings must remain on Settings; locking Tactical remains on Tactical.
+            const lockedTab = AppState.state.activeTab;
+            AppState.state.isScreenLocked = true;
+            AppState.state.activeTab = lockedTab; document.getElementById('themeColorMeta').content = '#050505'; appShell.style.pointerEvents = 'none'; 
             statusText.classList.remove('show'); this.resetLockScreenToPristine(); overlay.classList.add('show');
         };
 
@@ -3995,7 +4018,7 @@ class AppController {
             else if(a === 'open-numpad-time') {
                 if (e.target.closest('.dial-btn-mini') || AppState.state.runStatus !== 'STOPPED') return;
                 let hiddenInput = document.createElement('input'); hiddenInput.type = 'text'; hiddenInput.value = p.tTime.toString();
-                hiddenInput.addEventListener('input', (ev) => { let val = parseInt(ev.target.value); if(!isNaN(val)) { p.tTime=Utils.clamp(val,20,1800);this.updatePhaseAllocationUI();this.saveData();this.recalc(); } });
+                hiddenInput.addEventListener('input', (ev) => { let val = parseInt(ev.target.value); if(!isNaN(val)) { p.tTime=Utils.clamp(val,20,2880);this.updatePhaseAllocationUI();this.saveData();this.recalc(); } });
                 Numpad.open(hiddenInput, dStr.lbl_tot_time, false);
             }
             else if(a === 'open-numpad-dist') {
@@ -4802,7 +4825,7 @@ getFabState(p){let state=Number(p.gaitUiState);if([1,2,3,4].includes(state))retu
             VoiceApp.speakText(Utils.PRNG.get(curLang, 'warn_hr', VoiceDB[curLang].warn_hr), 1, ttsLang);
         }
 
-        RunAcc.sec += dtS; if(RunAcc.samples&&RunAcc.samples.length<108000){let rr=AppState.state.snapshot[Math.min(AppState.state.snapshot.length-1,Math.floor(AppState.state.accumMs/60000))]||{};RunAcc.samples.push({s:RunAcc.samples.length,ts:Date.now(),distM:RunAcc.dKm*1000,spd:RunAcc.curSpd||rr.spd||0,inc:RunAcc.curInc||rr.inc||0,hr:RunAcc.curHr||rr.hr||0,pwr:Math.max(0,Math.round((PhysioEngine.sanitize(AppState.state.profiles[AppState.state.activeP]).wKG||70)*9.80665*((RunAcc.curSpd||rr.spd||0)/3.6)*(0.018+Math.max(0,RunAcc.curInc||rr.inc||0)/100)))});} RunAcc.sumSpd += RunAcc.curSpd * dtS; if(RunAcc.curSpd > RunAcc.mxS) RunAcc.mxS = RunAcc.curSpd;
+        RunAcc.sec += dtS; if(RunAcc.samples&&RunAcc.samples.length<172800){let rr=AppState.state.snapshot[Math.min(AppState.state.snapshot.length-1,Math.floor(AppState.state.accumMs/60000))]||{};RunAcc.samples.push({s:RunAcc.samples.length,ts:Date.now(),distM:RunAcc.dKm*1000,spd:RunAcc.curSpd||rr.spd||0,inc:RunAcc.curInc||rr.inc||0,hr:RunAcc.curHr||rr.hr||0,pwr:Math.max(0,Math.round((PhysioEngine.sanitize(AppState.state.profiles[AppState.state.activeP]).wKG||70)*9.80665*((RunAcc.curSpd||rr.spd||0)/3.6)*(0.018+Math.max(0,RunAcc.curInc||rr.inc||0)/100)))});} RunAcc.sumSpd += RunAcc.curSpd * dtS; if(RunAcc.curSpd > RunAcc.mxS) RunAcc.mxS = RunAcc.curSpd;
         RunAcc.sumInc += RunAcc.curInc * dtS; if(RunAcc.curInc > RunAcc.mxI) RunAcc.mxI = RunAcc.curInc;
         
         RunAcc.sumHr += RunAcc.curHr * dtS; RunAcc.sumLac += RunAcc.curLac * dtS; 
@@ -4876,7 +4899,7 @@ getFabState(p){let state=Number(p.gaitUiState);if([1,2,3,4].includes(state))retu
                 }
                 let timeSinceInteraction = Date.now() - this.lastInteraction;
                 if (timeSinceInteraction < 5000 || AppState.state.fabMode !== 'NORMAL') RunAcc.transF[safeM].peekCancelled = true;
-                if (!RunAcc.transF[safeM].peekCancelled) { setTimeout(() => { if (AppState.state.runStatus !== 'RUNNING' || AppState.state.isDraggingFuel) return; RunAcc.transF[safeM].autoPeekActive = true; if (AppState.state.activeTab !== 'matrix') { AppState.state.activeTab = 'matrix'; } else { this.scrollToRow(); } }, 150); } else { this.scrollToRow(); }
+                if (!RunAcc.transF[safeM].peekCancelled) { setTimeout(() => { if (AppState.state.runStatus !== 'RUNNING' || AppState.state.isDraggingFuel || AppState.state.isScreenLocked) return; RunAcc.transF[safeM].autoPeekActive = true; if (AppState.state.activeTab !== 'matrix') { AppState.state.activeTab = 'matrix'; } else { this.scrollToRow(); } }, 150); } else { this.scrollToRow(); }
             }
         }
 
@@ -5685,7 +5708,31 @@ getFabState(p){let state=Number(p.gaitUiState);if([1,2,3,4].includes(state))retu
   AP._simulateCatchUp=function(gapMs){return new Promise(resolve=>{BgWorker.postMessage('STOP');AudioApp.stop();AppState.state.isTimeWarping=true;let ov=document.getElementById('warpOverlay');ov?.classList.add('show');let target=Math.min(Math.max(0,+gapMs||0),Math.max(0,(AppState.state.profiles[AppState.state.activeP].tTime*60000)-AppState.state.accumMs)),remain=target,lastTs=RunAcc.samples.length&&Number.isFinite(+RunAcc.samples.at(-1).ts)?+RunAcc.samples.at(-1).ts:Date.now()-target,oldNow=Date.now;this._digestOffline(target);let frame=()=>{let n=0;while(remain>0&&n<50000){let dt=Math.min(1000,remain);this._sampleTsOverride=lastTs+(target-remain)+dt;this._processPhysicsTick(dt);remain-=dt;n+=dt;if(AppState.state.accumMs>=AppState.state.profiles[AppState.state.activeP].tTime*60000){remain=0;break}}if(remain>0)return requestAnimationFrame(frame);this._sampleTsOverride=null;AppState.state.isTimeWarping=false;ov?.classList.remove('show');AppState.state.runStatus='RUNNING';this._updateBatteryUI();this.charts.drawAll();this.updateStatsBlock('rAct',AppState.state.accumMs,true);this.persistRun(true).finally(()=>{BgWorker.postMessage('START');let p=AppState.state.profiles[AppState.state.activeP];if(p.beatOn)AudioApp.start(RunAcc.lastGaitBPM||120);resolve()})};requestAnimationFrame(frame)})};
   // Ensure catch-up sample timestamps are monotonic rather than Date.now() duplicates.
   const basePhysics=AP._processPhysicsTick;AP._processPhysicsTick=function(dt){let before=RunAcc.samples?.length||0,r=basePhysics.call(this,dt);if(this._sampleTsOverride&&RunAcc.samples?.length>before)RunAcc.samples[RunAcc.samples.length-1].ts=this._sampleTsOverride;return r};
-  AP.openHistory=async function(options={}){this.charts.teardown();let hc=document.getElementById('historyContent'),sel=document.getElementById('histRunnerSelect'),p=AppState.state.profiles[AppState.state.activeP],d=i18n[p.lang]||i18n.zh;sel.innerHTML='';Object.keys(AppState.state.profiles).forEach(k=>sel.add(new Option(k,k)));if(!sel.value)sel.value=AppState.state.activeP;let target=sel.value;hc.innerHTML=`<div class="empty-state">${d.history_loading}</div>`;this.openModal('historyModal');if(options.migrate)await LegacyMigration.run();let data=await DB.getHist(target);if(sel.value!==target)return;let met=(AppState.state.profiles[target]||p).unit!=='imperial',tot=data.reduce((a,x)=>a+(+x.distKm||0),0),cal=data.reduce((a,x)=>a+(+x.fCal||0)+(+x.cCal||0),0),now=new Date(),mon=data.filter(x=>{let q=new Date(x.date);return q.getMonth()===now.getMonth()&&q.getFullYear()===now.getFullYear()}).reduce((a,x)=>a+(+x.distKm||0),0);hc.innerHTML=`<div class="hist-dash"><div class="hist-d-box"><div class="hist-d-val">${(met?tot:tot/1.609344).toFixed(1)}</div><div class="hist-d-lbl">${d.lbl_tot_dist}</div></div><div class="hist-d-box"><div class="hist-d-val">${(met?mon:mon/1.609344).toFixed(1)}</div><div class="hist-d-lbl">${d.lbl_mon_dist}</div></div><div class="hist-d-box" style="grid-column:span 2"><div class="hist-d-val">${Math.round(cal)}</div><div class="hist-d-lbl">${d.lbl_tot_cal} (kcal)</div></div></div>`;if(!data.length){hc.insertAdjacentHTML('beforeend',`<div class="empty-state">${d.hist_empty}</div>`);return}data.forEach((h,i)=>{let sp=met?+h.avgSpdKm||0:(+h.avgSpdKm||0)/1.609344,di=met?+h.distKm||0:(+h.distKm||0)/1.609344;hc.insertAdjacentHTML('beforeend',`<div class="hist-item" data-action="open-hist-detail" data-idx="${i}"><div class="h-date">${new Date(h.date).toLocaleString(p.lang==='zh'?'zh-TW':'en-US')}</div><div class="h-row"><span>${Utils.fmtTime(h.ms)} / ${di.toFixed(2)}${met?'km':'mi'} (${sp.toFixed(1)})</span><span>${Math.round((+h.fCal||0)+(+h.cCal||0))} kcal</span></div></div>`)})};
+  AP.openHistory=async function(options={}){
+    this.charts.teardown();
+    const hc=document.getElementById('historyContent'),sel=document.getElementById('histRunnerSelect');
+    const activeProfile=AppState.state.profiles[AppState.state.activeP];
+    sel.innerHTML='';Object.keys(AppState.state.profiles).forEach(k=>sel.add(new Option(k,k)));sel.value=AppState.state.activeP;
+    const target=sel.value,profile=AppState.state.profiles[target]||activeProfile,d=i18n[profile.lang]||i18n.zh,met=profile.unit!=='imperial';
+    hc.innerHTML=`<div class="empty-state">${d.history_loading}</div>`;this.openModal('historyModal');
+    if(options.migrate)await LegacyMigration.run();
+    const data=await DB.getHist(target);if(sel.value!==target)return;
+    const rows=Array.isArray(data)?data:[],now=new Date(),weekStart=new Date(now);weekStart.setHours(0,0,0,0);weekStart.setDate(now.getDate()-((now.getDay()+6)%7));
+    const tx=profile.lang==='en'?{week:'Week',month:'Month',year:'Year',all:'All Time',distance:'TOTAL DISTANCE',pace:'AVG. PACE',maxGap:'MAX GAP (INC.)',minGap:'AVG. GAP (AVG. INC.)',maxSpd:'MAX SPD',avgSpd:'AVG. SPD',time:'TOTAL TIME',runs:'RUNS',cal:'TOTAL CALORIES',fat:'FAT BURNED'}:{week:'週',month:'月',year:'年',all:'全部',distance:'總跑量',pace:'平均配速',maxGap:'最快等效平地配速 (坡度)',minGap:'平均等效平地配速 (平均坡度)',maxSpd:'最快跑速',avgSpd:'平均跑速',time:'總跑時間',runs:'總跑次數',cal:'總熱量消耗',fat:'總脂肪燃燒'};
+    const validDate=h=>{const dt=new Date(Number(h.date)||h.date);return Number.isFinite(dt.getTime())?dt:null};
+    const within=(h,range)=>{const dt=validDate(h);if(!dt)return range==='all';if(range==='week')return dt>=weekStart&&dt<=now;if(range==='month')return dt.getFullYear()===now.getFullYear()&&dt.getMonth()===now.getMonth();if(range==='year')return dt.getFullYear()===now.getFullYear();return true};
+    const fmtDuration=ms=>{let sec=Math.floor(Math.max(0,Number(ms)||0)/1000);const days=Math.floor(sec/86400);sec%=86400;const hours=Math.floor(sec/3600);sec%=3600;const mins=Math.floor(sec/60),secs=sec%60,parts=[];if(profile.lang==='en'){if(days)parts.push(`${days}d`);if(hours)parts.push(`${hours}h`);if(mins)parts.push(`${mins}m`);if(secs||!parts.length)parts.push(`${secs}s`);}else{if(days)parts.push(`${days}天`);if(hours)parts.push(`${hours}小時`);if(mins)parts.push(`${mins}分鐘`);if(secs||!parts.length)parts.push(`${secs}秒`);}return parts.join(' ');};
+    const fmtPace=(ms,km)=>{const dist=met?km:km/1.609344;if(!(dist>0)||!(ms>0))return'--:--';const sec=Math.round(ms/1000/dist);return`${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`};
+    const fmtGap=spd=>{const shown=met?spd:spd/1.609344;if(!(shown>0))return'--:--';const sec=Math.round(3600/shown);return`${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`};
+    const runPoints=h=>{if(Array.isArray(h.samples)&&h.samples.length)return h.samples.map(x=>({spd:+x.spd||0,inc:+x.inc||0,w:1}));if(Array.isArray(h.rawSplits)&&h.rawSplits.length)return h.rawSplits.map(x=>({spd:+x.spd||0,inc:+x.inc||0,w:Math.max(1,+x.secs||1)}));if(Array.isArray(h.matrix)&&h.matrix.length)return h.matrix.map(x=>({spd:+x.spd||0,inc:+x.inc||0,w:60}));return[]};
+    const card=`<section class="hist-activity-card" id="histActivityCard"><div class="hist-period-tabs" role="tablist"><button type="button" data-hist-range="week" class="active">${tx.week}</button><button type="button" data-hist-range="month">${tx.month}</button><button type="button" data-hist-range="year">${tx.year}</button><button type="button" data-hist-range="all">${tx.all}</button></div><div class="hist-activity-grid"><div class="hist-metric"><strong id="histStatDistance">0.0</strong><span>${met?'KM':'MILES'}</span><small>${tx.distance}</small></div><div class="hist-metric"><strong id="histStatPace">--:--</strong><span>${met?'/KM':'/MILE'}</span><small>${tx.pace}</small></div><div class="hist-metric hist-gap"><strong id="histStatMaxGap">--:-- (-.-%)</strong><span>${met?'/KM':'/MILE'}</span><small>${tx.maxGap}</small></div><div class="hist-metric hist-gap"><strong id="histStatMinGap">--:-- (-.-%)</strong><span>${met?'/KM':'/MILE'}</span><small>${tx.minGap}</small></div><div class="hist-metric hist-speed"><strong id="histStatMaxSpd">-.-</strong><span>${met?'KPH':'MPH'}</span><small>${tx.maxSpd}</small></div><div class="hist-metric hist-speed"><strong id="histStatAvgSpd">-.-</strong><span>${met?'KPH':'MPH'}</span><small>${tx.avgSpd}</small></div><div class="hist-metric hist-time"><strong id="histStatTime">${profile.lang==='en'?'0s':'0秒'}</strong><small>${tx.time}</small></div><div class="hist-metric"><strong id="histStatRuns">0</strong><small>${tx.runs}</small></div><div class="hist-metric hist-energy"><strong id="histStatCalories">0</strong><span>kcal</span><small>${tx.cal}</small></div><div class="hist-metric hist-fat"><strong id="histStatFat">0</strong><span>g</span><small>${tx.fat}</small></div></div></section>`;
+    hc.innerHTML=card;
+    if(!rows.length)hc.insertAdjacentHTML('beforeend',`<div class="empty-state">${d.hist_empty}</div>`);
+    else rows.forEach((h,i)=>{const sp=met?(+h.avgSpdKm||0):(+h.avgSpdKm||0)/1.609344,di=met?(+h.distKm||0):(+h.distKm||0)/1.609344,hasDetail=!!(h.matrix&&h.matrix.length);hc.insertAdjacentHTML('beforeend',`<div class="hist-item" ${hasDetail?`data-action="open-hist-detail" data-idx="${i}"`:''} style="${hasDetail?'':'opacity:.7;cursor:default'}"><div class="h-date">${new Date(h.date).toLocaleString(profile.lang==='zh'?'zh-TW':'en-US')}</div><div class="h-row"><span>${Utils.fmtTime(h.ms)} / ${di.toFixed(2)}${met?'km':'mi'} (${sp.toFixed(1)}${met?'kph':'mph'})</span><span>${Math.round((+h.fCal||0)+(+h.cCal||0))} kcal</span></div></div>`)});
+    const render=range=>{const filtered=rows.filter(h=>within(h,range));let km=0,ms=0,kcal=0,fatCal=0,maxGap=0,minGap=Infinity,maxGapInc=null,minGapInc=null,maxSpd=0,gapWeighted=0,gapWeight=0,incWeighted=0,incWeight=0;filtered.forEach(h=>{km+=+h.distKm||0;ms+=+h.ms||0;fatCal+=+h.fCal||0;kcal+=(+h.fCal||0)+(+h.cCal||0);const pts=runPoints(h);if(pts.length)pts.forEach(x=>{if(x.spd>0){maxSpd=Math.max(maxSpd,Number(x.spd)||0);const gap=Utils.calcGAP(x.spd,x.inc),w=Math.max(0,Number(x.w)||0);if(Number.isFinite(gap)&&gap>0){if(gap>maxGap){maxGap=gap;maxGapInc=Number(x.inc)||0}if(gap<minGap){minGap=gap;minGapInc=Number(x.inc)||0}gapWeighted+=gap*w;gapWeight+=w;incWeighted+=(Number(x.inc)||0)*w;incWeight+=w}}})});const gapSuffix=inc=>inc===null?' (-.-%)':` (${inc.toFixed(1)}%)`;document.getElementById('histStatDistance').textContent=(met?km:km/1.609344).toFixed(1);document.getElementById('histStatPace').textContent=fmtPace(ms,km);document.getElementById('histStatMaxGap').textContent=(maxGap>0?fmtGap(maxGap):'--:--')+gapSuffix(maxGapInc);const avgGap=gapWeight>0?gapWeighted/gapWeight:0,avgGapInc=incWeight>0?incWeighted/incWeight:null;document.getElementById('histStatMinGap').textContent=(avgGap>0?fmtGap(avgGap):'--:--')+gapSuffix(avgGapInc);const speedConv=met?1:1/1.609344,avgSpd=ms>0?km/(ms/3600000):0;document.getElementById('histStatMaxSpd').textContent=maxSpd>0?(maxSpd*speedConv).toFixed(1):'-.-';document.getElementById('histStatAvgSpd').textContent=avgSpd>0?(avgSpd*speedConv).toFixed(1):'-.-';document.getElementById('histStatTime').textContent=fmtDuration(ms);document.getElementById('histStatRuns').textContent=String(filtered.length);document.getElementById('histStatCalories').textContent=Math.round(kcal).toLocaleString(profile.lang==='zh'?'zh-TW':'en-US');document.getElementById('histStatFat').textContent=Math.round(fatCal/9).toLocaleString(profile.lang==='zh'?'zh-TW':'en-US')};
+    if(hc._historyRangeHandler)hc.removeEventListener('click',hc._historyRangeHandler);hc._historyRangeHandler=event=>{const btn=event.target.closest('[data-hist-range]');if(!btn||!hc.contains(btn))return;hc.querySelectorAll('[data-hist-range]').forEach(x=>x.classList.toggle('active',x===btn));render(btn.dataset.histRange)};hc.addEventListener('click',hc._historyRangeHandler);
+    render('week');
+  };
   // Preserve history export context and reset it when the summary closes.
   const oldBind=AP.bindEvents;AP.bindEvents=function(){oldBind.call(this);document.body.addEventListener('click',e=>{let t=e.target.closest('[data-action="open-hist-detail"]');if(!t)return;let runner=document.getElementById('histRunnerSelect').value;DB.getHist(runner).then(data=>{let h=data[+t.dataset.idx];if(!h)return;this.summaryHistoryDate=h.date;this.summaryHistorySamples=Array.isArray(h.samples)?h.samples:null;this.summaryHistoryArchived=!!h.archived})},{capture:true})};
   const oldCanvas=AP.makeSummaryCanvas;AP.makeSummaryCanvas=function(){let old=AppState.state.activeP;if(this.viewingProfile&&this.viewingProfile.name&&AppState.state.profiles[this.viewingProfile.name])AppState.state.activeP=this.viewingProfile.name;let q=oldCanvas.call(this);AppState.state.activeP=old;return q};
@@ -5931,12 +5978,6 @@ const RPM_TRACKS=[
 {t:"Summer Party EDM",b:128,u:"https://assets.mixkit.co/music/396/396.mp3"},
 {t:"Aggressive Synthwave",b:110,u:"https://assets.mixkit.co/music/902/902.mp3"},
 {t:"警廣 全國交通網",b:0,u:"https://stream.pbs.gov.tw/live/PBS/playlist.m3u8",type:"hls",freq:"FM 104.9"},
-{t:"城市廣播 台北健康",b:0,u:"http://fm901.cityfm.tw:8080/901.mp3",type:"mp3",freq:"FM 90.1"},
-{t:"城市廣播 台中",b:0,u:"http://fm929.cityfm.tw:8080/929.mp3",type:"mp3",freq:"FM 92.9"},
-{t:"城市廣播 台南知音",b:0,u:"http://fm971.cityfm.tw:8080/971.mp3",type:"mp3",freq:"FM 97.1"},
-{t:"古典音樂台 Family",b:0,u:"http://59.120.88.155:8000/live.mp3",type:"mp3",freq:"FM 97.7"},
-{t:"Radio Paradise",b:0,u:"http://stream.radioparadise.com/mp3-128",type:"mp3",freq:"US MP3 CDN"},
-{t:"SomaFM Indie Pop Rocks!",b:0,u:"https://ice5.somafm.com/indiepop-128-mp3",type:"mp3",freq:"US MP3 CDN"},
 {t:"ABC Radio Australia",b:0,u:"https://mediaserviceslive.akamaized.net/hls/live/2038267/raeng/index.m3u8",type:"hls",freq:"AU Akamai HLS"}
 ];
 const RPM_CREDITS=[
@@ -6099,5 +6140,43 @@ function bindRunState(){
 }
 bindRunState();
 if(!stateBound){let attempts=0,t=setInterval(()=>{attempts++;if(bindRunState()||attempts>100)clearInterval(t)},50)}
-window.RunProMusic={enterPreflight:()=>{preflightPinned=true;clearTimeout(timer);host.classList.add('music-open');panel.setAttribute('aria-hidden','false');primePausedTrack();prepareTrackText(true)},show:()=>show(false),hide:()=>hide(true),play:()=>{if(!playing)toggle()},pause:()=>pauseSmart('manual'),next,setRepeat:v=>{repeatOne=!!v;rememberMode();syncModeUI()},setDuck:setMusicDuck,setMaxVolume:setMaxMusicVolume,getMaxVolume:()=>maxMusicVolume,getState:()=>({cur,trackUrl:cur>=0?trackId(RPM_TRACKS[cur]):'',repeatOne,volume:maxMusicVolume,muted:isMusicMuted,playIntent,resumeVisible,resumeRun}),restoreState:s=>{if(!s||typeof s!=='object')return;let idx=Number.isInteger(s.cur)?s.cur:-1;if(s.trackUrl){const found=RPM_TRACKS.findIndex(x=>trackId(x)===s.trackUrl);if(found>=0)idx=found}if(idx>=0&&idx<RPM_TRACKS.length){cur=idx;primePausedTrack()}repeatOne=!!s.repeatOne;playIntent=!!s.playIntent;resumeVisible=!!s.resumeVisible;resumeRun=!!s.resumeRun;rememberMode();syncModeUI();if(Number.isFinite(+s.volume))setMaxMusicVolume(+s.volume)}};})();</script></body>
+window.RunProMusic={enterPreflight:()=>{preflightPinned=true;clearTimeout(timer);host.classList.add('music-open');panel.setAttribute('aria-hidden','false');primePausedTrack();prepareTrackText(true)},show:()=>show(false),hide:()=>hide(true),play:()=>{if(!playing)toggle()},pause:()=>pauseSmart('manual'),next,setRepeat:v=>{repeatOne=!!v;rememberMode();syncModeUI()},setDuck:setMusicDuck,setMaxVolume:setMaxMusicVolume,getMaxVolume:()=>maxMusicVolume,getState:()=>({cur,trackUrl:cur>=0?trackId(RPM_TRACKS[cur]):'',repeatOne,volume:maxMusicVolume,muted:isMusicMuted,playIntent,resumeVisible,resumeRun}),restoreState:s=>{if(!s||typeof s!=='object')return;let idx=Number.isInteger(s.cur)?s.cur:-1;if(s.trackUrl){const found=RPM_TRACKS.findIndex(x=>trackId(x)===s.trackUrl);if(found>=0)idx=found}if(idx>=0&&idx<RPM_TRACKS.length){cur=idx;primePausedTrack()}repeatOne=!!s.repeatOne;playIntent=!!s.playIntent;resumeVisible=!!s.resumeVisible;resumeRun=!!s.resumeRun;rememberMode();syncModeUI();if(Number.isFinite(+s.volume))setMaxMusicVolume(+s.volume)}};})();</script>
+<script id="runpro-enhanced-v04-ultra-patch">
+/* v04 ultra-distance hardening: bounded export density and serialized iOS audio recovery. */
+(() => {
+  const P=AppController.prototype;
+  const originalSummarySamples=P.summarySamples;
+  P.summarySamples=function(x){
+    const src=originalSummarySamples.call(this,x);
+    const limit=24000;
+    if(!Array.isArray(src)||src.length<=limit)return src||[];
+    const step=Math.ceil(src.length/limit),out=[];
+    for(let i=0;i<src.length;i+=step)out.push(src[i]);
+    const last=src[src.length-1];
+    if(out[out.length-1]!==last)out.push(last);
+    return out;
+  };
+  const originalRecover=AudioApp.recoverAfterBackground.bind(AudioApp);
+  let recovery=null;
+  AudioApp.recoverAfterBackground=function(userGesture=false){
+    if(recovery)return recovery;
+    recovery=(async()=>{
+      const ok=await originalRecover(userGesture);
+      if(ok){
+        try{
+          clearTimeout(this.pollTimer);this.pollTimer=null;
+          this.gunFired=false;this.beatCount=0;this.pendingSync=null;
+          const now=this.ctx?.currentTime||0;
+          this.audioStartTime=now;this.nextNoteTime=now+.08;this.heartbeatNextTime=now+.5;
+          document.querySelectorAll('.strike,.cadence-target-lit').forEach(el=>el.classList.remove('strike','cadence-target-lit'));
+          if(this.isPlaying&&AppState.state.runStatus==='RUNNING')this.scheduler();
+        }catch(_){}
+      }
+      return ok;
+    })().finally(()=>{recovery=null});
+    return recovery;
+  };
+})();
+</script>
+</body>
 </html>
