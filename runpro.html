@@ -955,6 +955,11 @@
 .hist-activity-grid .hist-metric:nth-last-child(-n+2){border-bottom:0}
 @media(max-width:360px){.hist-metric.hist-speed strong{font-size:1.22rem}.hist-metric.hist-speed span{font-size:.56rem}}
 </style>
+
+<style id="runpro-enhanced-history-v7-style">
+.hist-metric.hist-gap small{white-space:nowrap!important;overflow:hidden!important;text-overflow:clip!important;letter-spacing:0!important;font-size:clamp(.56rem,2.65vw,.68rem)!important;padding:0 2px!important}
+@media(max-width:360px){.hist-metric.hist-gap small{font-size:clamp(.52rem,2.55vw,.62rem)!important}}
+</style>
 </head>
 <body>
 <svg style="display:none;">
@@ -4275,7 +4280,7 @@ class AppController {
         document.getElementById('rmVoiceSelect').addEventListener('change',e=>{let p=AppState.state.profiles[AppState.state.activeP],lang=document.querySelector('#segLang .seg-btn.active')?.dataset.val||p.lang;if(lang==='zh')p.voiceZh=e.target.value;else p.voiceEn=e.target.value;clearTimeout(this.saveDebounceTimer);this.flushProfileData();VoiceApp.clear();});
         document.getElementById('rmStyleSelect').addEventListener('change',e=>{let p=AppState.state.profiles[AppState.state.activeP],style=TTS_STYLES[e.target.value||'default']||TTS_STYLES.default,rate=style.rate==null?1.08:style.rate,slider=document.getElementById('rmRateSlider'),out=document.getElementById('rmRateValue');p.ttsStyle=e.target.value||'default';p.ttsRate=rate;slider.value=rate.toFixed(2);out.textContent=`${rate.toFixed(2)}x`;clearTimeout(this.saveDebounceTimer);this.flushProfileData();VoiceApp.clear();this.previewTtsPreference(80);});
         document.getElementById('rmRateSlider').addEventListener('input',e=>{let rate=Utils.clamp(parseFloat(e.target.value)||1.08,.5,2),p=AppState.state.profiles[AppState.state.activeP];p.ttsRate=rate;document.getElementById('rmRateValue').textContent=`${rate.toFixed(2)}x`;this.saveData();VoiceApp.clear();this.previewTtsPreference(250);});
-        document.getElementById('histRunnerSelect').addEventListener('change', () => this.openHistory());
+        document.getElementById('histRunnerSelect').addEventListener('change', e => { const name=e.target.value; if(!name||!AppState.state.profiles[name]||name===AppState.state.activeP)return; clearTimeout(this.saveDebounceTimer); this.flushProfileData(); AppState.state.activeP=name; this.saveData(); this.updateI18n(); this.syncDialsToProfile(); this.updateUIDataOnly(); this.recalc(true); this.openHistory({migrate:false}); });
         BgWorker.onmessage = e => { if (AppState.state.runStatus === 'RUNNING') { this.logicTick(e.data.dt); } };
     }
     
@@ -5718,7 +5723,7 @@ getFabState(p){let state=Number(p.gaitUiState);if([1,2,3,4].includes(state))retu
     if(options.migrate)await LegacyMigration.run();
     const data=await DB.getHist(target);if(sel.value!==target)return;
     const rows=Array.isArray(data)?data:[],now=new Date(),weekStart=new Date(now);weekStart.setHours(0,0,0,0);weekStart.setDate(now.getDate()-((now.getDay()+6)%7));
-    const tx=profile.lang==='en'?{week:'Week',month:'Month',year:'Year',all:'All Time',distance:'TOTAL DISTANCE',pace:'AVG. PACE',maxGap:'MAX GAP (INC.)',minGap:'AVG. GAP (AVG. INC.)',maxSpd:'MAX SPD',avgSpd:'AVG. SPD',time:'TOTAL TIME',runs:'RUNS',cal:'TOTAL CALORIES',fat:'FAT BURNED'}:{week:'週',month:'月',year:'年',all:'全部',distance:'總跑量',pace:'平均配速',maxGap:'最快等效平地配速 (坡度)',minGap:'平均等效平地配速 (平均坡度)',maxSpd:'最快跑速',avgSpd:'平均跑速',time:'總跑時間',runs:'總跑次數',cal:'總熱量消耗',fat:'總脂肪燃燒'};
+    const tx=profile.lang==='en'?{week:'Week',month:'Month',year:'Year',all:'All Time',distance:'TOTAL DISTANCE',pace:'AVG. PACE',maxGap:'MAX GAP (INC.)',minGap:'AVG. GAP (AVG. INC.)',maxSpd:'MAX SPD',avgSpd:'AVG. SPD',time:'TOTAL TIME',runs:'RUNS',cal:'TOTAL CALORIES',fat:'FAT BURNED'}:{week:'週',month:'月',year:'年',all:'全部',distance:'總跑量',pace:'平均配速',maxGap:'最快GAP (坡度)',minGap:'平均GAP (平均坡度)',maxSpd:'最快跑速',avgSpd:'平均跑速',time:'總跑時間',runs:'總跑次數',cal:'總熱量消耗',fat:'總脂肪燃燒'};
     const validDate=h=>{const dt=new Date(Number(h.date)||h.date);return Number.isFinite(dt.getTime())?dt:null};
     const within=(h,range)=>{const dt=validDate(h);if(!dt)return range==='all';if(range==='week')return dt>=weekStart&&dt<=now;if(range==='month')return dt.getFullYear()===now.getFullYear()&&dt.getMonth()===now.getMonth();if(range==='year')return dt.getFullYear()===now.getFullYear();return true};
     const fmtDuration=ms=>{let sec=Math.floor(Math.max(0,Number(ms)||0)/1000);const days=Math.floor(sec/86400);sec%=86400;const hours=Math.floor(sec/3600);sec%=3600;const mins=Math.floor(sec/60),secs=sec%60,parts=[];if(profile.lang==='en'){if(days)parts.push(`${days}d`);if(hours)parts.push(`${hours}h`);if(mins)parts.push(`${mins}m`);if(secs||!parts.length)parts.push(`${secs}s`);}else{if(days)parts.push(`${days}天`);if(hours)parts.push(`${hours}小時`);if(mins)parts.push(`${mins}分鐘`);if(secs||!parts.length)parts.push(`${secs}秒`);}return parts.join(' ');};
