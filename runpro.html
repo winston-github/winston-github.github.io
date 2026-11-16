@@ -3347,10 +3347,11 @@ const DB = {
         }); 
     },
     clearHist: async (runnerName) => { 
-        if(!DB.db) return Promise.resolve();
-        return new Promise(res => { 
-            let tx = DB.db.transaction('history', 'readwrite'); let st = tx.objectStore('history'); 
-            st.openCursor().onsuccess = e => { let cursor = e.target.result; if(cursor) { if(cursor.value.runnerName === runnerName) cursor.delete(); cursor.continue(); } else { res(); } };
+        if(!DB.db || !runnerName) return Promise.resolve(false);
+        return new Promise((res,rej) => { 
+            let tx = DB.db.transaction('history', 'readwrite'), st = tx.objectStore('history'), removed = 0;
+            st.openCursor().onsuccess = e => { let cursor=e.target.result; if(!cursor)return; if(cursor.value && cursor.value.runnerName === runnerName){cursor.delete();removed++;} cursor.continue(); };
+            tx.oncomplete=()=>res({runnerName,removed}); tx.onerror=()=>rej(tx.error||new Error('History clear failed')); tx.onabort=()=>rej(tx.error||new Error('History clear aborted'));
         }); 
     }
 };
@@ -4003,7 +4004,7 @@ class AppController {
             else if(a === 'add-runner-mode') { document.getElementById('runnerSelectorRow').querySelectorAll('.runner-tag').forEach(x=>x.classList.remove('active')); t.classList.add('active'); this.clearRunnerForm(); document.getElementById('btnRmDelete').disabled = true; this.validateRunnerForm(); }
             else if(a === 'open-history') {this.setProfileDeleteReveal(false);this.openHistory({migrate:true});}
             else if(a === 'close-history') { this.closeModal('historyModal'); this.viewingProfile = null; }
-            else if(a === 'clear-history') { if(confirm(dStr.hist_clear)) { let fR = document.getElementById('histRunnerSelect').value; DB.clearHist(fR).then(()=>this.openHistory()); } }
+            else if(a === 'clear-history') { const sel=document.getElementById('histRunnerSelect'),target=sel.value; if(target&&AppState.state.profiles[target]&&confirm(dStr.hist_clear)){ DB.clearHist(target).then(()=>{if(sel.value===target&&AppState.state.activeP===target)this.openHistory({migrate:false});}).catch(err=>console.error('History clear failed',target,err)); } }
             else if(a === 'close-summary' || (a === 'close-summary-overlay' && e.target.id === 'summaryModal')) {
                 let fromHistory=this.summaryFromHistory===true;
                 this.closeModal('summaryModal'); this.charts.sumM=null; this.viewingProfile=null; this.summaryFromHistory=false;
@@ -4072,7 +4073,7 @@ class AppController {
             else if (a === 'open-hist-detail') {
                 let idx = parseInt(t.dataset.idx); let runnerName = document.getElementById('histRunnerSelect').value;
                 DB.getHist(runnerName).then(data => {
-                    let hD = data[idx]; if (!hD) return;
+                    if(document.getElementById('histRunnerSelect').value!==runnerName)return; let hD = data[idx]; if (!hD||hD.runnerName!==runnerName) return;
                     if(!hD.fCal) hD.fCal = hD.cal * 0.5 || 0; 
                     this.viewingProfile = AppState.state.profiles[hD.runnerName];
                     this.summaryFromHistory = true;
@@ -4280,7 +4281,7 @@ class AppController {
         document.getElementById('rmVoiceSelect').addEventListener('change',e=>{let p=AppState.state.profiles[AppState.state.activeP],lang=document.querySelector('#segLang .seg-btn.active')?.dataset.val||p.lang;if(lang==='zh')p.voiceZh=e.target.value;else p.voiceEn=e.target.value;clearTimeout(this.saveDebounceTimer);this.flushProfileData();VoiceApp.clear();});
         document.getElementById('rmStyleSelect').addEventListener('change',e=>{let p=AppState.state.profiles[AppState.state.activeP],style=TTS_STYLES[e.target.value||'default']||TTS_STYLES.default,rate=style.rate==null?1.08:style.rate,slider=document.getElementById('rmRateSlider'),out=document.getElementById('rmRateValue');p.ttsStyle=e.target.value||'default';p.ttsRate=rate;slider.value=rate.toFixed(2);out.textContent=`${rate.toFixed(2)}x`;clearTimeout(this.saveDebounceTimer);this.flushProfileData();VoiceApp.clear();this.previewTtsPreference(80);});
         document.getElementById('rmRateSlider').addEventListener('input',e=>{let rate=Utils.clamp(parseFloat(e.target.value)||1.08,.5,2),p=AppState.state.profiles[AppState.state.activeP];p.ttsRate=rate;document.getElementById('rmRateValue').textContent=`${rate.toFixed(2)}x`;this.saveData();VoiceApp.clear();this.previewTtsPreference(250);});
-        document.getElementById('histRunnerSelect').addEventListener('change', e => { const name=e.target.value; if(!name||!AppState.state.profiles[name]||name===AppState.state.activeP)return; clearTimeout(this.saveDebounceTimer); this.flushProfileData(); VoiceApp.clear(); this.charts.teardown(); AppState.state.activeP=name; clearTimeout(this.saveDebounceTimer); this.flushProfileData(); this.updateI18n(); this.syncDialsToProfile(); this.updateUIDataOnly(); this.recalc(true); this.renderRunnerSelector(); this.populateRunnerForm(AppState.state.profiles[name]); this.refreshRunnerInsightPanel(); this.updatePhaseAllocationUI(); this.refreshPhaseAutoUI(); this.openHistory({migrate:false}); });
+        document.getElementById('histRunnerSelect').addEventListener('change', e => { const name=e.target.value; if(!name||!AppState.state.profiles[name]||name===AppState.state.activeP)return; clearTimeout(this.saveDebounceTimer); this.flushProfileData(); VoiceApp.clear(); this.charts.teardown(); AppState.state.activeP=name; this.saveData(); this.updateI18n(); this.syncDialsToProfile(); this.updateUIDataOnly(); this.recalc(true); this.renderRunnerSelector(); this.populateRunnerForm(AppState.state.profiles[name]); this.refreshRunnerInsightPanel(); this.updatePhaseAllocationUI(); this.refreshPhaseAutoUI(); this.openHistory({migrate:false}); });
         BgWorker.onmessage = e => { if (AppState.state.runStatus === 'RUNNING') { this.logicTick(e.data.dt); } };
     }
     
@@ -5714,6 +5715,7 @@ getFabState(p){let state=Number(p.gaitUiState);if([1,2,3,4].includes(state))retu
   // Ensure catch-up sample timestamps are monotonic rather than Date.now() duplicates.
   const basePhysics=AP._processPhysicsTick;AP._processPhysicsTick=function(dt){let before=RunAcc.samples?.length||0,r=basePhysics.call(this,dt);if(this._sampleTsOverride&&RunAcc.samples?.length>before)RunAcc.samples[RunAcc.samples.length-1].ts=this._sampleTsOverride;return r};
   AP.openHistory=async function(options={}){
+    const requestId=(this._historyRequestId||0)+1;this._historyRequestId=requestId;
     this.charts.teardown();
     const hc=document.getElementById('historyContent'),sel=document.getElementById('histRunnerSelect');
     const activeProfile=AppState.state.profiles[AppState.state.activeP];
@@ -5721,7 +5723,7 @@ getFabState(p){let state=Number(p.gaitUiState);if([1,2,3,4].includes(state))retu
     const target=sel.value,profile=AppState.state.profiles[target]||activeProfile,d=i18n[profile.lang]||i18n.zh,met=profile.unit!=='imperial';
     hc.innerHTML=`<div class="empty-state">${d.history_loading}</div>`;this.openModal('historyModal');
     if(options.migrate)await LegacyMigration.run();
-    const data=await DB.getHist(target);if(sel.value!==target)return;
+    const data=await DB.getHist(target);if(requestId!==this._historyRequestId||sel.value!==target||AppState.state.activeP!==target)return;
     const rows=Array.isArray(data)?data:[],now=new Date(),weekStart=new Date(now);weekStart.setHours(0,0,0,0);weekStart.setDate(now.getDate()-((now.getDay()+6)%7));
     const tx=profile.lang==='en'?{week:'Week',month:'Month',year:'Year',all:'All Time',distance:'TOTAL DISTANCE',pace:'AVG. PACE',maxGap:'MAX GAP (INC.)',minGap:'AVG. GAP (AVG. INC.)',maxSpd:'MAX SPD',avgSpd:'AVG. SPD',time:'TOTAL TIME',runs:'RUNS',cal:'TOTAL CALORIES',fat:'FAT BURNED'}:{week:'週',month:'月',year:'年',all:'全部',distance:'總跑量',pace:'平均配速',maxGap:'最快GAP (坡度)',minGap:'平均GAP (平均坡度)',maxSpd:'最快跑速',avgSpd:'平均跑速',time:'總跑時間',runs:'總跑次數',cal:'總熱量消耗',fat:'總脂肪燃燒'};
     const validDate=h=>{const dt=new Date(Number(h.date)||h.date);return Number.isFinite(dt.getTime())?dt:null};
